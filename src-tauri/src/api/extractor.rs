@@ -2,7 +2,7 @@ use async_trait::async_trait;
 
 use crate::errors::AppResult;
 use crate::models::search::{SearchVideosRequest, SearchVideosResponse};
-use crate::models::video::{StreamInfo, VideoDetails, VideoSummary, MusicHomeSection, MusicHomeChip};
+use crate::models::video::{StreamInfo, VideoDetails, VideoSummary, RelatedContentItem, MusicHomeSection, MusicHomeChip};
 use crate::models::channel::{ChannelDetails, ChannelVideosResponse};
 use crate::models::playlist::PlaylistDetailsResponse;
 use crate::models::comment::CommentsResponse;
@@ -20,6 +20,11 @@ pub trait YoutubeExtractor: Send + Sync {
         &self,
         video_id: &str,
     ) -> AppResult<VideoDetails>;
+
+    async fn get_related_videos(
+        &self,
+        video_id: &str,
+    ) -> AppResult<Vec<RelatedContentItem>>;
 
     async fn get_stream_info(
         &self,

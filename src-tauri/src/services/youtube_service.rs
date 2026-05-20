@@ -3,7 +3,7 @@ use std::sync::Arc;
 use crate::api::extractor::YoutubeExtractor;
 use crate::errors::AppResult;
 use crate::models::search::{SearchVideosRequest, SearchVideosResponse};
-use crate::models::video::{StreamInfo, VideoDetails};
+use crate::models::video::{StreamInfo, VideoDetails, RelatedContentItem};
 use crate::models::channel::{ChannelDetails, ChannelVideosResponse};
 use crate::models::playlist::PlaylistDetailsResponse;
 use crate::models::comment::CommentsResponse;
@@ -32,6 +32,13 @@ impl YoutubeService {
         video_id: &str,
     ) -> AppResult<VideoDetails> {
         self.extractor.get_video_details(video_id).await
+    }
+
+    pub async fn get_related_videos(
+        &self,
+        video_id: &str,
+    ) -> AppResult<Vec<RelatedContentItem>> {
+        self.extractor.get_related_videos(video_id).await
     }
 
     pub async fn get_stream_info(

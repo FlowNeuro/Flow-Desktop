@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useSubscriptionStore } from "../../store/useSubscriptionStore";
 import { Play, Plus, Ban, Check } from "lucide-react";
 import type { VideoSummary } from "../../types/video";
-import { getDeArrowOverride } from "../../lib/api/youtube";
+import { getDeArrowOverride } from "../../lib/api/foss";
 
 interface VideoCardProps {
   video: VideoSummary;

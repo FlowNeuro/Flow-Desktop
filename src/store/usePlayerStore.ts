@@ -2,6 +2,8 @@ import { create } from "zustand";
 import type { VideoSummary } from "../types/video";
 import { getMusicLyrics, getMusicRelated } from "../lib/api/youtube";
 
+import type { SponsorBlockSegment, DeArrowOverride, RydData } from "../lib/api/foss";
+
 export type PlaybackRate = 0.25 | 0.5 | 0.75 | 1 | 1.25 | 1.5 | 1.75 | 2;
 export type RepeatMode = "none" | "one" | "all";
 export type PlayMode = "video" | "music";
@@ -22,6 +24,12 @@ interface PlayerState {
   playMode: PlayMode;
   currentTime: number;
   duration: number;
+
+  // UI & FOSS state
+  isTheaterMode: boolean;
+  sponsorBlockSegments: SponsorBlockSegment[];
+  dearrowData: DeArrowOverride | null;
+  rydData: RydData | null;
   
   setCurrentVideo: (video: VideoSummary | null) => void;
   setIsPlaying: (isPlaying: boolean) => void;
@@ -39,6 +47,11 @@ interface PlayerState {
   clearQueue: () => void;
   setCurrentTime: (time: number) => void;
   setDuration: (duration: number) => void;
+
+  setIsTheaterMode: (isTheaterMode: boolean) => void;
+  setSponsorBlockSegments: (segments: SponsorBlockSegment[]) => void;
+  setDearrowData: (data: DeArrowOverride | null) => void;
+  setRydData: (data: RydData | null) => void;
 }
 
 export const usePlayerStore = create<PlayerState>((set, get) => ({
@@ -57,6 +70,11 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   playMode: "video",
   currentTime: 0,
   duration: 0,
+
+  isTheaterMode: false,
+  sponsorBlockSegments: [],
+  dearrowData: null,
+  rydData: null,
 
   setCurrentVideo: (video) => {
     const isNew = get().currentVideo?.id !== video?.id;
@@ -206,4 +224,9 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   
   setCurrentTime: (currentTime) => set({ currentTime }),
   setDuration: (duration) => set({ duration }),
+
+  setIsTheaterMode: (isTheaterMode) => set({ isTheaterMode }),
+  setSponsorBlockSegments: (sponsorBlockSegments) => set({ sponsorBlockSegments }),
+  setDearrowData: (dearrowData) => set({ dearrowData }),
+  setRydData: (rydData) => set({ rydData }),
 }));

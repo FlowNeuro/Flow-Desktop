@@ -8,6 +8,7 @@ import type {
   PlaylistDetailsResponse,
   CommentsResponse,
   VideoSummary,
+  RelatedContentItem,
 } from "../../types/video";
 import { isTauriEnv } from "./env";
 import {
@@ -88,6 +89,39 @@ export async function getVideoDetails(videoId: string): Promise<VideoDetails> {
   return invokeBackend<VideoDetails>("get_video_details", { videoId });
 }
 
+export async function getRelatedVideos(videoId: string): Promise<RelatedContentItem[]> {
+  if (!(await isTauriEnv())) {
+    console.warn("Tauri not detected. Returning mock related content.");
+    return [
+      {
+        id: "dQw4w9WgXcQ",
+        itemType: "video",
+        title: "Mock Related Video",
+        channelName: "Mock Creator",
+        thumbnailUrl: "https://images.unsplash.com/photo-1607799279861-4dd421887fb3?q=80&w=300",
+        durationSeconds: 180,
+        publishedText: "3 months ago",
+        viewCountText: "2M views",
+        videoId: "dQw4w9WgXcQ",
+        playlistId: null,
+        isMix: false,
+      },
+      {
+        id: "RDAMVMdQw4w9WgXcQ",
+        itemType: "mix",
+        title: "Mock Coding Mix",
+        channelName: "YouTube Mix",
+        thumbnailUrl: "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?q=80&w=300",
+        viewCountText: "Mix",
+        videoId: "dQw4w9WgXcQ",
+        playlistId: "RDAMVMdQw4w9WgXcQ",
+        isMix: true,
+      },
+    ];
+  }
+  return invokeBackend<RelatedContentItem[]>("get_related_videos", { videoId });
+}
+
 export async function getStreamInfo(videoId: string): Promise<StreamInfo> {
   if (!(await isTauriEnv())) {
     console.warn("Tauri not detected. Returning public fallback stream link.");
@@ -95,6 +129,38 @@ export async function getStreamInfo(videoId: string): Promise<StreamInfo> {
       streamId: videoId,
       localUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
       expiresAt: "never",
+      variants: [
+        {
+          id: "mock-720p",
+          localUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
+          qualityLabel: "720p",
+          mimeType: "video/mp4",
+          width: 1280,
+          height: 720,
+          fps: 30,
+          bitrate: null,
+          isDefault: true,
+          isPlayable: true,
+          hasAudio: true,
+          isVideoOnly: false,
+          deliveryMethod: "progressive",
+        },
+      ],
+      captions: [],
+      audioTracks: [
+        {
+          id: "mock-audio",
+          label: "Original audio",
+          languageCode: "en",
+          audioTrackType: "default",
+          localUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
+          mimeType: "audio/mp4",
+          bitrate: null,
+          isDefault: true,
+        },
+      ],
+      hlsManifestUrl: null,
+      dashManifestUrl: null,
     };
   }
   return invokeBackend<StreamInfo>("get_stream_info", { videoId });
@@ -313,41 +379,7 @@ export async function getMusicAlbum(albumBrowseId: string): Promise<VideoSummary
   return invokeBackend<VideoSummary[]>("get_music_album", { albumBrowseId });
 }
 
-export interface SponsorBlockSegment {
-  category: string;
-  segment: [number, number];
-  UUID: string;
-}
 
-export async function getSponsorBlockSegments(
-  videoId: string,
-  serverUrl?: string,
-): Promise<SponsorBlockSegment[]> {
-  if (!(await isTauriEnv())) {
-    console.warn("Tauri not detected. Returning mock SponsorBlock segments.");
-    return [
-      {
-        category: "sponsor",
-        segment: [10, 25],
-        UUID: "mock-sponsor-uuid-1",
-      },
-    ];
-  }
-  return invokeBackend<SponsorBlockSegment[]>("get_sponsorblock_segments", {
-    videoId,
-    serverUrl,
-  });
-}
-
-export interface DeArrowOverride {
-  title: string | null;
-  thumbnailUrl: string | null;
-}
-
-export async function getDeArrowOverride(videoId: string): Promise<DeArrowOverride | null> {
-  if (!(await isTauriEnv())) return null;
-  return invokeBackend<DeArrowOverride | null>("get_dearrow_override", { videoId });
-}
 
 export interface MusicHomeSection {
   sectionId: string;
@@ -395,5 +427,3 @@ export async function getSubscriptionRotationFeed(): Promise<VideoSummary[]> {
   }
   return invokeBackend<VideoSummary[]>("get_subscription_rotation_feed");
 }
-
-

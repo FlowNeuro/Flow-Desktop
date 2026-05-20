@@ -61,7 +61,7 @@ export function Topbar() {
           <Menu />
         </IconButton>
         <div className="cursor-pointer" onClick={() => navigate('/')}>
-          <Logo showText size={24} />
+        <Logo size={36} showText={true} />
         </div>
       </div>
 

@@ -6,7 +6,6 @@ import type { VideoSummary } from "./types/video";
 
 // Layout & Components
 import { PageWrapper } from "./components/layout/PageWrapper";
-import Player from "./components/player/Player";
 
 // Pages
 import Home from "./pages/Home";
@@ -106,9 +105,6 @@ function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>
-
-      {/* Docked Media Player overlay (bottom bar playing in background) */}
-      {location.pathname !== "/onboarding" && <Player />}
     </div>
   );
 }

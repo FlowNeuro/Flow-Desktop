@@ -6,8 +6,15 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use futures_util::StreamExt;
 use tracing::{info, error};
 
+#[derive(Clone)]
+pub enum StreamSessionKind {
+    Remote { remote_url: String },
+    Inline { body: Vec<u8> },
+}
+
+#[derive(Clone)]
 pub struct StreamSession {
-    pub remote_url: String,
+    pub kind: StreamSessionKind,
     pub content_type: String,
     pub expires_at: u64,
     pub user_agent: String,
@@ -38,12 +45,16 @@ impl StreamingManager {
     }
 
     pub fn register_session(&self, token: String, remote_url: String, content_type: String, user_agent: String) {
+        self.register_remote_session(token, remote_url, content_type, user_agent);
+    }
+
+    pub fn register_remote_session(&self, token: String, remote_url: String, content_type: String, user_agent: String) {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_secs();
         let session = StreamSession {
-            remote_url,
+            kind: StreamSessionKind::Remote { remote_url },
             content_type,
             expires_at: now + 3600, // 1 hour expiration
             user_agent,
@@ -52,6 +63,22 @@ impl StreamingManager {
         lock.insert(token, session);
 
         // Periodically prune expired sessions
+        lock.retain(|_, s| s.expires_at > now);
+    }
+
+    pub fn register_inline_session(&self, token: String, body: Vec<u8>, content_type: String) {
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        let session = StreamSession {
+            kind: StreamSessionKind::Inline { body },
+            content_type,
+            expires_at: now + 3600,
+            user_agent: String::new(),
+        };
+        let mut lock = self.sessions.lock().unwrap();
+        lock.insert(token, session);
         lock.retain(|_, s| s.expires_at > now);
     }
 
@@ -65,7 +92,7 @@ impl StreamingManager {
         if let Some(session) = lock.get(token) {
             if session.expires_at > now {
                 return Some(StreamSession {
-                    remote_url: session.remote_url.clone(),
+                    kind: session.kind.clone(),
                     content_type: session.content_type.clone(),
                     expires_at: session.expires_at,
                     user_agent: session.user_agent.clone(),
@@ -132,8 +159,26 @@ async fn handle_connection(
         return Ok(());
     }
 
-    let path = parts[1];
-    let token = path.trim_start_matches("/stream/").trim_start_matches('/');
+    let request_url = match reqwest::Url::parse(&format!("http://localhost{}", parts[1])) {
+        Ok(url) => url,
+        Err(_) => {
+            socket.write_all(b"HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n").await?;
+            return Ok(());
+        }
+    };
+
+    let path = request_url.path();
+    let (token, target_url_override) = if let Some(token) = path.strip_prefix("/stream/") {
+        (token.trim_start_matches('/'), None)
+    } else if let Some(token) = path.strip_prefix("/proxy/") {
+        let override_url = request_url
+            .query_pairs()
+            .find_map(|(key, value)| (key == "url").then(|| value.into_owned()));
+        (token.trim_start_matches('/'), override_url)
+    } else {
+        socket.write_all(b"HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\nUnknown proxy route").await?;
+        return Ok(());
+    };
 
     // Look up the stream token
     let session = match manager.get_session(token) {
@@ -143,6 +188,17 @@ async fn handle_connection(
             return Ok(());
         }
     };
+
+    if let StreamSessionKind::Inline { body } = session.kind {
+        let response_headers = format!(
+            "HTTP/1.1 200 OK\r\nContent-Type: {}\r\nContent-Length: {}\r\nAccess-Control-Allow-Origin: *\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n",
+            session.content_type,
+            body.len()
+        );
+        socket.write_all(response_headers.as_bytes()).await?;
+        socket.write_all(&body).await?;
+        return Ok(());
+    }
 
     // Find Range header if any
     let mut range_header = None;
@@ -154,7 +210,12 @@ async fn handle_connection(
     }
 
     // Build the remote request to YouTube
-    let mut req_builder = client.get(&session.remote_url)
+    let target_url = target_url_override.unwrap_or_else(|| match &session.kind {
+        StreamSessionKind::Remote { remote_url } => remote_url.clone(),
+        StreamSessionKind::Inline { .. } => String::new(),
+    });
+
+    let mut req_builder = client.get(&target_url)
         .header("User-Agent", &session.user_agent);
 
     if let Some(ref range) = range_header {

@@ -4,7 +4,7 @@ import { Play, Plus, Ban, Check } from 'lucide-react';
 import type { VideoSummary } from '../../types/video';
 import { Button } from '../ui/Button';
 import { useState, useEffect } from 'react';
-import { getDeArrowOverride } from '../../lib/api/youtube';
+import { getDeArrowOverride } from '../../lib/api/foss';
 
 export interface VideoCardProps {
   video: VideoSummary;

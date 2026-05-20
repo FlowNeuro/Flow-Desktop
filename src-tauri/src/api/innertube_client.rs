@@ -1,11 +1,15 @@
 use async_trait::async_trait;
+use std::collections::HashMap;
 use serde_json::Value;
 use tracing::{debug, warn};
 
 use crate::api::extractor::YoutubeExtractor;
 use crate::errors::{AppError, AppResult};
 use crate::models::search::{SearchVideosRequest, SearchVideosResponse};
-use crate::models::video::{StreamInfo, VideoDetails, VideoSummary, MusicHomeSection, MusicHomeChip};
+use crate::models::video::{
+    AudioTrack, CaptionTrack, MusicHomeChip, MusicHomeSection, RelatedContentItem, StreamInfo,
+    StreamVariant, VideoDetails, VideoSummary,
+};
 use crate::models::channel::{ChannelDetails, ChannelVideosResponse};
 use crate::models::playlist::PlaylistDetailsResponse;
 use crate::models::comment::{Comment, CommentsResponse};
@@ -157,7 +161,6 @@ impl InnertubeClient {
             .build()
             .unwrap_or_default();
 
-        // Inject standard NewPipe-style Innertube context if not custom context
         if let Some(obj) = payload.as_object_mut() {
             if !obj.contains_key("context") {
                 obj.insert(
@@ -340,6 +343,599 @@ fn extract_channel_id_from_video_renderer(video: &Value) -> Option<String> {
     extract_browse_id_from_text_runs(video, "ownerText")
         .or_else(|| extract_browse_id_from_text_runs(video, "longBylineText"))
         .or_else(|| extract_browse_id_from_text_runs(video, "shortBylineText"))
+}
+
+fn extract_text_from_value(value: &Value) -> Option<String> {
+    if let Some(text) = value.as_str() {
+        return Some(text.to_string());
+    }
+
+    if let Some(text) = value["simpleText"].as_str() {
+        return Some(text.to_string());
+    }
+
+    if let Some(text) = value["content"].as_str() {
+        return Some(text.to_string());
+    }
+
+    if let Some(runs) = value["runs"].as_array() {
+        let text = runs
+            .iter()
+            .filter_map(|run| {
+                run["text"]
+                    .as_str()
+                    .or_else(|| run["content"].as_str())
+            })
+            .collect::<String>();
+        if !text.is_empty() {
+            return Some(text);
+        }
+    }
+
+    None
+}
+
+fn thumbnail_url_from_array(value: &Value) -> Option<String> {
+    value.as_array()
+        .and_then(|thumbnails| thumbnails.last())
+        .and_then(|thumb| thumb["url"].as_str().or_else(|| thumb["uri"].as_str()))
+        .map(normalize_youtube_image_url)
+}
+
+fn normalize_youtube_image_url(url: &str) -> String {
+    if url.starts_with("//") {
+        format!("https:{url}")
+    } else {
+        url.to_string()
+    }
+}
+
+fn build_video_summary_from_compact_video(video: &Value) -> Option<VideoSummary> {
+    let video_id = video["videoId"].as_str()?.to_string();
+    let title = video["title"]["runs"][0]["text"].as_str()
+        .or_else(|| video["title"]["simpleText"].as_str())
+        .unwrap_or_default()
+        .to_string();
+
+    let channel_name = video["longBylineText"]["runs"][0]["text"].as_str()
+        .or_else(|| video["shortBylineText"]["runs"][0]["text"].as_str())
+        .or_else(|| video["ownerText"]["runs"][0]["text"].as_str())
+        .unwrap_or_default()
+        .to_string();
+
+    let thumbnail_url = video["thumbnail"]["thumbnails"].as_array()
+        .and_then(|thumbnails| thumbnails.last())
+        .and_then(|thumb| thumb["url"].as_str())
+        .map(|s| s.to_string());
+
+    let duration_seconds = video["lengthText"]["simpleText"].as_str()
+        .or_else(|| video["lengthText"]["runs"][0]["text"].as_str())
+        .map(parse_duration_seconds);
+
+    let published_text = video["publishedTimeText"]["simpleText"].as_str()
+        .or_else(|| video["publishedTimeText"]["runs"][0]["text"].as_str())
+        .map(|s| s.to_string());
+
+    let view_count_text = video["viewCountText"]["simpleText"].as_str()
+        .or_else(|| video["viewCountText"]["runs"][0]["text"].as_str())
+        .map(|s| s.to_string());
+
+    Some(VideoSummary {
+        id: video_id,
+        title,
+        channel_name,
+        channel_id: extract_channel_id_from_video_renderer(video),
+        thumbnail_url,
+        duration_seconds,
+        published_text,
+        view_count_text,
+    })
+}
+
+fn build_related_content_from_compact_video(video: &Value) -> Option<RelatedContentItem> {
+    let summary = build_video_summary_from_compact_video(video)?;
+
+    Some(RelatedContentItem {
+        id: summary.id.clone(),
+        item_type: "video".to_string(),
+        title: summary.title,
+        channel_name: summary.channel_name,
+        channel_id: summary.channel_id,
+        thumbnail_url: summary.thumbnail_url,
+        duration_seconds: summary.duration_seconds,
+        published_text: summary.published_text,
+        view_count_text: summary.view_count_text,
+        video_id: Some(summary.id),
+        playlist_id: None,
+        is_mix: false,
+    })
+}
+
+fn build_related_content_from_compact_playlist(
+    playlist: &Value,
+    item_type: &str,
+    is_mix: bool,
+) -> Option<RelatedContentItem> {
+    let playlist_id = playlist["playlistId"].as_str()
+        .or_else(|| playlist["navigationEndpoint"]["watchEndpoint"]["playlistId"].as_str())
+        .or_else(|| playlist["navigationEndpoint"]["watchPlaylistEndpoint"]["playlistId"].as_str())?
+        .to_string();
+
+    let video_id = playlist["navigationEndpoint"]["watchEndpoint"]["videoId"].as_str()
+        .or_else(|| playlist["navigationEndpoint"]["watchPlaylistEndpoint"]["videoId"].as_str())
+        .map(|s| s.to_string());
+
+    let title = playlist["title"]["simpleText"].as_str()
+        .or_else(|| playlist["title"]["runs"][0]["text"].as_str())
+        .unwrap_or_default()
+        .to_string();
+
+    let channel_name = playlist["shortBylineText"]["runs"][0]["text"].as_str()
+        .or_else(|| playlist["longBylineText"]["runs"][0]["text"].as_str())
+        .or_else(|| playlist["ownerText"]["runs"][0]["text"].as_str())
+        .unwrap_or_else(|| if is_mix { "YouTube Mix" } else { "Playlist" })
+        .to_string();
+
+    let thumbnail_url = playlist["thumbnail"]["thumbnails"].as_array()
+        .and_then(|thumbnails| thumbnails.last())
+        .and_then(|thumb| thumb["url"].as_str())
+        .map(|s| s.to_string());
+
+    let view_count_text = playlist["videoCountText"]["simpleText"].as_str()
+        .or_else(|| playlist["videoCountText"]["runs"][0]["text"].as_str())
+        .or_else(|| playlist["videoCountShortText"]["simpleText"].as_str())
+        .or_else(|| playlist["videoCountShortText"]["runs"][0]["text"].as_str())
+        .map(|s| s.to_string())
+        .or_else(|| Some(if is_mix { "Mix".to_string() } else { "Playlist".to_string() }));
+
+    Some(RelatedContentItem {
+        id: playlist_id.clone(),
+        item_type: item_type.to_string(),
+        title,
+        channel_name,
+        channel_id: extract_channel_id_from_video_renderer(playlist),
+        thumbnail_url,
+        duration_seconds: None,
+        published_text: None,
+        view_count_text,
+        video_id,
+        playlist_id: Some(playlist_id),
+        is_mix,
+    })
+}
+
+fn metadata_part_content(lockup: &Value, row_index: usize, part_index: usize) -> Option<String> {
+    lockup["metadata"]["lockupMetadataViewModel"]["metadata"]["contentMetadataViewModel"]["metadataRows"]
+        .as_array()
+        .and_then(|rows| rows.get(row_index))
+        .and_then(|row| row["metadataParts"].as_array())
+        .and_then(|parts| parts.get(part_index))
+        .and_then(|part| part["text"]["content"].as_str())
+        .map(ToOwned::to_owned)
+}
+
+fn extract_channel_id_from_lockup(lockup: &Value) -> Option<String> {
+    lockup["metadata"]["lockupMetadataViewModel"]["image"]["decoratedAvatarViewModel"]["rendererContext"]["commandContext"]["onTap"]["innertubeCommand"]["browseEndpoint"]["browseId"]
+        .as_str()
+        .or_else(|| {
+            lockup["metadata"]["lockupMetadataViewModel"]["image"]["avatarStackViewModel"]["rendererContext"]["commandContext"]["onTap"]["innertubeCommand"]["showDialogCommand"]["panelLoadingStrategy"]["inlineContent"]["dialogViewModel"]["customContent"]["listViewModel"]["listItems"][0]["listItemViewModel"]["rendererContext"]["commandContext"]["onTap"]["innertubeCommand"]["browseEndpoint"]["browseId"]
+                .as_str()
+        })
+        .map(ToOwned::to_owned)
+}
+
+fn duration_from_lockup(lockup: &Value) -> Option<u64> {
+    lockup["contentImage"]["thumbnailViewModel"]["overlays"]
+        .as_array()
+        .and_then(|overlays| {
+            overlays.iter().find_map(|overlay| {
+                overlay["thumbnailBottomOverlayViewModel"]["badges"]
+                    .as_array()
+                    .and_then(|badges| {
+                        badges.iter().find_map(|badge| {
+                            let text = badge["thumbnailBadgeViewModel"]["text"].as_str()?;
+                            if text.chars().any(|c| c.is_ascii_digit()) {
+                                Some(parse_duration_seconds(text))
+                            } else {
+                                None
+                            }
+                        })
+                    })
+            })
+        })
+}
+
+fn build_related_content_from_lockup(lockup: &Value) -> Option<RelatedContentItem> {
+    let content_type = lockup["contentType"].as_str().unwrap_or_default();
+    let is_video = content_type == "LOCKUP_CONTENT_TYPE_VIDEO";
+    let is_playlist = content_type == "LOCKUP_CONTENT_TYPE_PLAYLIST"
+        || content_type == "LOCKUP_CONTENT_TYPE_PODCAST";
+
+    if !is_video && !is_playlist {
+        return None;
+    }
+
+    let video_id = lockup["contentId"].as_str()
+        .or_else(|| lockup["rendererContext"]["commandContext"]["onTap"]["innertubeCommand"]["watchEndpoint"]["videoId"].as_str())
+        .map(ToOwned::to_owned);
+
+    let playlist_id = lockup["rendererContext"]["commandContext"]["onTap"]["innertubeCommand"]["watchEndpoint"]["playlistId"]
+        .as_str()
+        .or_else(|| lockup["rendererContext"]["commandContext"]["onTap"]["innertubeCommand"]["watchPlaylistEndpoint"]["playlistId"].as_str())
+        .map(ToOwned::to_owned);
+
+    if is_video && video_id.is_none() {
+        return None;
+    }
+    if is_playlist && playlist_id.is_none() {
+        return None;
+    }
+
+    let title = lockup["metadata"]["lockupMetadataViewModel"]["title"]["content"]
+        .as_str()
+        .unwrap_or_default()
+        .to_string();
+
+    let channel_name = metadata_part_content(lockup, 0, 0)
+        .unwrap_or_else(|| if is_playlist { "Playlist".to_string() } else { String::new() });
+
+    let thumbnail_url = thumbnail_url_from_array(
+        &lockup["contentImage"]["thumbnailViewModel"]["image"]["sources"],
+    );
+
+    let (item_type, id, is_mix) = if is_playlist {
+        let resolved_playlist_id = playlist_id.clone()?;
+        let is_mix = resolved_playlist_id.starts_with("RD") || resolved_playlist_id.starts_with("UL");
+        (if is_mix { "mix" } else { "playlist" }.to_string(), resolved_playlist_id, is_mix)
+    } else {
+        let video_id = video_id.clone()?;
+        ("video".to_string(), video_id, false)
+    };
+
+    Some(RelatedContentItem {
+        id,
+        item_type,
+        title,
+        channel_name,
+        channel_id: extract_channel_id_from_lockup(lockup),
+        thumbnail_url,
+        duration_seconds: duration_from_lockup(lockup),
+        published_text: metadata_part_content(lockup, 1, 1),
+        view_count_text: metadata_part_content(lockup, 1, 0),
+        video_id,
+        playlist_id,
+        is_mix,
+    })
+}
+
+fn collect_related_content_items(value: &Value, related: &mut Vec<RelatedContentItem>) {
+    if let Some(video) = value.get("compactVideoRenderer") {
+        if let Some(summary) = build_related_content_from_compact_video(video) {
+            related.push(summary);
+        }
+        return;
+    }
+
+    if let Some(mix) = value.get("compactRadioRenderer") {
+        if let Some(summary) = build_related_content_from_compact_playlist(mix, "mix", true) {
+            related.push(summary);
+        }
+        return;
+    }
+
+    if let Some(playlist) = value.get("compactPlaylistRenderer") {
+        if let Some(summary) = build_related_content_from_compact_playlist(playlist, "playlist", false) {
+            related.push(summary);
+        }
+        return;
+    }
+
+    if let Some(lockup) = value.get("lockupViewModel") {
+        if let Some(summary) = build_related_content_from_lockup(lockup) {
+            related.push(summary);
+        }
+        return;
+    }
+
+    if let Some(array) = value.as_array() {
+        for item in array {
+            collect_related_content_items(item, related);
+        }
+        return;
+    }
+
+    if let Some(object) = value.as_object() {
+        for child in object.values() {
+            collect_related_content_items(child, related);
+        }
+    }
+}
+
+fn dedupe_related_content_items(items: Vec<RelatedContentItem>) -> Vec<RelatedContentItem> {
+    let mut seen = std::collections::HashSet::new();
+    let mut deduped = Vec::new();
+
+    for item in items {
+        let identity = format!(
+            "{}:{}:{}",
+            item.item_type,
+            item.video_id.as_deref().unwrap_or(""),
+            item.playlist_id.as_deref().unwrap_or(&item.id)
+        );
+
+        if seen.insert(identity) {
+            deduped.push(item);
+        }
+    }
+
+    deduped
+}
+
+fn unique_video_summaries(items: Vec<VideoSummary>) -> Vec<VideoSummary> {
+    let mut seen = std::collections::HashSet::new();
+    let mut deduped = Vec::new();
+
+    for item in items {
+        if seen.insert(item.id.clone()) {
+            deduped.push(item);
+        }
+    }
+
+    deduped
+}
+
+fn collect_comments_from_value(
+    value: &Value,
+    comments: &mut Vec<Comment>,
+    next_page_token: &mut Option<String>,
+    mutation_payloads: &HashMap<String, Value>,
+) {
+    if let Some(thread) = value.get("commentThreadRenderer") {
+        if let Some(view_model) = thread["commentViewModel"]["commentViewModel"]
+            .as_object()
+            .map(|_| &thread["commentViewModel"]["commentViewModel"])
+            .or_else(|| thread.get("commentViewModel"))
+        {
+            if let Some(comment) = build_comment_from_view_model(
+                view_model,
+                thread.get("replies").and_then(|r| r.get("commentRepliesRenderer")),
+                mutation_payloads,
+            ) {
+                comments.push(comment);
+            }
+            return;
+        }
+
+        let renderer = &thread["comment"]["commentRenderer"];
+        if !renderer.is_null() {
+            let id = renderer["commentId"].as_str().unwrap_or_default().to_string();
+            if !id.is_empty() {
+                let author = renderer["authorText"]["runs"][0]["text"].as_str()
+                    .or_else(|| renderer["authorText"]["simpleText"].as_str())
+                    .unwrap_or("Anonymous")
+                    .to_string();
+
+                let author_thumbnail = renderer["authorThumbnail"]["thumbnails"][0]["url"].as_str()
+                    .map(|s| s.to_string());
+
+                let mut text = String::new();
+                if let Some(runs) = renderer["contentText"]["runs"].as_array() {
+                    for run in runs {
+                        if let Some(run_text) = run["text"].as_str() {
+                            text.push_str(run_text);
+                        }
+                    }
+                } else if let Some(simple) = renderer["contentText"]["simpleText"].as_str() {
+                    text = simple.to_string();
+                }
+
+                let published_text = renderer["publishedTimeText"]["runs"][0]["text"].as_str()
+                    .or_else(|| renderer["publishedTimeText"]["simpleText"].as_str())
+                    .map(|s| s.to_string());
+
+                let like_count = renderer["voteCount"]["simpleText"].as_str()
+                    .map(parse_mixed_number_word_to_long);
+
+                let reply_count = renderer["replyCount"].as_u64();
+
+                let reply_token = thread["replies"]["commentRepliesRenderer"]["contents"][0]["continuationItemRenderer"]["continuationEndpoint"]["continuationCommand"]["token"].as_str()
+                    .map(|s| s.to_string());
+
+                comments.push(Comment {
+                    id,
+                    author,
+                    author_thumbnail,
+                    text,
+                    published_text,
+                    like_count,
+                    reply_count,
+                    continuation_token: reply_token,
+                });
+            }
+        }
+        return;
+    }
+
+    if let Some(view_model) = value.get("commentViewModel") {
+        if let Some(comment) = build_comment_from_view_model(view_model, None, mutation_payloads) {
+            comments.push(comment);
+        }
+        return;
+    }
+
+    if let Some(renderer) = value.get("commentRenderer") {
+        let id = renderer["commentId"].as_str().unwrap_or_default().to_string();
+        if !id.is_empty() {
+            let author = renderer["authorText"]["runs"][0]["text"].as_str()
+                .or_else(|| renderer["authorText"]["simpleText"].as_str())
+                .unwrap_or("Anonymous")
+                .to_string();
+
+            let author_thumbnail = renderer["authorThumbnail"]["thumbnails"][0]["url"].as_str()
+                .map(|s| s.to_string());
+
+            let mut text = String::new();
+            if let Some(runs) = renderer["contentText"]["runs"].as_array() {
+                for run in runs {
+                    if let Some(run_text) = run["text"].as_str() {
+                        text.push_str(run_text);
+                    }
+                }
+            } else if let Some(simple) = renderer["contentText"]["simpleText"].as_str() {
+                text = simple.to_string();
+            }
+
+            let published_text = renderer["publishedTimeText"]["runs"][0]["text"].as_str()
+                .or_else(|| renderer["publishedTimeText"]["simpleText"].as_str())
+                .map(|s| s.to_string());
+
+            let like_count = renderer["voteCount"]["simpleText"].as_str()
+                .map(parse_mixed_number_word_to_long);
+
+            comments.push(Comment {
+                id,
+                author,
+                author_thumbnail,
+                text,
+                published_text,
+                like_count,
+                reply_count: None,
+                continuation_token: None,
+            });
+        }
+        return;
+    }
+
+    if next_page_token.is_none() {
+        if let Some(renderer) = value.get("continuationItemRenderer") {
+            if let Some(token) = renderer["continuationEndpoint"]["continuationCommand"]["token"].as_str() {
+                *next_page_token = Some(token.to_string());
+            }
+        }
+    }
+
+    if let Some(array) = value.as_array() {
+        for item in array {
+            collect_comments_from_value(item, comments, next_page_token, mutation_payloads);
+        }
+        return;
+    }
+
+    if let Some(object) = value.as_object() {
+        for child in object.values() {
+            collect_comments_from_value(child, comments, next_page_token, mutation_payloads);
+        }
+    }
+}
+
+fn build_comment_mutation_map(value: &Value) -> HashMap<String, Value> {
+    let mut mutations = HashMap::new();
+
+    if let Some(items) = value["frameworkUpdates"]["entityBatchUpdate"]["mutations"].as_array() {
+        for mutation in items {
+            if let Some(key) = mutation["entityKey"].as_str() {
+                mutations.insert(key.to_string(), mutation["payload"].clone());
+            }
+        }
+    }
+
+    mutations
+}
+
+fn comment_reply_token(replies_renderer: Option<&Value>) -> Option<String> {
+    replies_renderer
+        .and_then(|renderer| renderer["contents"].as_array())
+        .and_then(|contents| {
+            contents.iter().find_map(|content| {
+                content["continuationItemRenderer"]["continuationEndpoint"]["continuationCommand"]["token"]
+                    .as_str()
+                    .map(ToOwned::to_owned)
+            })
+        })
+}
+
+fn build_comment_from_view_model(
+    view_model: &Value,
+    replies_renderer: Option<&Value>,
+    mutation_payloads: &HashMap<String, Value>,
+) -> Option<Comment> {
+    let comment_key = view_model["commentKey"].as_str().unwrap_or_default();
+    let toolbar_key = view_model["toolbarStateKey"].as_str().unwrap_or_default();
+
+    let entity_payload = mutation_payloads
+        .get(comment_key)
+        .and_then(|payload| payload.get("commentEntityPayload"))?;
+
+    let toolbar_state = mutation_payloads
+        .get(toolbar_key)
+        .and_then(|payload| payload.get("engagementToolbarStateEntityPayload"));
+
+    let properties = &entity_payload["properties"];
+    let author = &entity_payload["author"];
+    let toolbar = &entity_payload["toolbar"];
+
+    let id = properties["commentId"]
+        .as_str()
+        .or_else(|| view_model["commentId"].as_str())
+        .unwrap_or_default()
+        .to_string();
+    if id.is_empty() {
+        return None;
+    }
+
+    let text = extract_text_from_value(&properties["content"]).unwrap_or_default();
+    let author_thumbnail = thumbnail_url_from_array(&entity_payload["avatar"]["image"]["sources"]);
+
+    let reply_count = toolbar["replyCount"]
+        .as_str()
+        .map(parse_mixed_number_word_to_long)
+        .or_else(|| toolbar["replyCount"].as_u64());
+
+    let like_count = toolbar["likeCountNotliked"]
+        .as_str()
+        .map(parse_mixed_number_word_to_long);
+
+    let continuation_token = comment_reply_token(replies_renderer);
+    let _is_hearted = toolbar_state
+        .map(|state| state["heartState"].as_str() == Some("TOOLBAR_HEART_STATE_HEARTED"))
+        .unwrap_or(false);
+
+    Some(Comment {
+        id,
+        author: author["displayName"].as_str().unwrap_or("Anonymous").to_string(),
+        author_thumbnail,
+        text,
+        published_text: properties["publishedTime"].as_str().map(ToOwned::to_owned),
+        like_count,
+        reply_count,
+        continuation_token,
+    })
+}
+
+fn dedupe_comments(comments: Vec<Comment>) -> Vec<Comment> {
+    let mut seen = std::collections::HashSet::new();
+    let mut deduped = Vec::new();
+
+    for comment in comments {
+        if seen.insert(comment.id.clone()) {
+            deduped.push(comment);
+        }
+    }
+
+    deduped
+}
+
+fn map_related_content_to_video_summary(item: RelatedContentItem) -> VideoSummary {
+    VideoSummary {
+        id: item.video_id.unwrap_or(item.id),
+        title: item.title,
+        channel_name: item.channel_name,
+        channel_id: item.channel_id,
+        thumbnail_url: item.thumbnail_url,
+        duration_seconds: item.duration_seconds,
+        published_text: item.published_text,
+        view_count_text: item.view_count_text,
+    }
 }
 
 fn extract_channel_id_from_music_renderer(renderer: &Value) -> Option<String> {
@@ -526,6 +1122,250 @@ fn validate_stream_url(
     }
 
     Ok(parsed_url.into())
+}
+
+fn quality_height(format: &Value) -> Option<u64> {
+    format["height"]
+        .as_u64()
+        .or_else(|| {
+            format["qualityLabel"]
+                .as_str()
+                .and_then(|label| {
+                    let digits = label
+                        .chars()
+                        .take_while(|c| c.is_ascii_digit())
+                        .collect::<String>();
+                    digits.parse::<u64>().ok()
+                })
+        })
+}
+
+fn parse_range_value(range: &Value) -> (Option<u64>, Option<u64>) {
+    (range["start"].as_str().and_then(|value| value.parse::<u64>().ok()), range["end"].as_str().and_then(|value| value.parse::<u64>().ok()))
+}
+
+fn parse_approx_duration_ms(format: &Value) -> Option<u64> {
+    format["approxDurationMs"].as_str().and_then(|value| value.parse::<u64>().ok())
+}
+
+fn format_is_video(format: &Value) -> bool {
+    format["mimeType"]
+        .as_str()
+        .map(|mime| mime.starts_with("video/"))
+        .unwrap_or(false)
+        && format["qualityLabel"].as_str().is_some()
+}
+
+fn build_stream_variant_from_format(
+    format: &Value,
+    video_id: &str,
+    is_progressive: bool,
+) -> AppResult<Option<StreamVariant>> {
+    if !format_is_video(format) {
+        return Ok(None);
+    }
+
+    let itag = format["itag"]
+        .as_i64()
+        .map(|value| value.to_string())
+        .unwrap_or_else(|| format["quality"].as_str().unwrap_or("unknown").to_string());
+    let height = quality_height(format);
+    let quality_label = format["qualityLabel"]
+        .as_str()
+        .map(ToOwned::to_owned)
+        .or_else(|| height.map(|h| format!("{h}p")))
+        .unwrap_or_else(|| "Auto".to_string());
+
+    let local_url = extract_stream_url_from_format(format, video_id)?.unwrap_or_default();
+    let is_playable = !local_url.is_empty();
+    let (init_range_start, init_range_end) = parse_range_value(&format["initRange"]);
+    let (index_range_start, index_range_end) = parse_range_value(&format["indexRange"]);
+
+    Ok(Some(StreamVariant {
+        id: itag,
+        local_url,
+        quality_label,
+        mime_type: format["mimeType"].as_str().map(ToOwned::to_owned),
+        width: format["width"].as_u64(),
+        height,
+        fps: format["fps"].as_u64(),
+        bitrate: format["bitrate"].as_u64(),
+        is_default: false,
+        is_playable,
+        has_audio: is_progressive,
+        is_video_only: !is_progressive,
+        delivery_method: if is_progressive { "progressive" } else { "adaptive" }.to_string(),
+        init_range_start,
+        init_range_end,
+        index_range_start,
+        index_range_end,
+        approx_duration_ms: parse_approx_duration_ms(format),
+    }))
+}
+
+fn collect_stream_variants(
+    streaming_data: &Value,
+    video_id: &str,
+) -> (Vec<StreamVariant>, Option<AppError>) {
+    let mut variants = Vec::new();
+    let mut last_error = None;
+
+    if let Some(formats) = streaming_data["formats"].as_array() {
+        for format in formats {
+            match build_stream_variant_from_format(format, video_id, true) {
+                Ok(Some(variant)) => variants.push(variant),
+                Ok(None) => {}
+                Err(error) => last_error = Some(error),
+            }
+        }
+    }
+
+    if let Some(adaptive_formats) = streaming_data["adaptiveFormats"].as_array() {
+        for format in adaptive_formats {
+            if format_is_video(format) {
+                match build_stream_variant_from_format(format, video_id, false) {
+                    Ok(Some(variant)) => variants.push(variant),
+                    Ok(None) => {}
+                    Err(error) => last_error = Some(error),
+                }
+            }
+        }
+    }
+
+    variants.sort_by(|a, b| {
+        b.height
+            .unwrap_or(0)
+            .cmp(&a.height.unwrap_or(0))
+            .then_with(|| b.is_playable.cmp(&a.is_playable))
+            .then_with(|| b.bitrate.unwrap_or(0).cmp(&a.bitrate.unwrap_or(0)))
+    });
+
+    let mut seen = std::collections::HashSet::new();
+    variants.retain(|variant| {
+        let key = format!(
+            "{}:{}:{}",
+            variant.quality_label, variant.fps.unwrap_or(0), variant.is_playable
+        );
+        seen.insert(key)
+    });
+
+    if let Some(default_index) = variants.iter().position(|variant| variant.is_playable) {
+        if let Some(default) = variants.get_mut(default_index) {
+            default.is_default = true;
+        }
+    }
+
+    (variants, last_error)
+}
+
+fn collect_caption_tracks(response: &Value) -> Vec<CaptionTrack> {
+    response["captions"]["playerCaptionsTracklistRenderer"]["captionTracks"]
+        .as_array()
+        .map(|tracks| {
+            tracks
+                .iter()
+                .enumerate()
+                .filter_map(|(index, track)| {
+                    let base_url = track["baseUrl"].as_str()?;
+                    let language_code = track["languageCode"].as_str().unwrap_or("und").to_string();
+                    let label = extract_text_from_value(&track["name"])
+                        .unwrap_or_else(|| language_code.clone());
+                    let vss_id = track["vssId"].as_str().unwrap_or_default();
+                    let is_auto_generated = vss_id.starts_with("a.");
+                    let mut url = reqwest::Url::parse(base_url).ok()?;
+                    let query_pairs: Vec<(String, String)> = url
+                        .query_pairs()
+                        .filter(|(key, _)| key != "fmt" && key != "tlang")
+                        .map(|(key, value)| (key.into_owned(), value.into_owned()))
+                        .collect();
+                    url.query_pairs_mut().clear().extend_pairs(query_pairs).append_pair("fmt", "vtt");
+
+                    Some(CaptionTrack {
+                        id: format!("caption-{index}-{language_code}"),
+                        label,
+                        language_code,
+                        url: url.to_string(),
+                        is_auto_generated,
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn collect_audio_tracks(streaming_data: &Value) -> Vec<AudioTrack> {
+    let mut tracks = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+
+    if let Some(adaptive_formats) = streaming_data["adaptiveFormats"].as_array() {
+        for format in adaptive_formats {
+            let Some(mime) = format["mimeType"].as_str() else {
+                continue;
+            };
+            if !mime.starts_with("audio/") {
+                continue;
+            }
+
+            let audio_track = &format["audioTrack"];
+            let id = audio_track["id"]
+                .as_str()
+                .map(ToOwned::to_owned)
+                .or_else(|| format["itag"].as_i64().map(|itag| format!("itag-{itag}")))
+                .unwrap_or_else(|| "default".to_string());
+            let language_code = id.split('.').next().filter(|value| value.len() <= 8).map(ToOwned::to_owned);
+            let label = audio_track["displayName"]
+                .as_str()
+                .filter(|value| !value.is_empty())
+                .map(ToOwned::to_owned)
+                .or_else(|| language_code.clone())
+                .unwrap_or_else(|| "Original audio".to_string());
+            let local_url = match extract_stream_url_from_format(format, "audio-track") {
+                Ok(Some(url)) => url,
+                Ok(None) => continue,
+                Err(_) => continue,
+            };
+
+            let bitrate = format["bitrate"]
+                .as_u64()
+                .or_else(|| format["averageBitrate"].as_u64());
+            let (init_range_start, init_range_end) = parse_range_value(&format["initRange"]);
+            let (index_range_start, index_range_end) = parse_range_value(&format["indexRange"]);
+            let track = AudioTrack {
+                id: id.clone(),
+                label,
+                language_code,
+                audio_track_type: audio_track["audioIsDefault"]
+                    .as_bool()
+                    .map(|is_default| if is_default { "default" } else { "alternate" }.to_string()),
+                local_url,
+                mime_type: format["mimeType"].as_str().map(ToOwned::to_owned),
+                bitrate,
+                is_default: audio_track["audioIsDefault"].as_bool().unwrap_or(tracks.is_empty()),
+                init_range_start,
+                init_range_end,
+                index_range_start,
+                index_range_end,
+                approx_duration_ms: parse_approx_duration_ms(format),
+            };
+
+            if let Some(existing_index) = tracks.iter().position(|existing: &AudioTrack| existing.id == id) {
+                let existing_bitrate = tracks[existing_index].bitrate.unwrap_or(0);
+                if track.bitrate.unwrap_or(0) > existing_bitrate {
+                    tracks[existing_index] = track;
+                }
+            } else if seen.insert(id.clone()) {
+                tracks.push(track);
+            }
+        }
+    }
+
+    tracks.sort_by(|a, b| {
+        b.is_default
+            .cmp(&a.is_default)
+            .then_with(|| b.bitrate.unwrap_or(0).cmp(&a.bitrate.unwrap_or(0)))
+    });
+
+    tracks
 }
 
 fn extract_duration_seconds_from_player_response(response: &Value) -> Option<u64> {
@@ -900,140 +1740,85 @@ fn extract_videos_from_playlist_browse(val: &Value) -> (Vec<VideoSummary>, Optio
 fn parse_comments_json(val: &Value) -> CommentsResponse {
     let mut comments = Vec::new();
     let mut next_page_token = None;
+    let mutation_payloads = build_comment_mutation_map(val);
 
-    let mut process_items = |arr: &Vec<Value>| {
-        for item in arr {
-            if let Some(thread) = item.get("commentThreadRenderer") {
-                let renderer = &thread["comment"]["commentRenderer"];
-                if !renderer.is_null() {
-                    let id = renderer["commentId"].as_str().unwrap_or_default().to_string();
-                    if id.is_empty() {
-                        continue;
-                    }
+    collect_comments_from_value(&val["onResponseReceivedEndpoints"], &mut comments, &mut next_page_token, &mutation_payloads);
+    collect_comments_from_value(&val["onResponseReceivedActions"], &mut comments, &mut next_page_token, &mutation_payloads);
+    collect_comments_from_value(&val["contents"]["twoColumnWatchNextResults"]["results"]["results"]["contents"], &mut comments, &mut next_page_token, &mutation_payloads);
+    collect_comments_from_value(&val["engagementPanels"], &mut comments, &mut next_page_token, &mutation_payloads);
 
-                    let author = renderer["authorText"]["runs"][0]["text"].as_str()
-                        .or_else(|| renderer["authorText"]["simpleText"].as_str())
-                        .unwrap_or("Anonymous")
-                        .to_string();
-
-                    let author_thumbnail = renderer["authorThumbnail"]["thumbnails"][0]["url"].as_str()
-                        .map(|s| s.to_string());
-
-                    let mut text = String::new();
-                    if let Some(runs) = renderer["contentText"]["runs"].as_array() {
-                        for run in runs {
-                            if let Some(run_text) = run["text"].as_str() {
-                                text.push_str(run_text);
-                            }
-                        }
-                    } else if let Some(simple) = renderer["contentText"]["simpleText"].as_str() {
-                        text = simple.to_string();
-                    }
-
-                    let published_text = renderer["publishedTimeText"]["runs"][0]["text"].as_str()
-                        .or_else(|| renderer["publishedTimeText"]["simpleText"].as_str())
-                        .map(|s| s.to_string());
-
-                    let like_count = renderer["voteCount"]["simpleText"].as_str()
-                        .map(|s| parse_mixed_number_word_to_long(s));
-
-                    let reply_count = renderer["replyCount"].as_u64();
-
-                    let reply_token = thread["replies"]["commentRepliesRenderer"]["contents"][0]["continuationItemRenderer"]["continuationEndpoint"]["continuationCommand"]["token"].as_str()
-                        .map(|s| s.to_string());
-
-                    comments.push(Comment {
-                        id,
-                        author,
-                        author_thumbnail,
-                        text,
-                        published_text,
-                        like_count,
-                        reply_count,
-                        continuation_token: reply_token,
-                    });
-                }
-            } else if let Some(renderer) = item.get("commentRenderer") {
-                let id = renderer["commentId"].as_str().unwrap_or_default().to_string();
-                if !id.is_empty() {
-                    let author = renderer["authorText"]["runs"][0]["text"].as_str()
-                        .or_else(|| renderer["authorText"]["simpleText"].as_str())
-                        .unwrap_or("Anonymous")
-                        .to_string();
-
-                    let author_thumbnail = renderer["authorThumbnail"]["thumbnails"][0]["url"].as_str()
-                        .map(|s| s.to_string());
-
-                    let mut text = String::new();
-                    if let Some(runs) = renderer["contentText"]["runs"].as_array() {
-                        for run in runs {
-                            if let Some(run_text) = run["text"].as_str() {
-                                text.push_str(run_text);
-                            }
-                        }
-                    }
-
-                    let published_text = renderer["publishedTimeText"]["runs"][0]["text"].as_str()
-                        .map(|s| s.to_string());
-
-                    let like_count = renderer["voteCount"]["simpleText"].as_str()
-                        .map(|s| parse_mixed_number_word_to_long(s));
-
-                    comments.push(Comment {
-                        id,
-                        author,
-                        author_thumbnail,
-                        text,
-                        published_text,
-                        like_count,
-                        reply_count: None,
-                        continuation_token: None,
-                    });
-                }
-            } else if let Some(cont) = item.get("continuationItemRenderer") {
-                if let Some(token) = cont["continuationEndpoint"]["continuationCommand"]["token"].as_str() {
-                    next_page_token = Some(token.to_string());
-                }
-            }
-        }
-    };
-
-    if let Some(actions) = val["onResponseReceivedEndpoints"].as_array() {
-        for action in actions {
-            if let Some(items_arr) = action["reloadContinuationItemsCommand"]["continuationItems"].as_array() {
-                process_items(items_arr);
-            } else if let Some(items_arr) = action["appendContinuationItemsAction"]["continuationItems"].as_array() {
-                process_items(items_arr);
-            }
-        }
-    }
-
-    if let Some(actions) = val["onResponseReceivedActions"].as_array() {
-        for action in actions {
-            if let Some(items_arr) = action["reloadContinuationItemsCommand"]["continuationItems"].as_array() {
-                process_items(items_arr);
-            } else if let Some(items_arr) = action["appendContinuationItemsAction"]["continuationItems"].as_array() {
-                process_items(items_arr);
-            }
-        }
-    }
-
-    if let Some(contents) = val["contents"]["twoColumnWatchNextResults"]["results"]["results"]["contents"].as_array() {
-        for content in contents {
-            if let Some(item_section) = content.get("itemSectionRenderer") {
-                if item_section["sectionIdentifier"].as_str() == Some("comment-item-section") {
-                    if let Some(items_arr) = item_section["contents"].as_array() {
-                        process_items(items_arr);
-                    }
-                }
-            }
-        }
-    }
+    comments = dedupe_comments(comments);
 
     CommentsResponse {
         comments,
         next_page_token,
     }
+}
+
+fn find_initial_comments_token(response: &Value) -> Option<String> {
+    response["contents"]["twoColumnWatchNextResults"]["results"]["results"]["contents"]
+        .as_array()
+        .and_then(|contents| {
+            contents.iter().find_map(|content| {
+                let item_section = &content["itemSectionRenderer"];
+                let target_id = item_section["targetId"].as_str();
+                let section_id = item_section["sectionIdentifier"].as_str();
+                let looks_like_comments = target_id == Some("comments-section")
+                    || section_id == Some("comment-item-section")
+                    || section_id == Some("comments-section");
+
+                if !looks_like_comments {
+                    return None;
+                }
+
+                item_section["contents"]
+                    .as_array()
+                    .and_then(|section_contents| {
+                        section_contents.iter().find_map(|item| {
+                            item["continuationItemRenderer"]["continuationEndpoint"]["continuationCommand"]["token"]
+                                .as_str()
+                                .or_else(|| {
+                                    item["continuationItemRenderer"]["button"]["buttonRenderer"]["command"]["continuationCommand"]["token"]
+                                        .as_str()
+                                })
+                                .map(ToOwned::to_owned)
+                        })
+                    })
+                    .or_else(|| {
+                        item_section["header"]["commentsHeaderRenderer"]["sortMenu"]["sortFilterSubMenuRenderer"]["subMenuItems"][0]["serviceEndpoint"]["continuationCommand"]["token"]
+                            .as_str()
+                            .map(ToOwned::to_owned)
+                    })
+            })
+        })
+        .or_else(|| {
+            response["engagementPanels"].as_array().and_then(|panels| {
+                panels.iter().find_map(|panel| {
+                    let section = &panel["engagementPanelSectionListRenderer"];
+                    let panel_id = section["panelIdentifier"].as_str();
+                    if panel_id != Some("comment-item-section")
+                        && panel_id != Some("engagement-panel-comments-section")
+                    {
+                        return None;
+                    }
+
+                    section["content"]["sectionListRenderer"]["contents"]
+                        .as_array()
+                        .and_then(|contents| {
+                            contents.iter().find_map(|content| {
+                                content["itemSectionRenderer"]["contents"][0]["continuationItemRenderer"]["continuationEndpoint"]["continuationCommand"]["token"]
+                                    .as_str()
+                                    .map(ToOwned::to_owned)
+                            })
+                        })
+                        .or_else(|| {
+                            section["header"]["engagementPanelTitleHeaderRenderer"]["menu"]["sortFilterSubMenuRenderer"]["subMenuItems"][0]["serviceEndpoint"]["continuationCommand"]["token"]
+                                .as_str()
+                                .map(ToOwned::to_owned)
+                        })
+                })
+            })
+        })
 }
 
 // Parses and extracts trending kiosk videos
@@ -1239,23 +2024,141 @@ impl YoutubeExtractor for InnertubeClient {
 
         let id = details["videoId"].as_str().unwrap_or(video_id_trimmed).to_string();
         let title = details["title"].as_str().unwrap_or_default().to_string();
-        let channel_name = details["author"].as_str().unwrap_or_default().to_string();
+        let mut channel_name = details["author"].as_str().unwrap_or_default().to_string();
         let description = details["shortDescription"].as_str().map(|s| s.to_string());
         
-        let thumbnail_url = details["thumbnail"]["thumbnails"][0]["url"]
-            .as_str()
-            .map(|s| s.to_string());
+        let thumbnail_url = thumbnail_url_from_array(&details["thumbnail"]["thumbnails"]);
 
         let duration_seconds = extract_duration_seconds_from_player_response(&res);
+        let mut channel_id = details["channelId"].as_str().map(|s| s.to_string());
+
+        let mut like_count_text = None;
+        let mut view_count_text = None;
+        let mut published_text = None;
+
+        let mut next_payload = serde_json::json!({
+            "videoId": &id
+        });
+        if let Ok(next_res) = self.post_innertube("next", "WEB", "2.20260120.01.00", &mut next_payload).await {
+            let mut primary_info = &serde_json::Value::Null;
+            let mut secondary_info = &serde_json::Value::Null;
+            if let Some(contents) = next_res["contents"]["twoColumnWatchNextResults"]["results"]["results"]["contents"].as_array() {
+                for c in contents {
+                    if c.get("videoPrimaryInfoRenderer").is_some() {
+                        primary_info = &c["videoPrimaryInfoRenderer"];
+                    }
+                    if c.get("videoSecondaryInfoRenderer").is_some() {
+                        secondary_info = &c["videoSecondaryInfoRenderer"];
+                    }
+                }
+            }
+
+            if !secondary_info.is_null() {
+                let owner = &secondary_info["owner"]["videoOwnerRenderer"];
+                if channel_name.is_empty() {
+                    if let Some(owner_name) = extract_text_from_value(&owner["title"]) {
+                        channel_name = owner_name;
+                    }
+                }
+
+                if channel_id.is_none() {
+                    channel_id = owner["navigationEndpoint"]["browseEndpoint"]["browseId"]
+                        .as_str()
+                        .map(ToOwned::to_owned)
+                        .or_else(|| extract_channel_id_from_video_renderer(owner));
+                }
+            }
+
+            if !primary_info.is_null() {
+                // Extract views
+                if let Some(views) = primary_info["viewCount"]["videoViewCountRenderer"]["viewCount"]["simpleText"].as_str()
+                    .or_else(|| primary_info["viewCount"]["videoViewCountRenderer"]["viewCount"]["runs"][0]["text"].as_str())
+                    .or_else(|| primary_info["viewCount"]["videoViewCountRenderer"]["shortViewCount"]["simpleText"].as_str())
+                    .or_else(|| primary_info["viewCount"]["videoViewCountRenderer"]["shortViewCount"]["runs"][0]["text"].as_str())
+                {
+                    view_count_text = Some(views.to_string());
+                }
+
+                // Extract published text
+                if let Some(pub_date) = primary_info["dateText"]["simpleText"].as_str()
+                    .or_else(|| primary_info["dateText"]["runs"][0]["text"].as_str())
+                    .or_else(|| primary_info["relativeDateText"]["simpleText"].as_str())
+                    .or_else(|| primary_info["relativeDateText"]["runs"][0]["text"].as_str())
+                {
+                    published_text = Some(pub_date.to_string());
+                }
+
+                // Extract like count
+                if let Some(top_level_buttons) = primary_info["videoActions"]["menuRenderer"]["topLevelButtons"].as_array() {
+                    for btn in top_level_buttons {
+                        if let Some(viewModel) = btn.get("segmentedLikeDislikeButtonViewModel") {
+                            let button_vm = &viewModel["likeButtonViewModel"]["likeButtonViewModel"]["toggleButtonViewModel"]["toggleButtonViewModel"]["defaultButtonViewModel"]["buttonViewModel"];
+                            if let Some(title) = button_vm["title"]["runs"][0]["text"].as_str()
+                                .or_else(|| button_vm["title"]["simpleText"].as_str())
+                            {
+                                like_count_text = Some(title.to_string());
+                            } else if let Some(acc_text) = button_vm["accessibilityText"].as_str() {
+                                like_count_text = Some(clean_like_count_from_accessibility(acc_text));
+                            }
+                        }
+                        if like_count_text.is_none() {
+                            if let Some(renderer) = btn.get("segmentedLikeDislikeButtonRenderer") {
+                                let toggle_btn = &renderer["likeButton"]["toggleButtonRenderer"];
+                                if !toggle_btn.is_null() {
+                                    if let Some(label) = toggle_btn["accessibilityData"]["accessibilityData"]["label"].as_str()
+                                        .or_else(|| toggle_btn["accessibility"]["label"].as_str())
+                                        .or_else(|| toggle_btn["defaultText"]["accessibility"]["accessibilityData"]["label"].as_str())
+                                    {
+                                        like_count_text = Some(clean_like_count_from_accessibility(label));
+                                    } else if let Some(text) = toggle_btn["defaultText"]["runs"][0]["text"].as_str()
+                                        .or_else(|| toggle_btn["defaultText"]["simpleText"].as_str())
+                                    {
+                                        like_count_text = Some(text.to_string());
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
         Ok(VideoDetails {
             id,
             title,
             channel_name,
+            channel_id,
             description,
             thumbnail_url,
             duration_seconds,
+            like_count_text,
+            view_count_text,
+            published_text,
         })
+    }
+
+    async fn get_related_videos(
+        &self,
+        video_id: &str,
+    ) -> AppResult<Vec<RelatedContentItem>> {
+        let video_id_trimmed = video_id.trim();
+        if video_id_trimmed.is_empty() {
+            return Err(AppError::Validation("Video ID cannot be empty".into()));
+        }
+
+        let mut payload = serde_json::json!({
+            "videoId": video_id_trimmed
+        });
+
+        let next_res = self.post_innertube("next", "WEB", "2.20260120.01.00", &mut payload).await?;
+        let mut related = Vec::new();
+        collect_related_content_items(&next_res["contents"]["twoColumnWatchNextResults"]["secondaryResults"], &mut related);
+
+        if related.is_empty() {
+            collect_related_content_items(&next_res["contents"]["twoColumnWatchNextResults"]["autoplay"], &mut related);
+        }
+
+        Ok(dedupe_related_content_items(related))
     }
 
     async fn get_stream_info(
@@ -1354,23 +2257,12 @@ impl YoutubeExtractor for InnertubeClient {
             )));
         }
 
-        // Search in standard combined formats (video + audio)
-        let mut stream_url = None;
-        let mut last_stream_error = None;
-        if let Some(formats) = streaming_data["formats"].as_array() {
-            for format in formats {
-                match extract_stream_url_from_format(format, video_id_trimmed) {
-                    Ok(Some(url)) => {
-                        stream_url = Some(url);
-                        break;
-                    }
-                    Ok(None) => {}
-                    Err(error) => {
-                        last_stream_error = Some(error);
-                    }
-                }
-            }
-        }
+        let (variants, mut last_stream_error) =
+            collect_stream_variants(streaming_data, video_id_trimmed);
+        let mut stream_url = variants
+            .iter()
+            .find(|variant| variant.is_playable)
+            .map(|variant| variant.local_url.clone());
 
         // Fallback: search adaptive formats (video only or audio only)
         if stream_url.is_none() {
@@ -1381,11 +2273,11 @@ impl YoutubeExtractor for InnertubeClient {
                             stream_url = Some(url);
                             break;
                         }
-                        Ok(None) => {}
-                        Err(error) => {
-                            last_stream_error = Some(error);
-                        }
+                    Ok(None) => {}
+                    Err(error) => {
+                        last_stream_error = Some(error);
                     }
+                }
                 }
             }
         }
@@ -1411,6 +2303,11 @@ impl YoutubeExtractor for InnertubeClient {
             stream_id: video_id_trimmed.to_string(),
             local_url,
             expires_at: composite_expires_at,
+            variants,
+            captions: collect_caption_tracks(&res),
+            audio_tracks: collect_audio_tracks(streaming_data),
+            hls_manifest_url: streaming_data["hlsManifestUrl"].as_str().map(ToOwned::to_owned),
+            dash_manifest_url: streaming_data["dashManifestUrl"].as_str().map(ToOwned::to_owned),
         })
     }
 
@@ -1423,11 +2320,20 @@ impl YoutubeExtractor for InnertubeClient {
             return Err(AppError::Validation("Channel ID cannot be empty".into()));
         }
 
+        debug!(channel_id = %channel_id_trimmed, "[get_channel_details] Starting channel details fetch");
+
         let mut payload = serde_json::json!({
             "browseId": channel_id_trimmed
         });
 
         let res = self.post_innertube("browse", "WEB", "2.20260120.01.00", &mut payload).await?;
+
+        debug!(
+            channel_id = %channel_id_trimmed,
+            has_metadata = !res["metadata"]["channelMetadataRenderer"].is_null(),
+            has_header = !res["header"].is_null(),
+            "[get_channel_details] Browse response received"
+        );
 
         let metadata = &res["metadata"]["channelMetadataRenderer"];
         let header = &res["header"];
@@ -1450,11 +2356,11 @@ impl YoutubeExtractor for InnertubeClient {
         let avatar_url = metadata["avatar"]["thumbnails"][0]["url"].as_str()
             .or_else(|| header["c4TabbedHeaderRenderer"]["avatar"]["thumbnails"][0]["url"].as_str())
             .or_else(|| header["pageHeaderRenderer"]["content"]["pageHeaderViewModel"]["image"]["decoratedAvatarViewModel"]["avatar"]["avatarViewModel"]["image"]["sources"][0]["url"].as_str())
-            .map(|s| s.to_string());
+            .map(normalize_youtube_image_url);
 
         let banner_url = header["c4TabbedHeaderRenderer"]["banner"]["thumbnails"][0]["url"].as_str()
             .or_else(|| header["pageHeaderRenderer"]["content"]["pageHeaderViewModel"]["banner"]["imageBannerViewModel"]["image"]["sources"][0]["url"].as_str())
-            .map(|s| s.to_string());
+            .map(normalize_youtube_image_url);
 
         let mut subscriber_count = None;
         let mut subscriber_count_text = None;
@@ -1607,8 +2513,43 @@ impl YoutubeExtractor for InnertubeClient {
             })
         };
 
+        debug!(video_id = %video_id_trimmed, has_page_token = page_token.is_some(), "[get_comments] Starting comments fetch");
+
         let res = self.post_innertube("next", "WEB", "2.20260120.01.00", &mut payload).await?;
-        let comments_res = parse_comments_json(&res);
+        let mut comments_res = parse_comments_json(&res);
+
+        debug!(
+            video_id = %video_id_trimmed,
+            comments_count = comments_res.comments.len(),
+            has_next_token = comments_res.next_page_token.is_some(),
+            "[get_comments] Initial parse result"
+        );
+
+        // On first load, the standard next response only contains a continuation token
+        // for the comment section, not actual comments. We need to follow that token.
+        if page_token.is_none() && comments_res.comments.is_empty() {
+            let continuation_token = find_initial_comments_token(&res)
+                .or_else(|| comments_res.next_page_token.clone());
+
+            debug!(
+                video_id = %video_id_trimmed,
+                has_continuation = continuation_token.is_some(),
+                "[get_comments] Will attempt second fetch for actual comments"
+            );
+
+            if let Some(token) = continuation_token {
+                let mut next_payload = serde_json::json!({
+                    "continuation": token
+                });
+                let next_res = self.post_innertube("next", "WEB", "2.20260120.01.00", &mut next_payload).await?;
+                comments_res = parse_comments_json(&next_res);
+                debug!(
+                    video_id = %video_id_trimmed,
+                    comments_count = comments_res.comments.len(),
+                    "[get_comments] Second fetch result"
+                );
+            }
+        }
 
         Ok(comments_res)
     }
@@ -1620,10 +2561,27 @@ impl YoutubeExtractor for InnertubeClient {
             "browseId": "FEtrending"
         });
 
-        let res = self.post_innertube("browse", "WEB", "2.20260120.01.00", &mut payload).await?;
-        let trending_videos = parse_trending_json(&res);
+        match self.post_innertube("browse", "WEB", "2.20260120.01.00", &mut payload).await {
+            Ok(res) => Ok(parse_trending_json(&res)),
+            Err(error) => {
+                warn!(error = %error, "[get_trending_videos] Trending browse failed, falling back to search queries");
 
-        Ok(trending_videos)
+                let mut fallback = Vec::new();
+                for query in ["trending", "viral videos", "popular now"] {
+                    match self.search_videos(SearchVideosRequest {
+                        query: query.to_string(),
+                        page_token: None,
+                    }).await {
+                        Ok(response) => fallback.extend(response.items),
+                        Err(search_error) => {
+                            warn!(query = %query, error = %search_error, "[get_trending_videos] Fallback search query failed");
+                        }
+                    }
+                }
+
+                Ok(unique_video_summaries(fallback))
+            }
+        }
     }
 
     async fn get_search_suggestions(
@@ -1825,15 +2783,42 @@ impl YoutubeExtractor for InnertubeClient {
             return Err(AppError::Validation("Video ID cannot be empty".into()));
         }
 
+        debug!(video_id = %video_id_trimmed, "[get_music_related] Starting related videos fetch");
+
         // 1. Fetch metadata from next to get related browseId
         let (_, _, related_browse_id, related_params) = match self.fetch_watch_next_metadata(video_id_trimmed).await {
-            Ok(data) => data,
-            Err(_) => (None, None, None, None),
+            Ok(data) => {
+                debug!(
+                    video_id = %video_id_trimmed,
+                    has_related_browse_id = data.2.is_some(),
+                    "[get_music_related] WEB_REMIX watch next metadata result"
+                );
+                data
+            },
+            Err(e) => {
+                debug!(video_id = %video_id_trimmed, error = %e, "[get_music_related] WEB_REMIX metadata fetch failed, falling back to WEB");
+                (None, None, None, None)
+            },
         };
 
         let browse_id = match related_browse_id {
             Some(id) => id,
-            None => return Ok(Vec::new()),
+            None => {
+                // Fallback to standard watch next recommendations if we don't have related_browse_id
+                debug!(video_id = %video_id_trimmed, "[get_music_related] No music related browse ID, falling back to WEB next endpoint");
+                let standard_related = match self.get_related_videos(video_id_trimmed).await {
+                    Ok(results) => results
+                        .into_iter()
+                        .map(map_related_content_to_video_summary)
+                        .collect(),
+                    Err(error) => {
+                        debug!(video_id = %video_id_trimmed, error = %error, "[get_music_related] WEB next endpoint call failed");
+                        Vec::new()
+                    }
+                };
+                debug!(video_id = %video_id_trimmed, count = standard_related.len(), "[get_music_related] Returning standard related videos");
+                return Ok(standard_related);
+            }
         };
 
         // 2. Fetch related items using WEB_REMIX client browse
@@ -2140,6 +3125,17 @@ impl YoutubeExtractor for InnertubeClient {
         let res = self.post_innertube("browse", "WEB_REMIX", "67", &mut payload).await?;
         parse_music_charts_json(&res)
     }
+}
+
+fn clean_like_count_from_accessibility(text: &str) -> String {
+    let words: Vec<&str> = text.split_whitespace().collect();
+    for w in words {
+        let cleaned_word = w.trim_matches(|c: char| !c.is_alphanumeric() && c != ',' && c != '.');
+        if cleaned_word.chars().any(|c| c.is_ascii_digit()) {
+            return cleaned_word.to_string();
+        }
+    }
+    text.to_string()
 }
 
 #[cfg(test)]

@@ -22,7 +22,7 @@ use commands::youtube::{
     get_music_album, get_music_artist, get_music_charts, get_music_explore, get_music_home,
     get_music_lyrics, get_music_related, get_personalized_music_recommendations,
     get_playlist_details, get_search_suggestions, get_sponsorblock_segments, get_stream_info,
-    get_subscription_rotation_feed, get_trending_videos, get_video_details,
+    get_subscription_rotation_feed, get_trending_videos, get_related_videos, get_video_details,
     parse_subscription_export, refresh_music_home, search_music, search_videos,
 };
 use commands::db::{get_watch_history, add_watch_record, delete_watch_record, clear_watch_history, get_setting, set_setting};
@@ -81,6 +81,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             search_videos,
             get_video_details,
+            get_related_videos,
             get_stream_info,
             get_channel_details,
             get_channel_videos,

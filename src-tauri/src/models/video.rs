@@ -15,13 +15,34 @@ pub struct VideoSummary {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct RelatedContentItem {
+    pub id: String,
+    pub item_type: String,
+    pub title: String,
+    pub channel_name: String,
+    pub channel_id: Option<String>,
+    pub thumbnail_url: Option<String>,
+    pub duration_seconds: Option<u64>,
+    pub published_text: Option<String>,
+    pub view_count_text: Option<String>,
+    pub video_id: Option<String>,
+    pub playlist_id: Option<String>,
+    pub is_mix: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct VideoDetails {
     pub id: String,
     pub title: String,
     pub channel_name: String,
+    pub channel_id: Option<String>,
     pub description: Option<String>,
     pub thumbnail_url: Option<String>,
     pub duration_seconds: Option<u64>,
+    pub like_count_text: Option<String>,
+    pub view_count_text: Option<String>,
+    pub published_text: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -30,6 +51,62 @@ pub struct StreamInfo {
     pub stream_id: String,
     pub local_url: String,
     pub expires_at: String,
+    pub variants: Vec<StreamVariant>,
+    pub captions: Vec<CaptionTrack>,
+    pub audio_tracks: Vec<AudioTrack>,
+    pub hls_manifest_url: Option<String>,
+    pub dash_manifest_url: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StreamVariant {
+    pub id: String,
+    pub local_url: String,
+    pub quality_label: String,
+    pub mime_type: Option<String>,
+    pub width: Option<u64>,
+    pub height: Option<u64>,
+    pub fps: Option<u64>,
+    pub bitrate: Option<u64>,
+    pub is_default: bool,
+    pub is_playable: bool,
+    pub has_audio: bool,
+    pub is_video_only: bool,
+    pub delivery_method: String,
+    pub init_range_start: Option<u64>,
+    pub init_range_end: Option<u64>,
+    pub index_range_start: Option<u64>,
+    pub index_range_end: Option<u64>,
+    pub approx_duration_ms: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CaptionTrack {
+    pub id: String,
+    pub label: String,
+    pub language_code: String,
+    pub url: String,
+    pub is_auto_generated: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AudioTrack {
+    pub id: String,
+    pub label: String,
+    pub language_code: Option<String>,
+    pub audio_track_type: Option<String>,
+    pub local_url: String,
+    pub mime_type: Option<String>,
+    pub bitrate: Option<u64>,
+    pub is_default: bool,
+    pub init_range_start: Option<u64>,
+    pub init_range_end: Option<u64>,
+    pub index_range_start: Option<u64>,
+    pub index_range_end: Option<u64>,
+    pub approx_duration_ms: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -50,4 +127,3 @@ pub struct MusicHomeChip {
     pub params: Option<String>,
     pub order_by: i32,
 }
-
