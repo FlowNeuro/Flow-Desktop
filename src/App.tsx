@@ -15,6 +15,7 @@ import Subscriptions from "./pages/Subscriptions";
 import History from "./pages/History";
 import Playlists from "./pages/Playlists";
 import Settings from "./pages/Settings";
+import ImportData from "./pages/ImportData";
 import SponsorBlock from "./pages/SponsorBlock";
 import Channel from "./pages/Channel";
 import { Watch } from "./pages/Watch";
@@ -92,6 +93,9 @@ function App() {
           } />
           <Route path="settings" element={
             <Settings />
+          } />
+          <Route path="settings/import" element={
+            <ImportData />
           } />
           <Route path="sponsorblock" element={
             <SponsorBlock />

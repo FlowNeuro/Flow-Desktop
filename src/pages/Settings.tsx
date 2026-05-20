@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Brain, Database, Trash2, Shield, PlayCircle, Loader2 } from "lucide-react";
 import { getSetting, setSetting, clearWatchHistory, getWatchHistory } from "../lib/api/db";
 import { getFlowPersona, type PersonaDetails } from "../lib/api/recommendation";
 import { getString } from "../lib/i18n/index";
 
 export const Settings: React.FC = () => {
+  const navigate = useNavigate();
   const [persona, setPersona] = useState<PersonaDetails | null>(null);
   const [historyCount, setHistoryCount] = useState(0);
   const [subCount, setSubCount] = useState(0);
@@ -170,11 +172,19 @@ export const Settings: React.FC = () => {
                 </div>
               </div>
 
-              <div className="pt-2">
+              <div className="pt-2 space-y-2">
+                <button
+                  onClick={() => navigate("/settings/import")}
+                  className="w-full flex items-center justify-center gap-2 py-3 bg-zinc-950 hover:bg-zinc-900 border border-zinc-800/80 hover:border-zinc-700 text-zinc-300 hover:text-zinc-100 rounded-2xl text-xs font-bold transition-all active:scale-95 cursor-pointer"
+                >
+                  <Database size={14} className="text-red-500" />
+                  Import/Restore Database
+                </button>
+
                 <button
                   onClick={handleResetData}
                   disabled={clearing}
-                  className="w-full flex items-center justify-center gap-2 py-3 bg-red-950/20 hover:bg-red-950/40 border border-red-500/20 hover:border-red-500/40 text-red-400 rounded-2xl text-xs font-bold transition-all active:scale-95 disabled:opacity-50"
+                  className="w-full flex items-center justify-center gap-2 py-3 bg-red-950/10 hover:bg-red-950/20 border border-red-500/20 hover:border-red-500/30 text-red-400 rounded-2xl text-xs font-bold transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
                 >
                   <Trash2 size={14} />
                   {getString("library_manage_data_subtitle")}

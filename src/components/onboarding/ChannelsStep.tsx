@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { useSubscriptionStore } from "../../store/useSubscriptionStore";
-import { CURATED_CHANNELS, CuratedChannel } from "./constants";
+import { CuratedChannel } from "./constants";
 import { searchVideos } from "../../lib/api/youtube";
 
 interface ChannelsStepProps {
   selectedTopics: string[];
 }
 
-export const ChannelsStep: React.FC<ChannelsStepProps> = ({ selectedTopics }) => {
+export const ChannelsStep: React.FC<ChannelsStepProps> = ({ selectedTopics: _selectedTopics }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<CuratedChannel[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -82,12 +82,7 @@ export const ChannelsStep: React.FC<ChannelsStepProps> = ({ selectedTopics }) =>
     return () => clearTimeout(delayDebounce);
   }, [searchQuery]);
 
-  // Curate recommended channels based on selected topics
-  const recommended = CURATED_CHANNELS.filter((ch) => {
-    return selectedTopics.some((topic) => ch.category.toLowerCase().includes(topic.toLowerCase()));
-  });
 
-  const displayRecommended = recommended.length > 0 ? recommended : CURATED_CHANNELS.slice(0, 5);
 
   const getInitials = (name: string) => {
     return name

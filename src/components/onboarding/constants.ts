@@ -112,22 +112,4 @@ export interface CuratedChannel {
   category: string;
 }
 
-export const CURATED_CHANNELS: CuratedChannel[] = [
-  // Technology
-  { id: "UCsBjURrdU234nU351gVEfTA", name: "Fireship", avatar: "FS", subscribers: "3.2M", category: "Technology" },
-  { id: "UCBJycsmduvYELgTKEgUMt2g", name: "MKBHD", avatar: "MK", subscribers: "19M", category: "Technology" },
-  { id: "UCwRxwjk_c_92sAMeX4JzW4w", name: "Linus Tech Tips", avatar: "LT", subscribers: "15.6M", category: "Technology" },
-  
-  // Music
-  { id: "UCSJ4gkVC6NrvII8umztf0Ow", name: "Lofi Girl", avatar: "LG", subscribers: "14.3M", category: "Music" },
-  { id: "UC-51_T6T74a3_Kz9oI3W07g", name: "Cercle", avatar: "CC", subscribers: "3.1M", category: "Music" },
 
-  // Education & Science
-  { id: "UCsXVk37bltHxD1rDPwtNM8Q", name: "Kurzgesagt – In a Nutshell", avatar: "KZ", subscribers: "22.4M", category: "Education" },
-  { id: "UCsXVk37bltHxD1rDPwtNM8R", name: "Vsauce", avatar: "VS", subscribers: "18.2M", category: "Education" },
-  { id: "UCsXVk37bltHxD1rDPwtNM8S", name: "Veritasium", avatar: "VT", subscribers: "15.1M", category: "Education" },
-
-  // Gaming
-  { id: "UC-lHJZR3Gqxm24_Vd_AJ5Yw", name: "PewDiePie", avatar: "PD", subscribers: "111M", category: "Gaming" },
-  { id: "UCsXVk37bltHxD1rDPwtNM8T", name: "Markiplier", avatar: "MP", subscribers: "36.5M", category: "Gaming" },
-];

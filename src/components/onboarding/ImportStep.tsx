@@ -1,4 +1,5 @@
 import React, { useState, useRef } from "react";
+import { unzipSync } from "fflate";
 import { parseSubscriptionExport } from "../../lib/api/youtube";
 import { useSubscriptionStore } from "../../store/useSubscriptionStore";
 
@@ -17,17 +18,23 @@ function parseJsonBackup(jsonText: string): ParseChannelResult[] {
       if (!url) return "";
       let id = "";
       if (url.includes("/channel/")) {
-        id = url.split("/channel/")[1];
+        const parts = url.split("/channel/");
+        id = parts[1] || "";
       } else if (url.includes("/@")) {
-        id = url.split("/@")[1];
+        const parts = url.split("/@");
+        id = parts[1] || "";
       } else if (url.includes("/user/")) {
-        id = url.split("/user/")[1];
+        const parts = url.split("/user/");
+        id = parts[1] || "";
       } else {
         id = url;
       }
       // Clean query parameters and trailing slashes
-      id = id.split("/")[0].split("?")[0].trim();
-      return id;
+      const cleanParts1 = id.split("/");
+      const basePart = cleanParts1[0] || "";
+      const cleanParts2 = basePart.split("?");
+      const finalId = cleanParts2[0] || "";
+      return finalId.trim();
     };
 
     // 1. Check if it's an array of subscriptions directly or has a "subscriptions" key
@@ -143,6 +150,7 @@ export const ImportStep: React.FC = () => {
     setProgress(10);
     setErrorMessage("");
 
+    const isZip = file.name.endsWith(".zip");
     const reader = new FileReader();
     
     reader.onprogress = (event) => {
@@ -153,17 +161,34 @@ export const ImportStep: React.FC = () => {
     };
 
     reader.onload = async (event) => {
-      const text = event.target?.result as string;
-      if (!text) {
-        setImportState("error");
-        setErrorMessage("The chosen file is empty or unreadable.");
-        return;
-      }
-
       setImportState("parsing");
       setProgress(50);
 
       try {
+        let text = "";
+
+        if (isZip) {
+          const arrayBuffer = event.target?.result as ArrayBuffer;
+          if (!arrayBuffer) {
+            throw new Error("Could not read the ZIP file content.");
+          }
+          const decompressed = unzipSync(new Uint8Array(arrayBuffer));
+          const jsonKey = Object.keys(decompressed).find(k => k.endsWith(".json"));
+          if (!jsonKey) {
+            throw new Error("Could not find any database configuration JSON file inside the backup ZIP.");
+          }
+          const bytes = decompressed[jsonKey];
+          text = new TextDecoder("utf-8").decode(bytes);
+        } else {
+          text = event.target?.result as string;
+        }
+
+        if (!text) {
+          setImportState("error");
+          setErrorMessage("The chosen file is empty or unreadable.");
+          return;
+        }
+
         let channels: [string, string][] = [];
 
         // Check if the content is JSON
@@ -214,7 +239,11 @@ export const ImportStep: React.FC = () => {
       setErrorMessage("Could not read the chosen file.");
     };
 
-    reader.readAsText(file);
+    if (isZip) {
+      reader.readAsArrayBuffer(file);
+    } else {
+      reader.readAsText(file);
+    }
   };
 
   return (
@@ -233,7 +262,7 @@ export const ImportStep: React.FC = () => {
         type="file"
         ref={fileInputRef}
         onChange={handleFileChange}
-        accept=".xml,.opml,.json,.csv,.txt"
+        accept=".xml,.opml,.json,.csv,.txt,.zip"
         className="hidden"
       />
 
@@ -260,7 +289,7 @@ export const ImportStep: React.FC = () => {
             <div className="space-y-2">
               <h4 className="text-lg font-bold text-zinc-200">Click to browse files</h4>
               <p className="text-sm text-zinc-500 max-w-md mx-auto leading-relaxed">
-                Upload subscription_manager.xml, takeout.csv, or standard OPML backups.
+                Upload backup .zip, backup .json, Google Takeout CSV/XML, or standard OPML backups.
               </p>
             </div>
           </div>
@@ -324,6 +353,7 @@ export const ImportStep: React.FC = () => {
         <h4 className="text-xs font-bold uppercase tracking-widest text-zinc-500">Supported formats</h4>
         <ul className="text-sm text-zinc-400 space-y-2 list-disc pl-5 leading-normal">
           <li><strong>Google Takeout:</strong> CSV export containing subscriptions list.</li>
+          <li><strong>Flow Mobile & Desktop:</strong> Upload exported Master Backups (.zip containing app_data.json) or raw database exports.</li>
           <li><strong>NewPipe & LibreTube:</strong> Standard exported JSON backups.</li>
           <li><strong>Standard OPML / XML:</strong> Feed schemas exported from FreeTube, RSS readers, or other players.</li>
         </ul>
