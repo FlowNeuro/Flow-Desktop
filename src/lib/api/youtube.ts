@@ -1,0 +1,399 @@
+import type {
+  SearchVideosRequest,
+  SearchVideosResponse,
+  VideoDetails,
+  StreamInfo,
+  ChannelDetails,
+  ChannelVideosResponse,
+  PlaylistDetailsResponse,
+  CommentsResponse,
+  VideoSummary,
+} from "../../types/video";
+import { isTauriEnv } from "./env";
+import {
+  BackendApiError,
+  getBackendErrorMessage,
+  invokeBackend,
+} from "./errors";
+
+export { BackendApiError as YoutubeApiError };
+
+export function getYoutubeErrorMessage(error: unknown): string {
+  return getBackendErrorMessage(error);
+}
+
+export async function searchVideos(
+  request: SearchVideosRequest,
+): Promise<SearchVideosResponse> {
+  if (!(await isTauriEnv())) {
+    console.warn("Tauri not detected. Returning curated mock video results.");
+    return {
+      items: [
+        {
+          id: "dQw4w9WgXcQ",
+          title: "Building an Offline Recommendation Engine with Rust & SQLite",
+          channelName: "Fireship",
+          thumbnailUrl: "https://images.unsplash.com/photo-1607799279861-4dd421887fb3?q=80&w=300",
+          durationSeconds: 156,
+          publishedText: "3 days ago",
+          viewCountText: "235K views",
+        },
+        {
+          id: "3s7h2tqD9oI",
+          title: "Astrophysics Masterclass: Understanding the Quantum Field",
+          channelName: "Veritasium",
+          thumbnailUrl: "https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=300",
+          durationSeconds: 980,
+          publishedText: "1 week ago",
+          viewCountText: "1.2M views",
+        },
+        {
+          id: "9T8y3H1xQ4s",
+          title: "Cosmic Lo-Fi Session: Music to Code/Relax/Study",
+          channelName: "Lofi Girl",
+          thumbnailUrl: "https://images.unsplash.com/photo-1518495973542-4542c06a5843?q=80&w=300",
+          durationSeconds: 18000,
+          publishedText: "Live Now",
+          viewCountText: "45K watching",
+        },
+        {
+          id: "6H7J8K9L0M",
+          title: "Why Memory Safety in Rust Actually Matters",
+          channelName: "The Primeagen",
+          thumbnailUrl: "https://images.unsplash.com/photo-1629654297299-c8506221ca97?q=80&w=300",
+          durationSeconds: 720,
+          publishedText: "2 days ago",
+          viewCountText: "98K views",
+        },
+      ],
+      nextPageToken: "mock-token",
+      source: "mock-extractor",
+    };
+  }
+  return invokeBackend<SearchVideosResponse>("search_videos", { request });
+}
+
+export async function getVideoDetails(videoId: string): Promise<VideoDetails> {
+  if (!(await isTauriEnv())) {
+    console.warn("Tauri not detected. Returning mock video details.");
+    return {
+      id: videoId,
+      title: "Building an Offline Recommendation Engine with Rust & SQLite",
+      channelName: "Fireship",
+      description: "A deep dive into local telemetry recommendation matrices.",
+      thumbnailUrl: "https://images.unsplash.com/photo-1607799279861-4dd421887fb3?q=80&w=300",
+      durationSeconds: 156,
+    };
+  }
+  return invokeBackend<VideoDetails>("get_video_details", { videoId });
+}
+
+export async function getStreamInfo(videoId: string): Promise<StreamInfo> {
+  if (!(await isTauriEnv())) {
+    console.warn("Tauri not detected. Returning public fallback stream link.");
+    return {
+      streamId: videoId,
+      localUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
+      expiresAt: "never",
+    };
+  }
+  return invokeBackend<StreamInfo>("get_stream_info", { videoId });
+}
+
+export async function getChannelDetails(channelId: string): Promise<ChannelDetails> {
+  if (!(await isTauriEnv())) {
+    console.warn("Tauri not detected. Returning mock channel details.");
+    return {
+      id: channelId,
+      name: "Mock Channel Name",
+      description: "This is a mock channel description since Tauri was not detected.",
+      avatarUrl: "📺",
+      bannerUrl: "",
+      subscriberCount: 154000,
+      subscriberCountText: "154K subscribers",
+      verified: true,
+    };
+  }
+  return invokeBackend<ChannelDetails>("get_channel_details", { channelId });
+}
+
+export async function getChannelVideos(
+  channelId: string,
+  pageToken?: string | null,
+): Promise<ChannelVideosResponse> {
+  if (!(await isTauriEnv())) {
+    console.warn("Tauri not detected. Returning mock channel videos.");
+    return {
+      channelId,
+      videos: [
+        {
+          id: "dQw4w9WgXcQ",
+          title: "Mock Channel Video 1",
+          channelName: "Mock Channel",
+          thumbnailUrl: "https://images.unsplash.com/photo-1607799279861-4dd421887fb3?q=80&w=300",
+          durationSeconds: 150,
+          publishedText: "1 day ago",
+          viewCountText: "10K views",
+        },
+      ],
+      nextPageToken: null,
+    };
+  }
+  return invokeBackend<ChannelVideosResponse>("get_channel_videos", {
+    channelId,
+    pageToken,
+  });
+}
+
+export async function getPlaylistDetails(
+  playlistId: string,
+  pageToken?: string | null,
+): Promise<PlaylistDetailsResponse> {
+  if (!(await isTauriEnv())) {
+    console.warn("Tauri not detected. Returning mock playlist details.");
+    return {
+      id: playlistId,
+      title: "Mock Playlist Title",
+      description: "Mock playlist description.",
+      channelName: "Mock Owner",
+      videoCount: 1,
+      videos: [
+        {
+          id: "dQw4w9WgXcQ",
+          title: "Mock Playlist Video 1",
+          channelName: "Mock Owner",
+          thumbnailUrl: "https://images.unsplash.com/photo-1607799279861-4dd421887fb3?q=80&w=300",
+          durationSeconds: 120,
+          publishedText: "3 days ago",
+          viewCountText: "10K views",
+        },
+      ],
+      nextPageToken: null,
+    };
+  }
+  return invokeBackend<PlaylistDetailsResponse>("get_playlist_details", {
+    playlistId,
+    pageToken,
+  });
+}
+
+export async function getComments(
+  videoId: string,
+  pageToken?: string | null,
+): Promise<CommentsResponse> {
+  if (!(await isTauriEnv())) {
+    console.warn("Tauri not detected. Returning mock comments.");
+    return {
+      comments: [
+        {
+          id: "mock_c1",
+          author: "Mock Commenter",
+          authorThumbnail: null,
+          text: "Wow! This application is incredibly fast and responsive!",
+          publishedText: "2 hours ago",
+          likeCount: 42,
+          replyCount: 2,
+        },
+      ],
+      nextPageToken: null,
+    };
+  }
+  return invokeBackend<CommentsResponse>("get_comments", {
+    videoId,
+    pageToken,
+  });
+}
+
+export async function getTrendingVideos(): Promise<VideoSummary[]> {
+  if (!(await isTauriEnv())) {
+    console.warn("Tauri not detected. Returning mock trending videos.");
+    return [
+      {
+        id: "dQw4w9WgXcQ",
+        title: "Trending offline coding masterclass with Rust",
+        channelName: "Fireship",
+        thumbnailUrl: "https://images.unsplash.com/photo-1607799279861-4dd421887fb3?q=80&w=300",
+        durationSeconds: 156,
+        publishedText: "1 day ago",
+        viewCountText: "500K views",
+      },
+    ];
+  }
+  return invokeBackend<VideoSummary[]>("get_trending_videos");
+}
+
+export async function getSearchSuggestions(query: string): Promise<string[]> {
+  if (!(await isTauriEnv())) {
+    console.warn("Tauri not detected. Returning mock suggestions.");
+    return [
+      `${query} tutorial`,
+      `${query} crash course`,
+      `${query} setup guide`,
+      `${query} tips & tricks`,
+    ];
+  }
+  return invokeBackend<string[]>("get_search_suggestions", { query });
+}
+
+export async function searchMusic(
+  query: string,
+  filter: string,
+): Promise<VideoSummary[]> {
+  if (!(await isTauriEnv())) {
+    console.warn("Tauri not detected. Returning mock music search results.");
+    return [
+      {
+        id: "dQw4w9WgXcQ",
+        title: `${query} (Lofi Remix)`,
+        channelName: "Mock Artist",
+        thumbnailUrl: "https://images.unsplash.com/photo-1607799279861-4dd421887fb3?q=80&w=300",
+        durationSeconds: 240,
+        publishedText: "Released 2026",
+        viewCountText: "Song",
+      },
+    ];
+  }
+  return invokeBackend<VideoSummary[]>("search_music", { query, filter });
+}
+
+export async function parseSubscriptionExport(
+  data: string,
+): Promise<[string, string][]> {
+  if (!(await isTauriEnv())) {
+    console.warn("Tauri not detected. Returning mock parsed subscriptions.");
+    return [
+      ["UCsBjURrdU234nU351gVEfTA", "Fireship"],
+      ["UCwRxwjk_c_92sAMeX4JzW4w", "Linus Tech Tips"],
+    ];
+  }
+  return invokeBackend<[string, string][]>("parse_subscription_export", { data });
+}
+
+export async function getMusicLyrics(videoId: string): Promise<string | null> {
+  if (!(await isTauriEnv())) {
+    console.warn("Tauri not detected. Returning mock lyrics.");
+    return "[00:10.00] This is a mock lyrics line\n[00:20.00] Singing natively in Flow Desktop!";
+  }
+  return invokeBackend<string | null>("get_music_lyrics", { videoId });
+}
+
+export async function getMusicRelated(videoId: string): Promise<VideoSummary[]> {
+  if (!(await isTauriEnv())) {
+    console.warn("Tauri not detected. Returning mock related songs.");
+    return [
+      {
+        id: "dQw4w9WgXcQ",
+        title: "Mock Related Hit",
+        channelName: "Mock Artist",
+        thumbnailUrl: "https://images.unsplash.com/photo-1607799279861-4dd421887fb3?q=80&w=300",
+        durationSeconds: 180,
+        publishedText: "3 months ago",
+        viewCountText: "2M views",
+      },
+    ];
+  }
+  return invokeBackend<VideoSummary[]>("get_music_related", { videoId });
+}
+
+export async function getMusicAlbum(albumBrowseId: string): Promise<VideoSummary[]> {
+  if (!(await isTauriEnv())) {
+    console.warn("Tauri not detected. Returning mock album tracks.");
+    return [
+      {
+        id: "dQw4w9WgXcQ",
+        title: "Mock Album Track 1",
+        channelName: "Mock Artist",
+        thumbnailUrl: "https://images.unsplash.com/photo-1607799279861-4dd421887fb3?q=80&w=300",
+        durationSeconds: 200,
+        publishedText: "Track 1",
+        viewCountText: "Album Track",
+      },
+    ];
+  }
+  return invokeBackend<VideoSummary[]>("get_music_album", { albumBrowseId });
+}
+
+export interface SponsorBlockSegment {
+  category: string;
+  segment: [number, number];
+  UUID: string;
+}
+
+export async function getSponsorBlockSegments(
+  videoId: string,
+  serverUrl?: string,
+): Promise<SponsorBlockSegment[]> {
+  if (!(await isTauriEnv())) {
+    console.warn("Tauri not detected. Returning mock SponsorBlock segments.");
+    return [
+      {
+        category: "sponsor",
+        segment: [10, 25],
+        UUID: "mock-sponsor-uuid-1",
+      },
+    ];
+  }
+  return invokeBackend<SponsorBlockSegment[]>("get_sponsorblock_segments", {
+    videoId,
+    serverUrl,
+  });
+}
+
+export interface DeArrowOverride {
+  title: string | null;
+  thumbnailUrl: string | null;
+}
+
+export async function getDeArrowOverride(videoId: string): Promise<DeArrowOverride | null> {
+  if (!(await isTauriEnv())) return null;
+  return invokeBackend<DeArrowOverride | null>("get_dearrow_override", { videoId });
+}
+
+export interface MusicHomeSection {
+  sectionId: string;
+  title: string;
+  subtitle: string | null;
+  tracks: VideoSummary[];
+  orderBy: number;
+}
+
+export interface MusicHomeChip {
+  title: string;
+  browseId: string | null;
+  params: string | null;
+  orderBy: number;
+}
+
+export async function getMusicHome(): Promise<[MusicHomeSection[], MusicHomeChip[]]> {
+  if (!(await isTauriEnv())) {
+    console.warn("Tauri not detected. Returning mock Music Home.");
+    return [[], []];
+  }
+  return invokeBackend<[MusicHomeSection[], MusicHomeChip[]]>("get_music_home");
+}
+
+export async function refreshMusicHome(): Promise<[MusicHomeSection[], MusicHomeChip[]]> {
+  if (!(await isTauriEnv())) {
+    console.warn("Tauri not detected. Returning mock Music Home.");
+    return [[], []];
+  }
+  return invokeBackend<[MusicHomeSection[], MusicHomeChip[]]>("refresh_music_home");
+}
+
+export async function getPersonalizedMusicRecommendations(limit: number): Promise<VideoSummary[]> {
+  if (!(await isTauriEnv())) {
+    console.warn("Tauri not detected. Returning mock music recommendations.");
+    return [];
+  }
+  return invokeBackend<VideoSummary[]>("get_personalized_music_recommendations", { limit });
+}
+
+export async function getSubscriptionRotationFeed(): Promise<VideoSummary[]> {
+  if (!(await isTauriEnv())) {
+    console.warn("Tauri not detected. Returning empty subscriptions rotation.");
+    return [];
+  }
+  return invokeBackend<VideoSummary[]>("get_subscription_rotation_feed");
+}
+
+

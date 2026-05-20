@@ -1,0 +1,64 @@
+import type { WatchHistoryRecord } from "../../types/db";
+import { isTauriEnv } from "./env";
+import { invokeBackend } from "./errors";
+
+export async function getWatchHistory(
+  limit: number,
+  offset: number,
+): Promise<WatchHistoryRecord[]> {
+  if (!(await isTauriEnv())) {
+    console.warn("Tauri not detected. Falling back to local storage watch history.");
+    const saved = localStorage.getItem("mock_watch_history");
+    const list: WatchHistoryRecord[] = saved ? JSON.parse(saved) : [];
+    return list.slice(offset, offset + limit);
+  }
+  return invokeBackend<WatchHistoryRecord[]>("get_watch_history", { limit, offset });
+}
+
+export async function addWatchRecord(
+  record: WatchHistoryRecord,
+): Promise<void> {
+  if (!(await isTauriEnv())) {
+    console.warn("Tauri not detected. Adding watch record to local storage.");
+    const current = await getWatchHistory(100, 0);
+    const updated = [record, ...current];
+    localStorage.setItem("mock_watch_history", JSON.stringify(updated));
+    return;
+  }
+  return invokeBackend<void>("add_watch_record", { record });
+}
+
+export async function deleteWatchRecord(videoId: string): Promise<void> {
+  if (!(await isTauriEnv())) {
+    const current = await getWatchHistory(100, 0);
+    const updated = current.filter((r) => r.videoId !== videoId);
+    localStorage.setItem("mock_watch_history", JSON.stringify(updated));
+    return;
+  }
+  return invokeBackend<void>("delete_watch_record", { videoId });
+}
+
+export async function clearWatchHistory(): Promise<void> {
+  if (!(await isTauriEnv())) {
+    localStorage.removeItem("mock_watch_history");
+    return;
+  }
+  return invokeBackend<void>("clear_watch_history");
+}
+
+export async function getSetting(key: string): Promise<string | null> {
+  if (!(await isTauriEnv())) {
+    console.warn(`Tauri not detected. Reading setting from local storage: ${key}`);
+    return localStorage.getItem(`mock_setting_${key}`);
+  }
+  return invokeBackend<string | null>("get_setting", { key });
+}
+
+export async function setSetting(key: string, value: string): Promise<void> {
+  if (!(await isTauriEnv())) {
+    console.warn(`Tauri not detected. Saving setting to local storage: ${key}`);
+    localStorage.setItem(`mock_setting_${key}`, value);
+    return;
+  }
+  return invokeBackend<void>("set_setting", { key, value });
+}
