@@ -3,7 +3,7 @@ import * as dashjs from "dashjs";
 import { Loader2, RotateCcw } from "lucide-react";
 import { usePlayerStore } from "../../store/usePlayerStore";
 import { useSettingsStore, type SponsorBlockCategory, type SponsorBlockAction } from "../../store/useSettingsStore";
-import type { AudioTrack, CaptionTrack, StreamVariant } from "../../types/video";
+import type { AudioTrack, CaptionTrack, StreamVariant, VideoChapter } from "../../types/video";
 import { FlowPlayerControls } from "./FlowPlayerControls";
 import { SubtitleOverlay } from "./SubtitleOverlay";
 
@@ -19,11 +19,12 @@ type PlayerProps = {
   audioTracks?: AudioTrack[];
   selectedQualityId?: string | null;
   resumeTime?: number;
-  onSelectQuality?: (variant: StreamVariant) => void;
+  onSelectQuality?: (variant: StreamVariant | "auto") => void;
   onEnded?: () => void;
   onTimeUpdate?: (currentTime: number, duration: number) => void;
   onRetry?: () => void;
   className?: string;
+  chapters?: VideoChapter[];
 };
 
 type DashBitrateInfo = {
@@ -53,6 +54,8 @@ type DashPlayerController = {
   getRepresentationsByType: (type: string) => DashRepresentationInfo[];
   setRepresentationForTypeById: (type: string, id: string, forceReplace?: boolean) => void;
   extend?: (parentNameString: string, childInstance: () => unknown, override: boolean) => void;
+  getQualityFor: (type: string) => number;
+  getCurrentRepresentationForType: (type: string) => DashRepresentationInfo | null;
 };
 
 type QualitySwitchSnapshot = {
@@ -70,7 +73,10 @@ function extractCodecMimeType(mimeType?: string | null) {
   const codecMatch = rest.join(";").match(/codecs\s*=\s*(?:"([^"]+)"|([^;\s]+))/i);
   if (!baseType) return null;
   const trimmedBaseType = baseType.trim();
-  const codecsValue = codecMatch?.[1] || codecMatch?.[2];
+  let codecsValue = codecMatch?.[1] || codecMatch?.[2];
+  if (codecsValue === "vp9") {
+    codecsValue = "vp09.00.10.08";
+  }
   return codecsValue ? `${trimmedBaseType}; codecs="${codecsValue}"` : trimmedBaseType;
 }
 
@@ -111,7 +117,9 @@ export const Player: React.FC<PlayerProps> = ({
   onTimeUpdate,
   onRetry,
   className,
+  chapters = [],
 }) => {
+  const [activeQualityLabel, setActiveQualityLabel] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -232,7 +240,31 @@ export const Player: React.FC<PlayerProps> = ({
   const applyDashQualitySelection = useCallback(() => {
     const player = dashPlayerRef.current;
     const video = videoRef.current;
-    if (!player || !video || !selectedQuality) return;
+    if (!player || !video) return;
+
+    if (selectedQualityId === "auto") {
+      player.updateSettings({
+        streaming: {
+          abr: {
+            autoSwitchBitrate: {
+              video: true,
+              audio: true,
+            },
+          },
+        },
+      });
+      logPlayerEvent("dash-quality-auto-requested", {
+        switchTime: video.currentTime,
+      });
+
+      const currentRep = player.getCurrentRepresentationForType("video");
+      if (currentRep && currentRep.height) {
+        setActiveQualityLabel(`${currentRep.height}p`);
+      }
+      return;
+    }
+
+    if (!selectedQuality) return;
 
     const representations = player.getRepresentationsByType("video") || [];
     const targetRepresentation = representations.find((representation) => representation.id === selectedQuality.id)
@@ -292,7 +324,7 @@ export const Player: React.FC<PlayerProps> = ({
       targetMimeType: targetRepresentation.mimeType,
       switchTime: video.currentTime,
     });
-  }, [logPlayerEvent, selectedQuality]);
+  }, [logPlayerEvent, selectedQuality, selectedQualityId]);
   const applyDashQualitySelectionRef = useRef(applyDashQualitySelection);
 
   useEffect(() => {
@@ -467,6 +499,9 @@ export const Player: React.FC<PlayerProps> = ({
     }
     player.updateSettings({
       streaming: {
+        capabilities: {
+          useMediaCapabilitiesApi: false,
+        },
         abr: {
           autoSwitchBitrate: {
             video: false,
@@ -504,6 +539,12 @@ export const Player: React.FC<PlayerProps> = ({
         snapshotFromTime: snapshot?.fromTime,
         snapshotAgeMs: snapshot ? Math.round(performance.now() - snapshot.appliedAt) : undefined,
       });
+
+      const currentRep = player.getCurrentRepresentationForType("video");
+      if (currentRep && currentRep.height) {
+        setActiveQualityLabel(`${currentRep.height}p`);
+      }
+
       if (snapshot && video.currentTime < Math.max(1, snapshot.fromTime - 2)) {
         const rewindTime = snapshot.fromTime;
         video.currentTime = rewindTime;
@@ -539,6 +580,11 @@ export const Player: React.FC<PlayerProps> = ({
         })),
       });
       applyDashQualitySelectionRef.current();
+
+      const currentRep = player.getCurrentRepresentationForType("video");
+      if (currentRep && currentRep.height) {
+        setActiveQualityLabel(`${currentRep.height}p`);
+      }
     };
 
     player.on(dashEvents.PLAYBACK_WAITING, onPlaybackWaiting);
@@ -1041,14 +1087,19 @@ export const Player: React.FC<PlayerProps> = ({
     updateBuffered();
   };
 
+  const playerRootClasses = cx(
+    isTheaterMode
+      ? "relative w-full aspect-video max-h-[calc(100vh-160px)] min-h-[480px] bg-black flex items-center justify-center rounded-none overflow-hidden text-white outline-none shadow-none"
+      : "relative w-full aspect-video bg-black rounded-xl overflow-hidden text-white outline-none shadow-2xl",
+    isFullscreen && "rounded-none",
+    className
+  );
+
   return (
     <div
       ref={containerRef}
-      className={cx(
-        "group/player relative h-full w-full overflow-hidden bg-black text-white shadow-2xl outline-none",
-        isFullscreen ? "rounded-none" : "rounded-xl",
-        className
-      )}
+      id="flow-player-root"
+      className={cx("group/player", playerRootClasses)}
       tabIndex={0}
       onMouseMove={revealControls}
       onMouseLeave={() => {
@@ -1122,13 +1173,10 @@ export const Player: React.FC<PlayerProps> = ({
         />
       )}
 
-      {/* Minimalist buffering spinner */}
+      {/* buffering spinner */}
       {isBuffering && !isLoading && !error && (
         <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center bg-black/15 transition-all duration-300">
           <div className="relative flex items-center justify-center">
-            {/* Pulsing outer ring */}
-            <div className="absolute h-16 w-16 animate-ping rounded-full bg-white/5" />
-            {/* Spinning minimalist ring */}
             <svg className="h-12 w-12 animate-spin text-white" viewBox="0 0 24 24" fill="none">
               <circle
                 className="opacity-20"
@@ -1224,7 +1272,7 @@ export const Player: React.FC<PlayerProps> = ({
         setControlsVisible={setControlsVisible}
         shouldShowControls={shouldShowControls}
         qualities={supportedQualities}
-        selectedQualityId={selectedQualityId}
+        selectedQualityId={selectedQualityId || "auto"}
         isDashPlayback={isDashPlayback}
         onSelectQuality={onSelectQuality}
         captions={captions}
@@ -1248,6 +1296,8 @@ export const Player: React.FC<PlayerProps> = ({
         setSettingsOpen={setSettingsOpen}
         isScrubbing={isScrubbing}
         setIsScrubbing={setIsScrubbing}
+        chapters={chapters}
+        activeQualityLabel={isDashPlayback ? (activeQualityLabel || undefined) : (qualities.find(q => q.localUrl === src)?.qualityLabel || undefined)}
       />
     </div>
   );

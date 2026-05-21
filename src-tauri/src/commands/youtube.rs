@@ -19,10 +19,16 @@ use crate::streaming::proxy::StreamingManager;
 
 fn extract_codecs(mime_type: Option<&str>) -> Option<String> {
     let mime_type = mime_type?;
-    mime_type
+    let codecs = mime_type
         .split(';')
         .find_map(|part| part.trim().strip_prefix("codecs=").map(|value| value.trim_matches('"').to_string()))
-        .filter(|value| !value.is_empty())
+        .filter(|value| !value.is_empty())?;
+
+    if codecs == "vp9" {
+        Some("vp09.00.10.08".to_string())
+    } else {
+        Some(codecs)
+    }
 }
 
 fn extract_base_mime_type(mime_type: Option<&str>) -> Option<&str> {

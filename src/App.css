@@ -19,7 +19,7 @@
     :root {
       --color-secondary-val: #AAAAAA;
       --color-background-val: #0F0F0F;
-      --color-surface-val: #212121;
+      --color-surface-val: #1d1d1d;
     }
   }
 
@@ -103,4 +103,25 @@
   scrollbar-width: none;  /* Firefox */
 }
 
+/* Fix fullscreen player squashing */
+div:fullscreen,
+div:-webkit-full-screen {
+  width: 100vw !important;
+  height: 100vh !important;
+  max-width: 100vw !important;
+  max-height: 100vh !important;
+  min-width: 100vw !important;
+  min-height: 100vh !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border-radius: 0 !important;
+}
 
+div:fullscreen video,
+div:-webkit-full-screen video {
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  object-fit: contain !important;
+}

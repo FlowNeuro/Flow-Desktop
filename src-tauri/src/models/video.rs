@@ -32,6 +32,14 @@ pub struct RelatedContentItem {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct VideoChapter {
+    pub title: String,
+    pub start_seconds: u64,
+    pub end_seconds: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct VideoDetails {
     pub id: String,
     pub title: String,
@@ -43,6 +51,7 @@ pub struct VideoDetails {
     pub like_count_text: Option<String>,
     pub view_count_text: Option<String>,
     pub published_text: Option<String>,
+    pub chapters: Vec<VideoChapter>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

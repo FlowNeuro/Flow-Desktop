@@ -83,6 +83,8 @@ interface PlayerState {
   setRydData: (data: RydData | null) => void;
   subtitleStyle: SubtitleStyle;
   setSubtitleStyle: (style: SubtitleStyle) => void;
+  isChaptersPanelOpen: boolean;
+  setIsChaptersPanelOpen: (open: boolean) => void;
 }
 
 export const usePlayerStore = create<PlayerState>((set, get) => ({
@@ -106,10 +108,11 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   sponsorBlockSegments: [],
   dearrowData: null,
   rydData: null,
+  isChaptersPanelOpen: false,
 
   setCurrentVideo: (video) => {
     const isNew = get().currentVideo?.id !== video?.id;
-    set({ currentVideo: video, isPlaying: !!video });
+    set({ currentVideo: video, isPlaying: !!video, isChaptersPanelOpen: false });
     
     if (video && isNew) {
       const isSong = video.viewCountText === "Song" || video.viewCountText === "Album Track" || video.channelName.toLowerCase().includes("topic") || video.durationSeconds && video.durationSeconds < 360;
@@ -255,6 +258,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   setSponsorBlockSegments: (sponsorBlockSegments) => set({ sponsorBlockSegments }),
   setDearrowData: (dearrowData) => set({ dearrowData }),
   setRydData: (rydData) => set({ rydData }),
+  setIsChaptersPanelOpen: (isChaptersPanelOpen) => set({ isChaptersPanelOpen }),
   subtitleStyle: getSavedSubtitleStyle(),
   setSubtitleStyle: (style) => {
     localStorage.setItem("flow_subtitle_style", JSON.stringify(style));

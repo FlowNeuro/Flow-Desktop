@@ -41,7 +41,7 @@ export const SubtitleCustomizer: React.FC = () => {
   const bgRgba = `rgba(${r}, ${g}, ${b}, ${subtitleStyle.backgroundOpacity})`;
 
   return (
-    <div className="flex flex-col gap-4 p-3 bg-zinc-900/40 rounded-lg border border-white/5 select-none max-h-[70vh] overflow-y-auto custom-scrollbar">
+    <div className="flex flex-col gap-4 p-1 select-none">
       {/* Live Preview Box */}
       <div className="relative flex flex-col justify-end items-center h-28 w-full rounded-lg bg-zinc-950/80 border border-white/5 overflow-hidden pattern-grid">
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-20 text-[10px] text-zinc-500 font-mono">

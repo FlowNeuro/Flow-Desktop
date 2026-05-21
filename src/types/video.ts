@@ -24,6 +24,12 @@ export interface RelatedContentItem {
   isMix: boolean;
 }
 
+export interface VideoChapter {
+  title: string;
+  startSeconds: number;
+  endSeconds: number;
+}
+
 export interface VideoDetails {
   id: string;
   title: string;
@@ -35,6 +41,7 @@ export interface VideoDetails {
   likeCountText?: string | null;
   viewCountText?: string | null;
   publishedText?: string | null;
+  chapters?: VideoChapter[];
 }
 
 export interface StreamInfo {

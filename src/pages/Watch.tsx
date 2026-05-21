@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { usePlayerStore } from "../store/usePlayerStore";
 import { useSubscriptionStore } from "../store/useSubscriptionStore";
@@ -15,6 +15,8 @@ import { getSponsorBlockSegments, getReturnYouTubeDislike, getDeArrowOverride } 
 import { addWatchRecord } from "../lib/api/db";
 import { Loader2, ThumbsUp, ThumbsDown, Share2, Bookmark, MoreHorizontal,WandSparkles } from "lucide-react";
 import Player from "../components/player/Player";
+import { Chapters } from "../components/player/chapters";
+import { SkeletonLoader } from "../components/ui/SkeletonLoader";
 import type { AudioTrack, CaptionTrack, RelatedContentItem, StreamVariant, VideoSummary } from "../types/video";
 
 import { useSettingsStore } from "../store/useSettingsStore";
@@ -32,6 +34,34 @@ const parseTimestampToSeconds = (ts: string): number => {
 
 const seekToTime = (seconds: number) => {
   window.dispatchEvent(new CustomEvent("flow-player-seek", { detail: { time: seconds } }));
+};
+
+const selectVariantByBandwidth = (variants: StreamVariant[], canUseAdaptive: boolean): StreamVariant | null => {
+  const connection = (navigator as any).connection || (navigator as any).mozConnection || (navigator as any).webkitConnection;
+  const downlink = connection && typeof connection.downlink === "number" ? connection.downlink : 10; // Default to 10 Mbps if not available
+
+  let targetHeight = 240;
+  if (downlink > 25) targetHeight = 2160;
+  else if (downlink > 15) targetHeight = 1440;
+  else if (downlink > 8) targetHeight = 1080;
+  else if (downlink > 4) targetHeight = 720;
+  else if (downlink > 2) targetHeight = 480;
+  else if (downlink > 0.8) targetHeight = 360;
+
+  const playable = variants.filter(v => v.isPlayable && (v.hasAudio || canUseAdaptive));
+  if (playable.length === 0) return null;
+
+  let best: StreamVariant | null = null;
+  let minDiff = Infinity;
+  for (const variant of playable) {
+    const h = variant.height || 0;
+    const diff = Math.abs(h - targetHeight);
+    if (diff < minDiff) {
+      minDiff = diff;
+      best = variant;
+    }
+  }
+  return best;
 };
 
 const renderTextWithLinks = (text: string) => {
@@ -120,7 +150,6 @@ const formatViews = (views: string | number | undefined | null) => {
 export function Watch() {
   const { videoId } = useParams<{ videoId: string }>();
   const navigate = useNavigate();
-  
   const {
     dearrowEnabled,
     dearrowBadgeEnabled,
@@ -140,7 +169,9 @@ export function Watch() {
     rydData,
     setDearrowData,
     setRydData,
-    setSponsorBlockSegments
+    setSponsorBlockSegments,
+    isChaptersPanelOpen,
+    setIsChaptersPanelOpen
   } = usePlayerStore();
 
   const { isSubscribed, subscribe, unsubscribe, loadSubscriptions } = useSubscriptionStore();
@@ -150,7 +181,7 @@ export function Watch() {
   const [captions, setCaptions] = useState<CaptionTrack[]>([]);
   const [audioTracks, setAudioTracks] = useState<AudioTrack[]>([]);
   const [dashManifestUrl, setDashManifestUrl] = useState<string | null>(null);
-  const [selectedQualityId, setSelectedQualityId] = useState<string | null>(null);
+  const [selectedQualityId, setSelectedQualityId] = useState<string>("auto");
   const [resumeTime, setResumeTime] = useState(0);
   const [loadingStream, setLoadingStream] = useState(false);
   const [streamError, setStreamError] = useState<string | null>(null);
@@ -168,7 +199,6 @@ export function Watch() {
   const [videoDetails, setVideoDetails] = useState<any>(null);
   const [relatedVideos, setRelatedVideos] = useState<RelatedContentItem[]>([]);
   const [relatedLoading, setRelatedLoading] = useState(false);
-
   const [interactionState, setInteractionState] = useState<"none" | "liked" | "disliked">("none");
 
   const resolvedChannelId = videoDetails?.channelId || currentVideo?.channelId || channelDetails?.id || "";
@@ -215,25 +245,46 @@ export function Watch() {
       setStreamError(null);
       try {
         const info = await getStreamInfo(currentVideo.id);
-        const canUseAdaptive = (info.audioTracks || []).some((track) => !!track.localUrl);
-        const defaultVariant = info.variants?.find((variant) => variant.isDefault && variant.isPlayable && (variant.hasAudio || canUseAdaptive))
-          || info.variants?.find((variant) => variant.isPlayable && (variant.hasAudio || canUseAdaptive))
-          || null;
         setStreamVariants(info.variants || []);
         setCaptions(info.captions || []);
         setAudioTracks(info.audioTracks || []);
-        setDashManifestUrl(info.dashManifestUrl || null);
-        setSelectedQualityId(defaultVariant?.id || null);
+
+        const supportsVP9 = typeof MediaSource !== "undefined" && typeof MediaSource.isTypeSupported === "function" && MediaSource.isTypeSupported('video/webm; codecs="vp9"');
+        const hasDashUrl = !!(info.dashManifestUrl && supportsVP9);
+        setDashManifestUrl(hasDashUrl ? (info.dashManifestUrl || null) : null);
+        
+        let initialQualityId = selectedQualityId || "auto";
+        if (initialQualityId === "null" || !initialQualityId) {
+          initialQualityId = "auto";
+        }
+        setSelectedQualityId(initialQualityId);
         setResumeTime(0);
-        setStreamUrl(info.dashManifestUrl || defaultVariant?.localUrl || info.localUrl);
+
+        if (hasDashUrl) {
+          setStreamUrl(info.dashManifestUrl || null);
+        } else {
+          const canUseAdaptive = (info.audioTracks || []).some((track) => !!track.localUrl);
+          let chosenVariant: StreamVariant | null = null;
+          if (initialQualityId === "auto") {
+            chosenVariant = selectVariantByBandwidth(info.variants || [], canUseAdaptive);
+          } else {
+            chosenVariant = info.variants?.find(v => v.id === initialQualityId) || null;
+          }
+          if (!chosenVariant) {
+            chosenVariant = info.variants?.find((variant) => variant.isDefault && variant.isPlayable && (variant.hasAudio || canUseAdaptive))
+              || info.variants?.find((variant) => variant.isPlayable && (variant.hasAudio || canUseAdaptive))
+              || null;
+          }
+          setStreamUrl(chosenVariant?.localUrl || info.localUrl || null);
+        }
+
         console.log("[Watch] Stream info loaded", {
           videoId: currentVideo.id,
           variantCount: info.variants?.length || 0,
           audioTrackCount: info.audioTracks?.length || 0,
-          hasDashManifest: !!info.dashManifestUrl,
+          hasDashManifest: !!hasDashUrl,
           hasHlsManifest: !!info.hlsManifestUrl,
-          defaultVariantId: defaultVariant?.id,
-          defaultVariantLabel: defaultVariant?.qualityLabel,
+          selectedQualityId: initialQualityId,
         });
         setIsPlaying(true);
 
@@ -251,7 +302,7 @@ export function Watch() {
         setCaptions([]);
         setAudioTracks([]);
         setDashManifestUrl(null);
-        setSelectedQualityId(null);
+        setSelectedQualityId("auto");
         setStreamError(getYoutubeErrorMessage(err));
         console.error("Failed to load stream URL", err);
       } finally {
@@ -414,7 +465,22 @@ export function Watch() {
     setDuration(mediaDuration || currentVideo?.durationSeconds || 1);
   }, [setCurrentTime, setDuration, currentVideo?.durationSeconds]);
 
-  const handleQualitySelect = useCallback((variant: StreamVariant) => {
+  const handleQualitySelect = useCallback((variant: StreamVariant | "auto") => {
+    if (variant === "auto") {
+      setSelectedQualityId("auto");
+      setIsPlaying(true);
+      if (dashManifestUrl) {
+        return;
+      }
+      const canUseAdaptive = audioTracks.some((track) => !!track.localUrl);
+      const chosenVariant = selectVariantByBandwidth(streamVariants, canUseAdaptive);
+      if (chosenVariant) {
+        setResumeTime(usePlayerStore.getState().currentTime);
+        setStreamUrl(chosenVariant.localUrl);
+      }
+      return;
+    }
+
     if (!variant.isPlayable) return;
     if (!dashManifestUrl && !variant.hasAudio && !audioTracks.some((track) => !!track.localUrl)) return;
     console.log("[Watch] Quality selected", {
@@ -433,7 +499,41 @@ export function Watch() {
     setSelectedQualityId(variant.id);
     setStreamUrl(variant.localUrl);
     setIsPlaying(true);
-  }, [audioTracks, dashManifestUrl, setIsPlaying]);
+  }, [audioTracks, dashManifestUrl, setIsPlaying, streamVariants]);
+
+  const playerLayoutVariant = useMemo(() => {
+    const variantWithDimensions = (variant: StreamVariant | null | undefined) => {
+      if (!variant) return null;
+      return variant.width && variant.height ? variant : null;
+    };
+
+    const selectedVariant = variantWithDimensions(
+      streamVariants.find((variant) => variant.id === selectedQualityId)
+    );
+    if (selectedVariant) return selectedVariant;
+
+    if (selectedQualityId === "auto") {
+      const canUseAdaptive = audioTracks.some((track) => !!track.localUrl);
+      const autoVariant = variantWithDimensions(selectVariantByBandwidth(streamVariants, canUseAdaptive));
+      if (autoVariant) return autoVariant;
+    }
+
+    return (
+      variantWithDimensions(streamVariants.find((variant) => variant.isDefault))
+      || variantWithDimensions(streamVariants.find((variant) => variant.isPlayable))
+      || variantWithDimensions(streamVariants[0])
+      || null
+    );
+  }, [audioTracks, selectedQualityId, streamVariants]);
+
+  const playerAspectRatio = useMemo(() => {
+    const width = playerLayoutVariant?.width;
+    const height = playerLayoutVariant?.height;
+    if (width && height && width > 0 && height > 0) {
+      return `${width} / ${height}`;
+    }
+    return "16 / 9";
+  }, [playerLayoutVariant]);
 
   const mapRelatedItemToVideoSummary = useCallback((item: RelatedContentItem): VideoSummary => ({
     id: item.videoId || item.id,
@@ -485,24 +585,135 @@ export function Watch() {
   }, [mapRelatedItemToVideoSummary, navigate, setQueue]);
 
   if (!currentVideo) {
+    if (streamError) {
+      return (
+        <div className="flex flex-col items-center justify-center h-screen bg-[#0f0f0f] text-white p-6">
+          <div className="max-w-md w-full text-center space-y-4 bg-zinc-900 border border-zinc-800 rounded-2xl p-8 shadow-2xl">
+            <div className="w-16 h-16 bg-red-950/40 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4 border border-red-900/30">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-8 h-8">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+              </svg>
+            </div>
+            <h2 className="text-xl font-bold text-white">Failed to Load Video</h2>
+            <p className="text-sm text-zinc-400 leading-relaxed">
+              {streamError}
+            </p>
+            <button
+              onClick={() => navigate("/")}
+              className="w-full py-2.5 rounded-full bg-primary hover:bg-primary/95 text-white text-sm font-semibold transition-colors cursor-pointer"
+            >
+              Back to Home
+            </button>
+          </div>
+        </div>
+      );
+    }
+
     return (
-      <div className="flex flex-col items-center justify-center h-screen bg-[#0f0f0f] text-white">
-        <Loader2 className="animate-spin text-primary mb-4" size={32} />
-        <span className="text-sm font-bold uppercase tracking-wider text-zinc-500">
-          Loading player details... {loadingStream ? "(Resolving stream...)" : ""} {streamError ? `(${streamError})` : ""}
-        </span>
+      <div className="min-h-screen bg-[#0f0f0f] text-white overflow-x-hidden font-sans pb-32">
+        <div className="mx-auto max-w-[1750px] px-6 py-6 grid grid-cols-1 lg:grid-cols-[73%_27%] gap-x-6 gap-y-5 items-start">
+          
+          {/* LEFT COLUMN SKELETON */}
+          <div className="flex flex-col gap-5 w-full">
+            {/* Player aspect ratio block */}
+            <div className="w-full aspect-video rounded-xl overflow-hidden bg-zinc-900 animate-pulse">
+              <SkeletonLoader type="thumbnail" className="w-full h-full" />
+            </div>
+
+            {/* Video Title Skeleton */}
+            <div className="space-y-2 mt-2">
+              <SkeletonLoader type="title" className="h-6 w-3/4 bg-zinc-850" />
+              <SkeletonLoader type="title" className="h-4 w-1/2 bg-zinc-850/60" />
+            </div>
+
+            {/* Channel Info & Actions Row */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 py-3 border-b border-zinc-800/40 pb-4">
+              <div className="flex items-center gap-3">
+                <SkeletonLoader type="avatar" className="w-10 h-10 bg-zinc-800" />
+                <div className="space-y-2">
+                  <SkeletonLoader type="text" className="w-28 h-3 bg-zinc-800" />
+                  <SkeletonLoader type="text" className="w-16 h-2 bg-zinc-800/60" />
+                </div>
+                <div className="w-24 h-9 rounded-full bg-zinc-800/80 animate-pulse ml-2" />
+              </div>
+
+              {/* Action buttons skeletons */}
+              <div className="flex items-center gap-2">
+                <div className="w-32 h-9 rounded-full bg-zinc-800/60 animate-pulse" />
+                <div className="w-20 h-9 rounded-full bg-zinc-800/60 animate-pulse" />
+                <div className="w-20 h-9 rounded-full bg-zinc-800/60 animate-pulse" />
+                <div className="w-9 h-9 rounded-full bg-zinc-800/60 animate-pulse" />
+              </div>
+            </div>
+
+            {/* Description Box Skeleton */}
+            <div className="bg-[#272727]/30 rounded-xl p-4 space-y-3">
+              <div className="flex gap-3">
+                <SkeletonLoader type="text" className="w-24 h-3 bg-zinc-800" />
+                <SkeletonLoader type="text" className="w-24 h-3 bg-zinc-800/60" />
+              </div>
+              <SkeletonLoader type="text" className="w-full h-3 bg-zinc-800/40" />
+              <SkeletonLoader type="text" className="w-5/6 h-3 bg-zinc-800/40" />
+            </div>
+
+            {/* Comments Skeleton */}
+            <div className="space-y-6 pt-4">
+              <SkeletonLoader type="title" className="h-5 w-36 bg-zinc-800" />
+              <div className="space-y-4">
+                {[1, 2, 3].map((i) => (
+                  <div key={`comment-sk-${i}`} className="flex gap-4">
+                    <SkeletonLoader type="avatar" className="w-10 h-10 bg-zinc-800" />
+                    <div className="flex-1 space-y-2">
+                      <SkeletonLoader type="text" className="w-32 h-3 bg-zinc-800" />
+                      <SkeletonLoader type="text" className="w-full h-3 bg-zinc-800/50" />
+                      <SkeletonLoader type="text" className="w-4/5 h-3 bg-zinc-800/50" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* RIGHT COLUMN SKELETON */}
+          <div className="flex flex-col gap-3 w-full">
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <div key={`related-sk-${i}`} className="flex gap-2 w-full">
+                <div className="w-40 aspect-video rounded-lg bg-zinc-900 shrink-0 overflow-hidden">
+                  <SkeletonLoader type="thumbnail" className="w-full h-full" />
+                </div>
+                <div className="flex flex-col flex-1 gap-2 py-1">
+                  <SkeletonLoader type="text" className="w-8 h-2 bg-zinc-800/50" />
+                  <SkeletonLoader type="text" className="w-full h-3 bg-zinc-800" />
+                  <SkeletonLoader type="text" className="w-5/6 h-3 bg-zinc-800" />
+                  <SkeletonLoader type="text" className="w-20 h-2 bg-zinc-800/60" />
+                  <SkeletonLoader type="text" className="w-24 h-2 bg-zinc-800/60" />
+                </div>
+              </div>
+            ))}
+          </div>
+
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#0f0f0f] text-white overflow-x-hidden font-sans pb-32">
-      <div className={`mx-auto ${isTheaterMode ? 'max-w-[1600px] px-6 py-6 flex flex-col lg:flex-row gap-6 items-start' : 'max-w-[1750px] px-6 py-6 grid grid-cols-1 lg:grid-cols-[73%_27%] gap-6 items-start'}`}>
+    <div className="min-h-screen bg-background text-white overflow-x-hidden font-sans pb-32">
+      <div className={`mx-auto w-full grid grid-cols-1 lg:grid-cols-[73%_27%] gap-x-6 gap-y-5 items-start transition-all duration-500 ease-in-out ${
+        isTheaterMode ? 'max-w-full px-0 pt-0 pb-6' : 'max-w-[1750px] px-6 pt-6 pb-6'
+      }`}>
         
-        {/* LEFT COLUMN */}
-        <div className={`flex flex-col gap-5 ${isTheaterMode ? 'flex-grow min-w-0' : 'w-full'}`}>
-          <div className={isTheaterMode ? "relative left-1/2 h-[min(72vh,56vw)] min-h-[420px] max-h-[820px] w-screen -translate-x-1/2 bg-black" : "w-full aspect-video"}>
-            <div className={isTheaterMode ? "mx-auto h-full max-w-[1600px]" : "h-full w-full"}>
+        {/* PLAYER CARD */}
+        <div
+          className={`transition-all duration-500 ease-in-out ${
+          isTheaterMode
+            ? "col-span-1 lg:col-span-2 w-full flex-none z-10 overflow-hidden"
+            : "col-span-1 lg:col-span-1 w-full z-10"
+        }`}
+          style={isTheaterMode ? undefined : { aspectRatio: playerAspectRatio }}
+        >
+          <div className="h-full w-full transition-all duration-500 ease-in-out">
+
               <Player
                 src={streamUrl}
                 title={dearrowData?.title || currentVideo.title}
@@ -518,32 +729,39 @@ export function Watch() {
                 onSelectQuality={handleQualitySelect}
                 onTimeUpdate={handleTimeUpdate}
                 onEnded={() => playNext()}
+                chapters={videoDetails?.chapters}
                 onRetry={() => {
                   setStreamUrl(null);
                   setStreamVariants([]);
                   setCaptions([]);
                   setAudioTracks([]);
-                  setSelectedQualityId(null);
+                  setSelectedQualityId("auto");
                   if (currentVideo) {
                     void getStreamInfo(currentVideo.id).then((info) => {
                       const canUseAdaptive = (info.audioTracks || []).some((track) => !!track.localUrl);
+                      const supportsVP9 = typeof MediaSource !== "undefined" && typeof MediaSource.isTypeSupported === "function" && MediaSource.isTypeSupported('video/webm; codecs="vp9"');
+                      const hasDashUrl = !!(info.dashManifestUrl && supportsVP9);
                       const defaultVariant = info.variants?.find((variant) => variant.isDefault && variant.isPlayable && (variant.hasAudio || canUseAdaptive))
                         || info.variants?.find((variant) => variant.isPlayable && (variant.hasAudio || canUseAdaptive))
                         || null;
                       setStreamVariants(info.variants || []);
                       setCaptions(info.captions || []);
                       setAudioTracks(info.audioTracks || []);
-                      setDashManifestUrl(info.dashManifestUrl || null);
-                      setSelectedQualityId(defaultVariant?.id || null);
-                      setStreamUrl(info.dashManifestUrl || defaultVariant?.localUrl || info.localUrl);
+                      setDashManifestUrl(hasDashUrl ? (info.dashManifestUrl || null) : null);
+                      setSelectedQualityId("auto");
+                      setStreamUrl(hasDashUrl ? (info.dashManifestUrl || null) : (defaultVariant?.localUrl || info.localUrl || null));
                       setStreamError(null);
                     }).catch((err) => setStreamError(getYoutubeErrorMessage(err)));
                   }
                 }}
               />
-            </div>
           </div>
+        </div>
 
+        {/* LEFT COLUMN: METADATA, DESCRIPTION, COMMENTS */}
+        <div className={`col-span-1 lg:col-span-1 lg:row-start-2 w-full flex flex-col gap-5 transition-all duration-500 ease-in-out ${
+          isTheaterMode ? "max-w-[1277px] ml-auto pl-6 lg:pl-12 pr-6 lg:pr-4" : ""
+        }`}>
           {/* METADATA SECTION */}
           <div>
             <h1 className="text-xl font-bold text-white tracking-tight leading-snug group relative flex items-center gap-2 cursor-default">
@@ -608,17 +826,17 @@ export function Watch() {
 
               {/* Action Buttons */}
               <div className="flex flex-wrap items-center gap-2">
-                <div className="flex items-center bg-[#272727] rounded-full h-9 overflow-hidden hover:bg-[#3f3f3f] transition-colors divide-x divide-[#3f3f3f]">
+                <div className="flex items-center bg-[#272727] rounded-full h-9 overflow-hidden transition-colors divide-x divide-[#3f3f3f]">
                   <button 
                     onClick={() => setInteractionState(prev => prev === "liked" ? "none" : "liked")}
-                    className={`px-4 h-full flex items-center gap-2 text-sm font-semibold cursor-pointer transition-colors ${interactionState === "liked" ? "text-white bg-[#3f3f3f]" : ""}`}
+                    className={`px-4 h-full flex items-center gap-2 text-sm hover:bg-[#3f3f3f] font-semibold cursor-pointer transition-colors ${interactionState === "liked" ? "text-white bg-[#3f3f3f]" : ""}`}
                   >
                     <ThumbsUp size={18} fill={interactionState === "liked" ? "white" : "none"} />
                     <span>{rytdEnabled && rydData ? formatCount(rydData.likes) : (videoDetails?.likeCountText ? formatCount(videoDetails.likeCountText) : "Like")}</span>
                   </button>
                   <button 
                     onClick={() => setInteractionState(prev => prev === "disliked" ? "none" : "disliked")}
-                    className={`px-4 h-full flex items-center gap-2 justify-center cursor-pointer transition-colors ${interactionState === "disliked" ? "text-white bg-[#3f3f3f]" : ""}`}
+                    className={`px-4 h-full flex items-center gap-2 justify-center hover:bg-[#3f3f3f] cursor-pointer transition-colors ${interactionState === "disliked" ? "text-white bg-[#3f3f3f]" : ""}`}
                   >
                     <ThumbsDown size={18} fill={interactionState === "disliked" ? "white" : "none"} />
                     {rytdEnabled && rydData ? (
@@ -705,7 +923,7 @@ export function Watch() {
                           )}
                           {(c.continuationToken || (c.replyCount != null && c.replyCount > 0)) && (
                             <button
-                              onClick={() => toggleReplies(c.id, c.continuationToken)}
+                               onClick={() => toggleReplies(c.id, c.continuationToken)}
                               className="text-primary hover:underline font-semibold cursor-pointer border-none bg-transparent p-0 text-xs flex items-center gap-1"
                             >
                               {expandedReplies[c.id] ? "Hide replies" : `Show ${c.replyCount || ""} replies`}
@@ -799,50 +1017,69 @@ export function Watch() {
           </div>
         </div>
 
-        {/* RIGHT COLUMN: Recommendations */}
-        <div className={`flex flex-col gap-3 ${isTheaterMode ? 'w-full lg:w-[400px] shrink-0' : 'w-full'}`}>
-          {relatedLoading ? (
-            <Loader2 className="animate-spin text-zinc-500 mx-auto mt-10" size={24} />
-          ) : relatedVideos.length === 0 ? (
-            <p className="text-sm text-zinc-500 text-center mt-6">No related content found.</p>
-          ) : (
-            relatedVideos.map((item) => (
-              <div 
-                key={`${item.itemType}-${item.id}`}
-                onClick={() => {
-                  void handleRelatedClick(item);
-                }}
-                className="flex gap-2 cursor-pointer group"
-              >
-                <div className="relative w-40 aspect-video rounded-lg bg-[#272727] shrink-0 overflow-hidden">
-                  <img 
-                    src={item.thumbnailUrl || ""} 
-                    className="w-full h-full object-cover"
-                    alt=""
-                  />
-                  {item.durationSeconds && (
-                    <span className="absolute bottom-1 right-1 bg-black/80 text-white text-[10px] font-bold px-1 py-0.5 rounded">
-                      {Math.floor(item.durationSeconds / 60)}:{(item.durationSeconds % 60).toString().padStart(2, "0")}
-                    </span>
-                  )}
-                </div>
-                <div className="flex flex-col flex-1 min-w-0 pr-2">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-[10px] uppercase tracking-[0.18em] text-zinc-500 font-bold">
-                      {item.itemType === "mix" ? "Mix" : item.itemType === "playlist" ? "Playlist" : "Video"}
-                    </span>
-                  </div>
-                  <h4 className="text-sm font-bold text-[#f1f1f1] line-clamp-2 group-hover:text-primary transition-colors">
-                    {item.title}
-                  </h4>
-                  <p className="text-xs text-[#aaaaaa] mt-1">{item.channelName}</p>
-                  <p className="text-xs text-[#aaaaaa]">
-                    {item.viewCountText}{item.publishedText ? ` • ${item.publishedText}` : ""}
-                  </p>
-                </div>
-              </div>
-            ))
+        {/* SIDEBAR: Recommendations / Chapters Panel */}
+        <div className={`w-full flex flex-col gap-5 transition-all duration-500 ease-in-out lg:sticky lg:top-6 ${
+          isTheaterMode 
+            ? "col-span-1 lg:col-start-2 lg:row-start-2 lg:row-span-1 max-w-[472px] mr-auto pl-6 lg:pl-4 pr-6 lg:pr-12" 
+            : "col-span-1 lg:col-start-2 lg:row-start-1 lg:row-span-2"
+        }`}>
+          {isChaptersPanelOpen && (
+            <div className="h-[min(720px,calc(100vh-140px))] min-h-[450px] w-full shrink-0">
+              <Chapters
+                chapters={videoDetails?.chapters || []}
+                captions={captions}
+                videoId={videoId}
+                onClose={() => setIsChaptersPanelOpen(false)}
+                videoThumbnail={dearrowData?.thumbnailUrl || currentVideo?.thumbnailUrl || videoDetails?.thumbnailUrl}
+                seekTo={seekToTime}
+              />
+            </div>
           )}
+
+          <div className="flex flex-col gap-3">
+            {relatedLoading ? (
+              <Loader2 className="animate-spin text-zinc-500 mx-auto mt-10" size={24} />
+            ) : relatedVideos.length === 0 ? (
+              <p className="text-sm text-zinc-500 text-center mt-6">No related content found.</p>
+            ) : (
+              relatedVideos.map((item) => (
+                <div 
+                  key={`${item.itemType}-${item.id}`}
+                  onClick={() => {
+                    void handleRelatedClick(item);
+                  }}
+                  className="flex gap-2 cursor-pointer group"
+                >
+                  <div className="relative w-40 aspect-video rounded-lg bg-[#272727] shrink-0 overflow-hidden">
+                    <img 
+                      src={item.thumbnailUrl || ""} 
+                      className="w-full h-full object-cover"
+                      alt=""
+                    />
+                    {item.durationSeconds && (
+                      <span className="absolute bottom-1 right-1 bg-black/80 text-white text-[10px] font-bold px-1 py-0.5 rounded">
+                        {Math.floor(item.durationSeconds / 60)}:{(item.durationSeconds % 60).toString().padStart(2, "0")}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex flex-col flex-1 min-w-0 pr-2">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-[10px] uppercase tracking-[0.18em] text-zinc-500 font-bold">
+                        {item.itemType === "mix" ? "Mix" : item.itemType === "playlist" ? "Playlist" : "Video"}
+                      </span>
+                    </div>
+                    <h4 className="text-sm font-bold text-[#f1f1f1] line-clamp-2 group-hover:text-primary transition-colors">
+                      {item.title}
+                    </h4>
+                    <p className="text-xs text-[#aaaaaa] mt-1">{item.channelName}</p>
+                    <p className="text-xs text-[#aaaaaa]">
+                      {item.viewCountText}{item.publishedText ? ` • ${item.publishedText}` : ""}
+                    </p>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
         </div>
 
       </div>

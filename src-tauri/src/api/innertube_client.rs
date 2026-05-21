@@ -8,7 +8,7 @@ use crate::errors::{AppError, AppResult};
 use crate::models::search::{SearchVideosRequest, SearchVideosResponse};
 use crate::models::video::{
     AudioTrack, CaptionTrack, MusicHomeChip, MusicHomeSection, RelatedContentItem, StreamInfo,
-    StreamVariant, VideoDetails, VideoSummary,
+    StreamVariant, VideoDetails, VideoSummary, VideoChapter,
 };
 use crate::models::channel::{ChannelDetails, ChannelVideosResponse};
 use crate::models::playlist::PlaylistDetailsResponse;
@@ -141,6 +141,193 @@ impl InnertubeClient {
     pub fn new(_app: &tauri::AppHandle) -> Self {
         Self
     }
+
+    fn parse_timestamp(s: &str) -> Option<u64> {
+        let cleaned: String = s.chars()
+            .filter(|&c| c.is_ascii_digit() || c == ':')
+            .collect();
+        
+        let parts: Vec<&str> = cleaned.split(':').collect();
+        if parts.len() < 2 || parts.len() > 3 {
+            return None;
+        }
+        
+        for part in &parts {
+            if part.is_empty() || !part.chars().all(|c| c.is_ascii_digit()) {
+                return None;
+            }
+        }
+        
+        if parts.len() == 2 {
+            let minutes = parts[0].parse::<u64>().ok()?;
+            let seconds = parts[1].parse::<u64>().ok()?;
+            if seconds < 60 {
+                return Some(minutes * 60 + seconds);
+            }
+        } else if parts.len() == 3 {
+            let hours = parts[0].parse::<u64>().ok()?;
+            let minutes = parts[1].parse::<u64>().ok()?;
+            let seconds = parts[2].parse::<u64>().ok()?;
+            if minutes < 60 && seconds < 60 {
+                return Some(hours * 3600 + minutes * 60 + seconds);
+            }
+        }
+        None
+    }
+
+    fn parse_chapters_from_description(description: &str, duration_seconds: u64) -> Vec<VideoChapter> {
+        let mut temp_chapters = Vec::new();
+        
+        for line in description.lines() {
+            let line = line.trim();
+            if line.is_empty() {
+                continue;
+            }
+            
+            let words: Vec<&str> = line.split_whitespace().collect();
+            if words.is_empty() {
+                continue;
+            }
+            
+            let mut found_ts = None;
+            let mut ts_index = 0;
+            for (idx, word) in words.iter().enumerate() {
+                let cleaned: String = word.chars()
+                    .filter(|&c| c.is_ascii_digit() || c == ':')
+                    .collect();
+                
+                if !cleaned.is_empty() && cleaned.contains(':') {
+                    if let Some(secs) = Self::parse_timestamp(&cleaned) {
+                        found_ts = Some(secs);
+                        ts_index = idx;
+                        break;
+                    }
+                }
+            }
+            
+            if let Some(start_seconds) = found_ts {
+                let mut title_words = Vec::new();
+                for (idx, &word) in words.iter().enumerate() {
+                    if idx == ts_index {
+                        continue;
+                    }
+                    if word == "-" || word == "–" || word == "|" || word == ":" || word == "—" {
+                        continue;
+                    }
+                    title_words.push(word);
+                }
+                
+                let mut title = title_words.join(" ");
+                title = title.trim_matches(|c: char| c == '(' || c == ')' || c == '[' || c == ']' || c == '-' || c == '–' || c == ':' || c == ' ').to_string();
+                
+                if !title.is_empty() {
+                    temp_chapters.push((start_seconds, title));
+                } else {
+                    temp_chapters.push((start_seconds, format!("Chapter {}", temp_chapters.len() + 1)));
+                }
+            }
+        }
+        
+        if temp_chapters.is_empty() {
+            return Vec::new();
+        }
+        
+        temp_chapters.sort_by_key(|c| c.0);
+        temp_chapters.dedup_by_key(|c| c.0);
+        
+        if temp_chapters[0].0 > 10 {
+            temp_chapters.insert(0, (0, "Intro".to_string()));
+        } else {
+            temp_chapters[0].0 = 0;
+        }
+        
+        let mut chapters = Vec::new();
+        let num_chapters = temp_chapters.len();
+        for i in 0..num_chapters {
+            let start_seconds = temp_chapters[i].0;
+            let title = temp_chapters[i].1.clone();
+            
+            let end_seconds = if i < num_chapters - 1 {
+                temp_chapters[i + 1].0
+            } else {
+                duration_seconds
+            };
+            
+            if end_seconds > start_seconds {
+                chapters.push(VideoChapter {
+                    title,
+                    start_seconds,
+                    end_seconds,
+                });
+            }
+        }
+        
+        chapters
+    }
+
+    fn parse_chapters_from_marker_map(res: &serde_json::Value, duration_seconds: u64) -> Option<Vec<VideoChapter>> {
+        let chapters_arr = res["markerMap"]["chapters"]["chapters"].as_array()?;
+        if chapters_arr.is_empty() {
+            return None;
+        }
+        
+        let mut temp_chapters = Vec::new();
+        for chap in chapters_arr {
+            let chapter_renderer = &chap["chapterRenderer"];
+            if chapter_renderer.is_null() {
+                continue;
+            }
+            
+            let title = if let Some(t) = extract_text_from_value(&chapter_renderer["title"]) {
+                t
+            } else if let Some(t) = chapter_renderer["title"]["simpleText"].as_str() {
+                t.to_string()
+            } else {
+                continue;
+            };
+            
+            let start_millis = chapter_renderer["timeRangeStartMillis"].as_u64()?;
+            let start_seconds = start_millis / 1000;
+            
+            temp_chapters.push((start_seconds, title));
+        }
+        
+        if temp_chapters.is_empty() {
+            return None;
+        }
+        
+        temp_chapters.sort_by_key(|c| c.0);
+        temp_chapters.dedup_by_key(|c| c.0);
+        
+        if temp_chapters[0].0 > 10 {
+            temp_chapters.insert(0, (0, "Intro".to_string()));
+        } else {
+            temp_chapters[0].0 = 0;
+        }
+        
+        let mut chapters = Vec::new();
+        let num_chapters = temp_chapters.len();
+        for i in 0..num_chapters {
+            let start_seconds = temp_chapters[i].0;
+            let title = temp_chapters[i].1.clone();
+            let end_seconds = if i < num_chapters - 1 {
+                temp_chapters[i + 1].0
+            } else {
+                duration_seconds
+            };
+            
+            if end_seconds > start_seconds {
+                chapters.push(VideoChapter {
+                    title,
+                    start_seconds,
+                    end_seconds,
+                });
+            }
+        }
+        
+        Some(chapters)
+    }
+
 
     // Helper to send a robust JSON POST request to the Innertube API mimicking NewPipe
     async fn post_innertube(
@@ -2005,6 +2192,8 @@ impl YoutubeExtractor for InnertubeClient {
         })
     }
 
+
+
     async fn get_video_details(
         &self,
         video_id: &str,
@@ -2194,6 +2383,16 @@ impl YoutubeExtractor for InnertubeClient {
             }
         }
 
+        let duration_secs = duration_seconds.unwrap_or(0);
+        let chapters = Self::parse_chapters_from_marker_map(&res, duration_secs)
+            .unwrap_or_else(|| {
+                if let Some(ref desc) = description {
+                    Self::parse_chapters_from_description(desc, duration_secs)
+                } else {
+                    Vec::new()
+                }
+            });
+
         Ok(VideoDetails {
             id,
             title,
@@ -2205,6 +2404,7 @@ impl YoutubeExtractor for InnertubeClient {
             like_count_text,
             view_count_text,
             published_text,
+            chapters,
         })
     }
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   AudioLines,
   Captions,
@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 import { usePlayerStore, type PlaybackRate } from "../../store/usePlayerStore";
 import { useSettingsStore, type SponsorBlockCategory } from "../../store/useSettingsStore";
-import type { AudioTrack, CaptionTrack, StreamVariant } from "../../types/video";
+import type { AudioTrack, CaptionTrack, StreamVariant, VideoChapter } from "../../types/video";
 import { SubtitleCustomizer } from "./SubtitleCustomizer";
 
 export interface FlowPlayerControlsProps {
@@ -41,7 +41,7 @@ export interface FlowPlayerControlsProps {
   qualities?: StreamVariant[];
   selectedQualityId?: string | null;
   isDashPlayback?: boolean;
-  onSelectQuality?: (variant: StreamVariant) => void;
+  onSelectQuality?: (variant: StreamVariant | "auto") => void;
 
   captions?: CaptionTrack[];
   selectedCaptionId: string;
@@ -72,6 +72,9 @@ export interface FlowPlayerControlsProps {
   setSettingsOpen: React.Dispatch<React.SetStateAction<boolean>>;
   isScrubbing: boolean;
   setIsScrubbing: React.Dispatch<React.SetStateAction<boolean>>;
+
+  chapters?: VideoChapter[];
+  activeQualityLabel?: string;
 }
 
 type SettingsPane = "root" | "speed" | "quality" | "captions" | "captions-customize" | "audio" | "sleep";
@@ -133,6 +136,8 @@ export const FlowPlayerControls: React.FC<FlowPlayerControlsProps> = ({
   setSettingsOpen,
   isScrubbing,
   setIsScrubbing,
+  chapters = [],
+  activeQualityLabel,
 }) => {
   const {
     isPlaying,
@@ -140,13 +145,14 @@ export const FlowPlayerControls: React.FC<FlowPlayerControlsProps> = ({
     setVolume,
     playbackRate,
     setPlaybackRate,
-    currentTime,
     duration,
     playNext,
     playPrevious,
     isTheaterMode,
     setIsTheaterMode,
     sponsorBlockSegments,
+    isChaptersPanelOpen,
+    setIsChaptersPanelOpen,
   } = usePlayerStore();
 
   const { sponsorBlockColors, sponsorBlockEnabled } = useSettingsStore();
@@ -154,18 +160,113 @@ export const FlowPlayerControls: React.FC<FlowPlayerControlsProps> = ({
   const [settingsPane, setSettingsPane] = useState<SettingsPane>("root");
   const [hoverTime, setHoverTime] = useState<number | null>(null);
   const [hoverPct, setHoverPct] = useState(0);
+  const chapterPillRef = useRef<HTMLButtonElement>(null);
+  const progressBarRef = useRef<HTMLDivElement>(null);
+  const playheadRef = useRef<HTMLDivElement>(null);
+  const timeTextRef = useRef<HTMLDivElement>(null);
+
+  const segments = React.useMemo(() => {
+    if (!chapters || chapters.length === 0) {
+      return [{ title: "", startSeconds: 0, endSeconds: duration || 1 }];
+    }
+    const sorted = [...chapters].sort((a, b) => a.startSeconds - b.startSeconds);
+    const firstChapter = sorted[0];
+    if (firstChapter && firstChapter.startSeconds > 0) {
+      sorted.unshift({
+        title: "Intro",
+        startSeconds: 0,
+        endSeconds: firstChapter.startSeconds,
+      });
+    }
+    const capped = sorted.map((chapter, idx) => {
+      const nextStart = sorted[idx + 1]?.startSeconds ?? duration;
+      return {
+        ...chapter,
+        endSeconds: Math.max(chapter.endSeconds || nextStart, nextStart),
+      };
+    });
+    return capped;
+  }, [chapters, duration]);
+
+  const hoverChapter = hoverTime !== null
+    ? segments?.find((c) => hoverTime >= c.startSeconds && hoverTime <= c.endSeconds)
+    : null;
+
+  useEffect(() => {
+    let animId: number;
+    const updateProgress = () => {
+      const video = containerRef.current?.querySelector("video");
+      if (video) {
+        const cur = video.currentTime;
+        const dur = video.duration || duration || 0;
+        const pct = dur > 0 ? Math.min(100, Math.max(0, (cur / dur) * 100)) : 0;
+
+        if (progressBarRef.current) {
+          progressBarRef.current.style.width = `${pct}%`;
+        }
+
+        // Update split segments progress fills
+        const progressFills = containerRef.current?.querySelectorAll(".chapter-progress-fill");
+        progressFills?.forEach((fill) => {
+          const start = parseFloat(fill.getAttribute("data-start") || "0");
+          const end = parseFloat(fill.getAttribute("data-end") || "0");
+          let segmentPct = 0;
+          if (cur > end) segmentPct = 100;
+          else if (cur < start) segmentPct = 0;
+          else if (end > start) segmentPct = ((cur - start) / (end - start)) * 100;
+          (fill as HTMLElement).style.width = `${segmentPct}%`;
+        });
+
+        // Update split segments buffered fills
+        const bufferedFills = containerRef.current?.querySelectorAll(".chapter-buffered-fill");
+        const bufferedTime = (bufferedPct / 100) * dur;
+        bufferedFills?.forEach((fill) => {
+          const start = parseFloat(fill.getAttribute("data-start") || "0");
+          const end = parseFloat(fill.getAttribute("data-end") || "0");
+          let segmentPct = 0;
+          if (bufferedTime > end) segmentPct = 100;
+          else if (bufferedTime < start) segmentPct = 0;
+          else if (end > start) segmentPct = ((bufferedTime - start) / (end - start)) * 100;
+          (fill as HTMLElement).style.width = `${segmentPct}%`;
+        });
+
+        if (playheadRef.current) {
+          playheadRef.current.style.left = `${pct}%`;
+        }
+
+        const activeChapter = segments?.find(
+          (c) => cur >= c.startSeconds && cur <= c.endSeconds
+        );
+
+        if (timeTextRef.current) {
+          timeTextRef.current.innerHTML = `${formatTime(cur)} <span class="text-zinc-400">/</span> ${formatTime(dur)}`;
+        }
+
+        if (chapterPillRef.current) {
+          if (activeChapter && activeChapter.title) {
+            chapterPillRef.current.style.display = "flex";
+            const titleEl = chapterPillRef.current.querySelector(".chapter-title");
+            if (titleEl) {
+              titleEl.textContent = activeChapter.title;
+            }
+          } else {
+            chapterPillRef.current.style.display = "none";
+          }
+        }
+      }
+      animId = requestAnimationFrame(updateProgress);
+    };
+
+    animId = requestAnimationFrame(updateProgress);
+    return () => cancelAnimationFrame(animId);
+  }, [containerRef, duration, segments, bufferedPct]);
 
   const progressPct =
     duration > 0
-      ? Math.min(100, Math.max(0, (currentTime / duration) * 100))
+      ? Math.min(100, Math.max(0, (usePlayerStore.getState().currentTime / duration) * 100))
       : 0;
 
   const supportedQualities = qualities;
-  const selectedQuality =
-    supportedQualities.find((quality) => quality.id === selectedQualityId) ||
-    supportedQualities.find((quality) => quality.isDefault) ||
-    supportedQualities[0] ||
-    null;
 
   const selectedCaption =
     captions.find((caption) => caption.id === selectedCaptionId) || null;
@@ -254,7 +355,8 @@ export const FlowPlayerControls: React.FC<FlowPlayerControlsProps> = ({
     <>
       <div
         className={cx(
-          "pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/85 via-black/40 to-transparent px-3 pb-3 pt-24 transition-opacity duration-200 sm:px-5 sm:pb-4",
+          "pointer-events-none absolute inset-0 z-20 flex h-full w-full flex-col justify-end bg-gradient-to-t from-black/85 via-black/40 to-transparent pt-24 transition-opacity duration-200",
+          isTheaterMode ? "px-4 pb-3 sm:px-6 sm:pb-4 lg:px-8" : "px-3 pb-3 sm:px-5 sm:pb-4",
           shouldShowControls ? "opacity-100" : "opacity-0"
         )}
       >
@@ -270,7 +372,7 @@ export const FlowPlayerControls: React.FC<FlowPlayerControlsProps> = ({
 
           <div
             data-progress-track
-            className="relative h-5 cursor-pointer py-2"
+            className="relative h-5 cursor-pointer py-2 group/seekbar"
             onMouseMove={handleProgressMove}
             onMouseLeave={() => setHoverTime(null)}
             onMouseDown={(event) => {
@@ -280,44 +382,90 @@ export const FlowPlayerControls: React.FC<FlowPlayerControlsProps> = ({
             onMouseUp={() => setIsScrubbing(false)}
             onClick={(event) => handlePointerSeek(event.clientX)}
           >
-            <div className="relative h-1 overflow-hidden rounded-full bg-white/25 transition-all group-hover/player:h-1.5">
-              <div
-                className="absolute inset-y-0 left-0 bg-white/35"
-                style={{ width: `${bufferedPct}%` }}
-              />
-              {sponsorBlockEnabled && sponsorBlockSegments.map((segment) => {
-                if (!duration) return null;
-                const start = (segment.segment[0] / duration) * 100;
-                const width =
-                  ((segment.segment[1] - segment.segment[0]) / duration) * 100;
-                const segmentColor = sponsorBlockColors[segment.category as SponsorBlockCategory] || "#ef4444";
+            {/* Split Chapter Seekbar Track */}
+            <div className="relative h-1 w-full flex items-center gap-[3px] select-none pointer-events-none rounded-full">
+              {segments.map((segment, idx) => {
+                const segmentDuration = segment.endSeconds - segment.startSeconds;
                 return (
                   <div
-                    key={segment.UUID}
-                    className="absolute inset-y-0"
-                    style={{ 
-                      left: `${start}%`, 
-                      width: `${width}%`,
-                      backgroundColor: segmentColor
+                    key={`seekbar-segment-${idx}`}
+                    className="relative h-1 bg-white/20 rounded-[1px] transition-all duration-200 ease-out origin-center overflow-hidden flex-1 group-hover/seekbar:h-1.5 hover:!scale-y-[1.8] hover:!scale-x-[1.03] hover:z-30 pointer-events-auto"
+                    style={{
+                      flexGrow: Math.max(0.1, segmentDuration),
                     }}
-                  />
+                  >
+                    {/* Buffered Fill for this Segment */}
+                    <div
+                      className="chapter-buffered-fill absolute inset-y-0 left-0 bg-white/30 rounded-[1px] pointer-events-none transition-all duration-150"
+                      data-start={segment.startSeconds}
+                      data-end={segment.endSeconds}
+                      style={{ width: "0%" }}
+                    />
+                    
+                    {/* SponsorBlock segments mapped to this segment */}
+                    {sponsorBlockEnabled && sponsorBlockSegments.map((sbSeg) => {
+                      const sStart = sbSeg.segment[0];
+                      const sEnd = sbSeg.segment[1];
+                      const overlapStart = Math.max(segment.startSeconds, sStart);
+                      const overlapEnd = Math.min(segment.endSeconds, sEnd);
+                      if (overlapStart < overlapEnd) {
+                        const leftPct = ((overlapStart - segment.startSeconds) / (segment.endSeconds - segment.startSeconds)) * 100;
+                        const widthPct = ((overlapEnd - overlapStart) / (segment.endSeconds - segment.startSeconds)) * 100;
+                        const segmentColor = sponsorBlockColors[sbSeg.category as SponsorBlockCategory] || "#ef4444";
+                        return (
+                          <div
+                            key={sbSeg.UUID}
+                            className="absolute inset-y-0 pointer-events-none"
+                            style={{ 
+                              left: `${leftPct}%`, 
+                              width: `${widthPct}%`,
+                              backgroundColor: segmentColor
+                            }}
+                          />
+                        );
+                      }
+                      return null;
+                    })}
+
+                    {/* Playback Progress Fill for this Segment */}
+                    <div
+                      className="chapter-progress-fill absolute inset-y-0 left-0 bg-primary rounded-[1px] pointer-events-none"
+                      data-start={segment.startSeconds}
+                      data-end={segment.endSeconds}
+                      style={{ width: "0%" }}
+                    />
+                  </div>
                 );
               })}
-              <div
-                className="absolute inset-y-0 left-0 bg-primary"
-                style={{ width: `${progressPct}%` }}
-              />
             </div>
+
+            {/* Invisible native progress tracking width marker */}
             <div
-              className="absolute top-1 h-3 w-3 -translate-x-1/2 rounded-full bg-primary opacity-0 shadow-lg shadow-black/40 transition-opacity group-hover/player:opacity-100"
+              ref={progressBarRef}
+              className="absolute pointer-events-none opacity-0"
+              style={{ width: `${progressPct}%` }}
+            />
+
+            <div
+              ref={playheadRef}
+              className="absolute top-[3px] h-3.5 w-3.5 -translate-x-1/2 rounded-full bg-primary opacity-0 shadow-lg shadow-black/55 transition-opacity group-hover/seekbar:opacity-100 z-40 pointer-events-none"
               style={{ left: `${progressPct}%` }}
             />
+
+            {/* Hover Preview Tooltip */}
             {hoverTime !== null && duration > 0 && (
               <div
-                className="absolute bottom-6 -translate-x-1/2 rounded bg-black/90 px-2 py-1 text-xs font-bold"
+                className="absolute bottom-8 -translate-x-1/2 flex flex-col items-center pointer-events-none z-50 transition-all duration-75"
                 style={{ left: `${hoverPct}%` }}
               >
-                {formatTime(hoverTime)}
+                
+                <div className="bg-black/30 border border-white/10 px-2 py-1 rounded-full text-white min-w-max text-center backdrop-blur-sm flex flex-col gap-0.5 leading-tight">
+                  {hoverChapter && (
+                    <span className="text-[12px] font-medium font-sans">
+                      {formatTime(hoverTime)} • {hoverChapter.title}
+                    </span>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -384,31 +532,43 @@ export const FlowPlayerControls: React.FC<FlowPlayerControlsProps> = ({
                 />
               </div>
 
-              <div className="ml-1 whitespace-nowrap text-xs font-semibold text-zinc-100 sm:text-sm bg-black/20 rounded-full px-2 py-1">
-                {formatTime(currentTime)}{" "}
-                <span className="text-zinc-400">/</span> {formatTime(duration)}
+              <div 
+                ref={timeTextRef}
+                className="ml-1 whitespace-nowrap text-xs font-semibold text-white sm:text-sm bg-black/20 rounded-full px-2 py-1"
+              >
+                {formatTime(usePlayerStore.getState().currentTime)} <span className="text-zinc-400">/</span> {formatTime(duration)}
               </div>
+
+              <button
+                ref={chapterPillRef}
+                type="button"
+                onClick={() => setIsChaptersPanelOpen(!isChaptersPanelOpen)}
+                className="hidden items-center gap-1.5 text-xs font-medium text-white sm:text-sm bg-black/20 hover:bg-white/10 rounded-full px-2 py-1 transition-all select-none cursor-pointer active:scale-95 group/pill max-w-[150px] sm:max-w-[260px] truncate"
+              >
+                <span className="chapter-title truncate"></span>
+                <ChevronRight size={14} className="text-zinc-400 group-hover/pill:text-white transition-colors shrink-0" />
+              </button>
             </div>
 
             <div className="flex items-center gap-1 sm:gap-2 bg-black/20 rounded-full px-1 py-1">
-              {selectedQuality && (
-                <button
-                  type="button"
-                  title="Quality"
-                  onClick={() => {
-                    if (settingsOpen && settingsPane === "quality") {
-                      setSettingsOpen(false);
-                      setSettingsPane("root");
-                    } else {
-                      setSettingsOpen(true);
-                      setSettingsPane("quality");
-                    }
-                  }}
-                  className="hidden h-7 items-center rounded-full px-2 text-xs font-bold text-zinc-100 hover:bg-white/10 sm:flex"
-                >
-                  {selectedQuality.qualityLabel}
-                </button>
-              )}
+              <button
+                type="button"
+                title="Quality"
+                onClick={() => {
+                  if (settingsOpen && settingsPane === "quality") {
+                    setSettingsOpen(false);
+                    setSettingsPane("root");
+                  } else {
+                    setSettingsOpen(true);
+                    setSettingsPane("quality");
+                  }
+                }}
+                className="hidden h-7 items-center rounded-full px-2 text-xs font-bold text-zinc-100 hover:bg-white/10 sm:flex"
+              >
+                {selectedQualityId === "auto"
+                  ? `Auto${activeQualityLabel ? ` (${activeQualityLabel})` : ""}`
+                  : (supportedQualities.find(q => q.id === selectedQualityId)?.qualityLabel || "Auto")}
+              </button>
               <button
                 type="button"
                 title="Captions"
@@ -538,7 +698,9 @@ export const FlowPlayerControls: React.FC<FlowPlayerControlsProps> = ({
             )}
             {renderSettingRow(
               "Quality",
-              selectedQuality?.qualityLabel || "Auto",
+              selectedQualityId === "auto"
+                ? `Auto${activeQualityLabel ? ` (${activeQualityLabel})` : ""}`
+                : (supportedQualities.find(q => q.id === selectedQualityId)?.qualityLabel || "Auto"),
               <Monitor size={18} />,
               () => setSettingsPane("quality")
             )}
@@ -570,7 +732,7 @@ export const FlowPlayerControls: React.FC<FlowPlayerControlsProps> = ({
         )}
 
         {settingsPane === "speed" && (
-          <div className="space-y-1 animate-pane-in">
+          <div className="space-y-1 animate-pane-in max-h-60 overflow-y-auto pr-1 select-scrollbar-hidden">
             {speedOptions.map((speed) => (
               <button
                 key={speed}
@@ -589,51 +751,64 @@ export const FlowPlayerControls: React.FC<FlowPlayerControlsProps> = ({
         )}
 
         {settingsPane === "quality" && (
-          <div className="space-y-1 animate-pane-in">
-            {supportedQualities.length === 0 ? (
-              <div className="px-3 py-4 text-sm text-zinc-400">Auto</div>
-            ) : (
-              supportedQualities.map((quality) => (
-                <button
-                  key={quality.id}
-                  type="button"
-                  onClick={() => {
-                    if (
-                      !isDashPlayback &&
-                      !quality.hasAudio &&
-                      !audioTracks.some((track) => !!track.localUrl)
-                    ) {
-                      return;
-                    }
-                    onSelectQuality?.(quality);
-                    setSettingsPane("root");
-                    setSettingsOpen(false);
-                  }}
-                  className={cx(
-                    "flex min-h-10 w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-sm font-medium",
-                    isDashPlayback ||
-                      quality.hasAudio ||
-                      audioTracks.some((track) => !!track.localUrl)
-                      ? "hover:bg-white/10"
-                      : "cursor-not-allowed text-zinc-500"
-                  )}
-                >
-                  <span className="flex flex-col text-left leading-tight">
-                    <span>{quality.qualityLabel}</span>
-                    {quality.isVideoOnly}
+          <div className="space-y-1 animate-pane-in max-h-60 overflow-y-auto pr-1 select-scrollbar-hidden">
+            <button
+              type="button"
+              onClick={() => {
+                onSelectQuality?.("auto");
+                setSettingsPane("root");
+                setSettingsOpen(false);
+              }}
+              className="flex h-10 w-full items-center justify-between rounded-md px-3 text-sm font-medium hover:bg-white/10 text-zinc-100"
+            >
+              <span className="flex items-center gap-1.5">
+                <span>Auto</span>
+                {selectedQualityId === "auto" && activeQualityLabel && (
+                  <span className="text-xs text-zinc-400 font-normal">
+                    ({activeQualityLabel})
                   </span>
-                  {(selectedQualityId === quality.id ||
-                    (!selectedQualityId && quality.isDefault)) && (
-                    <Check size={17} />
-                  )}
-                </button>
-              ))
-            )}
+                )}
+              </span>
+              {selectedQualityId === "auto" && <Check size={17} />}
+            </button>
+
+            {supportedQualities.map((quality) => (
+              <button
+                key={quality.id}
+                type="button"
+                onClick={() => {
+                  if (
+                    !isDashPlayback &&
+                    !quality.hasAudio &&
+                    !audioTracks.some((track) => !!track.localUrl)
+                  ) {
+                    return;
+                  }
+                  onSelectQuality?.(quality);
+                  setSettingsPane("root");
+                  setSettingsOpen(false);
+                }}
+                className={cx(
+                  "flex min-h-10 w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-sm font-medium text-zinc-100",
+                  isDashPlayback ||
+                    quality.hasAudio ||
+                    audioTracks.some((track) => !!track.localUrl)
+                    ? "hover:bg-white/10"
+                    : "cursor-not-allowed text-zinc-500"
+                )}
+              >
+                <span className="flex flex-col text-left leading-tight">
+                  <span>{quality.qualityLabel}</span>
+                  {quality.isVideoOnly}
+                </span>
+                {selectedQualityId === quality.id && <Check size={17} />}
+              </button>
+            ))}
           </div>
         )}
 
         {settingsPane === "captions" && (
-          <div className="space-y-1 animate-pane-in">
+          <div className="space-y-1 animate-pane-in max-h-60 overflow-y-auto pr-1 select-scrollbar-hidden">
             <button
               type="button"
               onClick={() => {
@@ -668,13 +843,13 @@ export const FlowPlayerControls: React.FC<FlowPlayerControlsProps> = ({
         )}
 
         {settingsPane === "captions-customize" && (
-          <div className="animate-pane-in">
+          <div className="animate-pane-in max-h-64 overflow-y-auto pr-1 select-scrollbar-hidden">
             <SubtitleCustomizer />
           </div>
         )}
 
         {settingsPane === "audio" && (
-          <div className="space-y-1 animate-pane-in">
+          <div className="space-y-1 animate-pane-in max-h-60 overflow-y-auto pr-1 select-scrollbar-hidden">
             {audioTracks.length === 0 ? (
               <div className="px-3 py-4 text-sm text-zinc-400">
                 Original audio
@@ -709,7 +884,7 @@ export const FlowPlayerControls: React.FC<FlowPlayerControlsProps> = ({
         )}
 
         {settingsPane === "sleep" && (
-          <div className="space-y-1 animate-pane-in">
+          <div className="space-y-1 animate-pane-in max-h-60 overflow-y-auto pr-1 select-scrollbar-hidden">
             {sleepOptions.map((option) => (
               <button
                 key={option.minutes}
