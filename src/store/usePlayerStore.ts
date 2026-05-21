@@ -8,6 +8,36 @@ export type PlaybackRate = 0.25 | 0.5 | 0.75 | 1 | 1.25 | 1.5 | 1.75 | 2;
 export type RepeatMode = "none" | "one" | "all";
 export type PlayMode = "video" | "music";
 
+export interface SubtitleStyle {
+  fontSize: number;
+  textColor: string;
+  backgroundColor: string;
+  backgroundOpacity: number;
+  isBold: boolean;
+  bottomPadding: number;
+}
+
+export const DEFAULT_SUBTITLE_STYLE: SubtitleStyle = {
+  fontSize: 18,
+  textColor: "#FFFFFF",
+  backgroundColor: "#000000",
+  backgroundOpacity: 0.75,
+  isBold: true,
+  bottomPadding: 32,
+};
+
+const getSavedSubtitleStyle = (): SubtitleStyle => {
+  try {
+    const saved = localStorage.getItem("flow_subtitle_style");
+    if (saved) {
+      return JSON.parse(saved);
+    }
+  } catch (e) {
+    console.error("Failed to parse saved subtitle style", e);
+  }
+  return DEFAULT_SUBTITLE_STYLE;
+};
+
 interface PlayerState {
   currentVideo: VideoSummary | null;
   isPlaying: boolean;
@@ -25,7 +55,6 @@ interface PlayerState {
   currentTime: number;
   duration: number;
 
-  // UI & FOSS state
   isTheaterMode: boolean;
   sponsorBlockSegments: SponsorBlockSegment[];
   dearrowData: DeArrowOverride | null;
@@ -52,6 +81,8 @@ interface PlayerState {
   setSponsorBlockSegments: (segments: SponsorBlockSegment[]) => void;
   setDearrowData: (data: DeArrowOverride | null) => void;
   setRydData: (data: RydData | null) => void;
+  subtitleStyle: SubtitleStyle;
+  setSubtitleStyle: (style: SubtitleStyle) => void;
 }
 
 export const usePlayerStore = create<PlayerState>((set, get) => ({
@@ -81,11 +112,9 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     set({ currentVideo: video, isPlaying: !!video });
     
     if (video && isNew) {
-      // Auto-detect player mode from thumbnail/genre or keep user's mode
       const isSong = video.viewCountText === "Song" || video.viewCountText === "Album Track" || video.channelName.toLowerCase().includes("topic") || video.durationSeconds && video.durationSeconds < 360;
       set({ playMode: isSong ? "music" : "video" });
       
-      // Load lyrics and related tracks in the background
       get().loadTrackMetadata(video.id);
     }
   },
@@ -135,7 +164,6 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     if (queue.length === 0) return;
 
     if (repeatMode === "one") {
-      // Repeat track: just replay current video
       const current = queue[currentIndex];
       if (current) {
         set({ currentVideo: null });
@@ -174,7 +202,6 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
         get().loadTrackMetadata(prevItem.id);
       }
     } else {
-      // Wrap around to end
       const lastIndex = queue.length - 1;
       const lastItem = queue[lastIndex];
       if (lastItem) {
@@ -189,7 +216,6 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   toggleShuffle: () => {
     const { isShuffle, queue, currentVideo } = get();
     if (!isShuffle) {
-      // Shuffle active: randomly rearrange queue but keep currentVideo at index 0
       const filtered = queue.filter((item) => item.id !== currentVideo?.id);
       const shuffled = [...filtered].sort(() => Math.random() - 0.5);
       const newQueue = currentVideo ? [currentVideo, ...shuffled] : shuffled;
@@ -229,4 +255,9 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   setSponsorBlockSegments: (sponsorBlockSegments) => set({ sponsorBlockSegments }),
   setDearrowData: (dearrowData) => set({ dearrowData }),
   setRydData: (rydData) => set({ rydData }),
+  subtitleStyle: getSavedSubtitleStyle(),
+  setSubtitleStyle: (style) => {
+    localStorage.setItem("flow_subtitle_style", JSON.stringify(style));
+    set({ subtitleStyle: style });
+  },
 }));

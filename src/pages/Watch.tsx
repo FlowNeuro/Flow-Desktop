@@ -57,8 +57,6 @@ export function Watch() {
 
   const [interactionState, setInteractionState] = useState<"none" | "liked" | "disliked">("none");
 
-  // Derive a stable channel ID: prefer what we get from the video details response,
-  // fall back to what's on the currentVideo summary.
   const resolvedChannelId = videoDetails?.channelId || currentVideo?.channelId || channelDetails?.id || "";
   const displayChannelName = videoDetails?.channelName || currentVideo?.channelName || channelDetails?.name || "Unknown channel";
 
@@ -66,7 +64,6 @@ export function Watch() {
     loadSubscriptions();
   }, [loadSubscriptions]);
 
-  // --- Initialize video from URL param ---
   useEffect(() => {
     if (!videoId) return;
 
@@ -96,7 +93,6 @@ export function Watch() {
     initializeVideo();
   }, [videoId, currentVideo, setQueue]);
 
-  // --- Load stream URL ---
   useEffect(() => {
     if (!currentVideo || currentVideo.id !== videoId) return;
 
@@ -152,11 +148,9 @@ export function Watch() {
     loadStream();
   }, [currentVideo, videoId, setIsPlaying]);
 
-  // --- Load comments, channel details, video details, FOSS metadata ---
   useEffect(() => {
     if (!videoId) return;
 
-    // Reset state for new video
     setComments([]);
     setChannelDetails(null);
     setVideoDetails(null);
@@ -230,7 +224,6 @@ export function Watch() {
       }
     };
 
-    // Fire all in parallel
     loadComments();
     loadVideoMeta();
     loadFossMetadata();
@@ -244,7 +237,7 @@ export function Watch() {
 
   const handleQualitySelect = useCallback((variant: StreamVariant) => {
     if (!variant.isPlayable) return;
-    if (!variant.hasAudio && !audioTracks.some((track) => !!track.localUrl)) return;
+    if (!dashManifestUrl && !variant.hasAudio && !audioTracks.some((track) => !!track.localUrl)) return;
     console.log("[Watch] Quality selected", {
       qualityId: variant.id,
       qualityLabel: variant.qualityLabel,

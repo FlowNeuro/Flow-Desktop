@@ -1,31 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as dashjs from "dashjs";
-import {
-  AudioLines,
-  Captions,
-  Check,
-  ChevronLeft,
-  ChevronRight,
-  Gauge,
-  Loader2,
-  Maximize,
-  Minimize,
-  Monitor,
-  Pause,
-  PictureInPicture2,
-  Play,
-  RotateCcw,
-  Settings,
-  SkipBack,
-  SkipForward,
-  Sparkles,
-  Tv,
-  Volume1,
-  Volume2,
-  VolumeX,
-} from "lucide-react";
-import { usePlayerStore, type PlaybackRate } from "../../store/usePlayerStore";
+import { Loader2, RotateCcw } from "lucide-react";
+import { usePlayerStore } from "../../store/usePlayerStore";
 import type { AudioTrack, CaptionTrack, StreamVariant } from "../../types/video";
+import { FlowPlayerControls } from "./FlowPlayerControls";
+import { SubtitleOverlay } from "./SubtitleOverlay";
 
 type PlayerProps = {
   src?: string | null;
@@ -44,23 +23,6 @@ type PlayerProps = {
   onTimeUpdate?: (currentTime: number, duration: number) => void;
   onRetry?: () => void;
   className?: string;
-};
-
-type SettingsPane = "root" | "speed" | "quality" | "captions" | "audio" | "sleep";
-
-const speedOptions: PlaybackRate[] = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
-const sleepOptions = [
-  { label: "Off", minutes: 0 },
-  { label: "15 min", minutes: 15 },
-  { label: "30 min", minutes: 30 },
-  { label: "45 min", minutes: 45 },
-  { label: "1 hour", minutes: 60 },
-];
-
-type CaptionCue = {
-  start: number;
-  end: number;
-  text: string;
 };
 
 type DashBitrateInfo = {
@@ -122,88 +84,13 @@ function isVariantSupported(mimeType?: string | null) {
 }
 
 function formatPlayerLogPayload(payload: Record<string, unknown>) {
-  return Object.fromEntries(Object.entries(payload).filter(([, value]) => value !== undefined && value !== null && value !== ""));
+  return Object.fromEntries(
+    Object.entries(payload).filter(([, value]) => value !== undefined && value !== null && value !== "")
+  );
 }
 
 function cx(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
-}
-
-function formatTime(value: number) {
-  if (!Number.isFinite(value) || value < 0) return "0:00";
-  const total = Math.floor(value);
-  const hours = Math.floor(total / 3600);
-  const minutes = Math.floor((total % 3600) / 60);
-  const seconds = total % 60;
-
-  if (hours > 0) {
-    return `${hours}:${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
-  }
-  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
-}
-
-function parseVttTimestamp(value: string) {
-  const parts = value.trim().split(":");
-  const secondsPart = parts.pop() || "0";
-  const seconds = Number(secondsPart.replace(",", "."));
-  const minutes = Number(parts.pop() || 0);
-  const hours = Number(parts.pop() || 0);
-  return (hours * 3600) + (minutes * 60) + seconds;
-}
-
-function parseVttCues(vtt: string): CaptionCue[] {
-  return vtt
-    .replace(/\r/g, "")
-    .split("\n\n")
-    .flatMap((block) => {
-      const lines = block.split("\n").filter(Boolean);
-      const timingIndex = lines.findIndex((line) => line.includes("-->"));
-      if (timingIndex < 0) return [];
-
-      const timingLine = lines[timingIndex];
-      if (!timingLine) return [];
-      const [startRaw, endRaw] = timingLine.split("-->");
-      if (!startRaw || !endRaw) return [];
-
-      const end = endRaw.trim().split(/\s+/)[0];
-      if (!end) return [];
-      const text = lines
-        .slice(timingIndex + 1)
-        .join("\n")
-        .replace(/<[^>]*>/g, "")
-        .replace(/&amp;/g, "&")
-        .replace(/&lt;/g, "<")
-        .replace(/&gt;/g, ">")
-        .replace(/&quot;/g, '"')
-        .replace(/&#39;/g, "'")
-        .trim();
-
-      if (!text) return [];
-      return [{
-        start: parseVttTimestamp(startRaw),
-        end: parseVttTimestamp(end),
-        text,
-      }];
-    });
-}
-
-function parseTimedTextCues(text: string): CaptionCue[] {
-  const doc = new DOMParser().parseFromString(text, "text/xml");
-  return Array.from(doc.querySelectorAll("text")).flatMap((node) => {
-    const start = Number(node.getAttribute("start"));
-    const duration = Number(node.getAttribute("dur") || 0);
-    const content = (node.textContent || "").trim();
-    if (!Number.isFinite(start) || !content) return [];
-    return [{ start, end: start + duration, text: content }];
-  });
-}
-
-function parseCaptionCues(text: string): CaptionCue[] {
-  const trimmed = text.trim();
-  if (trimmed.startsWith("WEBVTT") || trimmed.includes("-->")) {
-    return parseVttCues(trimmed);
-  }
-  return parseTimedTextCues(trimmed);
 }
 
 export const Player: React.FC<PlayerProps> = ({
@@ -245,13 +132,11 @@ export const Player: React.FC<PlayerProps> = ({
     volume,
     setVolume,
     playbackRate,
-    setPlaybackRate,
     currentTime,
     duration,
     setCurrentTime,
     setDuration,
     playNext,
-    playPrevious,
     isTheaterMode,
     setIsTheaterMode,
     sponsorBlockSegments,
@@ -259,20 +144,17 @@ export const Player: React.FC<PlayerProps> = ({
 
   const [controlsVisible, setControlsVisible] = useState(true);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [settingsPane, setSettingsPane] = useState<SettingsPane>("root");
   const [muted, setMuted] = useState(false);
   const [ambientMode, setAmbientMode] = useState(true);
   const [sponsorBlockEnabled, setSponsorBlockEnabled] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isPip, setIsPip] = useState(false);
   const [isScrubbing, setIsScrubbing] = useState(false);
-  const [hoverTime, setHoverTime] = useState<number | null>(null);
-  const [hoverPct, setHoverPct] = useState(0);
+  const [isBuffering, setIsBuffering] = useState(false);
   const [bufferedPct, setBufferedPct] = useState(0);
   const [sleepMinutes, setSleepMinutes] = useState(0);
   const [selectedCaptionId, setSelectedCaptionId] = useState<string>("off");
   const [selectedAudioTrackId, setSelectedAudioTrackId] = useState<string | null>(null);
-  const [captionCues, setCaptionCues] = useState<CaptionCue[]>([]);
   const [hasStartedPlayback, setHasStartedPlayback] = useState(false);
   const [isSourceSwitching, setIsSourceSwitching] = useState(false);
 
@@ -284,27 +166,28 @@ export const Player: React.FC<PlayerProps> = ({
     if (markerIndex < 0) return null;
     return dashManifestUrl.slice(0, markerIndex + marker.length);
   }, [dashManifestUrl]);
+
   const supportedQualities = useMemo(() => {
     if (!isDashPlayback) return qualities;
     return qualities.filter((quality) => isVariantSupported(quality.mimeType));
   }, [isDashPlayback, qualities]);
+
   const selectedQuality = useMemo(() => {
-    return supportedQualities.find((quality) => quality.id === selectedQualityId)
-      || supportedQualities.find((quality) => quality.isDefault)
-      || supportedQualities[0]
-      || null;
+    return (
+      supportedQualities.find((quality) => quality.id === selectedQualityId) ||
+      supportedQualities.find((quality) => quality.isDefault) ||
+      supportedQualities[0] ||
+      null
+    );
   }, [selectedQualityId, supportedQualities]);
-  const selectedCaption = captions.find((caption) => caption.id === selectedCaptionId) || null;
+
   const selectedAudioTrack = audioTracks.find((track) => track.id === selectedAudioTrackId)
     || audioTracks.find((track) => track.isDefault)
     || audioTracks[0]
     || null;
-  const usesExternalAudio = !isDashPlayback && !!selectedQuality && !selectedQuality.hasAudio && !!selectedAudioTrack?.localUrl;
-  const activeCaption = selectedCaptionId === "off"
-    ? null
-    : captionCues.find((cue) => currentTime >= cue.start && currentTime <= cue.end);
 
-  const progressPct = duration > 0 ? Math.min(100, Math.max(0, (currentTime / duration) * 100)) : 0;
+  const usesExternalAudio = !isDashPlayback && !!selectedQuality && !selectedQuality.hasAudio && !!selectedAudioTrack?.localUrl;
+
   const shouldShowControls = controlsVisible || !isPlaying || settingsOpen || isScrubbing;
   const showAmbient = ambientMode && !!poster && !error;
   const effectivePoster = hasStartedPlayback || resumeTime > 0 || isSourceSwitching ? undefined : poster || undefined;
@@ -479,14 +362,6 @@ export const Player: React.FC<PlayerProps> = ({
       console.warn("Picture-in-picture failed", pipError);
     }
   }, []);
-
-  const handlePointerSeek = useCallback((clientX: number) => {
-    const track = containerRef.current?.querySelector("[data-progress-track]");
-    if (!(track instanceof HTMLElement) || duration <= 0) return;
-    const rect = track.getBoundingClientRect();
-    const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
-    seekTo(ratio * duration);
-  }, [duration, seekTo]);
 
   const updateBuffered = useCallback(() => {
     const video = videoRef.current;
@@ -671,6 +546,7 @@ export const Player: React.FC<PlayerProps> = ({
 
     const onVideoWaiting = () => {
       mediaBufferingRef.current = true;
+      setIsBuffering(true);
       if (usesExternalAudio) {
         audioRef.current?.pause();
       }
@@ -682,6 +558,7 @@ export const Player: React.FC<PlayerProps> = ({
     };
     const onVideoStalled = () => {
       mediaBufferingRef.current = true;
+      setIsBuffering(true);
       if (usesExternalAudio) {
         audioRef.current?.pause();
       }
@@ -693,6 +570,7 @@ export const Player: React.FC<PlayerProps> = ({
     };
     const resumeExternalAudio = (eventName: string) => {
       mediaBufferingRef.current = false;
+      setIsBuffering(false);
       const audio = audioRef.current;
       if (!usesExternalAudio || !audio) {
         logPlayerEvent(eventName, {
@@ -705,7 +583,6 @@ export const Player: React.FC<PlayerProps> = ({
       try {
         audio.currentTime = video.currentTime;
       } catch {
-        // Ignore; syncExternalAudio will retry on the next timer tick.
       }
 
       audio.playbackRate = playbackRate;
@@ -742,6 +619,8 @@ export const Player: React.FC<PlayerProps> = ({
       }
     };
     const onVideoError = () => {
+      mediaBufferingRef.current = false;
+      setIsBuffering(false);
       logPlayerEvent("html-video-error", {
         mediaError: video.error ? {
           code: video.error.code,
@@ -777,6 +656,9 @@ export const Player: React.FC<PlayerProps> = ({
     pendingResumeTimeRef.current = targetTime;
     skippedSegmentsRef.current.clear();
     lastSrcRef.current = src;
+
+    mediaBufferingRef.current = false;
+    setIsBuffering(false);
 
     if (targetTime > 0) {
       sourceSwitchingRef.current = true;
@@ -862,39 +744,6 @@ export const Player: React.FC<PlayerProps> = ({
       audio.preservesPitch = true;
     }
   }, [playbackRate]);
-
-  useEffect(() => {
-    const caption = captions.find((item) => item.id === selectedCaptionId);
-    if (!caption) {
-      setCaptionCues([]);
-      return;
-    }
-
-    let cancelled = false;
-    fetch(caption.url)
-      .then((response) => response.text())
-      .then((text) => {
-        if (!cancelled) setCaptionCues(parseCaptionCues(text));
-      })
-      .catch(() => {
-        if (!cancelled) setCaptionCues([]);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [captions, selectedCaptionId]);
-
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-
-    for (let index = 0; index < video.textTracks.length; index += 1) {
-      const track = video.textTracks[index];
-      if (!track) continue;
-      track.mode = "disabled";
-    }
-  }, [captions, selectedCaptionId]);
 
   useEffect(() => {
     const onFullscreen = () => setIsFullscreen(!!document.fullscreenElement);
@@ -1003,7 +852,6 @@ export const Player: React.FC<PlayerProps> = ({
         try {
           audio.currentTime = restoredTime;
         } catch {
-          // Some WebView media backends reject audio seeks until metadata arrives.
         }
       }
     }
@@ -1030,7 +878,6 @@ export const Player: React.FC<PlayerProps> = ({
     try {
       audio.currentTime = video.currentTime;
     } catch {
-      // Ignore; the next sync tick will retry once the backend allows seeking.
     }
 
     if ((desiredPlayingRef.current || isPlaying) && usesExternalAudio && !isSourceSwitching) {
@@ -1065,44 +912,18 @@ export const Player: React.FC<PlayerProps> = ({
     updateBuffered();
   };
 
-  const handleProgressMove = (event: React.MouseEvent<HTMLDivElement>) => {
-    const rect = event.currentTarget.getBoundingClientRect();
-    const ratio = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
-    setHoverPct(ratio * 100);
-    setHoverTime(ratio * (duration || 0));
-  };
-
-  const renderSettingRow = (
-    label: string,
-    value: React.ReactNode,
-    icon: React.ReactNode,
-    onClick: () => void,
-  ) => (
-    <button
-      type="button"
-      onClick={onClick}
-      className="flex h-11 w-full items-center gap-3 rounded-md px-3 text-left text-sm text-zinc-100 transition-colors hover:bg-white/10"
-    >
-      <span className="grid h-7 w-7 place-items-center text-zinc-300">{icon}</span>
-      <span className="min-w-0 flex-1 font-medium">{label}</span>
-      <span className="max-w-[46%] truncate text-right text-zinc-300">{value}</span>
-      <ChevronRight size={16} className="text-zinc-400" />
-    </button>
-  );
-
   return (
     <div
       ref={containerRef}
       className={cx(
         "group/player relative h-full w-full overflow-hidden bg-black text-white shadow-2xl outline-none",
         isFullscreen ? "rounded-none" : "rounded-xl",
-        className,
+        className
       )}
       tabIndex={0}
       onMouseMove={revealControls}
       onMouseLeave={() => {
         setControlsVisible(false);
-        setHoverTime(null);
       }}
     >
       {showAmbient && (
@@ -1160,18 +981,7 @@ export const Player: React.FC<PlayerProps> = ({
           if (!onEnded) playNext();
         }}
         className="relative z-10 h-full w-full object-contain"
-      >
-        {captions.map((caption) => (
-          <track
-            key={caption.id}
-            kind="subtitles"
-            src={caption.url}
-            srcLang={caption.languageCode}
-            label={`${caption.label}${caption.isAutoGenerated ? " (auto)" : ""}`}
-            default={caption.id === selectedCaptionId}
-          />
-        ))}
-      </video>
+      />
 
       {usesExternalAudio && selectedAudioTrack?.localUrl && (
         <audio
@@ -1183,16 +993,39 @@ export const Player: React.FC<PlayerProps> = ({
         />
       )}
 
-      {activeCaption && (
-        <div className={cx(
-          "pointer-events-none absolute inset-x-4 z-30 flex justify-center px-4 text-center transition-[bottom] duration-150",
-          shouldShowControls ? "bottom-24" : "bottom-8"
-        )}>
-          <span className="max-w-4xl rounded bg-black/75 px-3 py-1.5 text-base font-semibold leading-snug text-white shadow-2xl sm:text-lg">
-            {activeCaption.text}
-          </span>
+      {/* Minimalist buffering spinner */}
+      {isBuffering && !isLoading && !error && (
+        <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center bg-black/15 transition-all duration-300">
+          <div className="relative flex items-center justify-center">
+            {/* Pulsing outer ring */}
+            <div className="absolute h-16 w-16 animate-ping rounded-full bg-white/5" />
+            {/* Spinning minimalist ring */}
+            <svg className="h-12 w-12 animate-spin text-white" viewBox="0 0 24 24" fill="none">
+              <circle
+                className="opacity-20"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                strokeWidth="3"
+              />
+              <path
+                className="opacity-80"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+              />
+            </svg>
+          </div>
         </div>
       )}
+
+      {/* Modular Subtitle Overlay */}
+      <SubtitleOverlay
+        captions={captions}
+        selectedCaptionId={selectedCaptionId}
+        currentTime={currentTime}
+        shouldShowControls={shouldShowControls}
+      />
 
       {(isLoading || error) && (
         <div className="absolute inset-0 z-30 grid place-items-center bg-black/60 px-6 text-center">
@@ -1220,328 +1053,42 @@ export const Player: React.FC<PlayerProps> = ({
         </div>
       )}
 
-      <div
-        className={cx(
-          "pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/95 via-black/50 to-transparent px-3 pb-3 pt-24 transition-opacity duration-200 sm:px-5 sm:pb-4",
-          shouldShowControls ? "opacity-100" : "opacity-0",
-        )}
-      >
-        <div className="pointer-events-auto" onClick={(event) => event.stopPropagation()}>
-          {title && (
-            <div className="mb-2 hidden max-w-[70%] truncate text-sm font-bold text-white/95 sm:block">
-              {title}
-            </div>
-          )}
-
-          <div
-            data-progress-track
-            className="relative h-5 cursor-pointer py-2"
-            onMouseMove={handleProgressMove}
-            onMouseLeave={() => setHoverTime(null)}
-            onMouseDown={(event) => {
-              setIsScrubbing(true);
-              handlePointerSeek(event.clientX);
-            }}
-            onMouseUp={() => setIsScrubbing(false)}
-            onClick={(event) => handlePointerSeek(event.clientX)}
-          >
-            <div className="relative h-1 overflow-hidden rounded-full bg-white/25 transition-all group-hover/player:h-1.5">
-              <div className="absolute inset-y-0 left-0 bg-white/35" style={{ width: `${bufferedPct}%` }} />
-              {sponsorBlockSegments.map((segment) => {
-                if (!duration) return null;
-                const start = (segment.segment[0] / duration) * 100;
-                const width = ((segment.segment[1] - segment.segment[0]) / duration) * 100;
-                return (
-                  <div
-                    key={segment.UUID}
-                    className="absolute inset-y-0 bg-emerald-400"
-                    style={{ left: `${start}%`, width: `${width}%` }}
-                  />
-                );
-              })}
-              <div className="absolute inset-y-0 left-0 bg-red-600" style={{ width: `${progressPct}%` }} />
-            </div>
-            <div
-              className="absolute top-1 h-3 w-3 -translate-x-1/2 rounded-full bg-red-600 opacity-0 shadow-lg shadow-black/40 transition-opacity group-hover/player:opacity-100"
-              style={{ left: `${progressPct}%` }}
-            />
-            {hoverTime !== null && duration > 0 && (
-              <div
-                className="absolute bottom-6 -translate-x-1/2 rounded bg-black/90 px-2 py-1 text-xs font-bold"
-                style={{ left: `${hoverPct}%` }}
-              >
-                {formatTime(hoverTime)}
-              </div>
-            )}
-          </div>
-
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex min-w-0 items-center gap-1 sm:gap-2">
-              <button type="button" title="Previous" onClick={playPrevious} className="grid h-9 w-9 place-items-center rounded-full hover:bg-white/10">
-                <SkipBack size={20} fill="currentColor" />
-              </button>
-              <button type="button" title={isPlaying ? "Pause" : "Play"} onClick={togglePlay} className="grid h-10 w-10 place-items-center rounded-full bg-white text-black transition-transform active:scale-95">
-                {isPlaying ? <Pause size={22} fill="currentColor" /> : <Play size={22} fill="currentColor" className="ml-0.5" />}
-              </button>
-              <button type="button" title="Next" onClick={playNext} className="grid h-9 w-9 place-items-center rounded-full hover:bg-white/10">
-                <SkipForward size={20} fill="currentColor" />
-              </button>
-
-              <div className="group/volume hidden items-center gap-2 sm:flex">
-                <button type="button" title="Mute" onClick={() => setMuted((value) => !value)} className="grid h-9 w-9 place-items-center rounded-full hover:bg-white/10">
-                  {muted || volume === 0 ? <VolumeX size={21} /> : volume < 0.55 ? <Volume1 size={21} /> : <Volume2 size={21} />}
-                </button>
-                <input
-                  aria-label="Volume"
-                  type="range"
-                  min={0}
-                  max={1}
-                  step={0.01}
-                  value={muted ? 0 : volume}
-                  onChange={(event) => {
-                    const value = Number(event.target.value);
-                    setVolume(value);
-                    setMuted(value === 0);
-                  }}
-                  className="h-1 w-0 accent-white opacity-0 transition-all group-hover/volume:w-20 group-hover/volume:opacity-100"
-                />
-              </div>
-
-              <div className="ml-1 whitespace-nowrap text-xs font-semibold text-zinc-100 sm:text-sm">
-                {formatTime(currentTime)} <span className="text-zinc-400">/</span> {formatTime(duration)}
-              </div>
-            </div>
-
-            <div className="flex items-center gap-1 sm:gap-2">
-              {selectedQuality && (
-                <button
-                  type="button"
-                  title="Quality"
-                  onClick={() => {
-                    setSettingsOpen(true);
-                    setSettingsPane("quality");
-                  }}
-                  className="hidden h-9 items-center rounded-full px-2 text-xs font-bold text-zinc-100 hover:bg-white/10 sm:flex"
-                >
-                  {selectedQuality.qualityLabel}
-                </button>
-              )}
-              <button
-                type="button"
-                title="Captions"
-                onClick={() => {
-                  setSettingsOpen(true);
-                  setSettingsPane("captions");
-                }}
-                className={cx("grid h-9 w-9 place-items-center rounded-full hover:bg-white/10", selectedCaptionId !== "off" && "bg-white/15")}
-              >
-                <Captions size={20} />
-              </button>
-              <button
-                type="button"
-                title="Settings"
-                onClick={() => {
-                  setSettingsOpen((value) => !value);
-                  setSettingsPane("root");
-                }}
-                className="grid h-9 w-9 place-items-center rounded-full hover:bg-white/10"
-              >
-                <Settings size={20} className={settingsOpen ? "rotate-90 transition-transform" : "transition-transform"} />
-              </button>
-              <button type="button" title="Picture in picture" onClick={togglePictureInPicture} className={cx("hidden h-9 w-9 place-items-center rounded-full hover:bg-white/10 sm:grid", isPip && "bg-white/15")}>
-                <PictureInPicture2 size={20} />
-              </button>
-              <button type="button" title="Theater mode" onClick={() => setIsTheaterMode(!isTheaterMode)} className={cx("grid h-9 w-9 place-items-center rounded-full hover:bg-white/10", isTheaterMode && "bg-white/15")}>
-                <Tv size={20} />
-              </button>
-              <button type="button" title="Fullscreen" onClick={toggleFullscreen} className="grid h-9 w-9 place-items-center rounded-full hover:bg-white/10">
-                {isFullscreen ? <Minimize size={20} /> : <Maximize size={20} />}
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {settingsOpen && (
-        <div className="absolute bottom-20 right-3 z-40 w-[min(92vw,360px)] overflow-hidden rounded-xl border border-white/10 bg-[#181818]/95 p-2 text-white shadow-2xl backdrop-blur-xl sm:right-5">
-          {settingsPane !== "root" && (
-            <button
-              type="button"
-              onClick={() => setSettingsPane("root")}
-              className="mb-1 flex h-10 w-full items-center gap-2 rounded-md px-2 text-sm font-bold hover:bg-white/10"
-            >
-              <ChevronLeft size={18} />
-              {settingsPane === "speed"
-                ? "Playback speed"
-                : settingsPane === "quality"
-                  ? "Quality"
-                  : settingsPane === "captions"
-                    ? "Subtitles/CC"
-                    : settingsPane === "audio"
-                      ? "Audio track"
-                      : "Sleep timer"}
-            </button>
-          )}
-
-          {settingsPane === "root" && (
-            <div className="space-y-1">
-              <button
-                type="button"
-                onClick={() => setAmbientMode((value) => !value)}
-                className="flex h-11 w-full items-center gap-3 rounded-md px-3 text-sm font-medium hover:bg-white/10"
-              >
-                <span className="grid h-7 w-7 place-items-center text-zinc-300"><Sparkles size={18} /></span>
-                <span className="flex-1 text-left">Ambient mode</span>
-                <span className={cx("h-5 w-9 rounded-full p-0.5 transition-colors", ambientMode ? "bg-red-600" : "bg-zinc-600")}>
-                  <span className={cx("block h-4 w-4 rounded-full bg-white transition-transform", ambientMode && "translate-x-4")} />
-                </span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setSponsorBlockEnabled((value) => !value)}
-                className="flex h-11 w-full items-center gap-3 rounded-md px-3 text-sm font-medium hover:bg-white/10"
-              >
-                <span className="grid h-7 w-7 place-items-center text-zinc-300"><Sparkles size={18} /></span>
-                <span className="flex-1 text-left">SponsorBlock</span>
-                <span className={cx("h-5 w-9 rounded-full p-0.5 transition-colors", sponsorBlockEnabled ? "bg-emerald-500" : "bg-zinc-600")}>
-                  <span className={cx("block h-4 w-4 rounded-full bg-white transition-transform", sponsorBlockEnabled && "translate-x-4")} />
-                </span>
-              </button>
-              {renderSettingRow("Playback speed", playbackRate === 1 ? "Normal" : `${playbackRate}x`, <Gauge size={18} />, () => setSettingsPane("speed"))}
-              {renderSettingRow("Quality", selectedQuality?.qualityLabel || "Auto", <Monitor size={18} />, () => setSettingsPane("quality"))}
-              {renderSettingRow("Subtitles/CC", selectedCaption ? selectedCaption.label : "Off", <Captions size={18} />, () => setSettingsPane("captions"))}
-              {renderSettingRow("Audio track", selectedAudioTrack?.label || "Original", <AudioLines size={18} />, () => setSettingsPane("audio"))}
-              {renderSettingRow("Sleep timer", sleepMinutes ? `${sleepMinutes} min` : "Off", <Pause size={18} />, () => setSettingsPane("sleep"))}
-            </div>
-          )}
-
-          {settingsPane === "speed" && (
-            <div className="space-y-1">
-              {speedOptions.map((speed) => (
-                <button
-                  key={speed}
-                  type="button"
-                  onClick={() => {
-                    setPlaybackRate(speed);
-                    setSettingsPane("root");
-                  }}
-                  className="flex h-10 w-full items-center justify-between rounded-md px-3 text-sm font-medium hover:bg-white/10"
-                >
-                  <span>{speed === 1 ? "Normal" : `${speed}x`}</span>
-                  {playbackRate === speed && <Check size={17} />}
-                </button>
-              ))}
-            </div>
-          )}
-
-          {settingsPane === "quality" && (
-            <div className="space-y-1">
-              {supportedQualities.length === 0 ? (
-                <div className="px-3 py-4 text-sm text-zinc-400">Auto</div>
-              ) : supportedQualities.map((quality) => (
-                <button
-                  key={quality.id}
-                  type="button"
-                  onClick={() => {
-                    if (!quality.hasAudio && !audioTracks.some((track) => !!track.localUrl)) return;
-                    onSelectQuality?.(quality);
-                    setSettingsPane("root");
-                    setSettingsOpen(false);
-                  }}
-                  className={cx(
-                    "flex min-h-10 w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-sm font-medium",
-                    quality.hasAudio || audioTracks.some((track) => !!track.localUrl)
-                      ? "hover:bg-white/10"
-                      : "cursor-not-allowed text-zinc-500"
-                  )}
-                >
-                  <span className="flex flex-col text-left leading-tight">
-                    <span>{quality.qualityLabel}</span>
-                    {quality.isVideoOnly}
-                  </span>
-                  {(selectedQualityId === quality.id || (!selectedQualityId && quality.isDefault)) && <Check size={17} />}
-                </button>
-              ))}
-            </div>
-          )}
-
-          {settingsPane === "captions" && (
-            <div className="space-y-1">
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedCaptionId("off");
-                  setSettingsPane("root");
-                }}
-                className="flex h-10 w-full items-center justify-between rounded-md px-3 text-sm font-medium hover:bg-white/10"
-              >
-                <span>Off</span>
-                {selectedCaptionId === "off" && <Check size={17} />}
-              </button>
-              {captions.map((caption) => (
-                <button
-                  key={caption.id}
-                  type="button"
-                  onClick={() => {
-                    setSelectedCaptionId(caption.id);
-                    setSettingsPane("root");
-                  }}
-                  className="flex min-h-10 w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-sm font-medium hover:bg-white/10"
-                >
-                  <span className="text-left">
-                    {caption.label}
-                    {caption.isAutoGenerated && <span className="ml-1 text-xs text-zinc-400">auto</span>}
-                  </span>
-                  {selectedCaptionId === caption.id && <Check size={17} />}
-                </button>
-              ))}
-            </div>
-          )}
-
-          {settingsPane === "audio" && (
-            <div className="space-y-1">
-              {audioTracks.length === 0 ? (
-                <div className="px-3 py-4 text-sm text-zinc-400">Original audio</div>
-              ) : audioTracks.map((track) => (
-                <button
-                  key={track.id}
-                  type="button"
-                  onClick={() => {
-                    setSelectedAudioTrackId(track.id);
-                    setSettingsPane("root");
-                  }}
-                  className="flex min-h-10 w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-sm font-medium hover:bg-white/10"
-                >
-                  <span className="text-left">
-                    {track.label}
-                    {track.languageCode && <span className="ml-1 text-xs text-zinc-400">{track.languageCode}</span>}
-                  </span>
-                  {(selectedAudioTrackId === track.id || (!selectedAudioTrackId && track.isDefault)) && <Check size={17} />}
-                </button>
-              ))}
-            </div>
-          )}
-
-          {settingsPane === "sleep" && (
-            <div className="space-y-1">
-              {sleepOptions.map((option) => (
-                <button
-                  key={option.minutes}
-                  type="button"
-                  onClick={() => {
-                    setSleepMinutes(option.minutes);
-                    setSettingsPane("root");
-                  }}
-                  className="flex h-10 w-full items-center justify-between rounded-md px-3 text-sm font-medium hover:bg-white/10"
-                >
-                  <span>{option.label}</span>
-                  {sleepMinutes === option.minutes && <Check size={17} />}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+      {/* Modular Flow Player Controls */}
+      <FlowPlayerControls
+        title={title}
+        isLoading={isLoading}
+        error={error}
+        onRetry={onRetry}
+        containerRef={containerRef}
+        controlsVisible={controlsVisible}
+        setControlsVisible={setControlsVisible}
+        shouldShowControls={shouldShowControls}
+        qualities={supportedQualities}
+        selectedQualityId={selectedQualityId}
+        isDashPlayback={isDashPlayback}
+        onSelectQuality={onSelectQuality}
+        captions={captions}
+        selectedCaptionId={selectedCaptionId}
+        setSelectedCaptionId={setSelectedCaptionId}
+        audioTracks={audioTracks}
+        selectedAudioTrackId={selectedAudioTrackId}
+        setSelectedAudioTrackId={setSelectedAudioTrackId}
+        bufferedPct={bufferedPct}
+        sleepMinutes={sleepMinutes}
+        setSleepMinutes={setSleepMinutes}
+        muted={muted}
+        setMuted={setMuted}
+        isFullscreen={isFullscreen}
+        toggleFullscreen={toggleFullscreen}
+        isPip={isPip}
+        togglePictureInPicture={togglePictureInPicture}
+        seekTo={seekTo}
+        togglePlay={togglePlay}
+        settingsOpen={settingsOpen}
+        setSettingsOpen={setSettingsOpen}
+        isScrubbing={isScrubbing}
+        setIsScrubbing={setIsScrubbing}
+      />
     </div>
   );
 };

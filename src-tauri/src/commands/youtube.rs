@@ -232,10 +232,8 @@ pub async fn get_stream_info(
         .await
         .map_err(ErrorResponse::from)?;
 
-    // Generate secure short-lived token
     let token = uuid::Uuid::new_v4().to_string();
 
-    // Decode composite expires_at value containing both expires duration and target user-agent
     let parts: Vec<&str> = stream_info.expires_at.split('|').collect();
     let clean_expires_at = parts[0].to_string();
     let dynamic_user_agent = parts.get(1).map(|&s| s.to_string()).unwrap_or_else(|| "com.google.ios.youtube/19.29.1 (iPhone14,5; U; CPU iOS 17_5_1 like Mac OS X; en_US)".to_string());
@@ -279,7 +277,6 @@ pub async fn get_stream_info(
         stream_info.hls_manifest_url = Some(local_manifest_url.to_string());
     }
 
-    // Register default stream with local proxy server.
     streaming_manager.register_session(
         token.clone(),
         stream_info.local_url.clone(),
@@ -583,7 +580,6 @@ pub async fn get_dearrow_override(
 
     // 1. Try to fetch from local dearrow_cache first.
     if let Ok(Some(cached)) = crate::db::cache::get_cached_dearrow(&pool, &video_id).await {
-        // If it's cached but has no title or thumbnail, return None
         if cached.title.is_none() && cached.thumbnail_url.is_none() {
             return Ok(None);
         }
@@ -691,3 +687,74 @@ pub async fn get_music_charts(
         .await
         .map_err(ErrorResponse::from)
 }
+
+#[tauri::command]
+pub async fn fetch_subtitles(
+    url: String,
+    streaming_manager: State<'_, StreamingManager>,
+) -> Result<String, ErrorResponse> {
+    info!("[fetch_subtitles] Requested fetch for: {}", url);
+
+    if let Ok(parsed_url) = reqwest::Url::parse(&url) {
+        let path = parsed_url.path();
+        if let Some(token) = path.strip_prefix("/stream/") {
+            let token = token.trim_start_matches('/');
+            info!("[fetch_subtitles] Local proxy URL detected. Extracted token: {}", token);
+            if let Some(session) = streaming_manager.get_session(token) {
+                info!("[fetch_subtitles] Found stream session for token: {}", token);
+                match session.kind {
+                    crate::streaming::proxy::StreamSessionKind::Remote { remote_url } => {
+                        info!("[fetch_subtitles] Remote URL session found: {}", remote_url);
+                        let mut client_builder = reqwest::Client::builder();
+                        if !session.user_agent.is_empty() {
+                            info!("[fetch_subtitles] Using session User-Agent: {}", session.user_agent);
+                            client_builder = client_builder.user_agent(&session.user_agent);
+                        } else {
+                            client_builder = client_builder.user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+                        }
+                        let client = client_builder.build().unwrap_or_default();
+                        
+                        let res = client.get(&remote_url)
+                            .send()
+                            .await
+                            .map_err(|e| crate::errors::AppError::Extractor(format!("Network error fetching subtitles: {}", e)))?;
+                        
+                        let text = res.text()
+                            .await
+                            .map_err(|e| crate::errors::AppError::Extractor(format!("Read error fetching subtitles: {}", e)))?;
+                        
+                        info!("[fetch_subtitles] Successfully fetched remote subtitles. Length: {} bytes", text.len());
+                        return Ok(text);
+                    }
+                    crate::streaming::proxy::StreamSessionKind::Inline { body } => {
+                        info!("[fetch_subtitles] Inline session found with {} bytes.", body.len());
+                        let text = String::from_utf8(body)
+                            .map_err(|e| crate::errors::AppError::Extractor(format!("UTF-8 decoding error: {}", e)))?;
+                        return Ok(text);
+                    }
+                }
+            } else {
+                info!("[fetch_subtitles] No active/expired session found in StreamingManager for token: {}", token);
+            }
+        }
+    }
+
+    info!("[fetch_subtitles] Falling back to direct URL fetch: {}", url);
+    let client = reqwest::Client::builder()
+        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+        .build()
+        .unwrap_or_default();
+
+    let res = client.get(&url)
+        .send()
+        .await
+        .map_err(|e| crate::errors::AppError::Extractor(format!("Network error: {}", e)))?;
+
+    let text = res.text()
+        .await
+        .map_err(|e| crate::errors::AppError::Extractor(format!("Read error: {}", e)))?;
+
+    info!("[fetch_subtitles] Direct fetch successful. Length: {} bytes", text.len());
+    Ok(text)
+}
+
