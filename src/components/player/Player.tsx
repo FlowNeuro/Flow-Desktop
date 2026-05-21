@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import * as dashjs from "dashjs";
 import { Loader2, RotateCcw } from "lucide-react";
 import { usePlayerStore } from "../../store/usePlayerStore";
+import { useSettingsStore, type SponsorBlockCategory, type SponsorBlockAction } from "../../store/useSettingsStore";
 import type { AudioTrack, CaptionTrack, StreamVariant } from "../../types/video";
 import { FlowPlayerControls } from "./FlowPlayerControls";
 import { SubtitleOverlay } from "./SubtitleOverlay";
@@ -117,6 +118,9 @@ export const Player: React.FC<PlayerProps> = ({
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sleepTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const skippedSegmentsRef = useRef<Set<string>>(new Set());
+  const undoSkippedSegmentsRef = useRef<Set<string>>(new Set());
+  const mutedSegmentsRecordedRef = useRef<Set<string>>(new Set());
+  const notifiedSegmentsRef = useRef<Set<string>>(new Set());
   const lastSrcRef = useRef<string | null | undefined>(src);
   const desiredPlayingRef = useRef(false);
   const pendingResumeTimeRef = useRef(0);
@@ -145,8 +149,17 @@ export const Player: React.FC<PlayerProps> = ({
   const [controlsVisible, setControlsVisible] = useState(true);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [muted, setMuted] = useState(false);
-  const [ambientMode, setAmbientMode] = useState(true);
-  const [sponsorBlockEnabled, setSponsorBlockEnabled] = useState(true);
+  const [ambientMode] = useState(true);
+  const {
+    sponsorBlockEnabled,
+    sponsorBlockActions,
+    incrementStats,
+    loadSettings
+  } = useSettingsStore();
+  const [sbMuted, setSbMuted] = useState(false);
+  const [notifyToast, setNotifyToast] = useState<{ segment: any; categoryName: string; visible: boolean } | null>(null);
+  const notifyTimeoutRef = useRef<number | null>(null);
+  const [currentSBMuteSegment, setCurrentSBMuteSegment] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isPip, setIsPip] = useState(false);
   const [isScrubbing, setIsScrubbing] = useState(false);
@@ -283,6 +296,18 @@ export const Player: React.FC<PlayerProps> = ({
   const applyDashQualitySelectionRef = useRef(applyDashQualitySelection);
 
   useEffect(() => {
+    loadSettings();
+  }, [loadSettings]);
+
+  useEffect(() => {
+    return () => {
+      if (notifyTimeoutRef.current !== null) {
+        window.clearTimeout(notifyTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     applyDashQualitySelectionRef.current = applyDashQualitySelection;
   }, [applyDashQualitySelection]);
 
@@ -309,6 +334,19 @@ export const Player: React.FC<PlayerProps> = ({
     }
     setCurrentTime(nextTime);
   }, [duration, setCurrentTime]);
+
+  useEffect(() => {
+    const handleExternalSeek = (e: Event) => {
+      const customEvent = e as CustomEvent<{ time: number }>;
+      if (customEvent.detail && typeof customEvent.detail.time === "number") {
+        seekTo(customEvent.detail.time);
+      }
+    };
+    window.addEventListener("flow-player-seek", handleExternalSeek);
+    return () => {
+      window.removeEventListener("flow-player-seek", handleExternalSeek);
+    };
+  }, [seekTo]);
 
   const setPlaybackDesired = useCallback((shouldPlay: boolean) => {
     const video = videoRef.current;
@@ -655,6 +693,9 @@ export const Player: React.FC<PlayerProps> = ({
 
     pendingResumeTimeRef.current = targetTime;
     skippedSegmentsRef.current.clear();
+    undoSkippedSegmentsRef.current.clear();
+    mutedSegmentsRecordedRef.current.clear();
+    notifiedSegmentsRef.current.clear();
     lastSrcRef.current = src;
 
     mediaBufferingRef.current = false;
@@ -724,13 +765,14 @@ export const Player: React.FC<PlayerProps> = ({
     const video = videoRef.current;
     const audio = audioRef.current;
     if (!video) return;
-    video.volume = usesExternalAudio ? 0 : (muted ? 0 : volume);
-    video.muted = usesExternalAudio || muted || volume === 0;
+    const effectiveMuted = muted || sbMuted;
+    video.volume = usesExternalAudio ? 0 : (effectiveMuted ? 0 : volume);
+    video.muted = usesExternalAudio || effectiveMuted || volume === 0;
     if (audio) {
-      audio.volume = muted ? 0 : volume;
-      audio.muted = muted || volume === 0;
+      audio.volume = effectiveMuted ? 0 : volume;
+      audio.muted = effectiveMuted || volume === 0;
     }
-  }, [muted, usesExternalAudio, volume]);
+  }, [muted, sbMuted, usesExternalAudio, volume]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -885,6 +927,34 @@ export const Player: React.FC<PlayerProps> = ({
     }
   };
 
+  const CATEGORY_LABELS: Record<string, string> = {
+    sponsor: "Sponsor",
+    intro: "Intro / Intermission",
+    outro: "Outro / Credits",
+    selfpromo: "Self-Promotion",
+    interaction: "Interaction Reminder",
+    music_offtopic: "Non-Music Filler",
+    filler: "Filler Content",
+    preview: "Preview / Recap",
+    exclusive_access: "Exclusive Access",
+  };
+
+  const handleSkipNotifySegment = (segment: any) => {
+    if (!segment) return;
+    const video = videoRef.current;
+    if (!video) return;
+
+    const [_, end] = segment.segment;
+    video.currentTime = end;
+    setCurrentTime(end);
+
+    setNotifyToast(prev => prev ? { ...prev, visible: false } : null);
+    if (notifyTimeoutRef.current !== null) {
+      window.clearTimeout(notifyTimeoutRef.current);
+      notifyTimeoutRef.current = null;
+    }
+  };
+
   const handleTimeUpdate = () => {
     const video = videoRef.current;
     const audio = audioRef.current;
@@ -892,16 +962,75 @@ export const Player: React.FC<PlayerProps> = ({
     const nextTime = video.currentTime;
     const nextDuration = video.duration || duration || 0;
 
+    let inMuteSegment = false;
+    let muteSegmentCategoryName = "";
+
     if (sponsorBlockEnabled) {
       for (const segment of sponsorBlockSegments) {
         const [start, end] = segment.segment;
-        const shouldSkip = ["sponsor", "intro", "outro", "selfpromo"].includes(segment.category);
-        if (shouldSkip && nextTime >= start && nextTime < end && !skippedSegmentsRef.current.has(segment.UUID)) {
-          skippedSegmentsRef.current.add(segment.UUID);
-          video.currentTime = end;
-          setCurrentTime(end);
-          return;
+        const action: SponsorBlockAction = sponsorBlockActions[segment.category as SponsorBlockCategory] || "ignore";
+
+        if (action === "ignore") continue;
+
+        if (nextTime >= start && nextTime < end) {
+          if (action === "skip") {
+            if (!skippedSegmentsRef.current.has(segment.UUID)) {
+              skippedSegmentsRef.current.add(segment.UUID);
+              
+              video.currentTime = end;
+              setCurrentTime(end);
+
+              const durationSkipped = Math.max(0, end - start);
+              void incrementStats(segment.category as SponsorBlockCategory, durationSkipped);
+
+              return; 
+            }
+          } else if (action === "mute") {
+            inMuteSegment = true;
+            muteSegmentCategoryName = segment.category;
+
+            if (!mutedSegmentsRecordedRef.current.has(segment.UUID)) {
+              mutedSegmentsRecordedRef.current.add(segment.UUID);
+              const durationMuted = Math.max(0, end - start);
+              void incrementStats(segment.category as SponsorBlockCategory, durationMuted);
+            }
+          } else if (action === "notify") {
+            if (!notifiedSegmentsRef.current.has(segment.UUID)) {
+              notifiedSegmentsRef.current.add(segment.UUID);
+              
+              const catLabel = CATEGORY_LABELS[segment.category] || segment.category;
+              setNotifyToast({
+                segment,
+                categoryName: catLabel,
+                visible: true
+              });
+
+              if (notifyTimeoutRef.current !== null) {
+                window.clearTimeout(notifyTimeoutRef.current);
+              }
+
+              notifyTimeoutRef.current = window.setTimeout(() => {
+                setNotifyToast(prev => prev ? { ...prev, visible: false } : null);
+                notifyTimeoutRef.current = null;
+              }, 2000);
+
+              const durationSegment = Math.max(0, end - start);
+              void incrementStats(segment.category as SponsorBlockCategory, durationSegment);
+            }
+          }
         }
+      }
+    }
+
+    if (inMuteSegment) {
+      if (!sbMuted) {
+        setSbMuted(true);
+        setCurrentSBMuteSegment(muteSegmentCategoryName);
+      }
+    } else {
+      if (sbMuted) {
+        setSbMuted(false);
+        setCurrentSBMuteSegment(null);
       }
     }
 
@@ -1031,7 +1160,7 @@ export const Player: React.FC<PlayerProps> = ({
         <div className="absolute inset-0 z-30 grid place-items-center bg-black/60 px-6 text-center">
           {isLoading ? (
             <div className="flex flex-col items-center gap-3 text-sm font-semibold text-zinc-200">
-              <Loader2 className="animate-spin text-red-500" size={34} />
+              <Loader2 className="animate-spin text-primary" size={34} />
               Resolving stream
             </div>
           ) : (
@@ -1050,6 +1179,37 @@ export const Player: React.FC<PlayerProps> = ({
               )}
             </div>
           )}
+        </div>
+      )}
+
+      {/* SponsorBlock Notify Toast */}
+      {notifyToast && notifyToast.visible && (
+        <div className="absolute bottom-20 right-6 z-40 bg-[#1A1A1A]/95 border border-[#2A2A2A] rounded-xl px-4 py-3 shadow-2xl flex items-center gap-3 transition-transform duration-300 animate-slide-up select-none animate-fade-in">
+          <div className="flex flex-col">
+            <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">SponsorBlock</span>
+            <span className="text-xs font-semibold text-neutral-200">
+              {notifyToast.categoryName} Segment
+            </span>
+          </div>
+          <button
+            onClick={() => handleSkipNotifySegment(notifyToast.segment)}
+            className="ml-2 px-3.5 py-1.5 rounded-full bg-primary hover:bg-red-700 active:scale-95 text-white font-bold text-xs uppercase tracking-wider transition-all cursor-pointer shadow-md"
+          >
+            Skip
+          </button>
+        </div>
+      )}
+
+      {/* SponsorBlock Muted Overlay */}
+      {sbMuted && (
+        <div className="absolute top-6 left-6 z-40 bg-[#1A1A1A]/95 border border-[#2A2A2A] rounded-xl px-4 py-2.5 shadow-2xl flex items-center gap-2 transition-all select-none">
+          <svg className="w-4 h-4 text-primary animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
+          </svg>
+          <span className="text-xs font-bold text-neutral-200">
+            SponsorBlock Muted ({CATEGORY_LABELS[currentSBMuteSegment || ""] || currentSBMuteSegment || "Filler"})
+          </span>
         </div>
       )}
 

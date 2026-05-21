@@ -35,7 +35,6 @@ export const Playlists: React.FC<PlaylistsProps> = ({ onPlay }) => {
       if (playlistsJson) {
         setPlaylists(JSON.parse(playlistsJson));
       } else {
-        // Create a default liked music playlist
         const defaults: LocalPlaylist[] = [
           {
             id: "liked-songs",
@@ -125,7 +124,6 @@ export const Playlists: React.FC<PlaylistsProps> = ({ onPlay }) => {
   return (
     <div className="flex-1 overflow-y-auto px-8 py-6 space-y-6">
       {activePlaylist ? (
-        // Playlist tracks detailed view
         <div className="space-y-6 pb-20">
           <button
             onClick={() => setActivePlaylist(null)}
@@ -136,7 +134,7 @@ export const Playlists: React.FC<PlaylistsProps> = ({ onPlay }) => {
           </button>
 
           <div className="flex flex-col md:flex-row items-start md:items-end gap-6 p-6 bg-zinc-900/30 rounded-3xl border border-zinc-800/40">
-            <div className="w-28 h-28 md:w-36 md:h-36 bg-zinc-800 rounded-2xl flex items-center justify-center text-red-500/80 shrink-0 border border-zinc-700/60 shadow-lg">
+            <div className="w-28 h-28 md:w-36 md:h-36 bg-zinc-800 rounded-2xl flex items-center justify-center text-primary/80 shrink-0 border border-zinc-700/60 shadow-lg">
               <FolderHeart size={48} />
             </div>
 
@@ -153,7 +151,7 @@ export const Playlists: React.FC<PlaylistsProps> = ({ onPlay }) => {
               <div className="flex items-center gap-3 shrink-0">
                 <button
                   onClick={() => handlePlayPlaylist(activePlaylist, false)}
-                  className="flex items-center gap-2 bg-red-600 hover:bg-red-500 text-white font-bold text-xs py-3 px-5 rounded-2xl transition-all shadow-lg shadow-red-600/10 active:scale-95"
+                  className="flex items-center gap-2 bg-primary hover:bg-primary text-white font-bold text-xs py-3 px-5 rounded-2xl transition-all shadow-lg shadow-primary/10 active:scale-95"
                 >
                   <Play size={14} fill="white" />
                   Play All
@@ -191,7 +189,6 @@ export const Playlists: React.FC<PlaylistsProps> = ({ onPlay }) => {
           )}
         </div>
       ) : (
-        // Master Playlists page layout
         <div className="space-y-6 pb-20">
           <div className="flex items-center justify-between gap-4">
             <div>
@@ -205,7 +202,7 @@ export const Playlists: React.FC<PlaylistsProps> = ({ onPlay }) => {
 
             <button
               onClick={() => setShowCreateModal(true)}
-              className="flex items-center gap-2 bg-red-600 hover:bg-red-500 text-white py-2.5 px-4 rounded-xl text-xs font-semibold shadow-lg shadow-red-600/10 transition-all active:scale-95 shrink-0"
+              className="flex items-center gap-2 bg-primary hover:bg-primary text-white py-2.5 px-4 rounded-xl text-xs font-semibold shadow-lg shadow-primary/10 transition-all active:scale-95 shrink-0"
             >
               <Plus size={14} />
               Create Playlist
@@ -214,7 +211,7 @@ export const Playlists: React.FC<PlaylistsProps> = ({ onPlay }) => {
 
           {loading ? (
             <div className="flex flex-col items-center justify-center py-32 space-y-4">
-              <Loader2 className="animate-spin text-red-500" size={36} />
+              <Loader2 className="animate-spin text-primary" size={36} />
               <p className="text-zinc-500 text-sm font-medium">Assembling library index...</p>
             </div>
           ) : playlists.length === 0 ? (
@@ -233,7 +230,7 @@ export const Playlists: React.FC<PlaylistsProps> = ({ onPlay }) => {
                   onClick={() => setActivePlaylist(playlist)}
                   className="flex flex-col bg-zinc-900/30 hover:bg-zinc-900/60 border border-zinc-800/40 hover:border-zinc-700/60 p-5 rounded-2xl cursor-pointer transition-all duration-300 group relative"
                 >
-                  <div className="w-full aspect-video bg-zinc-950/60 rounded-xl mb-4 flex items-center justify-center text-red-500/70 border border-zinc-800/80 group-hover:border-red-500/30 transition-colors shadow-inner">
+                  <div className="w-full aspect-video bg-zinc-950/60 rounded-xl mb-4 flex items-center justify-center text-primary/70 border border-zinc-800/80 group-hover:border-primary/30 transition-colors shadow-inner">
                     <FolderHeart size={32} />
                   </div>
                   <h4 className="font-bold text-zinc-200 text-sm group-hover:text-red-400 transition-colors truncate">
@@ -251,7 +248,7 @@ export const Playlists: React.FC<PlaylistsProps> = ({ onPlay }) => {
                     <button
                       onClick={(e) => handleDeletePlaylist(playlist.id, e)}
                       title="Delete playlist"
-                      className="p-1.5 rounded-xl hover:bg-zinc-800/80 text-zinc-500 hover:text-red-500 transition-colors"
+                      className="p-1.5 rounded-xl hover:bg-zinc-800/80 text-zinc-500 hover:text-primary transition-colors"
                     >
                       <Trash size={13} />
                     </button>
@@ -277,7 +274,7 @@ export const Playlists: React.FC<PlaylistsProps> = ({ onPlay }) => {
                 value={newPlaylistName}
                 onChange={(e) => setNewPlaylistName(e.target.value)}
                 placeholder="e.g. My Lofi Beats"
-                className="w-full bg-zinc-950 border border-zinc-800 focus:border-red-500/50 px-4 py-2.5 rounded-xl text-xs font-semibold outline-none transition-all text-zinc-100"
+                className="w-full bg-zinc-950 border border-zinc-800 focus:border-primary/50 px-4 py-2.5 rounded-xl text-xs font-semibold outline-none transition-all text-zinc-100"
               />
             </div>
 
@@ -288,7 +285,7 @@ export const Playlists: React.FC<PlaylistsProps> = ({ onPlay }) => {
                 onChange={(e) => setNewPlaylistDesc(e.target.value)}
                 placeholder="Short outline..."
                 rows={3}
-                className="w-full bg-zinc-950 border border-zinc-800 focus:border-red-500/50 px-4 py-2.5 rounded-xl text-xs font-semibold outline-none resize-none transition-all text-zinc-300"
+                className="w-full bg-zinc-950 border border-zinc-800 focus:border-primary/50 px-4 py-2.5 rounded-xl text-xs font-semibold outline-none resize-none transition-all text-zinc-300"
               />
             </div>
 
@@ -302,7 +299,7 @@ export const Playlists: React.FC<PlaylistsProps> = ({ onPlay }) => {
               </button>
               <button
                 type="submit"
-                className="px-5 py-2.5 bg-red-600 hover:bg-red-500 text-white rounded-xl text-xs font-semibold shadow-lg shadow-red-600/10 active:scale-95 transition-all"
+                className="px-5 py-2.5 bg-primary hover:bg-primary text-white rounded-xl text-xs font-semibold shadow-lg shadow-primary/10 active:scale-95 transition-all"
               >
                 Create
               </button>

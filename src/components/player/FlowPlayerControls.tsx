@@ -22,6 +22,7 @@ import {
   Sliders,
 } from "lucide-react";
 import { usePlayerStore, type PlaybackRate } from "../../store/usePlayerStore";
+import { useSettingsStore, type SponsorBlockCategory } from "../../store/useSettingsStore";
 import type { AudioTrack, CaptionTrack, StreamVariant } from "../../types/video";
 import { SubtitleCustomizer } from "./SubtitleCustomizer";
 
@@ -147,6 +148,8 @@ export const FlowPlayerControls: React.FC<FlowPlayerControlsProps> = ({
     setIsTheaterMode,
     sponsorBlockSegments,
   } = usePlayerStore();
+
+  const { sponsorBlockColors, sponsorBlockEnabled } = useSettingsStore();
 
   const [settingsPane, setSettingsPane] = useState<SettingsPane>("root");
   const [hoverTime, setHoverTime] = useState<number | null>(null);
@@ -282,16 +285,21 @@ export const FlowPlayerControls: React.FC<FlowPlayerControlsProps> = ({
                 className="absolute inset-y-0 left-0 bg-white/35"
                 style={{ width: `${bufferedPct}%` }}
               />
-              {sponsorBlockSegments.map((segment) => {
+              {sponsorBlockEnabled && sponsorBlockSegments.map((segment) => {
                 if (!duration) return null;
                 const start = (segment.segment[0] / duration) * 100;
                 const width =
                   ((segment.segment[1] - segment.segment[0]) / duration) * 100;
+                const segmentColor = sponsorBlockColors[segment.category as SponsorBlockCategory] || "#ef4444";
                 return (
                   <div
                     key={segment.UUID}
-                    className="absolute inset-y-0 bg-emerald-400"
-                    style={{ left: `${start}%`, width: `${width}%` }}
+                    className="absolute inset-y-0"
+                    style={{ 
+                      left: `${start}%`, 
+                      width: `${width}%`,
+                      backgroundColor: segmentColor
+                    }}
                   />
                 );
               })}

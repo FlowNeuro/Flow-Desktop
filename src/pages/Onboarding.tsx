@@ -113,7 +113,7 @@ export const Onboarding: React.FC = () => {
           <button
             className={`px-8 py-3 rounded-full font-bold text-sm transition-all duration-300 ${
               canAdvance 
-                ? "bg-primary text-white hover:bg-red-600 shadow-lg shadow-primary/20 active:scale-95 cursor-pointer" 
+                ? "bg-primary text-white hover:bg-primary shadow-lg shadow-primary/20 active:scale-95 cursor-pointer" 
                 : "bg-neutral-800 text-neutral-500 opacity-50 cursor-not-allowed"
             }`}
             disabled={!canAdvance}

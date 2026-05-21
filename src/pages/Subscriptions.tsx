@@ -15,7 +15,6 @@ export const Subscriptions: React.FC<SubscriptionsProps> = () => {
   const { subscriptions, loadSubscriptions, loading, unsubscribe, subscribe } = useSubscriptionStore();
   const [searchQuery, setSearchQuery] = useState("");
   
-  // Import section state
   const [importText, setImportText] = useState("");
   const [showImportModal, setShowImportModal] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
@@ -33,7 +32,6 @@ export const Subscriptions: React.FC<SubscriptionsProps> = () => {
     }
   };
 
-  // Import Takeout CSV or RSS OPML outline
   const handleImport = async () => {
     if (!importText.trim()) return;
     setIsImporting(true);
@@ -75,7 +73,7 @@ export const Subscriptions: React.FC<SubscriptionsProps> = () => {
 
           <button
             onClick={() => setShowImportModal(true)}
-            className="flex items-center gap-2 bg-red-600 hover:bg-red-500 text-white py-2.5 px-4 rounded-xl text-xs font-semibold shadow-lg shadow-red-600/10 transition-all active:scale-95 shrink-0"
+            className="flex items-center gap-2 bg-primary hover:bg-primary text-white py-2.5 px-4 rounded-xl text-xs font-semibold shadow-lg shadow-primary/10 transition-all active:scale-95 shrink-0"
           >
             <Upload size={14} />
             Import Subscriptions
@@ -89,7 +87,7 @@ export const Subscriptions: React.FC<SubscriptionsProps> = () => {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder={getString("subscriptions_search_placeholder")}
-            className="w-full bg-zinc-900/50 border border-zinc-800 focus:border-red-500/50 px-4 py-3 pl-11 rounded-2xl text-xs font-medium text-zinc-100 placeholder-zinc-500 outline-none transition-all"
+            className="w-full bg-zinc-900/50 border border-zinc-800 focus:border-primary/50 px-4 py-3 pl-11 rounded-2xl text-xs font-medium text-zinc-100 placeholder-zinc-500 outline-none transition-all"
           />
           <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" size={15} />
         </div>
@@ -97,7 +95,7 @@ export const Subscriptions: React.FC<SubscriptionsProps> = () => {
         {/* Subscribed channels listing */}
         {loading && subscriptions.length === 0 ? (
           <div className="flex items-center justify-center py-20">
-            <Loader2 className="animate-spin text-red-500" size={32} />
+            <Loader2 className="animate-spin text-primary" size={32} />
           </div>
         ) : filteredChannels.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 text-center border border-dashed border-zinc-800 rounded-3xl p-8 bg-zinc-900/10">
@@ -115,7 +113,7 @@ export const Subscriptions: React.FC<SubscriptionsProps> = () => {
                 onClick={() => navigate(`/channel/${channel.id}`)}
                 className="flex flex-col items-center p-5 bg-zinc-900/30 hover:bg-zinc-900/60 border border-zinc-800/40 hover:border-zinc-700/60 rounded-2xl cursor-pointer transition-all duration-300 group"
               >
-                <div className="w-16 h-16 rounded-full overflow-hidden bg-zinc-800 mb-3 border border-zinc-700 group-hover:border-red-500/50 transition-colors">
+                <div className="w-16 h-16 rounded-full overflow-hidden bg-zinc-800 mb-3 border border-zinc-700 group-hover:border-primary/50 transition-colors">
                   {channel.avatarUrl ? (
                     <img
                       src={channel.avatarUrl}
@@ -155,7 +153,7 @@ export const Subscriptions: React.FC<SubscriptionsProps> = () => {
           <div className="bg-zinc-900 border border-zinc-800 max-w-lg w-full rounded-3xl p-6 shadow-2xl space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-bold text-zinc-100 flex items-center gap-2">
-                <Upload size={18} className="text-red-500" />
+                <Upload size={18} className="text-primary" />
                 Import Subscriptions list
               </h3>
               <button
@@ -175,7 +173,7 @@ export const Subscriptions: React.FC<SubscriptionsProps> = () => {
               onChange={(e) => setImportText(e.target.value)}
               placeholder={`<!-- OPML Outline template -->\n<outline xmlUrl="https://www.youtube.com/feeds/videos.xml?channel_id=UC..." title="Fireship"/>\n\n<!-- Or Takeout CSV line -->\nUCsBjURrdU234nU351gVEfTA,,Fireship`}
               rows={8}
-              className="w-full bg-zinc-950 border border-zinc-800 focus:border-red-500/50 p-4 rounded-2xl text-xs font-mono text-zinc-300 outline-none resize-none"
+              className="w-full bg-zinc-950 border border-zinc-800 focus:border-primary/50 p-4 rounded-2xl text-xs font-mono text-zinc-300 outline-none resize-none"
             />
 
             <div className="flex items-center justify-end gap-3 pt-2">
@@ -188,7 +186,7 @@ export const Subscriptions: React.FC<SubscriptionsProps> = () => {
               <button
                 onClick={handleImport}
                 disabled={isImporting || !importText.trim()}
-                className="px-5 py-2.5 bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all shadow-lg shadow-red-600/10 active:scale-95"
+                className="px-5 py-2.5 bg-primary hover:bg-primary disabled:opacity-50 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all shadow-lg shadow-primary/10 active:scale-95"
               >
                 {isImporting ? (
                   <>

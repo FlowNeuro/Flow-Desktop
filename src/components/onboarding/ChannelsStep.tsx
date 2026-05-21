@@ -14,24 +14,20 @@ export const ChannelsStep: React.FC<ChannelsStepProps> = ({ selectedTopics: _sel
 
   const { subscriptions, subscribe, unsubscribe, isSubscribed, loadSubscriptions } = useSubscriptionStore();
 
-  // Load actual active subscriptions on mount to sync correctly
   useEffect(() => {
     loadSubscriptions();
   }, []);
 
-  // Update subscriptions helper
   const handleToggleSub = async (ch: { id: string; name: string; avatar: string }) => {
     const isSubbed = isSubscribed(ch.id);
     if (isSubbed) {
       await unsubscribe(ch.id);
     } else {
-      // Pass avatar if it's a real image URL, otherwise let store use default
       const avatarUrl = ch.avatar && ch.avatar.startsWith("http") ? ch.avatar : undefined;
       await subscribe(ch.id, ch.name, avatarUrl);
     }
   };
 
-  // Perform search based on video channels
   useEffect(() => {
     if (!searchQuery.trim()) {
       setSearchResults([]);
@@ -62,7 +58,7 @@ export const ChannelsStep: React.FC<ChannelsStepProps> = ({ selectedTopics: _sel
             } else if (item.channelName && !seen.has(item.channelName)) {
               seen.add(item.channelName);
               channels.push({
-                id: `channel:${item.channelName}`, // Make it channel prefixed for consistency
+                id: `channel:${item.channelName}`,
                 name: item.channelName,
                 avatar: "",
                 subscribers: "Verified Creator",
@@ -166,7 +162,7 @@ export const ChannelsStep: React.FC<ChannelsStepProps> = ({ selectedTopics: _sel
                         className={`text-xs font-bold px-4 py-2 border rounded-full transition-all active:scale-95 shrink-0 cursor-pointer ${
                           isSubbed
                             ? "bg-transparent border-zinc-700 text-zinc-400 hover:bg-zinc-800"
-                            : "bg-primary border-primary text-white hover:bg-red-600 shadow-md shadow-primary/20"
+                            : "bg-primary border-primary text-white hover:bg-primary shadow-md shadow-primary/20"
                         }`}
                         onClick={() => handleToggleSub(ch)}
                       >

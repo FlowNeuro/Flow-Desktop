@@ -1,6 +1,6 @@
 import { cloneElement, ReactElement } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { Home, Compass, Users, History, FolderHeart, Settings, Shield } from 'lucide-react';
+import { Home, Compass, Users, History, FolderHeart, Settings, Blocks } from 'lucide-react';
 import { useUiStore } from '../../store/useUiStore';
 
 export function Sidebar() {
@@ -23,7 +23,7 @@ export function Sidebar() {
     ]},
     { section: 'System', items: [
       { path: '/settings', label: 'Settings', icon: <Settings /> },
-      { path: '/sponsorblock', label: 'SponsorBlock', icon: <Shield /> },
+      { path: '/sponsorblock', label: 'Extensions', icon: <Blocks /> },
     ]}
   ];
 
@@ -62,7 +62,7 @@ export function Sidebar() {
                     isSidebarExpanded ? 'px-3 justify-start' : 'px-0 justify-center'
                   } ${
                     isActive 
-                      ? 'bg-red-950/40 text-primary font-bold shadow-md shadow-red-500/5' 
+                      ? 'bg-red-950/40 text-primary font-bold shadow-md shadow-primary/5' 
                       : 'text-zinc-350 hover:text-zinc-100 hover:bg-zinc-900/60'
                   }`
                 }

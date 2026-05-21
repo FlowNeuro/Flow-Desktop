@@ -25,18 +25,15 @@ export const ImportData: React.FC = () => {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
   
-  // Selection States
   const [importSubs, setImportSubs] = useState(true);
   const [importPlaylists, setImportPlaylists] = useState(true);
   const [importHistory, setImportHistory] = useState(true);
 
-  // Status States
   const [importState, setImportState] = useState<"idle" | "reading" | "parsing" | "saving" | "success" | "error">("idle");
   const [progress, setProgress] = useState(0);
   const [statusMessage, setStatusMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
 
-  // Results
   const [subsCount, setSubsCount] = useState(0);
   const [playlistsCount, setPlaylistsCount] = useState(0);
   const [historyCount, setHistoryCount] = useState(0);
@@ -48,7 +45,6 @@ export const ImportData: React.FC = () => {
     fileInputRef.current?.click();
   };
 
-  // Helper to extract channel ID from various YouTube URL types
   const extractChannelIdFromUrl = (url: string): string => {
     if (!url) return "";
     let id = "";
@@ -71,7 +67,6 @@ export const ImportData: React.FC = () => {
     return finalId.trim();
   };
 
-  // Robust Subscriptions parser for JSON backups
   const parseJsonSubscriptions = (data: any): ParseChannelResult[] => {
     const channels: ParseChannelResult[] = [];
     let rawSubs: any[] = [];
@@ -99,7 +94,6 @@ export const ImportData: React.FC = () => {
       }
     }
 
-    // Fallback recursive search if empty
     if (channels.length === 0 && data && typeof data === "object") {
       const visited = new Set<any>();
       const search = (obj: any) => {
@@ -139,7 +133,6 @@ export const ImportData: React.FC = () => {
     });
   };
 
-  // Parser for YouTube Takeout watch-history.json
   const parseJsonWatchHistory = (data: any): WatchHistoryRecord[] => {
     const records: WatchHistoryRecord[] = [];
     if (!Array.isArray(data)) return [];
@@ -176,7 +169,6 @@ export const ImportData: React.FC = () => {
     return records;
   };
 
-  // Parser for FreeTube watch history JSON (Line-delimited JSON)
   const parseFreeTubeWatchHistory = (text: string): WatchHistoryRecord[] => {
     const records: WatchHistoryRecord[] = [];
     const lines = text.split("\n");
@@ -197,13 +189,11 @@ export const ImportData: React.FC = () => {
           totalDurationSeconds: item.lengthSeconds || 0
         });
       } catch {
-        // Skip malformed lines silently
       }
     }
     return records;
   };
 
-  // Fast HTML Watch History Regex Parser for Google Takeout HTML exports
   const parseHtmlWatchHistory = (html: string): WatchHistoryRecord[] => {
     const records: WatchHistoryRecord[] = [];
     const videoRegex = /href="https:\/\/www\.youtube\.com\/watch\?v=([\w-]{10,12})"[^>]*?>([^<]+)<\/a>/gi;
@@ -235,7 +225,6 @@ export const ImportData: React.FC = () => {
 
     let channelIdx = 0;
     videoMatches.forEach((vid, i) => {
-      // Find nearest succeeding channel link within context limits
       while (channelIdx < channelMatches.length) {
         const match = channelMatches[channelIdx];
         if (match && match.index < vid.index) {
@@ -252,7 +241,7 @@ export const ImportData: React.FC = () => {
         videoId: vid.id,
         title: vid.title,
         channelName,
-        watchDate: new Date(Date.now() - i * 60000).toISOString(), // Mock offset timestamps to preserve visual chronology
+        watchDate: new Date(Date.now() - i * 60000).toISOString(),
         watchDurationSeconds: 0,
         totalDurationSeconds: 0
       });
@@ -261,7 +250,6 @@ export const ImportData: React.FC = () => {
     return records;
   };
 
-  // Main Upload File Parser
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -281,7 +269,7 @@ export const ImportData: React.FC = () => {
     reader.onprogress = (event) => {
       if (event.lengthComputable) {
         const percent = Math.round((event.loaded / event.total) * 20);
-        setProgress(15 + percent); // read phase covers 15% - 35%
+        setProgress(15 + percent);
       }
     };
 
@@ -294,7 +282,6 @@ export const ImportData: React.FC = () => {
         let text = "";
         let backupData: any = null;
 
-        // 1. Decompress ZIP or parse raw text
         if (isZip) {
           const arrayBuffer = event.target?.result as ArrayBuffer;
           if (!arrayBuffer) throw new Error("The chosen archive buffer is empty.");
@@ -315,7 +302,6 @@ export const ImportData: React.FC = () => {
           throw new Error("The imported backup is empty or unreadable.");
         }
 
-        // 2. Classify text backup data type
         const trimmed = text.trim();
         const isJson = trimmed.startsWith("{") || trimmed.startsWith("[");
         const isHtml = trimmed.toLowerCase().includes("<html") || trimmed.toLowerCase().includes("<!doctype html");
@@ -324,7 +310,6 @@ export const ImportData: React.FC = () => {
           try {
             backupData = JSON.parse(text);
           } catch {
-            // Check if it's FreeTube line-delimited JSON
             if (trimmed.includes("\n")) {
               backupData = { isFreeTubeHistory: true, rawText: text };
             } else {
@@ -341,15 +326,11 @@ export const ImportData: React.FC = () => {
         let playCount = 0;
         let timelineCount = 0;
 
-        // ==========================================
-        // FEATURE A: SUBSCRIPTIONS IMPORT
-        // ==========================================
         if (importSubs) {
           let parsedSubs: ParseChannelResult[] = [];
           if (isJson && backupData && !backupData.isFreeTubeHistory) {
             parsedSubs = parseJsonSubscriptions(backupData);
           } else if (!isJson && !isHtml) {
-            // Standard OPML XML or YouTube CSV
             const parsedArray = await parseSubscriptionExport(text);
             parsedSubs = parsedArray.map(([id, name]) => ({ id, name }));
           }
@@ -364,17 +345,13 @@ export const ImportData: React.FC = () => {
                 subbedCount++;
               }
               
-              // Progress tracking
               const subPercent = Math.round((subbedCount / total) * 15);
-              setProgress(60 + subPercent); // covers 60% - 75%
+              setProgress(60 + subPercent); 
             }
             setSubsCount(subbedCount);
           }
         }
 
-        // ==========================================
-        // FEATURE B: PLAYLISTS IMPORT
-        // ==========================================
         if (importPlaylists && isJson && backupData && backupData.playlists && Array.isArray(backupData.playlists)) {
           setStatusMessage("Restoring custom media playlists...");
           const playlistsJson = await getSetting("user_playlists");
@@ -433,9 +410,7 @@ export const ImportData: React.FC = () => {
           setPlaylistsCount(playCount);
         }
 
-        // ==========================================
-        // FEATURE C: WATCH HISTORY IMPORT
-        // ==========================================
+
         if (importHistory) {
           let parsedHistory: WatchHistoryRecord[] = [];
 
@@ -443,7 +418,6 @@ export const ImportData: React.FC = () => {
             if (backupData.isFreeTubeHistory) {
               parsedHistory = parseFreeTubeWatchHistory(backupData.rawText);
             } else if (backupData.viewHistory && Array.isArray(backupData.viewHistory)) {
-              // Flow Backup History mapping
               parsedHistory = backupData.viewHistory.map((item: any) => ({
                 videoId: item.videoId,
                 title: item.title || "Watched Video",
@@ -453,18 +427,16 @@ export const ImportData: React.FC = () => {
                 totalDurationSeconds: item.duration ? Math.round(item.duration / 1000) : 0
               }));
             } else {
-              // YouTube Takeout JSON
               parsedHistory = parseJsonWatchHistory(backupData);
             }
           } else if (isHtml) {
-            // YouTube Takeout HTML
             parsedHistory = parseHtmlWatchHistory(text);
           }
 
           if (parsedHistory.length > 0) {
             setStatusMessage(`Integrating watch history timeline...`);
             const total = parsedHistory.length;
-            const seedLimit = Math.min(total, 50); // Seed up to 50 items in Flow Neuro to instantly configure learning weights
+            const seedLimit = Math.min(total, 50); 
             
             for (let i = 0; i < total; i++) {
               const record = parsedHistory[i];
@@ -472,7 +444,6 @@ export const ImportData: React.FC = () => {
                 await addWatchRecord(record);
                 timelineCount++;
 
-                // Neural bootstrapping interaction log
                 if (i < seedLimit) {
                   try {
                     await logInteraction(
@@ -488,14 +459,12 @@ export const ImportData: React.FC = () => {
                       1.0
                     );
                   } catch {
-                    // Silently absorb recommendation seeding errors
                   }
                 }
               }
 
-              // Update progress bar
               const histPercent = Math.round((timelineCount / total) * 20);
-              setProgress(75 + histPercent); // covers 75% - 95%
+              setProgress(75 + histPercent); 
             }
             setHistoryCount(timelineCount);
           }
@@ -557,7 +526,7 @@ export const ImportData: React.FC = () => {
           {importState === "idle" && (
             <div className="bg-zinc-900/35 border border-zinc-800/40 rounded-3xl p-6 space-y-4">
               <h3 className="text-sm font-bold text-zinc-200 flex items-center gap-2">
-                <Database size={16} className="text-red-500" />
+                <Database size={16} className="text-primary" />
                 Select database tables to merge
               </h3>
               
@@ -567,14 +536,14 @@ export const ImportData: React.FC = () => {
                   onClick={() => setImportSubs(!importSubs)}
                   className={`border rounded-2xl p-4 cursor-pointer transition-all flex flex-col justify-between h-[120px] ${
                     importSubs
-                      ? "border-red-500/20 bg-red-950/5 text-zinc-200"
+                      ? "border-primary/20 bg-red-950/5 text-zinc-200"
                       : "border-zinc-850 hover:border-zinc-700 bg-zinc-950/20 text-zinc-400"
                   }`}
                 >
                   <div className="flex justify-between items-center w-full">
-                    <Tv size={18} className={importSubs ? "text-red-500" : "text-zinc-500"} />
+                    <Tv size={18} className={importSubs ? "text-primary" : "text-zinc-500"} />
                     <div className={`w-4 h-4 rounded flex items-center justify-center border transition-all ${
-                      importSubs ? "border-red-500 bg-red-600 text-white" : "border-zinc-700 bg-zinc-900"
+                      importSubs ? "border-primary bg-primary text-white" : "border-zinc-700 bg-zinc-900"
                     }`}>
                       {importSubs && <Check size={10} strokeWidth={3} />}
                     </div>
@@ -590,14 +559,14 @@ export const ImportData: React.FC = () => {
                   onClick={() => setImportPlaylists(!importPlaylists)}
                   className={`border rounded-2xl p-4 cursor-pointer transition-all flex flex-col justify-between h-[120px] ${
                     importPlaylists
-                      ? "border-red-500/20 bg-red-950/5 text-zinc-200"
+                      ? "border-primary/20 bg-red-950/5 text-zinc-200"
                       : "border-zinc-850 hover:border-zinc-700 bg-zinc-950/20 text-zinc-400"
                   }`}
                 >
                   <div className="flex justify-between items-center w-full">
-                    <FolderHeart size={18} className={importPlaylists ? "text-red-500" : "text-zinc-500"} />
+                    <FolderHeart size={18} className={importPlaylists ? "text-primary" : "text-zinc-500"} />
                     <div className={`w-4 h-4 rounded flex items-center justify-center border transition-all ${
-                      importPlaylists ? "border-red-500 bg-red-600 text-white" : "border-zinc-700 bg-zinc-900"
+                      importPlaylists ? "border-primary bg-primary text-white" : "border-zinc-700 bg-zinc-900"
                     }`}>
                       {importPlaylists && <Check size={10} strokeWidth={3} />}
                     </div>
@@ -613,14 +582,14 @@ export const ImportData: React.FC = () => {
                   onClick={() => setImportHistory(!importHistory)}
                   className={`border rounded-2xl p-4 cursor-pointer transition-all flex flex-col justify-between h-[120px] ${
                     importHistory
-                      ? "border-red-500/20 bg-red-950/5 text-zinc-200"
+                      ? "border-primary/20 bg-red-950/5 text-zinc-200"
                       : "border-zinc-850 hover:border-zinc-700 bg-zinc-950/20 text-zinc-400"
                   }`}
                 >
                   <div className="flex justify-between items-center w-full">
-                    <History size={18} className={importHistory ? "text-red-500" : "text-zinc-500"} />
+                    <History size={18} className={importHistory ? "text-primary" : "text-zinc-500"} />
                     <div className={`w-4 h-4 rounded flex items-center justify-center border transition-all ${
-                      importHistory ? "border-red-500 bg-red-600 text-white" : "border-zinc-700 bg-zinc-900"
+                      importHistory ? "border-primary bg-primary text-white" : "border-zinc-700 bg-zinc-900"
                     }`}>
                       {importHistory && <Check size={10} strokeWidth={3} />}
                     </div>
@@ -665,17 +634,17 @@ export const ImportData: React.FC = () => {
               <div className="w-full max-w-md space-y-6 px-4">
                 <div className="flex justify-between items-center text-xs font-bold uppercase tracking-wider text-zinc-400">
                   <span>{statusMessage}</span>
-                  <span className="text-red-500">{progress}%</span>
+                  <span className="text-primary">{progress}%</span>
                 </div>
                 <div className="w-full h-1.5 bg-zinc-950 rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-red-600 transition-all duration-300 ease-out"
+                    className="h-full bg-primary transition-all duration-300 ease-out"
                     style={{ width: `${progress}%` }}
                   />
                 </div>
                 <div className="flex items-center justify-center gap-2 text-zinc-600 text-[10px] font-bold uppercase">
-                  <Loader2 size={12} className="animate-spin text-red-500" />
-                  Aligning cluster telemetry...
+                  <Loader2 size={12} className="animate-spin text-primary" />
+                  Importing Data...
                 </div>
               </div>
             )}
@@ -699,8 +668,8 @@ export const ImportData: React.FC = () => {
 
             {importState === "error" && (
               <div className="space-y-6">
-                <div className="w-16 h-16 rounded-full bg-red-950/40 flex items-center justify-center border border-red-500/30 mx-auto">
-                  <AlertCircle className="w-8 h-8 text-red-500" />
+                <div className="w-16 h-16 rounded-full bg-red-950/40 flex items-center justify-center border border-primary/30 mx-auto">
+                  <AlertCircle className="w-8 h-8 text-primary" />
                 </div>
                 <div className="space-y-2">
                   <h4 className="text-lg font-bold text-red-400">Payload calibration failure</h4>
@@ -718,7 +687,7 @@ export const ImportData: React.FC = () => {
         <div className="space-y-6">
           <div className="bg-zinc-900/35 border border-zinc-800/40 rounded-3xl p-6 space-y-4">
             <h3 className="text-sm font-bold text-zinc-200 flex items-center gap-2">
-              <Sparkles size={16} className="text-red-500 animate-[pulse_2s_infinite]" />
+              <Sparkles size={16} className="text-primary animate-[pulse_2s_infinite]" />
               Flow Neuro Neural Seed
             </h3>
             <p className="text-xs text-zinc-400 leading-relaxed">

@@ -4,10 +4,8 @@ import { usePlayerStore } from "./store/usePlayerStore";
 import { getOnboardingStatus } from "./lib/api/recommendation";
 import type { VideoSummary } from "./types/video";
 
-// Layout & Components
 import { PageWrapper } from "./components/layout/PageWrapper";
 
-// Pages
 import Home from "./pages/Home";
 import Search from "./pages/Search";
 import Subscriptions from "./pages/Subscriptions";
@@ -15,7 +13,7 @@ import History from "./pages/History";
 import Playlists from "./pages/Playlists";
 import Settings from "./pages/Settings";
 import ImportData from "./pages/ImportData";
-import SponsorBlock from "./pages/SponsorBlock";
+import ExtensionsPage from "./pages/ExtensionsPage";
 import Channel from "./pages/Channel";
 import { Watch } from "./pages/Watch";
 import Onboarding from "./pages/Onboarding";
@@ -97,7 +95,7 @@ function App() {
             <ImportData />
           } />
           <Route path="sponsorblock" element={
-            <SponsorBlock />
+            <ExtensionsPage />
           } />
           <Route path="watch/:videoId" element={
             <Watch />

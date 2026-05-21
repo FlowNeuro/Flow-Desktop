@@ -125,6 +125,7 @@ export interface Comment {
   id: string;
   author: string;
   authorThumbnail?: string | null;
+  authorChannelId?: string | null;
   text: string;
   publishedText?: string | null;
   likeCount?: number | null;
@@ -135,4 +136,5 @@ export interface Comment {
 export interface CommentsResponse {
   comments: Comment[];
   nextPageToken?: string | null;
+  commentCountText?: string | null;
 }

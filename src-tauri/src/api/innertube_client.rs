@@ -741,10 +741,14 @@ fn collect_comments_from_value(
                 let reply_token = thread["replies"]["commentRepliesRenderer"]["contents"][0]["continuationItemRenderer"]["continuationEndpoint"]["continuationCommand"]["token"].as_str()
                     .map(|s| s.to_string());
 
+                let author_channel_id = renderer["authorEndpoint"]["browseEndpoint"]["browseId"].as_str()
+                    .map(|s| s.to_string());
+
                 comments.push(Comment {
                     id,
                     author,
                     author_thumbnail,
+                    author_channel_id,
                     text,
                     published_text,
                     like_count,
@@ -792,10 +796,14 @@ fn collect_comments_from_value(
             let like_count = renderer["voteCount"]["simpleText"].as_str()
                 .map(parse_mixed_number_word_to_long);
 
+            let author_channel_id = renderer["authorEndpoint"]["browseEndpoint"]["browseId"].as_str()
+                .map(|s| s.to_string());
+
             comments.push(Comment {
                 id,
                 author,
                 author_thumbnail,
+                author_channel_id,
                 text,
                 published_text,
                 like_count,
@@ -900,10 +908,16 @@ fn build_comment_from_view_model(
         .map(|state| state["heartState"].as_str() == Some("TOOLBAR_HEART_STATE_HEARTED"))
         .unwrap_or(false);
 
+    let author_channel_id = author["channelId"]
+        .as_str()
+        .or_else(|| author["navigationEndpoint"]["browseEndpoint"]["browseId"].as_str())
+        .map(|s| s.to_string());
+
     Some(Comment {
         id,
         author: author["displayName"].as_str().unwrap_or("Anonymous").to_string(),
         author_thumbnail,
+        author_channel_id,
         text,
         published_text: properties["publishedTime"].as_str().map(ToOwned::to_owned),
         like_count,
@@ -1736,6 +1750,60 @@ fn extract_videos_from_playlist_browse(val: &Value) -> (Vec<VideoSummary>, Optio
     (items, next_page_token)
 }
 
+fn find_comment_count_text(val: &Value) -> Option<String> {
+    // 1. Check in engagementPanels
+    if let Some(panels) = val["engagementPanels"].as_array() {
+        for panel in panels {
+            let section = &panel["engagementPanelSectionListRenderer"];
+            let panel_id = section["panelIdentifier"].as_str();
+            if panel_id == Some("comment-item-section") || panel_id == Some("engagement-panel-comments-section") {
+                let header = &section["header"]["engagementPanelTitleHeaderRenderer"];
+                if let Some(text) = header["contextualInfo"]["runs"][0]["text"].as_str() {
+                    return Some(text.to_string());
+                }
+                if let Some(text) = header["contextualInfo"]["simpleText"].as_str() {
+                    return Some(text.to_string());
+                }
+            }
+        }
+    }
+
+    // 2. Check in twoColumnWatchNextResults -> results -> results -> contents -> itemSectionRenderer
+    if let Some(contents) = val["contents"]["twoColumnWatchNextResults"]["results"]["results"]["contents"].as_array() {
+        for content in contents {
+            let item_section = &content["itemSectionRenderer"];
+            let target_id = item_section["targetId"].as_str();
+            let section_id = item_section["sectionIdentifier"].as_str();
+            let looks_like_comments = target_id == Some("comments-section")
+                || section_id == Some("comment-item-section")
+                || section_id == Some("comments-section");
+
+            if looks_like_comments {
+                let header = &item_section["header"]["commentsHeaderRenderer"];
+                if !header.is_null() {
+                    // Try to read countText
+                    let mut count_str = String::new();
+                    if let Some(runs) = header["countText"]["runs"].as_array() {
+                        for run in runs {
+                            if let Some(t) = run["text"].as_str() {
+                                count_str.push_str(t);
+                            }
+                        }
+                    } else if let Some(simple) = header["countText"]["simpleText"].as_str() {
+                        count_str = simple.to_string();
+                    }
+
+                    if !count_str.is_empty() {
+                        return Some(count_str);
+                    }
+                }
+            }
+        }
+    }
+
+    None
+}
+
 // Parses and extracts comment threads from watches and comments endpoints
 fn parse_comments_json(val: &Value) -> CommentsResponse {
     let mut comments = Vec::new();
@@ -1749,9 +1817,12 @@ fn parse_comments_json(val: &Value) -> CommentsResponse {
 
     comments = dedupe_comments(comments);
 
+    let comment_count_text = find_comment_count_text(val);
+
     CommentsResponse {
         comments,
         next_page_token,
+        comment_count_text,
     }
 }
 
@@ -2528,6 +2599,7 @@ impl YoutubeExtractor for InnertubeClient {
         // On first load, the standard next response only contains a continuation token
         // for the comment section, not actual comments. We need to follow that token.
         if page_token.is_none() && comments_res.comments.is_empty() {
+            let initial_count_text = comments_res.comment_count_text.clone();
             let continuation_token = find_initial_comments_token(&res)
                 .or_else(|| comments_res.next_page_token.clone());
 
@@ -2543,6 +2615,9 @@ impl YoutubeExtractor for InnertubeClient {
                 });
                 let next_res = self.post_innertube("next", "WEB", "2.20260120.01.00", &mut next_payload).await?;
                 comments_res = parse_comments_json(&next_res);
+                if comments_res.comment_count_text.is_none() {
+                    comments_res.comment_count_text = initial_count_text;
+                }
                 debug!(
                     video_id = %video_id_trimmed,
                     comments_count = comments_res.comments.len(),

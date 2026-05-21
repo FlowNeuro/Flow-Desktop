@@ -37,7 +37,6 @@ export const Search: React.FC<SearchProps> = ({ onPlay, onAddToQueue }) => {
     }
   };
 
-  // Sync state and run search when URL parameter changes
   useEffect(() => {
     setQuery(queryParam);
     if (queryParam) {
@@ -58,7 +57,7 @@ export const Search: React.FC<SearchProps> = ({ onPlay, onAddToQueue }) => {
               onClick={() => setFilter(tab)}
               className={`py-2 px-4 rounded-full text-xs font-bold capitalize transition-all active:scale-95 shrink-0 ${
                 filter === tab
-                  ? "bg-red-600 text-white shadow-lg shadow-red-600/10"
+                  ? "bg-primary text-white shadow-lg shadow-primary/10"
                   : "bg-zinc-900/40 border border-zinc-800/40 text-zinc-400 hover:text-zinc-200 hover:border-zinc-700/60"
               }`}
             >

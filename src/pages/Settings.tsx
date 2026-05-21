@@ -13,19 +13,15 @@ export const Settings: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [clearing, setClearing] = useState(false);
 
-  // Load diagnostics and user statistics
   const loadDiagnostics = async () => {
     setLoading(true);
     try {
-      // Fetch Flow Neuro Persona details
       const details = await getFlowPersona();
       setPersona(details);
 
-      // Fetch watch history count
       const history = await getWatchHistory(100, 0);
       setHistoryCount(history.length);
 
-      // Fetch subscription count
       const subsJson = await getSetting("subscriptions");
       if (subsJson) {
         setSubCount(JSON.parse(subsJson).length);
@@ -73,7 +69,7 @@ export const Settings: React.FC = () => {
 
       {loading ? (
         <div className="flex flex-col items-center justify-center py-32 space-y-4">
-          <Loader2 className="animate-spin text-red-500" size={36} />
+          <Loader2 className="animate-spin text-primary" size={36} />
           <p className="text-zinc-500 text-sm font-medium">Reading memory clusters...</p>
         </div>
       ) : (
@@ -82,7 +78,7 @@ export const Settings: React.FC = () => {
           <div className="lg:col-span-2 space-y-6">
             <div className="bg-zinc-900/35 border border-zinc-800/40 rounded-3xl p-6 space-y-4">
               <h3 className="text-sm font-bold text-zinc-200 flex items-center gap-2">
-                <Brain size={18} className="text-red-500" />
+                <Brain size={18} className="text-primary" />
                 Flow Neuro Diagnostics
               </h3>
               <p className="text-xs text-zinc-400 leading-relaxed">
@@ -110,7 +106,7 @@ export const Settings: React.FC = () => {
                 <span className="text-[10px] text-zinc-500 font-bold uppercase block">Core Interests Profile</span>
                 <div className="flex flex-wrap gap-1.5">
                   {["Coding", "Technology", "Lofi Music", "Flow Neuro AI Core", "Science"].map((concept, idx) => (
-                    <span key={idx} className="bg-red-950/20 text-red-400 border border-red-500/20 py-1 px-2.5 rounded-xl text-[10px] font-bold">
+                    <span key={idx} className="bg-red-950/20 text-red-400 border border-primary/20 py-1 px-2.5 rounded-xl text-[10px] font-bold">
                       {concept}
                     </span>
                   ))}
@@ -121,7 +117,7 @@ export const Settings: React.FC = () => {
             {/* General App settings placeholder */}
             <div className="bg-zinc-900/35 border border-zinc-800/40 rounded-3xl p-6 space-y-4">
               <h3 className="text-sm font-bold text-zinc-200 flex items-center gap-2">
-                <Shield size={18} className="text-red-500" />
+                <Shield size={18} className="text-primary" />
                 Privacy & Client Settings
               </h3>
 
@@ -131,7 +127,7 @@ export const Settings: React.FC = () => {
                     <h4 className="text-zinc-200">Local Content Proxy</h4>
                     <p className="text-[10px] text-zinc-500 mt-0.5">Proxy network calls to bypass geographical CDNs and solve 403 errors</p>
                   </div>
-                  <div className="w-10 h-6 bg-red-600 rounded-full p-1 cursor-pointer flex justify-end items-center">
+                  <div className="w-10 h-6 bg-primary rounded-full p-1 cursor-pointer flex justify-end items-center">
                     <div className="w-4 h-4 bg-white rounded-full"></div>
                   </div>
                 </div>
@@ -141,7 +137,7 @@ export const Settings: React.FC = () => {
                     <h4 className="text-zinc-200">YouTube Music Client (WEB_REMIX)</h4>
                     <p className="text-[10px] text-zinc-500 mt-0.5">Use dedicated Android Music client context for premium audio extraction</p>
                   </div>
-                  <div className="w-10 h-6 bg-red-600 rounded-full p-1 cursor-pointer flex justify-end items-center">
+                  <div className="w-10 h-6 bg-primary rounded-full p-1 cursor-pointer flex justify-end items-center">
                     <div className="w-4 h-4 bg-white rounded-full"></div>
                   </div>
                 </div>
@@ -153,7 +149,7 @@ export const Settings: React.FC = () => {
           <div className="space-y-6">
             <div className="bg-zinc-900/35 border border-zinc-800/40 rounded-3xl p-6 space-y-4">
               <h3 className="text-sm font-bold text-zinc-200 flex items-center gap-2">
-                <Database size={18} className="text-red-500" />
+                <Database size={18} className="text-primary" />
                 {getString("library_manage_data_label")}
               </h3>
 
@@ -177,14 +173,14 @@ export const Settings: React.FC = () => {
                   onClick={() => navigate("/settings/import")}
                   className="w-full flex items-center justify-center gap-2 py-3 bg-zinc-950 hover:bg-zinc-900 border border-zinc-800/80 hover:border-zinc-700 text-zinc-300 hover:text-zinc-100 rounded-2xl text-xs font-bold transition-all active:scale-95 cursor-pointer"
                 >
-                  <Database size={14} className="text-red-500" />
+                  <Database size={14} className="text-primary" />
                   Import/Restore Database
                 </button>
 
                 <button
                   onClick={handleResetData}
                   disabled={clearing}
-                  className="w-full flex items-center justify-center gap-2 py-3 bg-red-950/10 hover:bg-red-950/20 border border-red-500/20 hover:border-red-500/30 text-red-400 rounded-2xl text-xs font-bold transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
+                  className="w-full flex items-center justify-center gap-2 py-3 bg-red-950/10 hover:bg-red-950/20 border border-primary/20 hover:border-primary/30 text-red-400 rounded-2xl text-xs font-bold transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
                 >
                   <Trash2 size={14} />
                   {getString("library_manage_data_subtitle")}
@@ -195,7 +191,7 @@ export const Settings: React.FC = () => {
             {/* About metadata */}
             <div className="bg-zinc-900/35 border border-zinc-800/40 rounded-3xl p-6 space-y-4">
               <h3 className="text-sm font-bold text-zinc-200 flex items-center gap-2">
-                <PlayCircle size={18} className="text-red-500" />
+                <PlayCircle size={18} className="text-primary" />
                 {getString("about")}
               </h3>
 

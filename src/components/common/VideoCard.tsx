@@ -4,6 +4,7 @@ import { useSubscriptionStore } from "../../store/useSubscriptionStore";
 import { Play, Plus, Ban, Check } from "lucide-react";
 import type { VideoSummary } from "../../types/video";
 import { getDeArrowOverride } from "../../lib/api/foss";
+import { useSettingsStore } from "../../store/useSettingsStore";
 
 interface VideoCardProps {
   video: VideoSummary;
@@ -34,6 +35,8 @@ export const VideoCard: React.FC<VideoCardProps> = ({
   const cleanId = isChannel ? video.id.replace("channel:", "") : video.id;
   const channelId = video.channelId || "";
 
+  const { dearrowEnabled } = useSettingsStore();
+
   useEffect(() => {
     if (isChannel || !video.id) {
       setOverriddenTitle(null);
@@ -41,6 +44,12 @@ export const VideoCard: React.FC<VideoCardProps> = ({
       return;
     }
     
+    if (!dearrowEnabled) {
+      setOverriddenTitle(null);
+      setOverriddenThumbnail(null);
+      return;
+    }
+
     let active = true;
     getDeArrowOverride(video.id).then((override) => {
       if (!active) return;
@@ -66,7 +75,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
     return () => {
       active = false;
     };
-  }, [video.id, isChannel]);
+  }, [video.id, isChannel, dearrowEnabled]);
 
   const subStatus = isSubscribed(isChannel ? cleanId : channelId);
 
@@ -87,7 +96,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
         onClick={() => navigate(`/channel/${cleanId}`)}
         className="flex flex-col items-center justify-center p-6 bg-zinc-900/40 rounded-3xl border border-zinc-800/40 hover:border-zinc-700/60 transition-all duration-300 group cursor-pointer"
       >
-        <div className="relative w-28 h-28 rounded-full overflow-hidden mb-4 border-2 border-zinc-800 group-hover:border-red-500/50 transition-colors">
+        <div className="relative w-28 h-28 rounded-full overflow-hidden mb-4 border-2 border-zinc-800 group-hover:border-primary/50 transition-colors">
           <img
             src={video.thumbnailUrl || "https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?q=80&w=150"}
             alt={video.title}
@@ -108,7 +117,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
           className={`w-full py-2 px-4 rounded-full text-xs font-semibold flex items-center justify-center gap-1.5 transition-all active:scale-95 ${
             subStatus
               ? "bg-zinc-800 text-zinc-300 hover:bg-zinc-700/80"
-              : "bg-red-600 text-white hover:bg-red-500 shadow-lg shadow-red-600/10"
+              : "bg-primary text-white hover:bg-primary shadow-lg shadow-primary/10"
           }`}
         >
           {subStatus ? (
@@ -141,7 +150,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
         />
         {/* Play Overlay */}
         <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity duration-300">
-          <div className="p-3 bg-red-600 rounded-full text-white shadow-lg transform scale-90 group-hover:scale-100 transition-all duration-300 active:scale-90">
+          <div className="p-3 bg-primary rounded-full text-white shadow-lg transform scale-90 group-hover:scale-100 transition-all duration-300 active:scale-90">
             <Play size={20} fill="white" />
           </div>
         </div>

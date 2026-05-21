@@ -13,7 +13,6 @@ function parseJsonBackup(jsonText: string): ParseChannelResult[] {
     const data = JSON.parse(jsonText);
     const channels: ParseChannelResult[] = [];
 
-    // Helper to extract channel ID from a YouTube URL
     const extractChannelIdFromUrl = (url: string): string => {
       if (!url) return "";
       let id = "";
@@ -29,7 +28,6 @@ function parseJsonBackup(jsonText: string): ParseChannelResult[] {
       } else {
         id = url;
       }
-      // Clean query parameters and trailing slashes
       const cleanParts1 = id.split("/");
       const basePart = cleanParts1[0] || "";
       const cleanParts2 = basePart.split("?");
@@ -37,7 +35,6 @@ function parseJsonBackup(jsonText: string): ParseChannelResult[] {
       return finalId.trim();
     };
 
-    // 1. Check if it's an array of subscriptions directly or has a "subscriptions" key
     let rawSubs: any[] = [];
     if (Array.isArray(data)) {
       rawSubs = data;
@@ -51,21 +48,18 @@ function parseJsonBackup(jsonText: string): ParseChannelResult[] {
       for (const item of rawSubs) {
         if (!item || typeof item !== "object") continue;
 
-        // Flow Mobile format: { channelId, channelName }
         if (item.channelId && item.channelName) {
           channels.push({
             id: item.channelId.trim(),
             name: item.channelName.trim(),
           });
         }
-        // LibreTube format: { channelId, name }
         else if (item.channelId && item.name) {
           channels.push({
             id: item.channelId.trim(),
             name: item.name.trim(),
           });
         }
-        // NewPipe format: { url, name }
         else if (item.url && item.name) {
           const id = extractChannelIdFromUrl(item.url);
           if (id) {
@@ -78,8 +72,6 @@ function parseJsonBackup(jsonText: string): ParseChannelResult[] {
       }
     }
 
-    // 2. Fallback: Recursive deep search for objects that look like subscription entries
-    // in case the structure is nested differently (e.g. settings/profiles)
     if (channels.length === 0 && data && typeof data === "object") {
       const visited = new Set<any>();
       const search = (obj: any) => {
@@ -89,7 +81,6 @@ function parseJsonBackup(jsonText: string): ParseChannelResult[] {
         if (Array.isArray(obj)) {
           for (const val of obj) search(val);
         } else {
-          // Check if this object looks like a subscription
           const channelId = obj.channelId || obj.id;
           const channelName = obj.channelName || obj.name || obj.title;
           
@@ -115,7 +106,6 @@ function parseJsonBackup(jsonText: string): ParseChannelResult[] {
       search(data);
     }
 
-    // De-duplicate by channel ID
     const seen = new Set<string>();
     return channels.filter((ch) => {
       if (seen.has(ch.id)) return false;
@@ -156,7 +146,7 @@ export const ImportStep: React.FC = () => {
     reader.onprogress = (event) => {
       if (event.lengthComputable) {
         const percent = Math.round((event.loaded / event.total) * 30);
-        setProgress(10 + percent); // read stage represents up to 40% of progress
+        setProgress(10 + percent);
       }
     };
 
@@ -191,7 +181,6 @@ export const ImportStep: React.FC = () => {
 
         let channels: [string, string][] = [];
 
-        // Check if the content is JSON
         const trimmed = text.trim();
         if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
           const parsed = parseJsonBackup(text);
@@ -212,14 +201,12 @@ export const ImportStep: React.FC = () => {
         let subbedCount = 0;
         const total = channels.length;
 
-        // Subscribing sequence
         for (const channel of channels) {
           if (channel) {
             const [id, title] = channel;
             await subscribe(id, title);
             subbedCount++;
             
-            // Animate progress up to 100%
             const subPercent = Math.round((subbedCount / total) * 40);
             setProgress(60 + subPercent);
           }
@@ -334,8 +321,8 @@ export const ImportStep: React.FC = () => {
 
         {importState === "error" && (
           <div className="space-y-6">
-            <div className="w-16 h-16 rounded-full bg-red-950/40 flex items-center justify-center border border-red-500/30 mx-auto">
-              <svg className="w-8 h-8 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div className="w-16 h-16 rounded-full bg-red-950/40 flex items-center justify-center border border-primary/30 mx-auto">
+              <svg className="w-8 h-8 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </div>

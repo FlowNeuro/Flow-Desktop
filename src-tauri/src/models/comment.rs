@@ -6,6 +6,7 @@ pub struct Comment {
     pub id: String,
     pub author: String,
     pub author_thumbnail: Option<String>,
+    pub author_channel_id: Option<String>,
     pub text: String,
     pub published_text: Option<String>,
     pub like_count: Option<u64>,
@@ -18,4 +19,5 @@ pub struct Comment {
 pub struct CommentsResponse {
     pub comments: Vec<Comment>,
     pub next_page_token: Option<String>,
+    pub comment_count_text: Option<String>,
 }

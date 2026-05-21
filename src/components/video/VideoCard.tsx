@@ -5,6 +5,7 @@ import type { VideoSummary } from '../../types/video';
 import { Button } from '../ui/Button';
 import { useState, useEffect } from 'react';
 import { getDeArrowOverride } from '../../lib/api/foss';
+import { useSettingsStore } from '../../store/useSettingsStore';
 
 export interface VideoCardProps {
   video: VideoSummary;
@@ -40,6 +41,8 @@ export function VideoCard({
   const cleanId = isChannel ? video.id.replace("channel:", "") : video.id;
   const channelId = video.channelId || "";
 
+  const { dearrowEnabled } = useSettingsStore();
+
   useEffect(() => {
     if (isChannel || !video.id) {
       setOverriddenTitle(null);
@@ -47,6 +50,12 @@ export function VideoCard({
       return;
     }
     
+    if (!dearrowEnabled) {
+      setOverriddenTitle(null);
+      setOverriddenThumbnail(null);
+      return;
+    }
+
     let active = true;
     getDeArrowOverride(video.id).then((override) => {
       if (!active) return;
@@ -72,7 +81,7 @@ export function VideoCard({
     return () => {
       active = false;
     };
-  }, [video.id, isChannel]);
+  }, [video.id, isChannel, dearrowEnabled]);
 
   const subStatus = isSubscribed(isChannel ? cleanId : channelId);
 
@@ -216,7 +225,7 @@ export function VideoCard({
                 onMarkNotInterested(video.id);
               }}
               title="Not interested"
-              className="p-1 rounded hover:bg-zinc-850 text-zinc-450 hover:text-red-500 transition-colors"
+              className="p-1 rounded hover:bg-zinc-850 text-zinc-450 hover:text-primary transition-colors"
             >
               <Ban size={14} />
             </button>

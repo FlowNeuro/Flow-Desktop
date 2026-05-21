@@ -33,7 +33,7 @@ export const TrackCard: React.FC<TrackCardProps> = ({
     <div
       className={`flex items-center gap-4 p-2.5 rounded-2xl border transition-all duration-300 group ${
         isActive
-          ? "bg-red-950/20 border-red-500/30 shadow-md shadow-red-500/5"
+          ? "bg-red-950/20 border-primary/30 shadow-md shadow-primary/5"
           : "bg-zinc-900/20 border-zinc-800/30 hover:border-zinc-700/50 hover:bg-zinc-900/50"
       }`}
     >
@@ -59,9 +59,9 @@ export const TrackCard: React.FC<TrackCardProps> = ({
         >
           {isActive && isPlaying ? (
             <div className="flex gap-0.5 items-end justify-center w-5 h-5">
-              <span className="w-1 bg-red-500 rounded-full animate-[bounce_0.8s_infinite_100ms] h-3"></span>
-              <span className="w-1 bg-red-500 rounded-full animate-[bounce_0.8s_infinite_200ms] h-4"></span>
-              <span className="w-1 bg-red-500 rounded-full animate-[bounce_0.8s_infinite_300ms] h-2.5"></span>
+              <span className="w-1 bg-primary rounded-full animate-[bounce_0.8s_infinite_100ms] h-3"></span>
+              <span className="w-1 bg-primary rounded-full animate-[bounce_0.8s_infinite_200ms] h-4"></span>
+              <span className="w-1 bg-primary rounded-full animate-[bounce_0.8s_infinite_300ms] h-2.5"></span>
             </div>
           ) : (
             <Play size={14} fill="white" className="text-white" />
@@ -115,7 +115,7 @@ export const TrackCard: React.FC<TrackCardProps> = ({
             <button
               onClick={onRemoveFromQueue}
               title="Remove from queue"
-              className="p-1.5 rounded-xl hover:bg-zinc-800 text-zinc-400 hover:text-red-500 transition-colors"
+              className="p-1.5 rounded-xl hover:bg-zinc-800 text-zinc-400 hover:text-primary transition-colors"
             >
               <Trash size={14} />
             </button>

@@ -14,7 +14,6 @@ export function Topbar() {
   const navigate = useNavigate();
   const suggestionRef = useRef<HTMLDivElement>(null);
 
-  // Close suggestions on outside click
   useEffect(() => {
     const handleOutsideClick = (e: MouseEvent) => {
       if (suggestionRef.current && !suggestionRef.current.contains(e.target as Node)) {
@@ -25,7 +24,6 @@ export function Topbar() {
     return () => document.removeEventListener("mousedown", handleOutsideClick);
   }, []);
 
-  // Autocomplete suggestions search
   useEffect(() => {
     if (localSearch.trim().length < 2) {
       setSuggestions([]);

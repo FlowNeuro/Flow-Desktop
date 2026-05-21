@@ -51,7 +51,6 @@ export const History: React.FC<HistoryProps> = ({ onPlay }) => {
   };
 
   const handlePlayHistory = (item: WatchHistoryRecord) => {
-    // Map history record to standard VideoSummary
     const summary: VideoSummary = {
       id: item.videoId,
       title: item.title,
@@ -95,7 +94,7 @@ export const History: React.FC<HistoryProps> = ({ onPlay }) => {
         {history.length > 0 && (
           <button
             onClick={() => setShowClearConfirm(true)}
-            className="flex items-center gap-2 border border-red-500/20 hover:border-red-500/40 bg-red-950/10 text-red-400 hover:text-red-300 py-2.5 px-4 rounded-xl text-xs font-semibold transition-all active:scale-95 shrink-0"
+            className="flex items-center gap-2 border border-primary/20 hover:border-primary/40 bg-red-950/10 text-red-400 hover:text-red-300 py-2.5 px-4 rounded-xl text-xs font-semibold transition-all active:scale-95 shrink-0"
           >
             <Trash2 size={14} />
             {getString("clear_all")}
@@ -106,7 +105,7 @@ export const History: React.FC<HistoryProps> = ({ onPlay }) => {
       {/* Main timeline listing */}
       {loading ? (
         <div className="flex flex-col items-center justify-center py-32 space-y-4">
-          <Loader2 className="animate-spin text-red-500" size={36} />
+          <Loader2 className="animate-spin text-primary" size={36} />
           <p className="text-zinc-500 text-sm font-medium">Restoring your timeline...</p>
         </div>
       ) : history.length === 0 ? (
@@ -188,7 +187,7 @@ export const History: React.FC<HistoryProps> = ({ onPlay }) => {
               </button>
               <button
                 onClick={handleClearAll}
-                className="px-5 py-2.5 bg-red-600 hover:bg-red-500 text-white rounded-xl text-xs font-semibold shadow-lg shadow-red-600/10 active:scale-95 transition-all"
+                className="px-5 py-2.5 bg-primary hover:bg-primary text-white rounded-xl text-xs font-semibold shadow-lg shadow-primary/10 active:scale-95 transition-all"
               >
                 {getString("clear")}
               </button>

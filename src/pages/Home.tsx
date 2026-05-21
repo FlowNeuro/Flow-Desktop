@@ -705,7 +705,6 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
   const handlePlayVideo = async (video: VideoSummary) => {
     onPlay(video);
     try {
-      // Log interaction dynamically to refine recommendation matrix
       await logInteraction(
         video.id,
         video.title,

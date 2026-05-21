@@ -23,7 +23,6 @@ export const Channel: React.FC<ChannelProps> = ({ onPlay, onAddToQueue }) => {
   const [loadingVideos, setLoadingVideos] = useState(true);
 
   useEffect(() => {
-    // Initialise subscriptions in store if not loaded
     loadSubscriptions();
   }, []);
 
@@ -54,7 +53,7 @@ export const Channel: React.FC<ChannelProps> = ({ onPlay, onAddToQueue }) => {
   if (loading && !channelInfo) {
     return (
       <div className="flex-grow flex items-center justify-center py-32">
-        <Loader2 className="animate-spin text-red-500" size={32} />
+        <Loader2 className="animate-spin text-primary" size={32} />
       </div>
     );
   }

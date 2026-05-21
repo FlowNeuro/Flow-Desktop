@@ -75,7 +75,7 @@ export const SubtitleCustomizer: React.FC = () => {
           step={1}
           value={subtitleStyle.fontSize}
           onChange={(e) => handleUpdate({ fontSize: Number(e.target.value) })}
-          className="w-full h-1 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-red-500"
+          className="w-full h-1 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-primary"
         />
       </div>
 
@@ -92,7 +92,7 @@ export const SubtitleCustomizer: React.FC = () => {
           step={2}
           value={subtitleStyle.bottomPadding}
           onChange={(e) => handleUpdate({ bottomPadding: Number(e.target.value) })}
-          className="w-full h-1 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-red-500"
+          className="w-full h-1 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-primary"
         />
       </div>
 
@@ -111,7 +111,7 @@ export const SubtitleCustomizer: React.FC = () => {
                 style={{ backgroundColor: color }}
               >
                 {isSelected && (
-                  <span className="absolute inset-0 rounded-full border-2 border-red-500 scale-110 shadow-lg shadow-red-500/30" />
+                  <span className="absolute inset-0 rounded-full border-2 border-primary scale-110 shadow-lg shadow-primary/30" />
                 )}
               </button>
             );
@@ -134,7 +134,7 @@ export const SubtitleCustomizer: React.FC = () => {
                 style={{ backgroundColor: color }}
               >
                 {isSelected && (
-                  <span className="absolute inset-0 rounded-full border-2 border-red-500 scale-110 shadow-lg shadow-red-500/30" />
+                  <span className="absolute inset-0 rounded-full border-2 border-primary scale-110 shadow-lg shadow-primary/30" />
                 )}
               </button>
             );
@@ -157,7 +157,7 @@ export const SubtitleCustomizer: React.FC = () => {
           step={0.05}
           value={subtitleStyle.backgroundOpacity}
           onChange={(e) => handleUpdate({ backgroundOpacity: Number(e.target.value) })}
-          className="w-full h-1 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-red-500"
+          className="w-full h-1 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-primary"
         />
       </div>
 
@@ -168,7 +168,7 @@ export const SubtitleCustomizer: React.FC = () => {
           type="button"
           onClick={() => handleUpdate({ isBold: !subtitleStyle.isBold })}
           className={`relative inline-flex h-5 w-10 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-            subtitleStyle.isBold ? "bg-red-600" : "bg-zinc-700"
+            subtitleStyle.isBold ? "bg-primary" : "bg-zinc-700"
           }`}
         >
           <span
