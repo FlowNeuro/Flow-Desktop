@@ -92,6 +92,65 @@
   animation: fade-in 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
+@keyframes player-feedback-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.82);
+  }
+  14% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  74% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+}
+
+.animate-player-feedback {
+  animation: player-feedback-pop 1.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes player-seek-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.78);
+  }
+  16% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  72% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+}
+
+.animate-player-seek {
+  animation: player-seek-pop 1.15s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes sidebar-slide-in {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+.animate-sidebar-slide-in {
+  animation: sidebar-slide-in 0.2s cubic-bezier(0.2, 0, 0, 1) forwards;
+}
+
 /* Hide scrollbar for Chrome, Safari and Opera */
 .scrollbar-none::-webkit-scrollbar {
   display: none;

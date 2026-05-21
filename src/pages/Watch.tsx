@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { usePlayerStore } from "../store/usePlayerStore";
 import { useSubscriptionStore } from "../store/useSubscriptionStore";
@@ -34,6 +34,56 @@ const parseTimestampToSeconds = (ts: string): number => {
 
 const seekToTime = (seconds: number) => {
   window.dispatchEvent(new CustomEvent("flow-player-seek", { detail: { time: seconds } }));
+};
+
+type SavedWatchProgress = {
+  currentTime: number;
+  duration: number;
+  updatedAt: number;
+};
+
+const getProgressKey = (videoId: string) => `flow_watch_progress:${videoId}`;
+
+const readSavedWatchProgress = (videoId: string, fallbackDuration = 0) => {
+  try {
+    const rawProgress = localStorage.getItem(getProgressKey(videoId));
+    if (!rawProgress) return 0;
+    const progress = JSON.parse(rawProgress) as SavedWatchProgress;
+    const duration = progress.duration || fallbackDuration || 0;
+    if (!Number.isFinite(progress.currentTime) || progress.currentTime < 5) return 0;
+    if (duration > 0 && progress.currentTime >= Math.max(0, duration - 12)) return 0;
+    return Math.max(0, progress.currentTime);
+  } catch (error) {
+    console.warn("Failed to read saved watch progress", error);
+    return 0;
+  }
+};
+
+const saveLocalWatchProgress = (videoId: string, currentTime: number, duration: number) => {
+  if (!Number.isFinite(currentTime) || currentTime < 0) return;
+
+  try {
+    if (duration > 0 && currentTime >= Math.max(0, duration - 12)) {
+      localStorage.removeItem(getProgressKey(videoId));
+      return;
+    }
+
+    localStorage.setItem(getProgressKey(videoId), JSON.stringify({
+      currentTime,
+      duration,
+      updatedAt: Date.now(),
+    } satisfies SavedWatchProgress));
+  } catch (error) {
+    console.warn("Failed to save watch progress", error);
+  }
+};
+
+const clearLocalWatchProgress = (videoId: string) => {
+  try {
+    localStorage.removeItem(getProgressKey(videoId));
+  } catch (error) {
+    console.warn("Failed to clear watch progress", error);
+  }
 };
 
 const selectVariantByBandwidth = (variants: StreamVariant[], canUseAdaptive: boolean): StreamVariant | null => {
@@ -175,6 +225,8 @@ export function Watch() {
   } = usePlayerStore();
 
   const { isSubscribed, subscribe, unsubscribe, loadSubscriptions } = useSubscriptionStore();
+  const lastProgressPersistedAtRef = useRef(0);
+  const latestProgressRef = useRef<{ time: number; duration: number } | null>(null);
 
   const [streamUrl, setStreamUrl] = useState<string | null>(null);
   const [streamVariants, setStreamVariants] = useState<StreamVariant[]>([]);
@@ -258,7 +310,7 @@ export function Watch() {
           initialQualityId = "auto";
         }
         setSelectedQualityId(initialQualityId);
-        setResumeTime(0);
+        setResumeTime(readSavedWatchProgress(currentVideo.id, currentVideo.durationSeconds ?? 0));
 
         if (hasDashUrl) {
           setStreamUrl(info.dashManifestUrl || null);
@@ -293,7 +345,7 @@ export function Watch() {
           title: currentVideo.title,
           channelName: currentVideo.channelName,
           watchDate: new Date().toISOString(),
-          watchDurationSeconds: 0,
+          watchDurationSeconds: Math.floor(readSavedWatchProgress(currentVideo.id, currentVideo.durationSeconds ?? 0)),
           totalDurationSeconds: currentVideo.durationSeconds ?? 0,
         });
       } catch (err) {
@@ -329,7 +381,9 @@ export function Watch() {
     setCaptions([]);
     setAudioTracks([]);
     setDashManifestUrl(null);
-    setResumeTime(0);
+    setResumeTime(readSavedWatchProgress(videoId));
+    latestProgressRef.current = null;
+    lastProgressPersistedAtRef.current = 0;
     setInteractionState("none");
     setIsDescExpanded(false);
 
@@ -461,9 +515,50 @@ export function Watch() {
   };
 
   const handleTimeUpdate = useCallback((time: number, mediaDuration: number) => {
+    const nextDuration = mediaDuration || currentVideo?.durationSeconds || 1;
     setCurrentTime(time);
-    setDuration(mediaDuration || currentVideo?.durationSeconds || 1);
-  }, [setCurrentTime, setDuration, currentVideo?.durationSeconds]);
+    setDuration(nextDuration);
+
+    if (!currentVideo) return;
+    latestProgressRef.current = { time, duration: nextDuration };
+    saveLocalWatchProgress(currentVideo.id, time, nextDuration);
+
+    const now = Date.now();
+    if (now - lastProgressPersistedAtRef.current < 5000) return;
+    lastProgressPersistedAtRef.current = now;
+    void addWatchRecord({
+      videoId: currentVideo.id,
+      title: currentVideo.title,
+      channelName: currentVideo.channelName,
+      watchDate: new Date().toISOString(),
+      watchDurationSeconds: Math.floor(time),
+      totalDurationSeconds: Math.floor(nextDuration || 0),
+    });
+  }, [setCurrentTime, setDuration, currentVideo]);
+
+  useEffect(() => {
+    if (!currentVideo) return;
+
+    const persistLatestProgress = () => {
+      const latestProgress = latestProgressRef.current;
+      if (!latestProgress) return;
+      saveLocalWatchProgress(currentVideo.id, latestProgress.time, latestProgress.duration);
+      void addWatchRecord({
+        videoId: currentVideo.id,
+        title: currentVideo.title,
+        channelName: currentVideo.channelName,
+        watchDate: new Date().toISOString(),
+        watchDurationSeconds: Math.floor(latestProgress.time),
+        totalDurationSeconds: Math.floor(latestProgress.duration || currentVideo.durationSeconds || 0),
+      });
+    };
+
+    window.addEventListener("beforeunload", persistLatestProgress);
+    return () => {
+      window.removeEventListener("beforeunload", persistLatestProgress);
+      persistLatestProgress();
+    };
+  }, [currentVideo]);
 
   const handleQualitySelect = useCallback((variant: StreamVariant | "auto") => {
     if (variant === "auto") {
@@ -728,7 +823,10 @@ export function Watch() {
                 resumeTime={resumeTime}
                 onSelectQuality={handleQualitySelect}
                 onTimeUpdate={handleTimeUpdate}
-                onEnded={() => playNext()}
+                onEnded={() => {
+                  clearLocalWatchProgress(currentVideo.id);
+                  playNext();
+                }}
                 chapters={videoDetails?.chapters}
                 onRetry={() => {
                   setStreamUrl(null);

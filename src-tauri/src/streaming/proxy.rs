@@ -21,10 +21,26 @@ pub struct StreamSession {
 }
 
 #[derive(Clone)]
+struct CachedResponse {
+    status_code: u16,
+    reason: String,
+    content_type: String,
+    content_range: Option<String>,
+    accept_ranges: String,
+    body: Vec<u8>,
+    cached_at: u64,
+}
+
+#[derive(Clone)]
 pub struct StreamingManager {
     sessions: Arc<Mutex<HashMap<String, StreamSession>>>,
+    response_cache: Arc<Mutex<HashMap<String, CachedResponse>>>,
     port: u16,
 }
+
+const MAX_CACHED_RESPONSE_BYTES: usize = 32 * 1024 * 1024;
+const MAX_TOTAL_CACHE_BYTES: usize = 192 * 1024 * 1024;
+const CACHE_TTL_SECONDS: u64 = 30 * 60;
 
 impl StreamingManager {
     pub fn new() -> (Self, std::net::TcpListener) {
@@ -34,6 +50,7 @@ impl StreamingManager {
 
         let manager = Self {
             sessions: Arc::new(Mutex::new(HashMap::new())),
+            response_cache: Arc::new(Mutex::new(HashMap::new())),
             port,
         };
 
@@ -103,6 +120,61 @@ impl StreamingManager {
         }
         None
     }
+
+    fn get_cached_response(&self, key: &str) -> Option<CachedResponse> {
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        let mut cache = self.response_cache.lock().unwrap();
+        cache.retain(|_, response| now.saturating_sub(response.cached_at) <= CACHE_TTL_SECONDS);
+        cache.get(key).cloned()
+    }
+
+    fn store_cached_response(&self, key: String, response: CachedResponse) {
+        if response.body.len() > MAX_CACHED_RESPONSE_BYTES {
+            return;
+        }
+
+        let mut cache = self.response_cache.lock().unwrap();
+        cache.insert(key, response);
+
+        let mut total_bytes: usize = cache.values().map(|cached| cached.body.len()).sum();
+        while total_bytes > MAX_TOTAL_CACHE_BYTES {
+            let oldest_key = cache
+                .iter()
+                .min_by_key(|(_, cached)| cached.cached_at)
+                .map(|(key, _)| key.clone());
+
+            if let Some(oldest_key) = oldest_key {
+                if let Some(removed) = cache.remove(&oldest_key) {
+                    total_bytes = total_bytes.saturating_sub(removed.body.len());
+                }
+            } else {
+                break;
+            }
+        }
+    }
+}
+
+async fn write_cached_response(socket: &mut TcpStream, cached: CachedResponse) -> std::io::Result<()> {
+    let mut response_headers = format!(
+        "HTTP/1.1 {} {}\r\nContent-Type: {}\r\nContent-Length: {}\r\n",
+        cached.status_code,
+        cached.reason,
+        cached.content_type,
+        cached.body.len()
+    );
+
+    if let Some(content_range) = cached.content_range {
+        response_headers.push_str(&format!("Content-Range: {}\r\n", content_range));
+    }
+    response_headers.push_str(&format!("Accept-Ranges: {}\r\n", cached.accept_ranges));
+    response_headers.push_str("Access-Control-Allow-Origin: *\r\nCache-Control: private, max-age=1800\r\nConnection: keep-alive\r\n\r\n");
+
+    socket.write_all(response_headers.as_bytes()).await?;
+    socket.write_all(&cached.body).await?;
+    Ok(())
 }
 
 pub async fn start_proxy_server(manager: StreamingManager, std_listener: std::net::TcpListener) {
@@ -215,15 +287,20 @@ async fn handle_connection(
         StreamSessionKind::Inline { .. } => String::new(),
     });
 
+    let range_spec = range_header
+        .as_ref()
+        .and_then(|range| range.find('=').map(|pos| range[pos + 1..].trim().to_string()));
+    let cache_key = format!("{}|{}", target_url, range_spec.as_deref().unwrap_or("full"));
+    if let Some(cached) = manager.get_cached_response(&cache_key) {
+        write_cached_response(&mut socket, cached).await?;
+        return Ok(());
+    }
+
     let mut req_builder = client.get(&target_url)
         .header("User-Agent", &session.user_agent);
 
-    if let Some(ref range) = range_header {
-        // Extract bytes specifications from "Range: bytes=X-Y"
-        if let Some(pos) = range.find('=') {
-            let spec = &range[pos + 1..];
-            req_builder = req_builder.header("Range", format!("bytes={}", spec));
-        }
+    if let Some(ref spec) = range_spec {
+        req_builder = req_builder.header("Range", format!("bytes={}", spec));
     }
 
     // Perform YouTube stream request
@@ -244,42 +321,66 @@ async fn handle_connection(
         .get("Content-Type")
         .and_then(|h| h.to_str().ok())
         .unwrap_or(session.content_type.as_str());
+    let content_type_value = content_type.to_string();
 
     let content_length = headers
         .get("Content-Length")
         .and_then(|h| h.to_str().ok())
         .unwrap_or("0");
+    let content_length_value = content_length.parse::<usize>().unwrap_or(0);
+    let content_range = headers
+        .get("Content-Range")
+        .and_then(|h| h.to_str().ok())
+        .map(ToOwned::to_owned);
+    let accept_ranges = headers
+        .get("Accept-Ranges")
+        .and_then(|h| h.to_str().ok())
+        .unwrap_or("bytes")
+        .to_string();
+    let should_cache_response = status.is_success()
+        && content_length_value > 0
+        && content_length_value <= MAX_CACHED_RESPONSE_BYTES
+        && (range_spec.is_some() || path.starts_with("/proxy/"));
 
     let mut response_headers = format!(
         "HTTP/1.1 {} {}\r\nContent-Type: {}\r\nContent-Length: {}\r\n",
         status.as_u16(),
         status.canonical_reason().unwrap_or(""),
-        content_type,
+        content_type_value.as_str(),
         content_length
     );
 
     // Forward crucial headers for seeking (range requests)
-    if let Some(range_val) = headers.get("Content-Range").and_then(|h| h.to_str().ok()) {
+    if let Some(range_val) = content_range.as_deref() {
         response_headers.push_str(&format!("Content-Range: {}\r\n", range_val));
     }
-    if let Some(accept_val) = headers.get("Accept-Ranges").and_then(|h| h.to_str().ok()) {
-        response_headers.push_str(&format!("Accept-Ranges: {}\r\n", accept_val));
-    } else {
-        response_headers.push_str("Accept-Ranges: bytes\r\n");
-    }
+    response_headers.push_str(&format!("Accept-Ranges: {}\r\n", accept_ranges));
 
-    response_headers.push_str("Access-Control-Allow-Origin: *\r\nConnection: keep-alive\r\n\r\n");
+    response_headers.push_str("Access-Control-Allow-Origin: *\r\nCache-Control: private, max-age=1800\r\nConnection: keep-alive\r\n\r\n");
 
     // Write headers back to socket
     socket.write_all(response_headers.as_bytes()).await?;
 
     // Pipe response stream chunks back to the socket
     let mut stream = response.bytes_stream();
+    let mut cached_body = if should_cache_response {
+        Some(Vec::with_capacity(content_length_value))
+    } else {
+        None
+    };
     while let Some(chunk_result) = stream.next().await {
         match chunk_result {
             Ok(chunk) => {
+                if let Some(body) = cached_body.as_mut() {
+                    if body.len() + chunk.len() <= MAX_CACHED_RESPONSE_BYTES {
+                        body.extend_from_slice(&chunk);
+                    } else {
+                        cached_body = None;
+                    }
+                }
                 if let Err(_) = socket.write_all(&chunk).await {
                     // Client disconnected early (e.g. video stopped or sought), clean exit
+                    cached_body = None;
                     break;
                 }
             }
@@ -287,6 +388,23 @@ async fn handle_connection(
                 error!("Error reading YouTube stream chunk: {:?}", e);
                 break;
             }
+        }
+    }
+
+    if let Some(body) = cached_body {
+        if body.len() == content_length_value {
+            manager.store_cached_response(cache_key, CachedResponse {
+                status_code: status.as_u16(),
+                reason: status.canonical_reason().unwrap_or("").to_string(),
+                content_type: content_type_value.clone(),
+                content_range,
+                accept_ranges,
+                body,
+                cached_at: SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs(),
+            });
         }
     }
 

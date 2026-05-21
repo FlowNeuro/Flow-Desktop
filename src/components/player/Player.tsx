@@ -5,6 +5,7 @@ import { usePlayerStore } from "../../store/usePlayerStore";
 import { useSettingsStore, type SponsorBlockCategory, type SponsorBlockAction } from "../../store/useSettingsStore";
 import type { AudioTrack, CaptionTrack, StreamVariant, VideoChapter } from "../../types/video";
 import { FlowPlayerControls } from "./FlowPlayerControls";
+import { PlayerGestureOverlay, type PlayerSeekFeedback } from "./gesture/overlay";
 import { SubtitleOverlay } from "./SubtitleOverlay";
 
 type PlayerProps = {
@@ -137,6 +138,7 @@ export const Player: React.FC<PlayerProps> = ({
   const qualitySwitchSnapshotRef = useRef<QualitySwitchSnapshot | null>(null);
   const qualitySwitchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mediaBufferingRef = useRef(false);
+  const seekFeedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const {
     isPlaying,
@@ -144,6 +146,7 @@ export const Player: React.FC<PlayerProps> = ({
     volume,
     setVolume,
     playbackRate,
+    setPlaybackRate,
     currentTime,
     duration,
     setCurrentTime,
@@ -178,6 +181,7 @@ export const Player: React.FC<PlayerProps> = ({
   const [selectedAudioTrackId, setSelectedAudioTrackId] = useState<string | null>(null);
   const [hasStartedPlayback, setHasStartedPlayback] = useState(false);
   const [isSourceSwitching, setIsSourceSwitching] = useState(false);
+  const [seekFeedback, setSeekFeedback] = useState<PlayerSeekFeedback | null>(null);
 
   const isDashPlayback = !!dashManifestUrl;
   const dashProxyPrefix = useMemo(() => {
@@ -336,6 +340,9 @@ export const Player: React.FC<PlayerProps> = ({
       if (notifyTimeoutRef.current !== null) {
         window.clearTimeout(notifyTimeoutRef.current);
       }
+      if (seekFeedbackTimerRef.current) {
+        clearTimeout(seekFeedbackTimerRef.current);
+      }
     };
   }, []);
 
@@ -355,6 +362,18 @@ export const Player: React.FC<PlayerProps> = ({
     }, 2400);
   }, []);
 
+  const showSeekFeedback = useCallback((direction: PlayerSeekFeedback["direction"], seconds: number) => {
+    setSeekFeedback({
+      id: Date.now(),
+      direction,
+      seconds,
+    });
+    if (seekFeedbackTimerRef.current) clearTimeout(seekFeedbackTimerRef.current);
+    seekFeedbackTimerRef.current = setTimeout(() => {
+      setSeekFeedback(null);
+    }, 1200);
+  }, []);
+
   const seekTo = useCallback((time: number) => {
     const video = videoRef.current;
     const audio = audioRef.current;
@@ -366,6 +385,11 @@ export const Player: React.FC<PlayerProps> = ({
     }
     setCurrentTime(nextTime);
   }, [duration, setCurrentTime]);
+
+  const seekBy = useCallback((delta: number) => {
+    seekTo(currentTime + delta);
+    showSeekFeedback(delta > 0 ? "forward" : "backward", Math.abs(delta));
+  }, [currentTime, seekTo, showSeekFeedback]);
 
   useEffect(() => {
     const handleExternalSeek = (e: Event) => {
@@ -510,6 +534,12 @@ export const Player: React.FC<PlayerProps> = ({
         },
         buffer: {
           fastSwitchEnabled: true,
+          bufferToKeep: 1800,
+          bufferPruningInterval: 120,
+          stableBufferTime: 30,
+          bufferTimeAtTopQuality: 90,
+          bufferTimeAtTopQualityLongForm: 180,
+          longFormContentDurationThreshold: 600,
         },
       },
     });
@@ -875,16 +905,18 @@ export const Player: React.FC<PlayerProps> = ({
           togglePlay();
           break;
         case "j":
-          seekTo(currentTime - 10);
+          seekBy(-10);
           break;
         case "l":
-          seekTo(currentTime + 10);
+          seekBy(10);
           break;
         case "arrowleft":
-          seekTo(currentTime - 5);
+          event.preventDefault();
+          seekBy(-10);
           break;
         case "arrowright":
-          seekTo(currentTime + 5);
+          event.preventDefault();
+          seekBy(10);
           break;
         case "arrowup":
           event.preventDefault();
@@ -914,6 +946,7 @@ export const Player: React.FC<PlayerProps> = ({
     currentTime,
     isTheaterMode,
     revealControls,
+    seekBy,
     seekTo,
     setIsTheaterMode,
     setMuted,
@@ -1121,13 +1154,6 @@ export const Player: React.FC<PlayerProps> = ({
         poster={effectivePoster}
         playsInline
         preload="auto"
-        onClick={togglePlay}
-        onDoubleClick={(event) => {
-          const rect = event.currentTarget.getBoundingClientRect();
-          if (event.clientX < rect.left + rect.width * 0.35) seekTo(currentTime - 10);
-          else if (event.clientX > rect.left + rect.width * 0.65) seekTo(currentTime + 10);
-          else toggleFullscreen();
-        }}
         onLoadedMetadata={handleLoadedMetadata}
         onProgress={updateBuffered}
         onTimeUpdate={handleTimeUpdate}
@@ -1172,6 +1198,24 @@ export const Player: React.FC<PlayerProps> = ({
           className="hidden"
         />
       )}
+
+      <PlayerGestureOverlay
+        videoRef={videoRef}
+        title={title}
+        src={src}
+        isPlaying={isPlaying}
+        playbackRate={playbackRate}
+        currentTime={currentTime}
+        duration={duration}
+        seekFeedback={seekFeedback}
+        setPlaybackRate={setPlaybackRate}
+        togglePlay={togglePlay}
+        toggleFullscreen={toggleFullscreen}
+        togglePictureInPicture={togglePictureInPicture}
+        seekTo={seekTo}
+        onSeekFeedback={showSeekFeedback}
+        onRevealControls={revealControls}
+      />
 
       {/* buffering spinner */}
       {isBuffering && !isLoading && !error && (

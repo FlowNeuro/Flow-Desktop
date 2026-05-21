@@ -38,6 +38,15 @@ const getSavedSubtitleStyle = (): SubtitleStyle => {
   return DEFAULT_SUBTITLE_STYLE;
 };
 
+const getSavedTheaterMode = (): boolean => {
+  try {
+    return localStorage.getItem("flow_theater_mode") === "true";
+  } catch (e) {
+    console.error("Failed to load saved theater mode", e);
+  }
+  return false;
+};
+
 interface PlayerState {
   currentVideo: VideoSummary | null;
   isPlaying: boolean;
@@ -104,7 +113,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   currentTime: 0,
   duration: 0,
 
-  isTheaterMode: false,
+  isTheaterMode: getSavedTheaterMode(),
   sponsorBlockSegments: [],
   dearrowData: null,
   rydData: null,
@@ -254,7 +263,10 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   setCurrentTime: (currentTime) => set({ currentTime }),
   setDuration: (duration) => set({ duration }),
 
-  setIsTheaterMode: (isTheaterMode) => set({ isTheaterMode }),
+  setIsTheaterMode: (isTheaterMode) => {
+    localStorage.setItem("flow_theater_mode", String(isTheaterMode));
+    set({ isTheaterMode });
+  },
   setSponsorBlockSegments: (sponsorBlockSegments) => set({ sponsorBlockSegments }),
   setDearrowData: (dearrowData) => set({ dearrowData }),
   setRydData: (rydData) => set({ rydData }),
