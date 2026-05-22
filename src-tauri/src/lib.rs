@@ -18,7 +18,7 @@ use tauri::Manager;
 
 use api::innertube::InnertubeClient;
 use commands::youtube::{
-    get_channel_details, get_channel_videos, get_comments, get_dearrow_override,
+    get_channel_details, get_channel_tab, get_comments, get_dearrow_override,
     get_music_album, get_music_artist, get_music_charts, get_music_explore, get_music_home,
     get_music_lyrics, get_music_related, get_personalized_music_recommendations,
     get_playlist_details, get_search_suggestions, get_sponsorblock_segments, get_stream_info,
@@ -85,7 +85,7 @@ pub fn run() {
             get_related_videos,
             get_stream_info,
             get_channel_details,
-            get_channel_videos,
+            get_channel_tab,
             get_playlist_details,
             get_comments,
             get_trending_videos,

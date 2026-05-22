@@ -2,14 +2,17 @@ use serde_json::Value;
 use tracing::debug;
 use crate::api::innertube::InnertubeClient;
 use crate::errors::{AppError, AppResult};
-use crate::models::channel::{ChannelDetails, ChannelVideosResponse};
+use crate::models::channel::{
+    ChannelDetails, ChannelTabResponse, ChannelItem,
+    ShortVideoSummary, PlaylistSummary, PostSummary,
+};
 use crate::models::video::VideoSummary;
 use crate::api::innertube::core::utils::{
     parse_duration_seconds, parse_mixed_number_word_to_long, normalize_youtube_image_url,
     extract_channel_id_from_video_renderer
 };
 
-fn extract_videos_from_browse(val: &Value) -> (Vec<VideoSummary>, Option<String>) {
+fn extract_videos_from_browse(val: &Value) -> (Vec<ChannelItem>, Option<String>, Option<String>, Option<String>, Option<String>) {
     let mut items = Vec::new();
     let mut next_page_token = None;
 
@@ -37,9 +40,15 @@ fn extract_videos_from_browse(val: &Value) -> (Vec<VideoSummary>, Option<String>
         .unwrap_or("Unknown Channel")
         .to_string();
 
-    let mut process_array = |arr: &Vec<Value>| {
+    let mut process_array = |arr: &Vec<Value>| -> Option<String> {
+        let mut token_found = None;
         for item in arr {
-            if let Some(video) = item.get("gridVideoRenderer") {
+            let mut target = item;
+            if let Some(content) = item.get("richItemRenderer").and_then(|r| r.get("content")) {
+                target = content;
+            }
+
+            if let Some(video) = target.get("gridVideoRenderer").or_else(|| target.get("videoRenderer")) {
                 if let Some(video_id) = video.get("videoId").and_then(|v| v.as_str()) {
                     let title = video.get("title")
                         .and_then(|t| t.get("runs").and_then(|r| r.as_array()).and_then(|arr| arr.first()).and_then(|f| f.get("text")).and_then(|s| s.as_str()).or_else(|| t.get("simpleText").and_then(|s| s.as_str())))
@@ -53,7 +62,7 @@ fn extract_videos_from_browse(val: &Value) -> (Vec<VideoSummary>, Option<String>
                         .to_string();
 
                     let thumbnail_url = video.get("thumbnail")
-                        .and_then(|th| th.get("thumbnails").and_then(|t| t.as_array()).and_then(|arr| arr.first()).and_then(|f| f.get("url")).and_then(|s| s.as_str()))
+                        .and_then(|th| th.get("thumbnails").and_then(|t| t.as_array()).and_then(|arr| arr.last()).and_then(|f| f.get("url")).and_then(|s| s.as_str()))
                         .map(|s| s.to_string());
 
                     let duration_text = video.get("thumbnailOverlays")
@@ -62,6 +71,10 @@ fn extract_videos_from_browse(val: &Value) -> (Vec<VideoSummary>, Option<String>
                         .and_then(|first| first.get("thumbnailOverlayTimeStatusRenderer"))
                         .and_then(|t| t.get("text"))
                         .and_then(|txt| txt.get("runs").and_then(|r| r.as_array()).and_then(|arr| arr.first()).and_then(|f| f.get("text")).and_then(|s| s.as_str()).or_else(|| txt.get("simpleText").and_then(|s| s.as_str())))
+                        .or_else(|| {
+                            video.get("lengthText")
+                                .and_then(|l| l.get("runs").and_then(|r| r.as_array()).and_then(|arr| arr.first()).and_then(|f| f.get("text")).and_then(|s| s.as_str()).or_else(|| l.get("simpleText").and_then(|s| s.as_str())))
+                        })
                         .unwrap_or_default();
 
                     let duration_seconds = if duration_text.is_empty() {
@@ -80,96 +93,162 @@ fn extract_videos_from_browse(val: &Value) -> (Vec<VideoSummary>, Option<String>
 
                     let channel_id = extract_channel_id_from_video_renderer(video);
 
-                    items.push(VideoSummary {
+                    items.push(ChannelItem::Video(VideoSummary {
                         id: video_id.to_string(),
                         title,
-                        channel_name,
-                        channel_id,
+                        channel_name: if channel_name.is_empty() { top_channel_name.clone() } else { channel_name },
+                        channel_id: channel_id.or_else(|| top_channel_id.clone()),
                         thumbnail_url,
                         duration_seconds,
                         published_text,
                         view_count_text,
-                    });
+                    }));
                 }
-            } else if let Some(video) = item.get("richItemRenderer") {
-                if let Some(content_video) = video.get("content").and_then(|c| c.get("videoRenderer")) {
-                    let video_id = content_video.get("videoId").and_then(|v| v.as_str()).unwrap_or_default();
-                    if !video_id.is_empty() {
-                        let title = content_video.get("title")
-                            .and_then(|t| t.get("runs").and_then(|r| r.as_array()).and_then(|arr| arr.first()).and_then(|f| f.get("text")).and_then(|s| s.as_str()).or_else(|| t.get("simpleText").and_then(|s| s.as_str())))
-                            .unwrap_or_default()
-                            .to_string();
+            } else if let Some(shorts_lockup) = target.get("shortsLockupViewModel") {
+                let video_id = shorts_lockup.get("onTap")
+                    .and_then(|ot| ot.get("innertubeCommand"))
+                    .and_then(|ic| ic.get("reelWatchEndpoint"))
+                    .and_then(|rw| rw.get("videoId"))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or_default();
+                if !video_id.is_empty() {
+                    let title = shorts_lockup.get("overlayMetadata")
+                        .and_then(|om| om.get("primaryText"))
+                        .and_then(|pt| pt.get("content"))
+                        .and_then(|c| c.as_str())
+                        .unwrap_or_default().to_string();
+                    let thumbnail_url = shorts_lockup.get("thumbnailViewModel")
+                        .and_then(|tv| tv.get("thumbnailViewModel"))
+                        .and_then(|tvm| tvm.get("image"))
+                        .and_then(|img| img.get("sources"))
+                        .and_then(|s| s.as_array())
+                        .and_then(|arr| arr.last())
+                        .and_then(|src| src.get("url"))
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string());
+                    let view_count_text = shorts_lockup.get("overlayMetadata")
+                        .and_then(|om| om.get("secondaryText"))
+                        .and_then(|st| st.get("content"))
+                        .and_then(|c| c.as_str())
+                        .map(|s| s.to_string());
+                    items.push(ChannelItem::Short(ShortVideoSummary {
+                        id: video_id.to_string(),
+                        title,
+                        thumbnail_url,
+                        view_count_text,
+                    }));
+                }
+            } else if let Some(reel) = target.get("reelItemRenderer") {
+                let video_id = reel.get("videoId").and_then(|v| v.as_str()).unwrap_or_default();
+                if !video_id.is_empty() {
+                    let title = reel.get("headline").and_then(|h| h.get("simpleText").and_then(|s| s.as_str()))
+                        .unwrap_or_default().to_string();
+                    let thumbnail_url = reel.get("thumbnail").and_then(|th| th.get("thumbnails").and_then(|t| t.as_array()).and_then(|arr| arr.last()).and_then(|f| f.get("url")).and_then(|s| s.as_str()))
+                        .map(|s| s.to_string());
+                    let view_count_text = reel.get("viewCountText").and_then(|v| v.get("simpleText").and_then(|s| s.as_str())).map(|s| s.to_string());
+                    
+                    items.push(ChannelItem::Short(ShortVideoSummary {
+                        id: video_id.to_string(),
+                        title,
+                        thumbnail_url,
+                        view_count_text,
+                    }));
+                }
+            } else if let Some(playlist) = target.get("playlistRenderer").or_else(|| target.get("gridPlaylistRenderer")) {
+                let playlist_id = playlist.get("playlistId").and_then(|v| v.as_str()).unwrap_or_default();
+                if !playlist_id.is_empty() {
+                    let title = playlist.get("title").and_then(|t| t.get("runs").and_then(|r| r.as_array()).and_then(|arr| arr.first()).and_then(|f| f.get("text")).and_then(|s| s.as_str()).or_else(|| t.get("simpleText").and_then(|s| s.as_str())))
+                        .unwrap_or_default().to_string();
+                    let thumbnail_url = playlist.get("thumbnails").and_then(|th| th.as_array()).and_then(|arr| arr.first()).and_then(|f| f.get("thumbnails")).and_then(|t| t.as_array()).and_then(|arr| arr.last()).and_then(|f| f.get("url")).and_then(|s| s.as_str())
+                        .or_else(|| playlist.get("thumbnail").and_then(|th| th.get("thumbnails").and_then(|t| t.as_array()).and_then(|arr| arr.last()).and_then(|f| f.get("url")).and_then(|s| s.as_str())))
+                        .map(|s| s.to_string());
+                    let video_count_text = playlist.get("videoCountText").and_then(|v| v.get("runs").and_then(|r| r.as_array()).and_then(|arr| arr.first()).and_then(|f| f.get("text")).and_then(|s| s.as_str()).or_else(|| v.get("simpleText").and_then(|s| s.as_str()))).map(|s| s.to_string());
+                    
+                    items.push(ChannelItem::Playlist(PlaylistSummary {
+                        id: playlist_id.to_string(),
+                        title,
+                        thumbnail_url,
+                        video_count_text,
+                    }));
+                }
+            } else if let Some(lockup) = target.get("lockupViewModel") {
+                let content_id = lockup.get("contentId").and_then(|v| v.as_str()).unwrap_or_default();
+                let content_type = lockup.get("contentType").and_then(|v| v.as_str()).unwrap_or_default();
 
-                        let channel_name = content_video.get("shortBylineText")
-                            .and_then(|b| b.get("runs").and_then(|r| r.as_array()).and_then(|arr| arr.first()).and_then(|f| f.get("text")).and_then(|s| s.as_str()))
-                            .unwrap_or_default()
-                            .to_string();
+                if !content_id.is_empty() {
+                    let title = lockup.get("metadata")
+                        .and_then(|m| m.get("lockupMetadataViewModel"))
+                        .and_then(|lm| lm.get("title"))
+                        .and_then(|t| t.get("content"))
+                        .and_then(|v| v.as_str())
+                        .unwrap_or_default()
+                        .to_string();
 
-                        let thumbnail_url = content_video.get("thumbnail")
-                            .and_then(|th| th.get("thumbnails").and_then(|t| t.as_array()).and_then(|arr| arr.first()).and_then(|f| f.get("url")).and_then(|s| s.as_str()))
-                            .map(|s| s.to_string());
+                    let channel_name = top_channel_name.clone();
+                    let channel_id = top_channel_id.clone();
 
-                        let duration_text = content_video.get("lengthText")
-                            .and_then(|l| l.get("runs").and_then(|r| r.as_array()).and_then(|arr| arr.first()).and_then(|f| f.get("text")).and_then(|s| s.as_str()).or_else(|| l.get("simpleText").and_then(|s| s.as_str())))
-                            .unwrap_or_default();
-
-                        let duration_seconds = if duration_text.is_empty() {
-                            None
-                        } else {
-                            Some(parse_duration_seconds(duration_text))
-                        };
-
-                        let published_text = content_video.get("publishedTimeText")
-                            .and_then(|p| p.get("simpleText").and_then(|s| s.as_str()).or_else(|| p.get("runs").and_then(|r| r.as_array()).and_then(|arr| arr.first()).and_then(|f| f.get("text")).and_then(|s| s.as_str())))
-                            .map(|s| s.to_string());
-
-                        let view_count_text = content_video.get("viewCountText")
-                            .and_then(|v| v.get("simpleText").and_then(|s| s.as_str()).or_else(|| v.get("runs").and_then(|r| r.as_array()).and_then(|arr| arr.first()).and_then(|f| f.get("text")).and_then(|s| s.as_str())))
-                            .map(|s| s.to_string());
-
-                        let channel_id = extract_channel_id_from_video_renderer(content_video);
-
-                        items.push(VideoSummary {
-                            id: video_id.to_string(),
-                            title,
-                            channel_name,
-                            channel_id,
-                            thumbnail_url,
-                            duration_seconds,
-                            published_text,
-                            view_count_text,
+                    let thumbnail_view_model = lockup.get("contentImage")
+                        .and_then(|ci| {
+                            ci.get("thumbnailViewModel")
+                                .or_else(|| {
+                                    ci.get("collectionThumbnailViewModel")
+                                        .and_then(|ctv| ctv.get("primaryThumbnail"))
+                                        .and_then(|pt| pt.get("thumbnailViewModel"))
+                                })
                         });
-                    }
-                } else if let Some(lockup) = video.get("content").and_then(|c| c.get("lockupViewModel")) {
-                    let video_id = lockup.get("contentId").and_then(|v| v.as_str()).unwrap_or_default();
-                    if !video_id.is_empty() {
-                        let title = lockup.get("metadata")
-                            .and_then(|m| m.get("lockupMetadataViewModel"))
-                            .and_then(|lm| lm.get("title"))
-                            .and_then(|t| t.get("content"))
-                            .and_then(|v| v.as_str())
-                            .unwrap_or_default()
-                            .to_string();
 
-                        let channel_name = top_channel_name.clone();
-                        let channel_id = top_channel_id.clone();
+                    let thumbnail_url = thumbnail_view_model
+                        .and_then(|tv| tv.get("image"))
+                        .and_then(|img| img.get("sources"))
+                        .and_then(|s| s.as_array())
+                        .and_then(|arr| arr.last())
+                        .and_then(|src| src.get("url"))
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string());
 
-                        let thumbnail_url = lockup.get("contentImage")
-                            .and_then(|ci| ci.get("thumbnailViewModel"))
-                            .and_then(|tv| tv.get("image"))
-                            .and_then(|img| img.get("sources"))
-                            .and_then(|s| s.as_array())
-                            .and_then(|arr| arr.first())
-                            .and_then(|src| src.get("url"))
-                            .and_then(|v| v.as_str())
-                            .map(|s| s.to_string());
-
+                    if content_type == "LOCKUP_CONTENT_TYPE_PLAYLIST" || content_type == "LOCKUP_CONTENT_TYPE_PODCAST" {
+                        let mut video_count_text = None;
+                        if let Some(overlays) = thumbnail_view_model.and_then(|tv| tv.get("overlays")).and_then(|o| o.as_array()) {
+                            for overlay in overlays {
+                                if let Some(bottom) = overlay.get("thumbnailBottomOverlayViewModel") {
+                                    if let Some(badges) = bottom.get("badges").and_then(|b| b.as_array()) {
+                                        if let Some(badge) = badges.first().and_then(|b| b.get("thumbnailBadgeViewModel")) {
+                                            if let Some(text) = badge.get("text").and_then(|t| t.as_str()) {
+                                                video_count_text = Some(text.to_string());
+                                                break;
+                                            }
+                                        }
+                                    }
+                                }
+                                if let Some(badge_vm) = overlay.get("thumbnailOverlayBadgeViewModel") {
+                                    if let Some(badges) = badge_vm.get("thumbnailBadges").and_then(|b| b.as_array()) {
+                                        if let Some(badge) = badges.first().and_then(|b| b.get("thumbnailBadgeViewModel")) {
+                                            if let Some(text) = badge.get("text").and_then(|t| t.as_str()) {
+                                                video_count_text = Some(text.to_string());
+                                                break;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        items.push(ChannelItem::Playlist(PlaylistSummary {
+                            id: content_id.to_string(),
+                            title,
+                            thumbnail_url,
+                            video_count_text,
+                        }));
+                    } else if content_type == "LOCKUP_CONTENT_TYPE_SHORT" {
+                        items.push(ChannelItem::Short(ShortVideoSummary {
+                            id: content_id.to_string(),
+                            title,
+                            thumbnail_url,
+                            view_count_text: None,
+                        }));
+                    } else {
                         let mut duration_text = "";
-                        if let Some(overlays) = lockup.get("contentImage")
-                            .and_then(|ci| ci.get("thumbnailViewModel"))
-                            .and_then(|tv| tv.get("overlays"))
-                            .and_then(|o| o.as_array())
-                        {
+                        let mut duration_seconds = None;
+                        if let Some(overlays) = thumbnail_view_model.and_then(|tv| tv.get("overlays")).and_then(|o| o.as_array()) {
                             for overlay in overlays {
                                 if let Some(bottom) = overlay.get("thumbnailBottomOverlayViewModel") {
                                     if let Some(badges) = bottom.get("badges").and_then(|b| b.as_array()) {
@@ -184,11 +263,9 @@ fn extract_videos_from_browse(val: &Value) -> (Vec<VideoSummary>, Option<String>
                             }
                         }
 
-                        let duration_seconds = if duration_text.is_empty() {
-                            None
-                        } else {
-                            Some(parse_duration_seconds(duration_text))
-                        };
+                        if !duration_text.is_empty() {
+                            duration_seconds = Some(parse_duration_seconds(duration_text));
+                        }
 
                         let mut view_count_text = None;
                         let mut published_text = None;
@@ -221,8 +298,8 @@ fn extract_videos_from_browse(val: &Value) -> (Vec<VideoSummary>, Option<String>
                             }
                         }
 
-                        items.push(VideoSummary {
-                            id: video_id.to_string(),
+                        items.push(ChannelItem::Video(VideoSummary {
+                            id: content_id.to_string(),
                             title,
                             channel_name,
                             channel_id,
@@ -230,19 +307,52 @@ fn extract_videos_from_browse(val: &Value) -> (Vec<VideoSummary>, Option<String>
                             duration_seconds,
                             published_text,
                             view_count_text,
-                        });
+                        }));
                     }
                 }
-            } else if let Some(cont) = item.get("continuationItemRenderer") {
+            } else if let Some(post_thread) = target.get("backstagePostThreadRenderer") {
+                if let Some(post) = post_thread.get("post").and_then(|p| p.get("backstagePostRenderer")) {
+                    let post_id = post.get("postId").and_then(|p| p.as_str()).unwrap_or_default().to_string();
+                    let author_name = post.get("authorText").and_then(|a| a.get("runs").and_then(|r| r.as_array()).and_then(|arr| arr.first()).and_then(|f| f.get("text")).and_then(|s| s.as_str())).unwrap_or_default().to_string();
+                    let author_avatar = post.get("authorThumbnail")
+                        .and_then(|t| t.get("thumbnails").and_then(|th| th.as_array()).and_then(|arr| arr.last()).and_then(|f| f.get("url")).and_then(|s| s.as_str()))
+                        .map(normalize_youtube_image_url)
+                        .map(|s| s.to_string());
+                    let text_content = post.get("contentText").and_then(|c| c.get("runs").and_then(|r| r.as_array()).map(|arr| arr.iter().filter_map(|r| r.get("text").and_then(|s| s.as_str())).collect::<Vec<_>>().join(""))).or_else(|| post.get("contentText").and_then(|c| c.get("simpleText").and_then(|s| s.as_str())).map(|s| s.to_string()));
+                    let published_time_text = post.get("publishedTimeText").and_then(|p| p.get("runs").and_then(|r| r.as_array()).and_then(|arr| arr.first()).and_then(|f| f.get("text")).and_then(|s| s.as_str())).map(|s| s.to_string());
+                    let likes_count_text = post.get("voteCount").and_then(|v| v.get("simpleText").and_then(|s| s.as_str())).map(|s| s.to_string());
+                    let image_attachment = post.get("backstageAttachment")
+                        .and_then(|b| b.get("backstageImageRenderer"))
+                        .and_then(|i| i.get("image"))
+                        .and_then(|i| i.get("thumbnails"))
+                        .and_then(|t| t.as_array())
+                        .and_then(|arr| arr.last())
+                        .and_then(|f| f.get("url"))
+                        .and_then(|s| s.as_str())
+                        .map(normalize_youtube_image_url)
+                        .map(|s| s.to_string());
+                    
+                    items.push(ChannelItem::Post(PostSummary {
+                        id: post_id,
+                        author_name: if author_name.is_empty() { top_channel_name.clone() } else { author_name },
+                        author_avatar,
+                        text_content,
+                        image_attachment,
+                        likes_count_text,
+                        published_time_text,
+                    }));
+                }
+            } else if let Some(cont) = target.get("continuationItemRenderer") {
                 if let Some(token) = cont.get("continuationEndpoint")
                     .and_then(|e| e.get("continuationCommand"))
                     .and_then(|c| c.get("token"))
                     .and_then(|t| t.as_str())
                 {
-                    next_page_token = Some(token.to_string());
+                    token_found = Some(token.to_string());
                 }
             }
         }
+        token_found
     };
 
     if let Some(actions) = val.get("onResponseReceivedActions").and_then(|v| v.as_array()) {
@@ -251,12 +361,16 @@ fn extract_videos_from_browse(val: &Value) -> (Vec<VideoSummary>, Option<String>
                 .and_then(|a| a.get("continuationItems"))
                 .and_then(|c| c.as_array())
             {
-                process_array(items_arr);
+                if let Some(tok) = process_array(items_arr) {
+                    next_page_token = Some(tok);
+                }
             } else if let Some(items_arr) = action.get("reloadContinuationItemsCommand")
                 .and_then(|r| r.get("continuationItems"))
                 .and_then(|c| c.as_array())
             {
-                process_array(items_arr);
+                if let Some(tok) = process_array(items_arr) {
+                    next_page_token = Some(tok);
+                }
             }
         }
     }
@@ -266,19 +380,225 @@ fn extract_videos_from_browse(val: &Value) -> (Vec<VideoSummary>, Option<String>
         .and_then(|t| t.get("tabs"))
         .and_then(|t| t.as_array())
     {
+        let mut target_content = None;
+
+        // 1. Search selected tab containing search endpoint url
         for tab in tabs {
-            if let Some(tab_renderer) = tab.get("tabRenderer") {
-                if let Some(content) = tab_renderer.get("content") {
-                    if let Some(contents_arr) = content.get("richGridRenderer").and_then(|r| r.get("contents")).and_then(|c| c.as_array()) {
-                        process_array(contents_arr);
+            if let Some(tr) = tab.get("tabRenderer") {
+                let is_selected = tr.get("selected").and_then(|s| s.as_bool()).unwrap_or(false);
+                let is_search_url = tr.get("endpoint")
+                    .and_then(|e| e.get("commandMetadata"))
+                    .and_then(|m| m.get("webCommandMetadata"))
+                    .and_then(|w| w.get("url"))
+                    .and_then(|u| u.as_str())
+                    .map(|u| u.contains("/search"))
+                    .unwrap_or(false);
+                if is_selected && is_search_url {
+                    target_content = tr.get("content");
+                    break;
+                }
+            }
+        }
+
+        // 2. Search expandable tab with content (used by YouTube for channel search results)
+        if target_content.is_none() {
+            for tab in tabs {
+                if let Some(et) = tab.get("expandableTabRenderer") {
+                    if let Some(c) = et.get("content") {
+                        if !c.is_null() {
+                            target_content = Some(c);
+                            break;
+                        }
                     }
-                    
-                    if let Some(sections) = content.get("sectionListRenderer").and_then(|s| s.get("contents")).and_then(|c| c.as_array()) {
-                        for section in sections {
-                            if let Some(items_arr) = section.get("itemSectionRenderer").and_then(|i| i.get("contents")).and_then(|c| c.as_array()) {
-                                for sub_item in items_arr {
-                                    if let Some(grid_items) = sub_item.get("gridRenderer").and_then(|g| g.get("items")).and_then(|i| i.as_array()) {
-                                        process_array(grid_items);
+                }
+            }
+        }
+
+        // 3. Search selected tab (standard tabs like Home, Videos)
+        if target_content.is_none() {
+            for tab in tabs {
+                if let Some(tr) = tab.get("tabRenderer") {
+                    let is_selected = tr.get("selected").and_then(|s| s.as_bool()).unwrap_or(false);
+                    if is_selected {
+                        target_content = tr.get("content");
+                        break;
+                    }
+                }
+            }
+        }
+
+        if let Some(content) = target_content {
+            if let Some(contents_arr) = content.get("richGridRenderer").and_then(|r| r.get("contents")).and_then(|c| c.as_array()) {
+                if let Some(tok) = process_array(contents_arr) {
+                    next_page_token = Some(tok);
+                }
+            }
+            
+            if let Some(sections) = content.get("sectionListRenderer").and_then(|s| s.get("contents")).and_then(|c| c.as_array()) {
+                for section in sections {
+                    if let Some(items_arr) = section.get("itemSectionRenderer").and_then(|i| i.get("contents")).and_then(|c| c.as_array()) {
+                        if let Some(tok) = process_array(items_arr) {
+                            next_page_token = Some(tok);
+                        }
+                        for sub_item in items_arr {
+                            if let Some(grid_items) = sub_item.get("gridRenderer").and_then(|g| g.get("items")).and_then(|i| i.as_array()) {
+                                if let Some(tok) = process_array(grid_items) {
+                                    next_page_token = Some(tok);
+                                }
+                            }
+                            if let Some(shelf_items) = sub_item.get("shelfRenderer")
+                                .and_then(|s| s.get("content"))
+                                .and_then(|c| c.get("horizontalListRenderer").or_else(|| c.get("gridRenderer")))
+                                .and_then(|hl| hl.get("items"))
+                                .and_then(|i| i.as_array())
+                            {
+                                if let Some(tok) = process_array(shelf_items) {
+                                    next_page_token = Some(tok);
+                                }
+                            }
+                        }
+                    } else if let Some(cont) = section.get("continuationItemRenderer") {
+                        if let Some(token) = cont.get("continuationEndpoint")
+                            .and_then(|e| e.get("continuationCommand"))
+                            .and_then(|c| c.get("token"))
+                            .and_then(|t| t.as_str())
+                        {
+                            next_page_token = Some(token.to_string());
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if let Some(continuation_contents) = val.get("continuationContents") {
+        if let Some(section_list) = continuation_contents.get("sectionListContinuation") {
+            if let Some(contents) = section_list.get("contents").and_then(|c| c.as_array()) {
+                for item in contents {
+                    if let Some(item_sec) = item.get("itemSectionRenderer") {
+                        if let Some(sec_contents) = item_sec.get("contents").and_then(|c| c.as_array()) {
+                            if let Some(tok) = process_array(sec_contents) {
+                                next_page_token = Some(tok);
+                            }
+                        }
+                    }
+                    if let Some(cont) = item.get("continuationItemRenderer") {
+                        if let Some(token) = cont.get("continuationEndpoint")
+                            .and_then(|e| e.get("continuationCommand"))
+                            .and_then(|c| c.get("token"))
+                            .and_then(|t| t.as_str())
+                        {
+                            next_page_token = Some(token.to_string());
+                        }
+                    }
+                }
+            }
+            if next_page_token.is_none() {
+                if let Some(conts) = section_list.get("continuations").and_then(|c| c.as_array()) {
+                    if let Some(first_cont) = conts.first() {
+                        if let Some(token) = first_cont.get("nextContinuationData")
+                            .and_then(|n| n.get("continuation"))
+                            .and_then(|t| t.as_str())
+                        {
+                            next_page_token = Some(token.to_string());
+                        }
+                    }
+                }
+            }
+        }
+
+        if let Some(rich_grid) = continuation_contents.get("richGridContinuation") {
+            if let Some(contents) = rich_grid.get("contents").and_then(|c| c.as_array()) {
+                if let Some(tok) = process_array(contents) {
+                    next_page_token = Some(tok);
+                }
+            }
+        }
+    }
+
+    let mut sort_latest_token = None;
+    let mut sort_popular_token = None;
+    let mut sort_oldest_token = None;
+
+    if let Some(tabs) = val.get("contents")
+        .and_then(|c| c.get("twoColumnBrowseResultsRenderer"))
+        .and_then(|t| t.get("tabs"))
+        .and_then(|t| t.as_array())
+    {
+        for tab in tabs {
+            if let Some(tr) = tab.get("tabRenderer") {
+                let is_selected = tr.get("selected").and_then(|s| s.as_bool()).unwrap_or(false);
+                if is_selected {
+                    if let Some(content) = tr.get("content") {
+                        if let Some(chip_bar) = content.get("richGridRenderer")
+                            .and_then(|r| r.get("header"))
+                            .and_then(|h| h.get("chipBarViewModel"))
+                        {
+                            if let Some(chips) = chip_bar.get("chips").and_then(|c| c.as_array()) {
+                                for chip in chips {
+                                    if let Some(vm) = chip.get("chipViewModel") {
+                                        let tap = vm.get("tapCommand").and_then(|t| t.get("innertubeCommand"));
+                                        if let Some(tap_cmd) = tap {
+                                            if let Some(show_sheet) = tap_cmd.get("showSheetCommand") {
+                                                if let Some(list_items) = show_sheet.get("panelLoadingStrategy")
+                                                    .and_then(|p| p.get("inlineContent"))
+                                                    .and_then(|i| i.get("sheetViewModel"))
+                                                    .and_then(|s| s.get("content"))
+                                                    .and_then(|c| c.get("listViewModel"))
+                                                    .and_then(|l| l.get("listItems"))
+                                                    .and_then(|i| i.as_array())
+                                                {
+                                                    for item in list_items {
+                                                        if let Some(item_vm) = item.get("listItemViewModel") {
+                                                            let title = item_vm.get("title").and_then(|t| t.get("content")).and_then(|s| s.as_str()).unwrap_or_default().to_lowercase();
+                                                            let mut token = None;
+                                                            let ontap = item_vm.get("rendererContext")
+                                                                .and_then(|r| r.get("commandContext"))
+                                                                .and_then(|c| c.get("onTap"))
+                                                                .and_then(|o| o.get("innertubeCommand"));
+                                                            if let Some(ontap_cmd) = ontap {
+                                                                if let Some(executor) = ontap_cmd.get("commandExecutorCommand") {
+                                                                    if let Some(cmds) = executor.get("commands").and_then(|c| c.as_array()) {
+                                                                        for cmd in cmds {
+                                                                            if let Some(cont) = cmd.get("continuationCommand") {
+                                                                                if let Some(t) = cont.get("token").and_then(|s| s.as_str()) {
+                                                                                    token = Some(t.to_string());
+                                                                                }
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                } else if let Some(cont) = ontap_cmd.get("continuationCommand") {
+                                                                    if let Some(t) = cont.get("token").and_then(|s| s.as_str()) {
+                                                                        token = Some(t.to_string());
+                                                                    }
+                                                                }
+                                                            }
+
+                                                            if let Some(tok) = token {
+                                                                if title.contains("popular") {
+                                                                    sort_popular_token = Some(tok);
+                                                                } else if title.contains("oldest") {
+                                                                    sort_oldest_token = Some(tok);
+                                                                } else if title.contains("latest") || title.contains("newest") {
+                                                                    sort_latest_token = Some(tok);
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            } else if let Some(cont) = tap_cmd.get("continuationCommand") {
+                                                if let Some(t) = cont.get("token").and_then(|s| s.as_str()) {
+                                                    let text = vm.get("text").and_then(|t| t.as_str()).unwrap_or_default().to_lowercase();
+                                                    if text.contains("popular") {
+                                                        sort_popular_token = Some(t.to_string());
+                                                    } else if text.contains("oldest") {
+                                                        sort_oldest_token = Some(t.to_string());
+                                                    } else if text.contains("latest") || text.contains("newest") {
+                                                        sort_latest_token = Some(t.to_string());
+                                                    }
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -289,7 +609,7 @@ fn extract_videos_from_browse(val: &Value) -> (Vec<VideoSummary>, Option<String>
         }
     }
 
-    (items, next_page_token)
+    (items, next_page_token, sort_latest_token, sort_popular_token, sort_oldest_token)
 }
 
 impl InnertubeClient {
@@ -370,7 +690,7 @@ impl InnertubeClient {
         let avatar_url = metadata.get("avatar")
             .and_then(|a| a.get("thumbnails"))
             .and_then(|t| t.as_array())
-            .and_then(|arr| arr.first())
+            .and_then(|arr| arr.last())
             .and_then(|first| first.get("url"))
             .and_then(|v| v.as_str())
             .or_else(|| {
@@ -378,7 +698,7 @@ impl InnertubeClient {
                     .and_then(|c4| c4.get("avatar"))
                     .and_then(|a| a.get("thumbnails"))
                     .and_then(|t| t.as_array())
-                    .and_then(|arr| arr.first())
+                    .and_then(|arr| arr.last())
                     .and_then(|first| first.get("url"))
                     .and_then(|v| v.as_str())
             })
@@ -393,7 +713,7 @@ impl InnertubeClient {
                     .and_then(|avm| avm.get("image"))
                     .and_then(|img| img.get("sources"))
                     .and_then(|s| s.as_array())
-                    .and_then(|arr| arr.first())
+                    .and_then(|arr| arr.last())
                     .and_then(|first| first.get("url"))
                     .and_then(|v| v.as_str())
             })
@@ -403,7 +723,7 @@ impl InnertubeClient {
             .and_then(|c4| c4.get("banner"))
             .and_then(|b| b.get("thumbnails"))
             .and_then(|t| t.as_array())
-            .and_then(|arr| arr.first())
+            .and_then(|arr| arr.last())
             .and_then(|first| first.get("url"))
             .and_then(|v| v.as_str())
             .or_else(|| {
@@ -415,7 +735,7 @@ impl InnertubeClient {
                     .and_then(|ib| ib.get("image"))
                     .and_then(|img| img.get("sources"))
                     .and_then(|s| s.as_array())
-                    .and_then(|arr| arr.first())
+                    .and_then(|arr| arr.last())
                     .and_then(|first| first.get("url"))
                     .and_then(|v| v.as_str())
             })
@@ -494,6 +814,35 @@ impl InnertubeClient {
             }
         }
 
+        let mut available_tabs = Vec::new();
+        if let Some(tabs) = res.get("contents")
+            .and_then(|c| c.get("twoColumnBrowseResultsRenderer"))
+            .and_then(|t| t.get("tabs"))
+            .and_then(|t| t.as_array())
+        {
+            for tab in tabs {
+                if let Some(tab_renderer) = tab.get("tabRenderer") {
+                    if let Some(title_val) = tab_renderer.get("title") {
+                        let title_str = if let Some(s) = title_val.as_str() {
+                            Some(s.to_string())
+                        } else if let Some(simple) = title_val.get("simpleText").and_then(|s| s.as_str()) {
+                            Some(simple.to_string())
+                        } else if let Some(runs) = title_val.get("runs").and_then(|r| r.as_array()) {
+                            runs.first()
+                                .and_then(|f| f.get("text"))
+                                .and_then(|s| s.as_str())
+                                .map(|s| s.to_string())
+                        } else {
+                            None
+                        };
+                        if let Some(t_str) = title_str {
+                            available_tabs.push(t_str);
+                        }
+                    }
+                }
+            }
+        }
+
         Ok(ChannelDetails {
             id,
             name,
@@ -503,14 +852,17 @@ impl InnertubeClient {
             subscriber_count,
             subscriber_count_text,
             verified,
+            available_tabs,
         })
     }
 
-    pub async fn get_channel_videos(
+    pub async fn get_channel_tab(
         &self,
         channel_id: &str,
+        params: Option<String>,
         page_token: Option<String>,
-    ) -> AppResult<ChannelVideosResponse> {
+        query: Option<String>,
+    ) -> AppResult<ChannelTabResponse> {
         let channel_id_trimmed = channel_id.trim();
         if channel_id_trimmed.is_empty() {
             return Err(AppError::Validation("Channel ID cannot be empty".into()));
@@ -521,19 +873,28 @@ impl InnertubeClient {
                 "continuation": token
             })
         } else {
-            serde_json::json!({
-                "browseId": channel_id_trimmed,
-                "params": "EgZ2aWRlb3PyBgQKAjoA"
-            })
+            let mut p = serde_json::json!({
+                "browseId": channel_id_trimmed
+            });
+            if let Some(ref q) = query {
+                p["query"] = serde_json::json!(q);
+                p["params"] = serde_json::json!("EgZzZWFyY2jyBgQKAloA");
+            } else if let Some(par) = params {
+                p["params"] = serde_json::json!(par);
+            }
+            p
         };
 
         let res = self.post_innertube("browse", "WEB", "2.20260120.01.00", &mut payload).await?;
-        let (videos, next_page_token) = extract_videos_from_browse(&res);
+        let (items, next_page_token, sort_latest_token, sort_popular_token, sort_oldest_token) = extract_videos_from_browse(&res);
 
-        Ok(ChannelVideosResponse {
+        Ok(ChannelTabResponse {
             channel_id: channel_id_trimmed.to_string(),
-            videos,
+            items,
             next_page_token,
+            sort_latest_token,
+            sort_popular_token,
+            sort_oldest_token,
         })
     }
 }

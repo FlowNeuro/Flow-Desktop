@@ -1,26 +1,70 @@
-import React, { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Check, Plus, Loader2 } from "lucide-react";
-import { getChannelDetails, getChannelVideos } from "../lib/api/youtube";
+import React, { useState, useEffect, useRef } from "react";
+import { useParams } from "react-router-dom";
+import { Loader2, X } from "lucide-react";
+import { getChannelDetails, getChannelTab } from "../lib/api/youtube";
 import { useSubscriptionStore } from "../store/useSubscriptionStore";
-import type { VideoSummary, ChannelDetails } from "../types/video";
+import type { ChannelDetails, ChannelItem } from "../types/video";
+import { ChannelHero } from "../components/channel/ChannelHero";
+import { ChannelTabs, TabId } from "../components/channel/ChannelTabs";
+import { 
+  ChannelShortsGrid, 
+  ChannelPlaylistsGrid, 
+  ChannelPostsFeed 
+} from "../components/channel/ChannelGrids";
 import { VideoGrid } from "../components/video/VideoGrid";
-import { Button } from "../components/ui/Button";
+import type { VideoSummary, VideoItemSummary, ShortVideoSummary, PlaylistSummary, PostSummary } from "../types/video";
 
 interface ChannelProps {
   onPlay: (video: VideoSummary) => void;
   onAddToQueue: (video: VideoSummary) => void;
 }
 
+const TAB_PARAMS: Record<TabId, string | undefined> = {
+  home: undefined,
+  videos: "EgZ2aWRlb3PyBgQKAjoA",
+  shorts: "EgZzaG9ydHPyBgUKA5oBAA==",
+  live: "EgdzdHJlYW1z8gYECgJ6AA==",
+  podcasts: "Eghwb2RjYXN0c_IGBQoDugEA",
+  playlists: "EglwbGF5bGlzdHPyBgQKAkIA",
+  posts: "EgVwb3N0c_IGBAoCSgA=",
+};
+
+const SORT_PARAMS = {
+  latest: "EgZ2aWRlb3PyBgQKAjoA",
+  popular: "EgZ2aWRlb3MYASAAMAE=",
+  oldest: "EgZ2aWRlb3MYAiAAMAE=",
+};
+
+type SortFilterId = "latest" | "popular" | "oldest";
+
 export const Channel: React.FC<ChannelProps> = ({ onPlay, onAddToQueue }) => {
   const { channelId } = useParams<{ channelId: string }>();
-  const navigate = useNavigate();
   
   const { isSubscribed, subscribe, unsubscribe, loadSubscriptions } = useSubscriptionStore();
   const [channelInfo, setChannelInfo] = useState<ChannelDetails | null>(null);
-  const [videos, setVideos] = useState<VideoSummary[]>([]);
+  const [activeTab, setActiveTab] = useState<TabId>("home");
+  
+  const [items, setItems] = useState<ChannelItem[]>([]);
+  const [nextPageToken, setNextPageToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [loadingVideos, setLoadingVideos] = useState(true);
+  const [loadingTab, setLoadingTab] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  const [searchQuery, setSearchQuery] = useState("");
+  const [activeSearchQuery, setActiveSearchQuery] = useState("");
+  const [sortFilter, setSortFilter] = useState<SortFilterId>("latest");
+
+  const stashedTokensRef = useRef<{
+    latest: string | null;
+    popular: string | null;
+    oldest: string | null;
+  }>({ latest: null, popular: null, oldest: null });
+
+  useEffect(() => {
+    stashedTokensRef.current = { latest: null, popular: null, oldest: null };
+  }, [channelId]);
+
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     loadSubscriptions();
@@ -29,26 +73,125 @@ export const Channel: React.FC<ChannelProps> = ({ onPlay, onAddToQueue }) => {
   useEffect(() => {
     if (!channelId) return;
 
-    const loadChannelData = async () => {
+    const loadHero = async () => {
       setLoading(true);
-      setLoadingVideos(true);
       try {
         const details = await getChannelDetails(channelId);
         setChannelInfo(details);
-        setLoading(false);
-
-        const res = await getChannelVideos(channelId);
-        setVideos(res.videos);
       } catch (err) {
-        console.error("Failed to load channel details/videos", err);
+        console.error("Failed to load channel details", err);
       } finally {
         setLoading(false);
-        setLoadingVideos(false);
       }
     };
 
-    loadChannelData();
+    loadHero();
   }, [channelId]);
+
+  useEffect(() => {
+    if (!channelId) return;
+    
+    const loadTab = async () => {
+      setLoadingTab(true);
+      setItems([]);
+      setNextPageToken(null);
+      try {
+        let resolvedParams: string | undefined = undefined;
+        let resolvedPageToken: string | undefined = undefined;
+
+        if (activeSearchQuery) {
+          resolvedParams = undefined;
+          resolvedPageToken = undefined;
+        } else if (activeTab === "videos") {
+          const stashedToken = 
+            sortFilter === "latest" ? stashedTokensRef.current.latest :
+            sortFilter === "popular" ? stashedTokensRef.current.popular :
+            sortFilter === "oldest" ? stashedTokensRef.current.oldest : null;
+          
+          if (stashedToken) {
+            resolvedPageToken = stashedToken;
+            resolvedParams = undefined;
+          } else {
+            resolvedParams = SORT_PARAMS[sortFilter];
+            resolvedPageToken = undefined;
+          }
+        } else {
+          resolvedParams = TAB_PARAMS[activeTab];
+          resolvedPageToken = undefined;
+        }
+
+        const res = await getChannelTab(
+          channelId, 
+          resolvedParams, 
+          resolvedPageToken || undefined, 
+          activeSearchQuery || undefined
+        );
+        setItems(res.items);
+        setNextPageToken(res.nextPageToken || null);
+
+        // Stash tokens if they are returned and we are on videos tab without a search query
+        if (activeTab === "videos" && !activeSearchQuery) {
+          if (res.sortLatestToken) stashedTokensRef.current.latest = res.sortLatestToken;
+          if (res.sortPopularToken) stashedTokensRef.current.popular = res.sortPopularToken;
+          if (res.sortOldestToken) stashedTokensRef.current.oldest = res.sortOldestToken;
+        }
+      } catch (err) {
+        console.error("Failed to load tab data", err);
+      } finally {
+        setLoadingTab(false);
+      }
+    };
+    
+    loadTab();
+  }, [channelId, activeTab, activeSearchQuery, sortFilter]);
+
+  const loadMoreData = async () => {
+    if (!channelId || loadingMore || !nextPageToken) return;
+
+    setLoadingMore(true);
+    try {
+      const resolvedParams = 
+        activeSearchQuery 
+          ? undefined 
+          : (activeTab === "videos" ? SORT_PARAMS[sortFilter] : TAB_PARAMS[activeTab]);
+
+      const res = await getChannelTab(
+        channelId, 
+        resolvedParams, 
+        nextPageToken, 
+        activeSearchQuery || undefined
+      );
+      
+      setItems((prevItems) => {
+        const existingIds = new Set(prevItems.map((item) => item.id));
+        const newItems = res.items.filter((item) => !existingIds.has(item.id));
+        return [...prevItems, ...newItems];
+      });
+
+      setNextPageToken(res.nextPageToken || null);
+    } catch (err) {
+      console.error("Failed to load more channel items", err);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
+  useEffect(() => {
+    const scrollContainer = document.querySelector("main") || containerRef.current;
+    if (!scrollContainer) return;
+
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = scrollContainer;
+      if (scrollHeight - scrollTop - clientHeight < 600) {
+        loadMoreData();
+      }
+    };
+
+    scrollContainer.addEventListener("scroll", handleScroll);
+    return () => {
+      scrollContainer.removeEventListener("scroll", handleScroll);
+    };
+  }, [channelId, activeTab, nextPageToken, loadingMore, activeSearchQuery, sortFilter]);
 
   if (loading && !channelInfo) {
     return (
@@ -69,95 +212,136 @@ export const Channel: React.FC<ChannelProps> = ({ onPlay, onAddToQueue }) => {
     }
   };
 
+  const handleSearchSubmit = () => {
+    if (searchQuery.trim()) {
+      setActiveSearchQuery(searchQuery.trim());
+    }
+  };
+
+  const handleClearSearch = () => {
+    setSearchQuery("");
+    setActiveSearchQuery("");
+  };
+
+  const handleTabChange = (tab: TabId) => {
+    setActiveTab(tab);
+    setSearchQuery("");
+    setActiveSearchQuery("");
+    setSortFilter("latest");
+  };
+
   return (
-    <div className="flex-grow overflow-y-auto pb-24">
-      {/* Banner */}
-      <div className="relative h-40 w-full bg-zinc-900 overflow-hidden border-b border-zinc-800">
-        {channelInfo?.bannerUrl ? (
-          <img 
-            src={channelInfo.bannerUrl} 
-            alt="Channel banner" 
-            className="w-full h-full object-cover opacity-70"
-          />
-        ) : (
-          <div className="absolute inset-0 bg-gradient-to-r from-red-950/20 via-zinc-900 to-zinc-950" />
-        )}
-        <button
-          onClick={() => navigate(-1)}
-          className="absolute top-4 left-6 flex items-center gap-2 px-3 py-2 bg-black/60 hover:bg-black/80 backdrop-blur-md rounded-xl text-xs font-bold text-zinc-350 hover:text-white border border-zinc-800/40 transition-all active:scale-95 z-20"
-        >
-          <ArrowLeft size={14} />
-          Back
-        </button>
-      </div>
+    <div 
+      ref={containerRef}
+      className="flex-grow pb-24 bg-background relative"
+    >
 
-      <div className="max-w-7xl mx-auto px-8 -mt-10 relative z-10 space-y-8">
-        {/* Profile Card Header */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 p-6 bg-zinc-900/60 backdrop-blur-xl border border-zinc-800/60 rounded-3xl shadow-2xl">
-          <div className="flex flex-col sm:flex-row items-center sm:items-end gap-6">
-            <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-zinc-900 bg-zinc-800 shadow-xl shrink-0">
-              {channelInfo?.avatarUrl ? (
-                <img 
-                  src={channelInfo.avatarUrl} 
-                  alt={channelInfo.name} 
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-3xl font-extrabold text-zinc-500">
-                  {channelInfo?.name.charAt(0).toUpperCase()}
-                </div>
-              )}
-            </div>
+      <ChannelHero 
+        channelInfo={channelInfo} 
+        isSubscribed={subStatus} 
+        onSubscribeToggle={handleSubscribeToggle} 
+      />
 
-            <div className="text-center sm:text-left space-y-1 pb-1">
-              <h1 className="text-2xl font-extrabold text-zinc-100 flex items-center justify-center sm:justify-start gap-2">
-                {channelInfo?.name}
-              </h1>
-              <p className="text-xs font-semibold text-zinc-400">
-                {channelInfo?.subscriberCountText || "YouTube Creator"}
-              </p>
-              {channelInfo?.description && (
-                <p className="text-xs text-zinc-500 max-w-xl line-clamp-2 mt-2 leading-relaxed">
-                  {channelInfo.description}
-                </p>
-              )}
-            </div>
+      <ChannelTabs 
+        activeTab={activeTab} 
+        onTabChange={handleTabChange} 
+        availableTabs={channelInfo?.availableTabs}
+        searchQuery={searchQuery}
+        onSearchQueryChange={setSearchQuery}
+        onSearchSubmit={handleSearchSubmit}
+        onSearchClear={handleClearSearch}
+      />
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {activeTab === "videos" && !activeSearchQuery && (
+          <div className="flex items-center gap-2.5 mb-6">
+            <button
+              onClick={() => setSortFilter("latest")}
+              className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all duration-200 ${
+                sortFilter === "latest"
+                  ? "bg-zinc-100 text-zinc-900 border border-zinc-100 shadow-md font-bold"
+                  : "bg-zinc-900/60 hover:bg-zinc-800/50 border border-zinc-800/80 text-zinc-400 hover:text-zinc-200"
+              }`}
+            >
+              Latest
+            </button>
+            <button
+              onClick={() => setSortFilter("popular")}
+              className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all duration-200 ${
+                sortFilter === "popular"
+                  ? "bg-zinc-100 text-zinc-900 border border-zinc-100 shadow-md font-bold"
+                  : "bg-zinc-900/60 hover:bg-zinc-800/50 border border-zinc-800/80 text-zinc-400 hover:text-zinc-200"
+              }`}
+            >
+              Popular
+            </button>
+            <button
+              onClick={() => setSortFilter("oldest")}
+              className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all duration-200 ${
+                sortFilter === "oldest"
+                  ? "bg-zinc-100 text-zinc-900 border border-zinc-100 shadow-md font-bold"
+                  : "bg-zinc-900/60 hover:bg-zinc-800/50 border border-zinc-800/80 text-zinc-400 hover:text-zinc-200"
+              }`}
+            >
+              Oldest
+            </button>
           </div>
+        )}
 
-          <Button
-            variant={subStatus ? "secondary" : "primary"}
-            size="md"
-            onClick={handleSubscribeToggle}
-            className="w-full md:w-auto shrink-0 transition-all font-bold px-6 shadow-md"
-          >
-            {subStatus ? (
-              <span className="flex items-center justify-center gap-2"><Check size={16} /> Subscribed</span>
-            ) : (
-              <span className="flex items-center justify-center gap-2"><Plus size={16} /> Subscribe</span>
+        {loadingTab ? (
+           <div className="flex justify-center py-20">
+             <Loader2 className="animate-spin text-primary" size={32} />
+           </div>
+        ) : items.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20 text-center border border-dashed border-zinc-800 rounded-3xl bg-zinc-900/40 p-6">
+             <p className="text-zinc-500 text-sm font-medium">
+               {activeSearchQuery ? `No videos found matching "${activeSearchQuery}".` : "No content found for this tab."}
+             </p>
+          </div>
+        ) : (
+          <div className="w-full">
+            {activeSearchQuery ? (
+              <div className="space-y-6">
+                <div className="flex items-center justify-between pb-3 border-b border-zinc-800/80">
+                  <h2 className="text-base font-semibold text-neutral-200">
+                    Search results for: <span className="text-primary">"{activeSearchQuery}"</span>
+                  </h2>
+                  <button
+                    onClick={handleClearSearch}
+                    className="text-xs font-medium text-neutral-400 hover:text-neutral-200 flex items-center gap-1 transition-colors bg-zinc-900 border border-zinc-800 px-2.5 py-1 rounded-full"
+                  >
+                    <X size={12} /> Clear search
+                  </button>
+                </div>
+                <VideoGrid 
+                  videos={items as VideoItemSummary[]} 
+                  onPlay={onPlay} 
+                  onAddToQueue={onAddToQueue} 
+                  hideChannelAvatar={true}
+                />
+              </div>
+            ) : activeTab === "home" || activeTab === "videos" || activeTab === "live" ? (
+              <VideoGrid 
+                videos={items as VideoItemSummary[]} 
+                onPlay={onPlay} 
+                onAddToQueue={onAddToQueue} 
+                hideChannelAvatar={true}
+              />
+            ) : activeTab === "shorts" ? (
+              <ChannelShortsGrid shorts={items as ShortVideoSummary[]} />
+            ) : activeTab === "playlists" || activeTab === "podcasts" ? (
+              <ChannelPlaylistsGrid playlists={items as PlaylistSummary[]} />
+            ) : activeTab === "posts" ? (
+              <ChannelPostsFeed posts={items as PostSummary[]} />
+            ) : null}
+
+            {loadingMore && (
+              <div className="flex justify-center py-8">
+                <Loader2 className="animate-spin text-primary" size={24} />
+              </div>
             )}
-          </Button>
-        </div>
-
-        {/* Video Grid */}
-        <div className="space-y-6">
-          <h2 className="text-sm font-extrabold text-zinc-400 tracking-wider uppercase">
-            Uploads
-          </h2>
-
-          {loadingVideos ? (
-            <VideoGrid loading={true} onPlay={onPlay} />
-          ) : videos.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-20 text-center border border-dashed border-zinc-800 rounded-3xl bg-zinc-900/10 p-6">
-              <p className="text-zinc-500 text-xs">No recent videos found for this channel.</p>
-            </div>
-          ) : (
-            <VideoGrid 
-              videos={videos}
-              onPlay={onPlay}
-              onAddToQueue={onAddToQueue}
-            />
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );

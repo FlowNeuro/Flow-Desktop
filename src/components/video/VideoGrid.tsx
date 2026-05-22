@@ -9,6 +9,7 @@ interface VideoGridProps {
   onPlay: (video: VideoSummary) => void;
   onAddToQueue?: (video: VideoSummary) => void;
   onMarkNotInterested?: (videoId: string) => void;
+  hideChannelAvatar?: boolean;
 }
 
 function VideoCardSkeleton() {
@@ -33,9 +34,10 @@ export function VideoGrid({
   onPlay,
   onAddToQueue,
   onMarkNotInterested,
+  hideChannelAvatar,
 }: VideoGridProps) {
   // Fully responsive MD3 Grid structure
-  const gridClass = "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-x-4 gap-y-8 pb-8";
+  const gridClass = "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4 gap-x-4 gap-y-8 pb-8";
 
   if (loading) {
     return (
@@ -56,6 +58,7 @@ export function VideoGrid({
           onPlay={onPlay} 
           onAddToQueue={onAddToQueue}
           onMarkNotInterested={onMarkNotInterested}
+          hideChannelAvatar={hideChannelAvatar}
         />
       ))}
     </div>

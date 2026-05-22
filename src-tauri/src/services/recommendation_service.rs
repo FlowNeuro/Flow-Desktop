@@ -1163,7 +1163,7 @@ impl RecommendationService {
 
         let mut futures = Vec::new();
         for cid in &batch_channels {
-            futures.push(youtube_service.get_channel_videos(cid, None));
+            futures.push(youtube_service.get_channel_tab(cid, Some("EgZ2aWRlb3PyBgQKAjoA".to_string()), None, None));
         }
 
         let results = futures_util::future::join_all(futures).await;
@@ -1172,9 +1172,11 @@ impl RecommendationService {
 
         for res in results {
             if let Ok(resp) = res {
-                for video in resp.videos {
-                    if seen_ids.insert(video.id.clone()) {
-                        candidates.push(video);
+                for item in resp.items {
+                    if let crate::models::channel::ChannelItem::Video(video) = item {
+                        if seen_ids.insert(video.id.clone()) {
+                            candidates.push(video);
+                        }
                     }
                 }
             }

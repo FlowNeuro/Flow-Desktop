@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect } from "react";
 import { Sparkles, Loader2, ChevronDown } from "lucide-react";
-import { getChannelVideos, getTrendingVideos, searchVideos } from "../lib/api/youtube";
+import { getTrendingVideos, getChannelTab, searchVideos } from "../lib/api/youtube";
 import {
   generateDiscoveryQueries,
   markNotInterested,
@@ -381,13 +381,22 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
     );
   };
 
+  const getChannelVideosHelper = async (channelId: string) => {
+    const res = await getChannelTab(channelId);
+    return {
+      channelId: res.channelId,
+      videos: res.items.filter(i => i.type === 'video') as VideoSummary[],
+      nextPageToken: res.nextPageToken
+    };
+  };
+
   const fetchSubscriptionPool = async (subscriptionIds: string[]) => {
     if (subscriptionIds.length === 0) {
       return [];
     }
 
     const settled = await Promise.allSettled(
-      subscriptionIds.slice(0, 6).map((channelId) => getChannelVideos(channelId)),
+      subscriptionIds.slice(0, 6).map((channelId) => getChannelVideosHelper(channelId)),
     );
 
     return uniqueByVideoId(
@@ -470,7 +479,7 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
         finalQueries.map((query) => searchVideos({ query })),
       );
       const subscriptionSettled = await Promise.allSettled(
-        subscriptionBatchIds.map((channelId) => getChannelVideos(channelId)),
+        subscriptionBatchIds.map((channelId) => getChannelVideosHelper(channelId)),
       );
 
       const rawDiscoveryVideos = searchSettled.flatMap((result) =>

@@ -55,8 +55,8 @@ pub fn validate_page_token(page_token: &str) -> AppResult<()> {
         return Err(AppError::Validation("Page token cannot be empty".into()));
     }
 
-    if trimmed.chars().count() > 1024 {
-        return Err(AppError::Validation("Page token cannot exceed 1024 characters".into()));
+    if trimmed.chars().count() > 16384 {
+        return Err(AppError::Validation("Page token cannot exceed 16384 characters".into()));
     }
 
     Ok(())

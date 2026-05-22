@@ -4,7 +4,7 @@ use crate::api::extractor::YoutubeExtractor;
 use crate::errors::AppResult;
 use crate::models::search::{SearchVideosRequest, SearchVideosResponse};
 use crate::models::video::{StreamInfo, VideoDetails, RelatedContentItem};
-use crate::models::channel::{ChannelDetails, ChannelVideosResponse};
+use crate::models::channel::{ChannelDetails, ChannelTabResponse};
 use crate::models::playlist::PlaylistDetailsResponse;
 use crate::models::comment::CommentsResponse;
 use crate::models::video::{VideoSummary, MusicHomeSection, MusicHomeChip};
@@ -55,12 +55,14 @@ impl YoutubeService {
         self.extractor.get_channel_details(channel_id).await
     }
 
-    pub async fn get_channel_videos(
+    pub async fn get_channel_tab(
         &self,
         channel_id: &str,
+        params: Option<String>,
         page_token: Option<String>,
-    ) -> AppResult<ChannelVideosResponse> {
-        self.extractor.get_channel_videos(channel_id, page_token).await
+        query: Option<String>,
+    ) -> AppResult<ChannelTabResponse> {
+        self.extractor.get_channel_tab(channel_id, params, page_token, query).await
     }
 
     pub async fn get_playlist_details(

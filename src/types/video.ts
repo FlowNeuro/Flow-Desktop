@@ -110,12 +110,49 @@ export interface ChannelDetails {
   subscriberCount?: number | null;
   subscriberCountText?: string | null;
   verified: boolean;
+  availableTabs?: string[];
 }
 
-export interface ChannelVideosResponse {
+export interface ShortVideoSummary {
+  type: "short";
+  id: string;
+  title: string;
+  thumbnailUrl?: string | null;
+  viewCountText?: string | null;
+}
+
+export interface PlaylistSummary {
+  type: "playlist";
+  id: string;
+  title: string;
+  thumbnailUrl?: string | null;
+  videoCountText?: string | null;
+}
+
+export interface PostSummary {
+  type: "post";
+  id: string;
+  authorName: string;
+  authorAvatar?: string | null;
+  textContent?: string | null;
+  imageAttachment?: string | null;
+  likesCountText?: string | null;
+  publishedTimeText?: string | null;
+}
+
+export interface VideoItemSummary extends VideoSummary {
+  type: "video";
+}
+
+export type ChannelItem = VideoItemSummary | ShortVideoSummary | PlaylistSummary | PostSummary;
+
+export interface ChannelTabResponse {
   channelId: string;
-  videos: VideoSummary[];
+  items: ChannelItem[];
   nextPageToken?: string | null;
+  sortLatestToken?: string | null;
+  sortPopularToken?: string | null;
+  sortOldestToken?: string | null;
 }
 
 export interface PlaylistDetailsResponse {

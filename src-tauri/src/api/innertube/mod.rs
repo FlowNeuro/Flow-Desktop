@@ -3,7 +3,7 @@ use crate::api::extractor::YoutubeExtractor;
 use crate::errors::AppResult;
 use crate::models::search::{SearchVideosRequest, SearchVideosResponse};
 use crate::models::video::{StreamInfo, VideoDetails, VideoSummary, RelatedContentItem, MusicHomeSection, MusicHomeChip};
-use crate::models::channel::{ChannelDetails, ChannelVideosResponse};
+use crate::models::channel::{ChannelDetails, ChannelTabResponse};
 use crate::models::playlist::PlaylistDetailsResponse;
 use crate::models::comment::CommentsResponse;
 use crate::models::music::{ArtistPage, ExplorePage, ChartsPage};
@@ -67,12 +67,14 @@ impl YoutubeExtractor for InnertubeClient {
         self.get_channel_details(channel_id).await
     }
 
-    async fn get_channel_videos(
+    async fn get_channel_tab(
         &self,
         channel_id: &str,
+        params: Option<String>,
         page_token: Option<String>,
-    ) -> AppResult<ChannelVideosResponse> {
-        self.get_channel_videos(channel_id, page_token).await
+        query: Option<String>,
+    ) -> AppResult<ChannelTabResponse> {
+        self.get_channel_tab(channel_id, params, page_token, query).await
     }
 
     async fn get_playlist_details(

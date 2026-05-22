@@ -3,7 +3,7 @@ use async_trait::async_trait;
 use crate::errors::AppResult;
 use crate::models::search::{SearchVideosRequest, SearchVideosResponse};
 use crate::models::video::{StreamInfo, VideoDetails, VideoSummary, RelatedContentItem, MusicHomeSection, MusicHomeChip};
-use crate::models::channel::{ChannelDetails, ChannelVideosResponse};
+use crate::models::channel::{ChannelDetails, ChannelTabResponse};
 use crate::models::playlist::PlaylistDetailsResponse;
 use crate::models::comment::CommentsResponse;
 use crate::models::music::{ArtistPage, ExplorePage, ChartsPage};
@@ -36,11 +36,13 @@ pub trait YoutubeExtractor: Send + Sync {
         channel_id: &str,
     ) -> AppResult<ChannelDetails>;
 
-    async fn get_channel_videos(
+    async fn get_channel_tab(
         &self,
         channel_id: &str,
+        params: Option<String>,
         page_token: Option<String>,
-    ) -> AppResult<ChannelVideosResponse>;
+        query: Option<String>,
+    ) -> AppResult<ChannelTabResponse>;
 
     async fn get_playlist_details(
         &self,

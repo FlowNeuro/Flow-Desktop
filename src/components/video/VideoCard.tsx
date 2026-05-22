@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { useSubscriptionStore } from '../../store/useSubscriptionStore';
-import { Play, Plus, Ban, Check } from 'lucide-react';
+import { Play, Plus, Ban, Check, MoreVertical } from 'lucide-react';
 import type { VideoSummary } from '../../types/video';
 import { Button } from '../ui/Button';
 import { useState, useEffect } from 'react';
@@ -12,6 +12,7 @@ export interface VideoCardProps {
   onPlay: (video: VideoSummary) => void;
   onAddToQueue?: (video: VideoSummary) => void;
   onMarkNotInterested?: (videoId: string) => void;
+  hideChannelAvatar?: boolean;
 }
 
 function formatDuration(seconds?: number | null) {
@@ -31,6 +32,7 @@ export function VideoCard({
   onPlay,
   onAddToQueue,
   onMarkNotInterested,
+  hideChannelAvatar,
 }: VideoCardProps) {
   const navigate = useNavigate();
   const { isSubscribed, subscribe, unsubscribe } = useSubscriptionStore();
@@ -44,7 +46,8 @@ export function VideoCard({
   const { dearrowEnabled } = useSettingsStore();
 
   useEffect(() => {
-    if (isChannel || !video.id) {
+    const isValidVideoId = video.id && video.id.length === 11 && /^[a-zA-Z0-9_-]{11}$/.test(video.id);
+    if (isChannel || !isValidVideoId || !video.id) {
       setOverriddenTitle(null);
       setOverriddenThumbnail(null);
       return;
@@ -170,22 +173,7 @@ export function VideoCard({
 
       {/* Metadata */}
       <div className="flex items-start gap-3 px-1 relative">
-        <div 
-          onClick={(e) => {
-            if (video.channelId) {
-              e.stopPropagation();
-              navigate(`/channel/${video.channelId}`);
-            }
-          }}
-          className="w-9 h-9 rounded-full bg-zinc-900 shrink-0 overflow-hidden border border-zinc-800 flex items-center justify-center cursor-pointer hover:border-primary transition-colors"
-        >
-          <span className="text-xs font-bold text-zinc-400">{channelInitials}</span>
-        </div>
-
-        <div className="flex flex-col flex-1 overflow-hidden pr-6">
-          <h3 className="text-zinc-100 font-semibold text-sm line-clamp-2 leading-tight group-hover:text-primary transition-colors">
-            {overriddenTitle || video.title}
-          </h3>
+        {!hideChannelAvatar && (
           <div 
             onClick={(e) => {
               if (video.channelId) {
@@ -193,11 +181,37 @@ export function VideoCard({
                 navigate(`/channel/${video.channelId}`);
               }
             }}
-            className="text-zinc-400 text-xs mt-1 font-medium hover:text-primary transition-colors truncate cursor-pointer"
+            className="w-9 h-9 rounded-full bg-zinc-900 shrink-0 overflow-hidden border border-zinc-800 flex items-center justify-center cursor-pointer hover:border-primary transition-colors"
           >
-            {video.channelName}
+            <span className="text-xs font-bold text-zinc-400">{channelInitials}</span>
           </div>
-          <div className="text-zinc-400 text-xs flex items-center gap-1 mt-0.5 font-normal">
+        )}
+
+        <div className="flex flex-col flex-1 overflow-hidden pr-6">
+          <div className="flex items-start justify-between">
+            <h3 className="text-zinc-100 font-semibold text-sm line-clamp-2 leading-tight group-hover:text-primary transition-colors pr-2">
+              {overriddenTitle || video.title}
+            </h3>
+            {hideChannelAvatar && (
+              <button className="text-zinc-400 hover:text-zinc-200 p-1 shrink-0 -mt-1 -mr-2">
+                <MoreVertical size={16} />
+              </button>
+            )}
+          </div>
+          {!hideChannelAvatar && (
+            <div 
+              onClick={(e) => {
+                if (video.channelId) {
+                  e.stopPropagation();
+                  navigate(`/channel/${video.channelId}`);
+                }
+              }}
+              className="text-zinc-400 text-xs mt-1 font-medium hover:text-primary transition-colors truncate cursor-pointer"
+            >
+              {video.channelName}
+            </div>
+          )}
+          <div className={`text-zinc-400 text-xs flex items-center gap-1 font-normal ${hideChannelAvatar ? "mt-1" : "mt-0.5"}`}>
             {video.viewCountText ? <span>{video.viewCountText}</span> : null}
             {(video.viewCountText && video.publishedText) && <span className="mx-0.5">•</span>}
             {video.publishedText ? <span>{video.publishedText}</span> : null}
@@ -205,7 +219,7 @@ export function VideoCard({
         </div>
 
         {/* Hover Action Buttons */}
-        <div className="absolute right-0 top-0 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-zinc-900/90 p-1 rounded-md border border-zinc-800 shadow-sm">
+        <div className="absolute right-0 top-0 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-surface/90 p-1 rounded-md border border-zinc-800 shadow-sm backdrop-blur-sm">
           {onAddToQueue && (
             <button
               onClick={(e) => {
@@ -213,7 +227,7 @@ export function VideoCard({
                 onAddToQueue(video);
               }}
               title="Add to queue"
-              className="p-1 rounded hover:bg-zinc-850 text-zinc-450 hover:text-primary transition-colors"
+              className="p-1 rounded hover:bg-zinc-800 text-zinc-400 hover:text-primary transition-colors"
             >
               <Plus size={14} />
             </button>
@@ -225,7 +239,7 @@ export function VideoCard({
                 onMarkNotInterested(video.id);
               }}
               title="Not interested"
-              className="p-1 rounded hover:bg-zinc-850 text-zinc-450 hover:text-primary transition-colors"
+              className="p-1 rounded hover:bg-zinc-800 text-zinc-400 hover:text-primary transition-colors"
             >
               <Ban size={14} />
             </button>

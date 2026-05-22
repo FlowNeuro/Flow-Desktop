@@ -4,7 +4,8 @@ import type {
   VideoDetails,
   StreamInfo,
   ChannelDetails,
-  ChannelVideosResponse,
+  ChannelTabResponse,
+  ChannelItem,
   PlaylistDetailsResponse,
   CommentsResponse,
   VideoSummary,
@@ -183,16 +184,52 @@ export async function getChannelDetails(channelId: string): Promise<ChannelDetai
   return invokeBackend<ChannelDetails>("get_channel_details", { channelId });
 }
 
-export async function getChannelVideos(
+export async function getChannelTab(
   channelId: string,
+  params?: string | null,
   pageToken?: string | null,
-): Promise<ChannelVideosResponse> {
+  query?: string | null,
+): Promise<ChannelTabResponse> {
   if (!(await isTauriEnv())) {
-    console.warn("Tauri not detected. Returning mock channel videos.");
-    return {
-      channelId,
-      videos: [
+    console.warn("Tauri not detected. Returning mock channel tab data.");
+    
+    let mockItems: ChannelItem[] = [];
+    if (params?.includes("EgZzaG9ydHPyBgUKA5oBAA") || params?.includes("shorts")) {
+      mockItems = [
         {
+          type: "short",
+          id: "mock-short-1",
+          title: "Mock Shorts Content",
+          thumbnailUrl: "https://images.unsplash.com/photo-1607799279861-4dd421887fb3?q=80&w=200",
+          viewCountText: "50K views",
+        },
+      ];
+    } else if (params?.includes("EglwbGF5bGlzdHPyBgQKAkIA") || params?.includes("playlists")) {
+      mockItems = [
+        {
+          type: "playlist",
+          id: "mock-playlist-1",
+          title: "Mock Playlist Album",
+          thumbnailUrl: "https://images.unsplash.com/photo-1607799279861-4dd421887fb3?q=80&w=300",
+          videoCountText: "12 videos",
+        },
+      ];
+    } else if (params?.includes("EgVwb3N0c_IGBAoCSgA") || params?.includes("posts") || params?.includes("community")) {
+      mockItems = [
+        {
+          type: "post",
+          id: "mock-post-1",
+          authorName: "Mock Creator",
+          authorAvatar: "📺",
+          textContent: "Hello world! This is a beautiful mock community post since Tauri was not detected. Modern web design aesthetics are in full force!",
+          publishedTimeText: "3 hours ago",
+          likesCountText: "1.2K likes",
+        },
+      ];
+    } else {
+      mockItems = [
+        {
+          type: "video",
           id: "dQw4w9WgXcQ",
           title: "Mock Channel Video 1",
           channelName: "Mock Channel",
@@ -201,13 +238,20 @@ export async function getChannelVideos(
           publishedText: "1 day ago",
           viewCountText: "10K views",
         },
-      ],
+      ];
+    }
+
+    return {
+      channelId,
+      items: mockItems,
       nextPageToken: null,
     };
   }
-  return invokeBackend<ChannelVideosResponse>("get_channel_videos", {
+  return invokeBackend<ChannelTabResponse>("get_channel_tab", {
     channelId,
+    params,
     pageToken,
+    query,
   });
 }
 

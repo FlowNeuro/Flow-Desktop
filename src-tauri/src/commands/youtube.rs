@@ -4,7 +4,7 @@ use tracing::info;
 use crate::errors::ErrorResponse;
 use crate::models::search::{SearchVideosRequest, SearchVideosResponse};
 use crate::models::video::{StreamInfo, VideoDetails, VideoSummary, RelatedContentItem, MusicHomeSection, MusicHomeChip};
-use crate::models::channel::{ChannelDetails, ChannelVideosResponse};
+use crate::models::channel::{ChannelDetails, ChannelTabResponse};
 use crate::models::playlist::PlaylistDetailsResponse;
 use crate::models::comment::CommentsResponse;
 use crate::models::music::{ArtistPage, ExplorePage, ChartsPage};
@@ -405,22 +405,26 @@ pub async fn get_channel_details(
 }
 
 #[tauri::command]
-pub async fn get_channel_videos(
+pub async fn get_channel_tab(
     channel_id: String,
+    params: Option<String>,
     page_token: Option<String>,
+    query: Option<String>,
     youtube_service: State<'_, YoutubeService>,
-) -> Result<ChannelVideosResponse, ErrorResponse> {
+) -> Result<ChannelTabResponse, ErrorResponse> {
     validate_channel_id(&channel_id).map_err(ErrorResponse::from)?;
     if let Some(token) = page_token.as_deref() {
         validate_page_token(token).map_err(ErrorResponse::from)?;
     }
+    if let Some(ref q) = query {
+        validate_search_query(q).map_err(ErrorResponse::from)?;
+    }
 
     youtube_service
-        .get_channel_videos(&channel_id, page_token)
+        .get_channel_tab(&channel_id, params, page_token, query)
         .await
         .map_err(ErrorResponse::from)
 }
-
 #[tauri::command]
 pub async fn get_playlist_details(
     playlist_id: String,
