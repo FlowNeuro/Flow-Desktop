@@ -16,7 +16,7 @@ mod streaming;
 use std::sync::Arc;
 use tauri::Manager;
 
-use api::innertube_client::InnertubeClient;
+use api::innertube::InnertubeClient;
 use commands::youtube::{
     get_channel_details, get_channel_videos, get_comments, get_dearrow_override,
     get_music_album, get_music_artist, get_music_charts, get_music_explore, get_music_home,

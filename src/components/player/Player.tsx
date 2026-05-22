@@ -536,7 +536,7 @@ export const Player: React.FC<PlayerProps> = ({
           fastSwitchEnabled: true,
           bufferToKeep: 1800,
           bufferPruningInterval: 120,
-          stableBufferTime: 30,
+          bufferTimeDefault: 30,
           bufferTimeAtTopQuality: 90,
           bufferTimeAtTopQualityLongForm: 180,
           longFormContentDurationThreshold: 600,
