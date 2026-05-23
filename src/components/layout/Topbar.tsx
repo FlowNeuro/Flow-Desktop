@@ -74,7 +74,7 @@ export function Topbar() {
         <IconButton onClick={location.pathname.startsWith('/watch/') ? toggleWatchSidebar : toggleSidebar}>
           <Menu />
         </IconButton>
-        <div className="hidden items-center gap-1 sm:flex">
+        <div className="hidden items-center sm:flex">
           <IconButton
             title="Back"
             onClick={() => navigate(-1)}

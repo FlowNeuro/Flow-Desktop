@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { Loader2, X } from "lucide-react";
 import { getChannelDetails, getChannelTab } from "../lib/api/youtube";
-import { useSubscriptionStore } from "../store/useSubscriptionStore";
 import type { ChannelDetails, ChannelItem } from "../types/video";
 import { ChannelHero } from "../components/channel/ChannelHero";
 import { ChannelTabs, TabId } from "../components/channel/ChannelTabs";
@@ -13,6 +12,11 @@ import {
 } from "../components/channel/ChannelGrids";
 import { VideoGrid } from "../components/video/VideoGrid";
 import type { VideoSummary, VideoItemSummary, ShortVideoSummary, PlaylistSummary, PostSummary } from "../types/video";
+import { VideoShelf } from "../components/shelf/VideoShelf";
+import { ShortsShelf } from "../components/shelf/ShortsShelf";
+import { PlaylistShelf } from "../components/shelf/PlaylistShelf";
+import { PostShelf } from "../components/shelf/PostShelf";
+import { getWatchHistory } from "../lib/api/db";
 
 interface ChannelProps {
   onPlay: (video: VideoSummary) => void;
@@ -37,10 +41,122 @@ const SORT_PARAMS = {
 
 type SortFilterId = "latest" | "popular" | "oldest";
 
+// --- SKELETON LOADERS ---
+
+function ChannelPageSkeleton() {
+  return (
+    <div className="flex-grow pb-24 bg-background relative animate-pulse">
+      {/* Banner Skeleton */}
+      <div className="relative w-full h-48 md:h-64 bg-zinc-900" />
+      
+      {/* Profile Block Skeleton */}
+      <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8">
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-6 relative z-10">
+          <div className="flex flex-col md:flex-row items-center md:items-end gap-6">
+            {/* Overlapping Avatar Skeleton */}
+            <div className="w-32 h-32 rounded-full bg-zinc-800 border-4 border-background shrink-0 -mt-16" />
+            
+            {/* Metadata Skeletons */}
+            <div className="text-center md:text-left space-y-3 mt-4 md:mt-0 pb-2">
+              <div className="h-8 w-48 bg-zinc-800 rounded-lg mx-auto md:mx-0" />
+              <div className="h-4 w-32 bg-zinc-800 rounded mx-auto md:mx-0" />
+            </div>
+          </div>
+          
+          {/* Action Row Button Skeleton */}
+          <div className="w-32 h-10 bg-zinc-800 rounded-full shrink-0 mb-2 mx-auto md:mx-0" />
+        </div>
+      </div>
+
+      {/* Tabs Row Skeleton */}
+      <div className="w-full bg-zinc-900/50 border-b border-zinc-800 h-14" />
+
+      {/* Grid Content Skeleton */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4 gap-x-4 gap-y-8 pb-8">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="flex flex-col gap-3">
+              <div className="w-full aspect-video rounded-xl bg-zinc-800" />
+              <div className="flex items-start gap-3 px-1">
+                <div className="w-9 h-9 rounded-full bg-zinc-800 shrink-0" />
+                <div className="flex flex-col gap-2 w-full pt-1">
+                  <div className="h-4 w-3/4 bg-zinc-800 rounded" />
+                  <div className="h-3 w-1/2 bg-zinc-800 rounded" />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ShortsGridSkeleton() {
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+      {Array.from({ length: 12 }).map((_, i) => (
+        <div key={i} className="flex flex-col gap-2">
+          <div className="relative w-full aspect-[9/16] rounded-xl bg-zinc-800 animate-pulse border border-zinc-800/50" />
+          <div className="h-4 w-3/4 bg-zinc-800 rounded animate-pulse mt-1" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function PlaylistsGridSkeleton() {
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+      {Array.from({ length: 8 }).map((_, i) => (
+        <div key={i} className="flex flex-col gap-3">
+          <div className="relative w-full aspect-video rounded-xl mt-3 bg-zinc-800 animate-pulse border border-zinc-800/50">
+            <div className="absolute -top-1.5 left-2 right-2 h-2 bg-zinc-800/60 rounded-t-xl" />
+            <div className="absolute -top-3 left-4 right-4 h-2 bg-zinc-800/40 rounded-t-xl" />
+          </div>
+          <div className="flex flex-col gap-2 mt-1">
+            <div className="h-4 w-5/6 bg-zinc-800 rounded animate-pulse" />
+            <div className="h-3 w-1/3 bg-zinc-800 rounded animate-pulse" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function PostsFeedSkeleton() {
+  return (
+    <div className="max-w-3xl mx-auto space-y-6">
+      {Array.from({ length: 3 }).map((_, i) => (
+        <div key={i} className="w-full bg-zinc-900/40 border border-zinc-800/60 rounded-2xl p-4 sm:p-5 shadow-sm animate-pulse">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 rounded-full bg-zinc-800 shrink-0" />
+            <div className="flex flex-col gap-2">
+              <div className="h-4 w-24 bg-zinc-800 rounded" />
+              <div className="h-3 w-16 bg-zinc-800 rounded" />
+            </div>
+          </div>
+          <div className="pl-[52px] space-y-3">
+            <div className="h-4 w-full bg-zinc-800 rounded" />
+            <div className="h-4 w-5/6 bg-zinc-800 rounded" />
+            <div className="h-4 w-2/3 bg-zinc-800 rounded" />
+            <div className="flex items-center gap-2 mt-4 pt-2">
+              <div className="h-8 w-24 bg-zinc-800 rounded-full" />
+              <div className="h-8 w-16 bg-zinc-800 rounded-full" />
+              <div className="h-8 w-16 bg-zinc-800 rounded-full" />
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// --- MAIN CHANNEL COMPONENT ---
+
 export const Channel: React.FC<ChannelProps> = ({ onPlay, onAddToQueue }) => {
   const { channelId } = useParams<{ channelId: string }>();
   
-  const { isSubscribed, subscribe, unsubscribe, loadSubscriptions } = useSubscriptionStore();
   const [channelInfo, setChannelInfo] = useState<ChannelDetails | null>(null);
   const [activeTab, setActiveTab] = useState<TabId>("home");
   
@@ -53,6 +169,43 @@ export const Channel: React.FC<ChannelProps> = ({ onPlay, onAddToQueue }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeSearchQuery, setActiveSearchQuery] = useState("");
   const [sortFilter, setSortFilter] = useState<SortFilterId>("latest");
+  const [watchedVideos, setWatchedVideos] = useState<VideoSummary[]>([]);
+
+  useEffect(() => {
+    if (!channelId || !channelInfo || activeTab !== "home") {
+      setWatchedVideos([]);
+      return;
+    }
+
+    const loadWatchedHistory = async () => {
+      try {
+        const history = await getWatchHistory(150, 0);
+        const filtered = history
+          .filter((record) => record.channelName?.toLowerCase() === channelInfo.name.toLowerCase())
+          .map((record) => ({
+            id: record.videoId,
+            title: record.title,
+            channelName: record.channelName || channelInfo.name,
+            thumbnailUrl: `https://i.ytimg.com/vi/${record.videoId}/hqdefault.jpg`,
+            durationSeconds: record.totalDurationSeconds || record.watchDurationSeconds || null,
+            publishedText: record.watchDate ? new Date(record.watchDate).toLocaleDateString() : null,
+            viewCountText: "Watched recently",
+          }));
+        setWatchedVideos(filtered);
+      } catch (err) {
+        console.error("Failed to load watched history", err);
+      }
+    };
+
+    loadWatchedHistory();
+  }, [channelId, channelInfo, activeTab]);
+
+  // Tab Cache for smooth transitions without refetching
+  interface TabCacheEntry {
+    items: ChannelItem[];
+    nextPageToken: string | null;
+  }
+  const tabCacheRef = useRef<Record<string, TabCacheEntry | null>>({});
 
   const stashedTokensRef = useRef<{
     latest: string | null;
@@ -62,13 +215,10 @@ export const Channel: React.FC<ChannelProps> = ({ onPlay, onAddToQueue }) => {
 
   useEffect(() => {
     stashedTokensRef.current = { latest: null, popular: null, oldest: null };
+    tabCacheRef.current = {};
   }, [channelId]);
 
   const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    loadSubscriptions();
-  }, []);
 
   useEffect(() => {
     if (!channelId) return;
@@ -88,10 +238,23 @@ export const Channel: React.FC<ChannelProps> = ({ onPlay, onAddToQueue }) => {
     loadHero();
   }, [channelId]);
 
+  const cacheKey = activeSearchQuery 
+    ? "" 
+    : (activeTab === "videos" ? `videos_${sortFilter}` : activeTab);
+
   useEffect(() => {
     if (!channelId) return;
     
     const loadTab = async () => {
+      // If we have cached tab data, apply it instantly
+      if (cacheKey && tabCacheRef.current[cacheKey]) {
+        const cached = tabCacheRef.current[cacheKey]!;
+        setItems(cached.items);
+        setNextPageToken(cached.nextPageToken);
+        setLoadingTab(false);
+        return;
+      }
+
       setLoadingTab(true);
       setItems([]);
       setNextPageToken(null);
@@ -126,14 +289,25 @@ export const Channel: React.FC<ChannelProps> = ({ onPlay, onAddToQueue }) => {
           resolvedPageToken || undefined, 
           activeSearchQuery || undefined
         );
-        setItems(res.items);
-        setNextPageToken(res.nextPageToken || null);
+        
+        const fetchedItems = res.items;
+        const fetchedNextToken = res.nextPageToken || null;
 
-        // Stash tokens if they are returned and we are on videos tab without a search query
+        setItems(fetchedItems);
+        setNextPageToken(fetchedNextToken);
+
         if (activeTab === "videos" && !activeSearchQuery) {
           if (res.sortLatestToken) stashedTokensRef.current.latest = res.sortLatestToken;
           if (res.sortPopularToken) stashedTokensRef.current.popular = res.sortPopularToken;
           if (res.sortOldestToken) stashedTokensRef.current.oldest = res.sortOldestToken;
+        }
+
+        // Cache the newly loaded tab items & next page token
+        if (cacheKey) {
+          tabCacheRef.current[cacheKey] = {
+            items: fetchedItems,
+            nextPageToken: fetchedNextToken,
+          };
         }
       } catch (err) {
         console.error("Failed to load tab data", err);
@@ -143,7 +317,7 @@ export const Channel: React.FC<ChannelProps> = ({ onPlay, onAddToQueue }) => {
     };
     
     loadTab();
-  }, [channelId, activeTab, activeSearchQuery, sortFilter]);
+  }, [channelId, activeTab, activeSearchQuery, sortFilter, cacheKey]);
 
   const loadMoreData = async () => {
     if (!channelId || loadingMore || !nextPageToken) return;
@@ -165,7 +339,17 @@ export const Channel: React.FC<ChannelProps> = ({ onPlay, onAddToQueue }) => {
       setItems((prevItems) => {
         const existingIds = new Set(prevItems.map((item) => item.id));
         const newItems = res.items.filter((item) => !existingIds.has(item.id));
-        return [...prevItems, ...newItems];
+        const combined = [...prevItems, ...newItems];
+
+        // Cache the updated list with the new page token
+        if (cacheKey) {
+          tabCacheRef.current[cacheKey] = {
+            items: combined,
+            nextPageToken: res.nextPageToken || null,
+          };
+        }
+
+        return combined;
       });
 
       setNextPageToken(res.nextPageToken || null);
@@ -191,26 +375,11 @@ export const Channel: React.FC<ChannelProps> = ({ onPlay, onAddToQueue }) => {
     return () => {
       scrollContainer.removeEventListener("scroll", handleScroll);
     };
-  }, [channelId, activeTab, nextPageToken, loadingMore, activeSearchQuery, sortFilter]);
+  }, [channelId, activeTab, nextPageToken, loadingMore, activeSearchQuery, sortFilter, cacheKey]);
 
   if (loading && !channelInfo) {
-    return (
-      <div className="flex-grow flex items-center justify-center py-32">
-        <Loader2 className="animate-spin text-primary" size={32} />
-      </div>
-    );
+    return <ChannelPageSkeleton />;
   }
-
-  const cid = channelId || "";
-  const subStatus = isSubscribed(cid);
-
-  const handleSubscribeToggle = () => {
-    if (subStatus) {
-      unsubscribe(cid);
-    } else {
-      subscribe(cid, channelInfo?.name || "Unknown Creator", channelInfo?.avatarUrl || undefined);
-    }
-  };
 
   const handleSearchSubmit = () => {
     if (searchQuery.trim()) {
@@ -238,8 +407,6 @@ export const Channel: React.FC<ChannelProps> = ({ onPlay, onAddToQueue }) => {
 
       <ChannelHero 
         channelInfo={channelInfo} 
-        isSubscribed={subStatus} 
-        onSubscribeToggle={handleSubscribeToggle} 
       />
 
       <ChannelTabs 
@@ -289,9 +456,19 @@ export const Channel: React.FC<ChannelProps> = ({ onPlay, onAddToQueue }) => {
         )}
 
         {loadingTab ? (
-           <div className="flex justify-center py-20">
-             <Loader2 className="animate-spin text-primary" size={32} />
-           </div>
+          activeTab === "home" || activeTab === "videos" || activeTab === "live" ? (
+            <VideoGrid loading={true} skeletonCount={8} onPlay={onPlay} />
+          ) : activeTab === "shorts" ? (
+            <ShortsGridSkeleton />
+          ) : activeTab === "playlists" || activeTab === "podcasts" ? (
+            <PlaylistsGridSkeleton />
+          ) : activeTab === "posts" ? (
+            <PostsFeedSkeleton />
+          ) : (
+            <div className="flex justify-center py-20">
+              <Loader2 className="animate-spin text-primary" size={32} />
+            </div>
+          )
         ) : items.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-center border border-dashed border-zinc-800 rounded-3xl bg-zinc-900/40 p-6">
              <p className="text-zinc-500 text-sm font-medium">
@@ -320,7 +497,102 @@ export const Channel: React.FC<ChannelProps> = ({ onPlay, onAddToQueue }) => {
                   hideChannelAvatar={true}
                 />
               </div>
-            ) : activeTab === "home" || activeTab === "videos" || activeTab === "live" ? (
+            ) : activeTab === "home" ? (
+              (() => {
+                const videos = items.filter((item) => item.type === "video") as VideoItemSummary[];
+                const shorts = items.filter((item) => item.type === "short") as ShortVideoSummary[];
+                const playlists = items.filter((item) => item.type === "playlist") as PlaylistSummary[];
+                const posts = items.filter((item) => item.type === "post") as PostSummary[];
+
+                // Live Stream vs Video filter
+                const liveVideos = videos.filter((v) => 
+                  v.publishedText?.toLowerCase().includes("live") || 
+                  v.viewCountText?.toLowerCase().includes("watching") || 
+                  v.title.toLowerCase().includes("live") ||
+                  v.durationSeconds === 0
+                );
+                const regularVideos = videos.filter((v) => !liveVideos.some((lv) => lv.id === v.id));
+
+                // Playlist vs Podcast filter
+                const podcastPlaylists = playlists.filter((p) => 
+                  p.title.toLowerCase().includes("podcast")
+                );
+                const regularPlaylists = playlists.filter((p) => 
+                  !p.title.toLowerCase().includes("podcast")
+                );
+
+                const hasAnyContent = 
+                  regularVideos.length > 0 || 
+                  watchedVideos.length > 0 || 
+                  liveVideos.length > 0 || 
+                  shorts.length > 0 || 
+                  regularPlaylists.length > 0 || 
+                  podcastPlaylists.length > 0 || 
+                  posts.length > 0;
+
+                if (!hasAnyContent) {
+                  return (
+                    <div className="flex flex-col items-center justify-center py-20 text-center border border-dashed border-zinc-800 rounded-3xl bg-zinc-900/40 p-6">
+                      <p className="text-zinc-500 text-sm font-medium">No home tab shelf content available.</p>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="flex flex-col gap-6 divide-y divide-zinc-900">
+                    {regularVideos.length > 0 && (
+                      <VideoShelf
+                        title="Videos"
+                        videos={regularVideos}
+                        onPlay={onPlay}
+                        onAddToQueue={onAddToQueue}
+                      />
+                    )}
+                    {watchedVideos.length > 0 && (
+                      <VideoShelf
+                        title="Watched Videos"
+                        videos={watchedVideos}
+                        onPlay={onPlay}
+                        onAddToQueue={onAddToQueue}
+                      />
+                    )}
+                    {liveVideos.length > 0 && (
+                      <VideoShelf
+                        title="Live"
+                        videos={liveVideos}
+                        onPlay={onPlay}
+                        onAddToQueue={onAddToQueue}
+                      />
+                    )}
+                    {shorts.length > 0 && (
+                      <ShortsShelf
+                        title="Shorts"
+                        shorts={shorts}
+                        onPlay={onPlay}
+                      />
+                    )}
+                    {regularPlaylists.length > 0 && (
+                      <PlaylistShelf
+                        title="Playlists"
+                        playlists={regularPlaylists}
+                      />
+                    )}
+                    {podcastPlaylists.length > 0 && (
+                      <PlaylistShelf
+                        title="Podcasts"
+                        playlists={podcastPlaylists}
+                      />
+                    )}
+                    {posts.length > 0 && (
+                      <PostShelf
+                        title="Community Posts"
+                        posts={posts}
+                      />
+                    )}
+                  </div>
+                );
+              })()
+            ) : activeTab === "videos" || activeTab === "live" ? (
               <VideoGrid 
                 videos={items as VideoItemSummary[]} 
                 onPlay={onPlay} 

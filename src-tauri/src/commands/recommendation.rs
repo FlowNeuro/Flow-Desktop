@@ -157,3 +157,45 @@ pub async fn get_flow_persona(
         icon: persona.icon().to_string(),
     })
 }
+
+#[tauri::command]
+pub async fn get_brain_snapshot(
+    recommendation_service: State<'_, RecommendationService>,
+) -> Result<crate::flow_neuro::scoring::UserBrain, ErrorResponse> {
+    recommendation_service
+        .get_brain_snapshot()
+        .await
+        .map_err(ErrorResponse::from)
+}
+
+#[tauri::command]
+pub async fn unblock_topic(
+    topic: String,
+    recommendation_service: State<'_, RecommendationService>,
+) -> Result<(), ErrorResponse> {
+    recommendation_service
+        .unblock_topic(topic)
+        .await
+        .map_err(ErrorResponse::from)
+}
+
+#[tauri::command]
+pub async fn unblock_channel(
+    channel_id: String,
+    recommendation_service: State<'_, RecommendationService>,
+) -> Result<(), ErrorResponse> {
+    recommendation_service
+        .unblock_channel(channel_id)
+        .await
+        .map_err(ErrorResponse::from)
+}
+
+#[tauri::command]
+pub async fn reset_brain(
+    recommendation_service: State<'_, RecommendationService>,
+) -> Result<(), ErrorResponse> {
+    recommendation_service
+        .reset_brain()
+        .await
+        .map_err(ErrorResponse::from)
+}

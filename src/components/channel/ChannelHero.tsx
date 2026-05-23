@@ -1,18 +1,14 @@
 import React, { useState } from "react";
 import { Check } from "lucide-react";
-import { Button } from "../ui/Button";
+import { SubscribeButton } from "../ui/SubscribeButton";
 import type { ChannelDetails } from "../../types/video";
 
 interface ChannelHeroProps {
   channelInfo: ChannelDetails | null;
-  isSubscribed: boolean;
-  onSubscribeToggle: () => void;
 }
 
 export const ChannelHero: React.FC<ChannelHeroProps> = ({
   channelInfo,
-  isSubscribed,
-  onSubscribeToggle,
 }) => {
   const [descExpanded, setDescExpanded] = useState(false);
 
@@ -72,26 +68,12 @@ export const ChannelHero: React.FC<ChannelHeroProps> = ({
 
           {/* Action Row */}
           <div className="flex items-center justify-center md:justify-end gap-3 w-full md:w-auto mt-4 md:mt-0 shrink-0 pb-2">
-            <Button
-              variant={isSubscribed ? "secondary" : "primary"}
+            <SubscribeButton
+              channelId={channelInfo.id}
+              channelName={channelInfo.name}
+              avatarUrl={channelInfo.avatarUrl || undefined}
               size="md"
-              onClick={onSubscribeToggle}
-              className={`font-semibold px-6 shadow-sm ${
-                isSubscribed 
-                  ? "bg-zinc-800 hover:bg-zinc-700 text-neutral-200" 
-                  : "bg-primary text-white"
-              }`}
-            >
-              {isSubscribed ? (
-                <>
-                  <Check size={18} className="mr-2" /> Subscribed
-                </>
-              ) : (
-                <>
-                  Subscribe
-                </>
-              )}
-            </Button>
+            />
           </div>
         </div>
 

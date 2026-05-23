@@ -1204,4 +1204,26 @@ impl RecommendationService {
 
         Ok(candidates)
     }
+
+    pub async fn get_brain_snapshot(&self) -> AppResult<UserBrain> {
+        get_or_create_brain(&self.pool).await
+    }
+
+    pub async fn unblock_topic(&self, topic: String) -> AppResult<()> {
+        let mut brain = get_or_create_brain(&self.pool).await?;
+        let topic_lower = topic.trim().to_lowercase();
+        brain.blocked_topics.retain(|t| t.to_lowercase() != topic_lower);
+        save_brain(&self.pool, &brain).await
+    }
+
+    pub async fn unblock_channel(&self, channel_id: String) -> AppResult<()> {
+        let mut brain = get_or_create_brain(&self.pool).await?;
+        brain.blocked_channels.remove(&channel_id);
+        save_brain(&self.pool, &brain).await
+    }
+
+    pub async fn reset_brain(&self) -> AppResult<()> {
+        let brain = UserBrain::default();
+        save_brain(&self.pool, &brain).await
+    }
 }

@@ -17,6 +17,7 @@ import ExtensionsPage from "./pages/ExtensionsPage";
 import Channel from "./pages/Channel";
 import { Watch } from "./pages/Watch";
 import Onboarding from "./pages/Onboarding";
+import FlowNeuroPersona from "./pages/FlowNeuroPersona";
 
 import "./App.css";
 
@@ -71,7 +72,7 @@ function App() {
             <Home onPlay={handlePlayVideo} onAddToQueue={handleAddToQueue} />
           } />
           <Route path="feed" element={
-            <Home onPlay={handlePlayVideo} onAddToQueue={handleAddToQueue} />
+            <FlowNeuroPersona />
           } />
           <Route path="search" element={
             <Search onPlay={handlePlayVideo} onAddToQueue={handleAddToQueue} />

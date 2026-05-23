@@ -138,3 +138,240 @@ export async function getFlowPersona(): Promise<PersonaDetails> {
   }
   return invokeBackend<PersonaDetails>("get_flow_persona");
 }
+
+export interface ContentVector {
+  topics: Record<string, number>;
+  duration: number;
+  pacing: number;
+  complexity: number;
+  is_live: number;
+}
+
+export interface RejectionSignal {
+  count: number;
+  last_rejected_at: number;
+}
+
+export interface FeedEntry {
+  last_shown: number;
+  show_count: number;
+}
+
+export interface TopicEvidence {
+  positive_signals: number;
+  watch_signals: number;
+  explicit_signals: number;
+  positive_score: number;
+  video_ids: string[];
+  channel_ids: string[];
+  first_seen_at: number;
+  last_seen_at: number;
+}
+
+export interface UserBrain {
+  time_vectors: Record<string, ContentVector>;
+  global_vector: ContentVector;
+  channel_scores: Record<string, number>;
+  topic_affinities: Record<string, number>;
+  total_interactions: number;
+  consecutive_skips: number;
+  blocked_topics: string[];
+  blocked_channels: string[];
+  preferred_topics: string[];
+  has_completed_onboarding: boolean;
+  last_persona: string | null;
+  persona_stability: number;
+  idf_word_frequency: Record<string, number>;
+  idf_total_documents: number;
+  watch_history_map: Record<string, number>;
+  channel_topic_profiles: Record<string, Record<string, number>>;
+  suppressed_video_ids: Record<string, number>;
+  suppressed_channels: Record<string, number>;
+  rejection_patterns: Record<string, RejectionSignal>;
+  feed_history: Record<string, FeedEntry>;
+  recent_query_tokens: string[][];
+  topic_evidence: Record<string, TopicEvidence>;
+  schema_version: number;
+}
+
+const MOCK_BRAIN: UserBrain = {
+  time_vectors: {
+    "WeekdayMorning": {
+      topics: { "Coding": 0.8, "Tech News": 0.6, "Acoustic": 0.4 },
+      duration: 0.35,
+      pacing: 0.3,
+      complexity: 0.75,
+      is_live: 0.0
+    },
+    "WeekdayEvening": {
+      topics: { "Gaming": 0.7, "Chill Lofi": 0.8, "Pop Culture": 0.5 },
+      duration: 0.45,
+      pacing: 0.4,
+      complexity: 0.45,
+      is_live: 0.1
+    }
+  },
+  global_vector: {
+    topics: {
+      "Coding": 0.85,
+      "TypeScript": 0.72,
+      "React": 0.68,
+      "Lofi Beats": 0.64,
+      "Astrophysics": 0.58,
+      "Space Tech": 0.52,
+      "Synthwave": 0.48,
+      "System Architecture": 0.62,
+      "Documentaries": 0.45,
+      "Rust Language": 0.75
+    },
+    duration: 0.48,
+    pacing: 0.32,
+    complexity: 0.78,
+    is_live: 0.05
+  },
+  channel_scores: {
+    "UCsBjURrdUw78urAxx45z2eg": 0.95,
+    "UC3sELt4nY_Msu7881_oIiCw": 0.82,
+    "UCeVMnSShP_Iviwkknt83cww": 0.88,
+    "UCvn_XCl_mBa1dPf0uVaMglA": 0.45,
+    "UCXuqSBlHAE6Xw-yeJA0Tunw": 0.72
+  },
+  topic_affinities: {
+    "coding:typescript": 0.85,
+    "coding:rust": 0.9,
+    "space:astrophysics": 0.78
+  },
+  total_interactions: 168,
+  consecutive_skips: 0,
+  blocked_topics: ["gossip", "clickbait sensationalism", "celebrity drama"],
+  blocked_channels: ["UC_blocked_channel_123"],
+  preferred_topics: ["Coding", "Technology", "Ambient Music", "Astrophysics"],
+  has_completed_onboarding: true,
+  last_persona: "Silicon Alchemist",
+  persona_stability: 18,
+  idf_word_frequency: {},
+  idf_total_documents: 168,
+  watch_history_map: {
+    "vid1": 0.95,
+    "vid2": 1.0,
+    "vid3": 0.2
+  },
+  channel_topic_profiles: {
+    "UCsBjURrdUw78urAxx45z2eg": { "Coding": 0.9, "Tech News": 0.8 }
+  },
+  suppressed_video_ids: {},
+  suppressed_channels: {},
+  rejection_patterns: {
+    "drama": { count: 3, last_rejected_at: Date.now() - 3600000 }
+  },
+  feed_history: {
+    "vid1": { last_shown: Date.now() - 5000, show_count: 2 }
+  },
+  recent_query_tokens: [],
+  topic_evidence: {
+    "Coding": {
+      positive_signals: 45,
+      watch_signals: 38,
+      explicit_signals: 4,
+      positive_score: 18.5,
+      video_ids: ["vid_code_1", "vid_code_2"],
+      channel_ids: ["UCsBjURrdUw78urAxx45z2eg"],
+      first_seen_at: Date.now() - 10 * 24 * 3600000,
+      last_seen_at: Date.now() - 30 * 60000
+    },
+    "Rust Language": {
+      positive_signals: 28,
+      watch_signals: 24,
+      explicit_signals: 2,
+      positive_score: 12.2,
+      video_ids: ["vid_rust_1"],
+      channel_ids: ["UCeVMnSShP_Iviwkknt83cww"],
+      first_seen_at: Date.now() - 8 * 24 * 3600000,
+      last_seen_at: Date.now() - 60 * 60000
+    },
+    "Astrophysics": {
+      positive_signals: 15,
+      watch_signals: 12,
+      explicit_signals: 1,
+      positive_score: 6.4,
+      video_ids: ["vid_astro_1"],
+      channel_ids: ["UCXuqSBlHAE6Xw-yeJA0Tunw"],
+      first_seen_at: Date.now() - 5 * 24 * 3600000,
+      last_seen_at: Date.now() - 120 * 60000
+    }
+  },
+  schema_version: 1
+};
+
+let brainCache: UserBrain | null = null;
+let brainCacheTime = 0;
+
+export async function getBrainSnapshot(forceRefresh?: boolean): Promise<UserBrain> {
+  const now = Date.now();
+  if (!forceRefresh && brainCache && now - brainCacheTime < 60000) {
+    return brainCache;
+  }
+
+  if (!(await isTauriEnv())) {
+    const preferred = localStorage.getItem("mock_setting_preferred_topics");
+    const topics: string[] = preferred ? JSON.parse(preferred) : [];
+    
+    const mockCopy = JSON.parse(JSON.stringify(MOCK_BRAIN));
+    if (topics.length > 0) {
+      mockCopy.preferred_topics = topics;
+      mockCopy.global_vector.topics = {};
+      topics.forEach((t, i) => {
+        mockCopy.global_vector.topics[t] = 0.9 - i * 0.1;
+      });
+    }
+    brainCache = mockCopy;
+    brainCacheTime = now;
+    return mockCopy;
+  }
+
+  try {
+    const result = await invokeBackend<UserBrain>("get_brain_snapshot");
+    brainCache = result;
+    brainCacheTime = now;
+    return result;
+  } catch (err) {
+    console.error("Failed to load brain snapshot from Tauri, using mock fallback:", err);
+    return MOCK_BRAIN;
+  }
+}
+
+export async function unblockTopic(topic: string): Promise<void> {
+  if (!(await isTauriEnv())) {
+    console.log(`[FlowNeuro Mock] Unblocking topic: ${topic}`);
+    if (brainCache) {
+      brainCache.blocked_topics = brainCache.blocked_topics.filter(t => t !== topic);
+    }
+    return;
+  }
+  await invokeBackend<void>("unblock_topic", { topic });
+  brainCache = null;
+}
+
+export async function unblockChannel(channelId: string): Promise<void> {
+  if (!(await isTauriEnv())) {
+    console.log(`[FlowNeuro Mock] Unblocking channel: ${channelId}`);
+    if (brainCache) {
+      brainCache.blocked_channels = brainCache.blocked_channels.filter(c => c !== channelId);
+    }
+    return;
+  }
+  await invokeBackend<void>("unblock_channel", { channelId });
+  brainCache = null;
+}
+
+export async function resetBrain(): Promise<void> {
+  if (!(await isTauriEnv())) {
+    console.log(`[FlowNeuro Mock] Resetting brain`);
+    localStorage.removeItem("mock_setting_onboarded");
+    localStorage.removeItem("mock_setting_preferred_topics");
+    brainCache = null;
+    return;
+  }
+  await invokeBackend<void>("reset_brain");
+  brainCache = null;
+}

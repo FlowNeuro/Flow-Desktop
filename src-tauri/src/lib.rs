@@ -27,7 +27,11 @@ use commands::youtube::{
     fetch_subtitles,
 };
 use commands::db::{get_watch_history, add_watch_record, delete_watch_record, clear_watch_history, get_setting, set_setting};
-use commands::recommendation::{rank_videos, log_interaction, mark_not_interested, record_feed_impressions, complete_onboarding, get_onboarding_status, generate_discovery_queries, get_flow_persona};
+use commands::recommendation::{
+    rank_videos, log_interaction, mark_not_interested, record_feed_impressions,
+    complete_onboarding, get_onboarding_status, generate_discovery_queries, get_flow_persona,
+    get_brain_snapshot, unblock_topic, unblock_channel, reset_brain
+};
 use services::youtube_service::YoutubeService;
 use services::recommendation_service::RecommendationService;
 
@@ -109,6 +113,10 @@ pub fn run() {
             get_onboarding_status,
             generate_discovery_queries,
             get_flow_persona,
+            get_brain_snapshot,
+            unblock_topic,
+            unblock_channel,
+            reset_brain,
             get_sponsorblock_segments,
             get_dearrow_override,
             get_music_home,
