@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::sync::OnceLock;
 
 use rust_stemmers::{Algorithm, Stemmer};
-use whatlang::{detect, Lang};
+use whatlang::{Lang, detect};
 
 const GENERIC_TOKEN_WEIGHT: f64 = 0.18;
 

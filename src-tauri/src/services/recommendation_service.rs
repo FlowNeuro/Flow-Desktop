@@ -8,28 +8,27 @@ use tracing::info;
 
 use crate::errors::AppResult;
 use crate::flow_neuro::scoring::{
-    apply_smart_diversity, calculate_anti_recommendation_penalty, calculate_cosine_similarity,
-    calculate_feed_history_penalty, calculate_implicit_disinterest_penalty,
-    calculate_rejection_pattern_penalty, calculate_relevance_floor, classify_persona,
-    extract_features, get_topic_categories, is_generic_word, normalize_lemma, strip_domain_tag,
-    tokenize, FeedEntry, FlowPersona, IdfSnapshot, ScoredVideo, TimeBucket, TimeDecay,
-    TopicEvidence, UserBrain, AFFINITY_BOOST_PER_PAIR, AFFINITY_MAX_BOOST_PER_VIDEO,
-    BINGE_NOVELTY_FACTOR, BINGE_THRESHOLD, CHANNEL_PROFILE_BLEND_WEIGHT,
-    CHANNEL_PROFILE_MAX_TOPICS, CHANNEL_SUPPRESSION_DAYS, CLASSIC_VIEW_THRESHOLD,
-    COLD_START_THRESHOLD, CURIOSITY_GAP_BONUS, FEED_HISTORY_EXPIRY_DAYS, FEED_HISTORY_MAX,
-    IMPRESSION_CACHE_MAX, IMPRESSION_DECAY_RATE, IMPRESSION_PENALTY_HEAVY,
-    IMPRESSION_PENALTY_LIGHT, IMPRESSION_PENALTY_MEDIUM, IMPRESSION_THRESHOLD_DROP,
-    IMPRESSION_THRESHOLD_HEAVY, IMPRESSION_THRESHOLD_LIGHT, JITTER_COLD_START, JITTER_NORMAL,
-    MUSIC_REWATCH_MAX_DURATION, NOT_INTERESTED_CHANNEL_FLOOR, ONBOARDING_MAX_BOOST,
-    ONBOARDING_WARMUP_INTERACTIONS, QUERY_OVERLAP_THRESHOLD, RECENT_QUERY_TOKENS_MAX,
-    SERENDIPITY_BONUS, SESSION_AFFINITY_MILD_BOOST, SESSION_AFFINITY_MILD_THRESHOLD,
-    SESSION_AFFINITY_STRONG_BOOST, SESSION_AFFINITY_STRONG_THRESHOLD, SESSION_TOPIC_HISTORY_MAX,
-    SUBSCRIPTION_BOOST, VIDEO_SUPPRESSION_DAYS, WATCHED_PENALTY_FULL, WATCHED_PENALTY_HALF,
-    WATCHED_PENALTY_SAMPLED, WATCHED_THRESHOLD_FULL, WATCHED_THRESHOLD_HALF,
-    WATCHED_THRESHOLD_SAMPLED,
+    AFFINITY_BOOST_PER_PAIR, AFFINITY_MAX_BOOST_PER_VIDEO, BINGE_NOVELTY_FACTOR, BINGE_THRESHOLD,
+    CHANNEL_PROFILE_BLEND_WEIGHT, CHANNEL_PROFILE_MAX_TOPICS, CHANNEL_SUPPRESSION_DAYS,
+    CLASSIC_VIEW_THRESHOLD, COLD_START_THRESHOLD, CURIOSITY_GAP_BONUS, FEED_HISTORY_EXPIRY_DAYS,
+    FEED_HISTORY_MAX, FeedEntry, FlowPersona, IMPRESSION_CACHE_MAX, IMPRESSION_DECAY_RATE,
+    IMPRESSION_PENALTY_HEAVY, IMPRESSION_PENALTY_LIGHT, IMPRESSION_PENALTY_MEDIUM,
+    IMPRESSION_THRESHOLD_DROP, IMPRESSION_THRESHOLD_HEAVY, IMPRESSION_THRESHOLD_LIGHT, IdfSnapshot,
+    JITTER_COLD_START, JITTER_NORMAL, MUSIC_REWATCH_MAX_DURATION, NOT_INTERESTED_CHANNEL_FLOOR,
+    ONBOARDING_MAX_BOOST, ONBOARDING_WARMUP_INTERACTIONS, QUERY_OVERLAP_THRESHOLD,
+    RECENT_QUERY_TOKENS_MAX, SERENDIPITY_BONUS, SESSION_AFFINITY_MILD_BOOST,
+    SESSION_AFFINITY_MILD_THRESHOLD, SESSION_AFFINITY_STRONG_BOOST,
+    SESSION_AFFINITY_STRONG_THRESHOLD, SESSION_TOPIC_HISTORY_MAX, SUBSCRIPTION_BOOST, ScoredVideo,
+    TimeBucket, TimeDecay, TopicEvidence, UserBrain, VIDEO_SUPPRESSION_DAYS, WATCHED_PENALTY_FULL,
+    WATCHED_PENALTY_HALF, WATCHED_PENALTY_SAMPLED, WATCHED_THRESHOLD_FULL, WATCHED_THRESHOLD_HALF,
+    WATCHED_THRESHOLD_SAMPLED, apply_smart_diversity, calculate_anti_recommendation_penalty,
+    calculate_cosine_similarity, calculate_feed_history_penalty,
+    calculate_implicit_disinterest_penalty, calculate_rejection_pattern_penalty,
+    calculate_relevance_floor, classify_persona, extract_features, get_topic_categories,
+    is_generic_word, normalize_lemma, strip_domain_tag, tokenize,
 };
 use crate::flow_neuro::signals::{
-    get_or_create_brain, on_video_interaction, save_brain, InteractionType,
+    InteractionType, get_or_create_brain, on_video_interaction, save_brain,
 };
 use crate::models::video::{MusicHomeChip, MusicHomeSection, VideoSummary};
 use crate::services::youtube_service::YoutubeService;
@@ -37,6 +36,11 @@ use crate::services::youtube_service::YoutubeService;
 const TIME_CONTEXT_SELECTION_MULTIPLIER: f64 = 3.0;
 const TIME_CONTEXT_MIN_SCORE: f64 = 0.12;
 const DISCOVER_FEED_TARGET_SIZE: usize = 35;
+const QUERY_BONDING_INTERACTION_THRESHOLD: i32 = 50;
+const QUERY_BONDING_ANCHOR_LIMIT: usize = 4;
+const QUERY_BONDING_EMERGING_LIMIT: usize = 6;
+const QUERY_BONDING_QUERY_LIMIT: usize = 8;
+const EMERGING_TOKEN_MAX_WEIGHT: f64 = 0.18;
 
 pub struct RecommendationService {
     pool: SqlitePool,
@@ -124,6 +128,17 @@ impl RecommendationService {
             discovery_limit,
             viral_limit,
         }
+    }
+
+    fn has_meaningful_brain_data(brain: &UserBrain) -> bool {
+        brain.has_completed_onboarding
+            || brain.total_interactions > 0
+            || brain.idf_total_documents > 0
+            || !brain.preferred_topics.is_empty()
+            || !brain.global_vector.topics.is_empty()
+            || !brain.watch_history_map.is_empty()
+            || !brain.channel_scores.is_empty()
+            || !brain.topic_evidence.is_empty()
     }
 
     fn topic_maturity_label(maturity: TopicMaturity) -> &'static str {
@@ -661,6 +676,130 @@ impl RecommendationService {
         }
     }
 
+    fn discovery_query_blocked(query: &str, blocked: &HashSet<String>) -> bool {
+        let lower = query.to_lowercase();
+        blocked
+            .iter()
+            .any(|blocked_term| lower.contains(&blocked_term.to_lowercase()))
+    }
+
+    fn top_anchor_topics(brain: &UserBrain) -> Vec<String> {
+        let mut anchors: Vec<(String, f64, f64)> = brain
+            .global_vector
+            .anchor_topics
+            .iter()
+            .filter_map(|topic| {
+                let normalized = strip_domain_tag(topic);
+                if normalized.contains('_')
+                    || !Self::is_substantial_topic(&normalized)
+                    || brain
+                        .blocked_topics
+                        .iter()
+                        .any(|blocked| normalized.contains(blocked))
+                {
+                    return None;
+                }
+
+                let weight = brain
+                    .global_vector
+                    .topics
+                    .get(topic)
+                    .copied()
+                    .unwrap_or(0.0);
+                let confidence = brain
+                    .global_vector
+                    .topic_confidence
+                    .get(topic)
+                    .copied()
+                    .unwrap_or(0.0);
+                Some((normalized, weight, confidence))
+            })
+            .collect();
+
+        anchors.sort_by(|a, b| {
+            b.1.partial_cmp(&a.1)
+                .unwrap_or(std::cmp::Ordering::Equal)
+                .then_with(|| b.2.partial_cmp(&a.2).unwrap_or(std::cmp::Ordering::Equal))
+                .then_with(|| a.0.cmp(&b.0))
+        });
+        anchors.dedup_by(|a, b| a.0 == b.0);
+        anchors
+            .into_iter()
+            .take(QUERY_BONDING_ANCHOR_LIMIT)
+            .map(|(topic, _, _)| topic)
+            .collect()
+    }
+
+    fn emerging_specific_tokens(brain: &UserBrain) -> Vec<String> {
+        let mut tokens: Vec<(String, f64)> = brain
+            .global_vector
+            .topics
+            .iter()
+            .filter_map(|(topic, weight)| {
+                let normalized = strip_domain_tag(topic);
+                if !normalized.contains('_')
+                    || brain.global_vector.anchor_topics.contains(topic)
+                    || *weight <= 0.0
+                    || *weight > EMERGING_TOKEN_MAX_WEIGHT
+                    || brain
+                        .blocked_topics
+                        .iter()
+                        .any(|blocked| normalized.contains(blocked))
+                {
+                    return None;
+                }
+                Some((normalized, *weight))
+            })
+            .collect();
+
+        tokens.sort_by(|a, b| {
+            b.1.partial_cmp(&a.1)
+                .unwrap_or(std::cmp::Ordering::Equal)
+                .then_with(|| a.0.cmp(&b.0))
+        });
+        tokens.dedup_by(|a, b| a.0 == b.0);
+        tokens
+            .into_iter()
+            .take(QUERY_BONDING_EMERGING_LIMIT)
+            .map(|(topic, _)| topic)
+            .collect()
+    }
+
+    fn build_query_bonding_candidates(brain: &UserBrain) -> Vec<DiscoveryQuery> {
+        if brain.total_interactions >= QUERY_BONDING_INTERACTION_THRESHOLD {
+            return Vec::new();
+        }
+
+        let anchors = Self::top_anchor_topics(brain);
+        let emerging_tokens = Self::emerging_specific_tokens(brain);
+        if anchors.is_empty() || emerging_tokens.is_empty() {
+            return Vec::new();
+        }
+
+        let mut queries = Vec::new();
+        for anchor in &anchors {
+            for emerging in &emerging_tokens {
+                if emerging == anchor || emerging.split('_').any(|part| part == anchor) {
+                    continue;
+                }
+                let query = format!("{} {}", anchor, emerging);
+                if Self::discovery_query_blocked(&query, &brain.blocked_topics) {
+                    continue;
+                }
+                queries.push(DiscoveryQuery {
+                    query,
+                    confidence: 0.90,
+                    strategy: "query_bonding",
+                });
+                if queries.len() >= QUERY_BONDING_QUERY_LIMIT {
+                    return queries;
+                }
+            }
+        }
+
+        queries
+    }
+
     fn extract_query_root(query: &str) -> Option<String> {
         let filler = Self::discovery_filler_words();
         let tokens: Vec<String> = query
@@ -716,6 +855,7 @@ impl RecommendationService {
         };
 
         let strategy_priority = [
+            "query_bonding",
             "deep_dive",
             "cross_topic",
             "trending",
@@ -909,6 +1049,19 @@ impl RecommendationService {
             "[discovery] starting query generation"
         );
         let mut queries: Vec<DiscoveryQuery> = Vec::new();
+        let bonded_queries = Self::build_query_bonding_candidates(&brain);
+        if !bonded_queries.is_empty() {
+            let bonded_snapshot: Vec<String> = bonded_queries
+                .iter()
+                .map(|query| query.query.clone())
+                .collect();
+            info!(
+                bonded_queries = ?bonded_snapshot,
+                total_interactions = brain.total_interactions,
+                "[discovery] added query bonding candidates"
+            );
+            queries.extend(bonded_queries);
+        }
         let primary = mature_topics
             .iter()
             .find(|topic| Self::topic_is_discovery_eligible(topic, is_mature_brain))
@@ -1831,8 +1984,13 @@ impl RecommendationService {
     }
 
     pub async fn get_onboarding_status(&self) -> AppResult<bool> {
-        let brain = get_or_create_brain(&self.pool).await?;
-        Ok(brain.has_completed_onboarding)
+        let mut brain = get_or_create_brain(&self.pool).await?;
+        let completed = Self::has_meaningful_brain_data(&brain);
+        if completed && !brain.has_completed_onboarding {
+            brain.has_completed_onboarding = true;
+            save_brain(&self.pool, &brain).await?;
+        }
+        Ok(completed)
     }
 
     pub async fn get_cached_music_home(
@@ -2249,6 +2407,63 @@ mod tests {
             RecommendationService::sanitize_discovery_query("viral"),
             None
         );
+    }
+
+    #[test]
+    fn bonds_anchor_topics_to_emerging_bigrams_for_young_profiles() {
+        let mut brain = UserBrain::default();
+        brain.total_interactions = 12;
+        brain.global_vector.topics.insert("game".to_string(), 0.75);
+        brain
+            .global_vector
+            .topic_confidence
+            .insert("game".to_string(), 1.0);
+        brain.global_vector.anchor_topics.insert("game".to_string());
+        brain
+            .global_vector
+            .topics
+            .insert("roblox_thief".to_string(), 0.08);
+        brain
+            .global_vector
+            .topics
+            .insert("leg_day".to_string(), 0.12);
+
+        let queries = RecommendationService::build_query_bonding_candidates(&brain);
+        let query_text: Vec<String> = queries.into_iter().map(|query| query.query).collect();
+
+        assert!(query_text.contains(&"game leg_day".to_string()));
+        assert!(query_text.contains(&"game roblox_thief".to_string()));
+    }
+
+    #[test]
+    fn skips_query_bonding_after_cold_start_window() {
+        let mut brain = UserBrain::default();
+        brain.total_interactions = 50;
+        brain.global_vector.topics.insert("game".to_string(), 0.75);
+        brain.global_vector.anchor_topics.insert("game".to_string());
+        brain
+            .global_vector
+            .topics
+            .insert("roblox_thief".to_string(), 0.08);
+
+        let queries = RecommendationService::build_query_bonding_candidates(&brain);
+
+        assert!(queries.is_empty());
+    }
+
+    #[test]
+    fn treats_imported_non_empty_brain_as_onboarded() {
+        let mut brain = UserBrain::default();
+        brain.has_completed_onboarding = false;
+        brain.total_interactions = 0;
+        brain.global_vector.topics.insert("game".to_string(), 0.75);
+
+        assert!(RecommendationService::has_meaningful_brain_data(&brain));
+
+        let empty_brain = UserBrain::default();
+        assert!(!RecommendationService::has_meaningful_brain_data(
+            &empty_brain
+        ));
     }
 
     #[test]

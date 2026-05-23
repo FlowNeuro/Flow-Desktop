@@ -558,8 +558,7 @@ pub async fn get_sponsorblock_segments(
     let base_url = server_url.unwrap_or_else(|| "https://sponsor.ajay.app".to_string());
     let url = format!(
         "{}/api/skipSegments?videoID={}&categories=[\"sponsor\",\"intro\",\"outro\",\"selfpromo\",\"interaction\",\"filler\"]",
-        base_url,
-        video_id
+        base_url, video_id
     );
 
     let client = reqwest::Client::builder()
@@ -769,7 +768,10 @@ pub async fn fetch_subtitles(
                             ))
                         })?;
 
-                        info!("[fetch_subtitles] Successfully fetched remote subtitles. Length: {} bytes", text.len());
+                        info!(
+                            "[fetch_subtitles] Successfully fetched remote subtitles. Length: {} bytes",
+                            text.len()
+                        );
                         return Ok(text);
                     }
                     crate::streaming::proxy::StreamSessionKind::Inline { body } => {
@@ -787,7 +789,10 @@ pub async fn fetch_subtitles(
                     }
                 }
             } else {
-                info!("[fetch_subtitles] No active/expired session found in StreamingManager for token: {}", token);
+                info!(
+                    "[fetch_subtitles] No active/expired session found in StreamingManager for token: {}",
+                    token
+                );
             }
         }
     }

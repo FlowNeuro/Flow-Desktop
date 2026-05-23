@@ -1,7 +1,7 @@
+use crate::api::innertube::InnertubeClient;
 use crate::api::innertube::core::utils::{
     extract_channel_id_from_video_renderer, parse_mixed_number_word_to_long,
 };
-use crate::api::innertube::InnertubeClient;
 use crate::errors::{AppError, AppResult};
 use crate::models::playlist::PlaylistDetailsResponse;
 use crate::models::video::VideoSummary;

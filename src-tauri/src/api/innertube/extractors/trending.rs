@@ -1,7 +1,7 @@
+use crate::api::innertube::InnertubeClient;
 use crate::api::innertube::core::utils::{
     extract_channel_id_from_video_renderer, parse_duration_seconds, unique_video_summaries,
 };
-use crate::api::innertube::InnertubeClient;
 use crate::errors::AppResult;
 use crate::models::search::SearchVideosRequest;
 use crate::models::video::VideoSummary;
@@ -81,9 +81,9 @@ fn parse_trending_json(val: &Value) -> Vec<VideoSummary> {
                         {
                             for item in items_arr {
                                 if let Some(shelf) = item.get("shelfRenderer") {
-                                    if let Some(sub_items) = shelf["content"]
-                                        ["expandedShelfContentsRenderer"]["items"]
-                                        .as_array()
+                                    if let Some(sub_items) =
+                                        shelf["content"]["expandedShelfContentsRenderer"]["items"]
+                                            .as_array()
                                     {
                                         process_array(sub_items);
                                     }

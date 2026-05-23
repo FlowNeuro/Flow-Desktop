@@ -31,7 +31,10 @@ impl InnertubeClient {
             .connect_timeout(std::time::Duration::from_secs(10))
             .build()
             .unwrap_or_else(|e| {
-                tracing::error!("Failed to initialize high-performance reqwest client: {}", e);
+                tracing::error!(
+                    "Failed to initialize high-performance reqwest client: {}",
+                    e
+                );
                 reqwest::Client::new()
             });
         Self {

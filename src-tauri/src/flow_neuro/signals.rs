@@ -1,21 +1,23 @@
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 use std::collections::{HashMap, HashSet};
+use tracing::warn;
 
 use crate::db::recommendations;
 use crate::db::settings;
 use crate::errors::AppResult;
 use crate::flow_neuro::scoring::{
-    adjust_vector, classify_persona, extract_features, extract_rejection_keys, strip_domain_tag,
-    ContentVector, IdfSnapshot, RejectionSignal, TimeBucket, TopicEvidence, UserBrain,
     AFFINITY_INCREMENT, AFFINITY_KEEP_TOP, AFFINITY_MAX, AFFINITY_MAX_ENTRIES,
     AFFINITY_PRUNE_THRESHOLD, CHANNEL_EMA_ALPHA, CHANNEL_EMA_DECAY, CHANNEL_KEEP_HIGH,
     CHANNEL_KEEP_LOW, CHANNEL_PROFILE_LEARNING_RATE, CHANNEL_PROFILE_MAX_CHANNELS,
     CHANNEL_PROFILE_MAX_TOPICS, CHANNEL_PROFILE_PRUNE_THRESHOLD, CHANNEL_SUPPRESSION_DAYS,
-    MAX_CHANNEL_SCORES, MAX_CONSECUTIVE_SKIPS, MAX_SUPPRESSED_CHANNELS, MAX_SUPPRESSED_VIDEOS,
-    NOT_INTERESTED_SKIP_INCREMENT, PERSONA_MAX_STABILITY, REJECTION_EXPIRY_DAYS,
-    REJECTION_MEMORY_MAX, TOPIC_EVIDENCE_MAX_ENTRIES, TOPIC_EVIDENCE_MAX_IDS,
-    VIDEO_SUPPRESSION_DAYS, WATCHED_THRESHOLD_FULL, WATCHED_THRESHOLD_SAMPLED, WATCH_HISTORY_MAX,
+    ContentVector, IdfSnapshot, MAX_CHANNEL_SCORES, MAX_CONSECUTIVE_SKIPS, MAX_SUPPRESSED_CHANNELS,
+    MAX_SUPPRESSED_VIDEOS, NOT_INTERESTED_SKIP_INCREMENT, PERSONA_MAX_STABILITY,
+    REJECTION_EXPIRY_DAYS, REJECTION_MEMORY_MAX, RejectionSignal, TOPIC_EVIDENCE_MAX_ENTRIES,
+    TOPIC_EVIDENCE_MAX_IDS, TimeBucket, TopicEvidence, UserBrain, VIDEO_SUPPRESSION_DAYS,
+    WATCH_HISTORY_MAX, WATCHED_THRESHOLD_FULL, WATCHED_THRESHOLD_SAMPLED, adjust_vector,
+    apply_anchor_decay, classify_persona, extract_features, extract_rejection_keys,
+    strip_domain_tag,
 };
 
 pub const SHORTS_LEARNING_PENALTY: f64 = 0.40;
@@ -93,11 +95,7 @@ fn calculate_topic_evidence_signal(
         InteractionType::Skipped | InteractionType::Disliked => 0.0,
     };
 
-    if is_short {
-        base * 0.35
-    } else {
-        base
-    }
+    if is_short { base * 0.35 } else { base }
 }
 
 fn capped_set(existing: &HashSet<String>, value: &str) -> HashSet<String> {
@@ -187,8 +185,21 @@ fn update_topic_evidence(
 
 pub async fn get_or_create_brain(pool: &SqlitePool) -> AppResult<UserBrain> {
     if let Some(json_str) = settings::get_setting(pool, "user_neuro_brain").await? {
-        if let Ok(brain) = serde_json::from_str::<UserBrain>(&json_str) {
-            return Ok(brain);
+        match serde_json::from_str::<UserBrain>(&json_str) {
+            Ok(mut brain) => {
+                if brain.schema_version != crate::flow_neuro::scoring::SCHEMA_VERSION {
+                    brain.schema_version = crate::flow_neuro::scoring::SCHEMA_VERSION;
+                    save_brain(pool, &brain).await?;
+                }
+                return Ok(brain);
+            }
+            Err(error) => {
+                warn!(
+                    error = %error,
+                    "[FlowNeuro] Stored brain failed to deserialize; preserving raw setting instead of overwriting it"
+                );
+                return Ok(UserBrain::default());
+            }
         }
     }
     let default_brain = UserBrain::default();
@@ -280,7 +291,10 @@ pub async fn on_video_interaction(
         calculate_topic_evidence_signal(interaction_type, clamped_percent, is_short);
 
     // 1. Update global vector
-    let new_global = adjust_vector(&brain.global_vector, &video_vector, learning_rate);
+    let mut new_global = adjust_vector(&brain.global_vector, &video_vector, learning_rate);
+    if interaction_type == InteractionType::Watched {
+        apply_anchor_decay(&mut new_global, brain.total_interactions + 1);
+    }
 
     // 2. Update time bucket vector
     let current_bucket = TimeBucket::current();

@@ -1,8 +1,8 @@
+use crate::api::innertube::InnertubeClient;
 use crate::api::innertube::core::utils::{
     extract_channel_id_from_video_renderer, extract_continuation_token, parse_duration_seconds,
 };
 use crate::api::innertube::parsers::parse_music_search_json;
-use crate::api::innertube::InnertubeClient;
 use crate::errors::{AppError, AppResult};
 use crate::models::search::{SearchVideosRequest, SearchVideosResponse};
 use crate::models::video::VideoSummary;

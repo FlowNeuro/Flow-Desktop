@@ -85,10 +85,11 @@ pub fn parse_music_search_json(val: &Value) -> Vec<VideoSummary> {
                         }
                     }
 
-                    let thumbnail_url = renderer["thumbnail"]["musicThumbnailRenderer"]
-                        ["thumbnail"]["thumbnails"][0]["url"]
-                        .as_str()
-                        .map(|s| s.to_string());
+                    let thumbnail_url =
+                        renderer["thumbnail"]["musicThumbnailRenderer"]["thumbnail"]["thumbnails"]
+                            [0]["url"]
+                            .as_str()
+                            .map(|s| s.to_string());
 
                     let mut duration_seconds = None;
                     if let Some(runs) = renderer["flexColumns"][1]
@@ -182,10 +183,11 @@ pub fn parse_music_album_json(val: &Value) -> Vec<VideoSummary> {
                         }
                     }
 
-                    let thumbnail_url = renderer["thumbnail"]["musicThumbnailRenderer"]
-                        ["thumbnail"]["thumbnails"][0]["url"]
-                        .as_str()
-                        .map(|s| s.to_string());
+                    let thumbnail_url =
+                        renderer["thumbnail"]["musicThumbnailRenderer"]["thumbnail"]["thumbnails"]
+                            [0]["url"]
+                            .as_str()
+                            .map(|s| s.to_string());
 
                     let mut duration_seconds = None;
                     if let Some(runs) = renderer["flexColumns"][1]
@@ -252,16 +254,17 @@ pub fn parse_music_responsive_list_item_renderer(renderer: &Value) -> Option<YTI
         })
         .map(|s| s.to_string())?;
 
-    let title = renderer["flexColumns"][0]["musicResponsiveListItemFlexColumnRenderer"]["text"]
-        ["runs"][0]["text"]
-        .as_str()
-        .unwrap_or("Unknown Track")
-        .to_string();
+    let title =
+        renderer["flexColumns"][0]["musicResponsiveListItemFlexColumnRenderer"]["text"]["runs"][0]
+            ["text"]
+            .as_str()
+            .unwrap_or("Unknown Track")
+            .to_string();
 
     let mut artists = Vec::new();
-    if let Some(runs) = renderer["flexColumns"][1]["musicResponsiveListItemFlexColumnRenderer"]
-        ["text"]["runs"]
-        .as_array()
+    if let Some(runs) =
+        renderer["flexColumns"][1]["musicResponsiveListItemFlexColumnRenderer"]["text"]["runs"]
+            .as_array()
     {
         for run in runs {
             if let Some(text) = run["text"].as_str() {
@@ -558,14 +561,14 @@ pub fn parse_artist_section(sec: &Value) -> Option<ArtistSection> {
             return None;
         }
 
-        let more_endpoint_browse_id = shelf["title"]["runs"][0]["navigationEndpoint"]
-            ["browseEndpoint"]["browseId"]
-            .as_str()
-            .map(|s| s.to_string());
-        let more_endpoint_params = shelf["title"]["runs"][0]["navigationEndpoint"]
-            ["browseEndpoint"]["params"]
-            .as_str()
-            .map(|s| s.to_string());
+        let more_endpoint_browse_id =
+            shelf["title"]["runs"][0]["navigationEndpoint"]["browseEndpoint"]["browseId"]
+                .as_str()
+                .map(|s| s.to_string());
+        let more_endpoint_params =
+            shelf["title"]["runs"][0]["navigationEndpoint"]["browseEndpoint"]["params"]
+                .as_str()
+                .map(|s| s.to_string());
 
         Some(ArtistSection {
             title,

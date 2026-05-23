@@ -45,6 +45,8 @@ pub const NOT_INTERESTED_SKIP_INCREMENT: i32 = 3;
 pub const COLD_START_THRESHOLD: i32 = 30;
 pub const ONBOARDING_WARMUP_INTERACTIONS: i32 = 50;
 pub const ONBOARDING_MAX_BOOST: f64 = 0.15;
+pub const ANCHOR_DECAY_START_INTERACTIONS: i32 = 30;
+pub const ANCHOR_TOPIC_WATCH_DECAY: f64 = 0.95;
 
 #[allow(dead_code)]
 pub const ENGAGEMENT_RATE_BASELINE: f64 = 0.05;
@@ -176,6 +178,7 @@ pub const TOPIC_EVIDENCE_MAX_IDS: usize = 6;
 // --- Data Structures ---
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct ContentVector {
     pub topics: HashMap<String, f64>,
     pub topic_confidence: HashMap<String, f64>,
@@ -1399,6 +1402,28 @@ pub fn adjust_vector(
     }
 }
 
+pub fn apply_anchor_decay(vector: &mut ContentVector, total_interactions_after_watch: i32) {
+    if total_interactions_after_watch <= ANCHOR_DECAY_START_INTERACTIONS {
+        return;
+    }
+
+    let anchor_topics: Vec<String> = vector.anchor_topics.iter().cloned().collect();
+    for topic in anchor_topics {
+        let Some(value) = vector.topics.get_mut(&topic) else {
+            vector.anchor_topics.remove(&topic);
+            vector.topic_confidence.remove(&topic);
+            continue;
+        };
+
+        *value *= ANCHOR_TOPIC_WATCH_DECAY;
+        if *value < TOPIC_PRUNE_THRESHOLD {
+            vector.topics.remove(&topic);
+            vector.topic_confidence.remove(&topic);
+            vector.anchor_topics.remove(&topic);
+        }
+    }
+}
+
 pub fn calculate_anti_recommendation_penalty(
     video_vector: &ContentVector,
     brain: &UserBrain,
@@ -1746,5 +1771,72 @@ pub fn classify_persona(brain: &UserBrain) -> FlowPersona {
         }
     } else {
         raw_persona
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn anchor_decay_waits_until_after_warmup_threshold() {
+        let mut vector = ContentVector::default();
+        vector.topics.insert("game".to_string(), 0.75);
+        vector.topic_confidence.insert("game".to_string(), 1.0);
+        vector.anchor_topics.insert("game".to_string());
+
+        apply_anchor_decay(&mut vector, ANCHOR_DECAY_START_INTERACTIONS);
+
+        assert_eq!(vector.topics.get("game").copied(), Some(0.75));
+        assert!(vector.anchor_topics.contains("game"));
+    }
+
+    #[test]
+    fn anchor_decay_reduces_anchor_weights_and_prunes_metadata() {
+        let mut vector = ContentVector::default();
+        vector.topics.insert("game".to_string(), 0.75);
+        vector.topics.insert("roblox_thief".to_string(), 0.20);
+        vector.topic_confidence.insert("game".to_string(), 1.0);
+        vector.anchor_topics.insert("game".to_string());
+
+        apply_anchor_decay(&mut vector, ANCHOR_DECAY_START_INTERACTIONS + 1);
+
+        assert_eq!(
+            vector.topics.get("game").copied(),
+            Some(0.75 * ANCHOR_TOPIC_WATCH_DECAY)
+        );
+        assert_eq!(vector.topics.get("roblox_thief").copied(), Some(0.20));
+
+        for _ in 0..80 {
+            apply_anchor_decay(&mut vector, ANCHOR_DECAY_START_INTERACTIONS + 2);
+        }
+
+        assert!(!vector.topics.contains_key("game"));
+        assert!(!vector.topic_confidence.contains_key("game"));
+        assert!(!vector.anchor_topics.contains("game"));
+        assert_eq!(vector.topics.get("roblox_thief").copied(), Some(0.20));
+    }
+
+    #[test]
+    fn old_brain_json_without_topic_metadata_still_deserializes() {
+        let raw = serde_json::json!({
+            "global_vector": {
+                "topics": { "game": 0.75 },
+                "duration": 0.5,
+                "pacing": 0.5,
+                "complexity": 0.5,
+                "is_live": 0.0
+            },
+            "total_interactions": 42,
+            "has_completed_onboarding": true
+        });
+
+        let brain: UserBrain =
+            serde_json::from_value(raw).expect("old brain schema should migrate");
+
+        assert_eq!(brain.global_vector.topics.get("game").copied(), Some(0.75));
+        assert!(brain.global_vector.topic_confidence.is_empty());
+        assert!(brain.global_vector.anchor_topics.is_empty());
+        assert!(brain.has_completed_onboarding);
     }
 }

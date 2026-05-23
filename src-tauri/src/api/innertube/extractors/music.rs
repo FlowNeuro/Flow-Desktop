@@ -1,5 +1,6 @@
 use tracing::debug;
 
+use crate::api::innertube::InnertubeClient;
 use crate::api::innertube::core::utils::{
     extract_channel_id_from_music_renderer, map_related_content_to_video_summary,
     parse_duration_seconds,
@@ -8,7 +9,6 @@ use crate::api::innertube::parsers::{
     parse_music_album_json, parse_music_artist_json, parse_music_charts_json,
     parse_music_explore_json,
 };
-use crate::api::innertube::InnertubeClient;
 use crate::errors::{AppError, AppResult};
 use crate::models::music::{ArtistPage, ChartsPage, ExplorePage};
 use crate::models::video::{MusicHomeChip, MusicHomeSection, VideoSummary};
@@ -164,9 +164,10 @@ impl InnertubeClient {
                                     .to_string();
 
                                 let mut channel_name = String::new();
-                                if let Some(runs) = r["flexColumns"][1]
-                                    ["musicResponsiveListItemFlexColumnRenderer"]["text"]["runs"]
-                                    .as_array()
+                                if let Some(runs) =
+                                    r["flexColumns"][1]["musicResponsiveListItemFlexColumnRenderer"]
+                                        ["text"]["runs"]
+                                        .as_array()
                                 {
                                     for run in runs {
                                         if let Some(t) = run["text"].as_str() {
@@ -262,10 +263,10 @@ impl InnertubeClient {
                     if title.is_empty() {
                         continue;
                     }
-                    let browse_id = chip_renderer["navigationEndpoint"]["browseEndpoint"]
-                        ["browseId"]
-                        .as_str()
-                        .map(|s| s.to_string());
+                    let browse_id =
+                        chip_renderer["navigationEndpoint"]["browseEndpoint"]["browseId"]
+                            .as_str()
+                            .map(|s| s.to_string());
                     let params = chip_renderer["navigationEndpoint"]["browseEndpoint"]["params"]
                         .as_str()
                         .map(|s| s.to_string());
@@ -362,9 +363,10 @@ impl InnertubeClient {
                                     .to_string();
 
                                 let mut channel_name = String::new();
-                                if let Some(runs) = r["flexColumns"][1]
-                                    ["musicResponsiveListItemFlexColumnRenderer"]["text"]["runs"]
-                                    .as_array()
+                                if let Some(runs) =
+                                    r["flexColumns"][1]["musicResponsiveListItemFlexColumnRenderer"]
+                                        ["text"]["runs"]
+                                        .as_array()
                                 {
                                     for run in runs {
                                         if let Some(t) = run["text"].as_str() {
@@ -406,9 +408,10 @@ impl InnertubeClient {
                                     .map(|s| s.to_string());
 
                                 let mut duration_seconds = None;
-                                if let Some(runs) = r["flexColumns"][1]
-                                    ["musicResponsiveListItemFlexColumnRenderer"]["text"]["runs"]
-                                    .as_array()
+                                if let Some(runs) =
+                                    r["flexColumns"][1]["musicResponsiveListItemFlexColumnRenderer"]
+                                        ["text"]["runs"]
+                                        .as_array()
                                 {
                                     for run in runs {
                                         if let Some(t) = run["text"].as_str() {

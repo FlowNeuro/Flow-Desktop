@@ -4,6 +4,11 @@ import { ArrowLeft, UploadCloud, Check, AlertCircle, Database, Sparkles, FolderH
 import { unzipSync } from "fflate";
 import { getSetting, setSetting, addWatchRecord } from "../lib/api/db";
 import { logInteraction } from "../lib/api/recommendation";
+import {
+  convertFlowNeuroBrainData,
+  extractFlowNeuroBrainCandidate,
+  isFlowNeuroBrainCandidate,
+} from "../lib/flowNeuroImport";
 import { useSubscriptionStore } from "../store/useSubscriptionStore";
 import { parseSubscriptionExport } from "../lib/api/youtube";
 import type { VideoSummary } from "../types/video";
@@ -19,122 +24,6 @@ interface LocalPlaylist {
   name: string;
   description?: string;
   tracks: VideoSummary[];
-}
-
-// Map the Android mobile recommendation profile (camelCase, UPPER_SNAKE_CASE enums) to the desktop Tauri (snake_case, PascalCase) schema.
-function convertBrainData(data: any): any {
-  const result: any = {};
-
-  result.schema_version = data.schemaVersion !== undefined ? data.schemaVersion : (data.schema_version !== undefined ? data.schema_version : 13);
-
-  const mapContentVector = (vector: any) => {
-    if (!vector) return { topics: {}, duration: 0.5, pacing: 0.5, complexity: 0.5, is_live: 0.0 };
-    return {
-      topics: vector.topics || {},
-      duration: typeof vector.duration === "number" ? vector.duration : 0.5,
-      pacing: typeof vector.pacing === "number" ? vector.pacing : 0.5,
-      complexity: typeof vector.complexity === "number" ? vector.complexity : 0.5,
-      is_live: typeof vector.isLive === "number" ? vector.isLive : (typeof vector.is_live === "number" ? vector.is_live : 0.0)
-    };
-  };
-
-  result.global_vector = mapContentVector(data.global || data.global_vector);
-
-  result.time_vectors = {};
-  const inputTimeVectors = data.timeVectors || data.time_vectors || {};
-  const timeBucketMap: Record<string, string> = {
-    "WEEKDAY_MORNING": "WeekdayMorning",
-    "WEEKDAY_AFTERNOON": "WeekdayAfternoon",
-    "WEEKDAY_EVENING": "WeekdayEvening",
-    "WEEKDAY_NIGHT": "WeekdayNight",
-    "WEEKEND_MORNING": "WeekendMorning",
-    "WEEKEND_AFTERNOON": "WeekendAfternoon",
-    "WEEKEND_EVENING": "WeekendEvening",
-    "WEEKEND_NIGHT": "WeekendNight",
-    "WeekdayMorning": "WeekdayMorning",
-    "WeekdayAfternoon": "WeekdayAfternoon",
-    "WeekdayEvening": "WeekdayEvening",
-    "WeekdayNight": "WeekdayNight",
-    "WeekendMorning": "WeekendMorning",
-    "WeekendAfternoon": "WeekendAfternoon",
-    "WeekendEvening": "WeekendEvening",
-    "WeekendNight": "WeekendNight"
-  };
-
-  const allBuckets = [
-    "WeekdayMorning", "WeekdayAfternoon", "WeekdayEvening", "WeekdayNight",
-    "WeekendMorning", "WeekendAfternoon", "WeekendEvening", "WeekendNight"
-  ];
-  allBuckets.forEach(b => {
-    result.time_vectors[b] = mapContentVector(null);
-  });
-
-  Object.keys(inputTimeVectors).forEach(key => {
-    const mappedKey = timeBucketMap[key] || key;
-    if (allBuckets.includes(mappedKey)) {
-      result.time_vectors[mappedKey] = mapContentVector(inputTimeVectors[key]);
-    }
-  });
-
-  result.channel_scores = data.channelScores || data.channel_scores || {};
-  result.topic_affinities = data.topicAffinities || data.topic_affinities || {};
-  result.total_interactions = data.interactions !== undefined ? data.interactions : (data.total_interactions !== undefined ? data.total_interactions : 0);
-  result.consecutive_skips = data.consecutiveSkips !== undefined ? data.consecutiveSkips : (data.consecutive_skips !== undefined ? data.consecutive_skips : 0);
-
-  result.blocked_topics = Array.from(data.blockedTopics || data.blocked_topics || []);
-  result.blocked_channels = Array.from(data.blockedChannels || data.blocked_channels || []);
-  result.preferred_topics = Array.from(data.preferredTopics || data.preferred_topics || []);
-
-  result.has_completed_onboarding = data.hasCompletedOnboarding !== undefined ? data.hasCompletedOnboarding : (data.has_completed_onboarding !== undefined ? data.has_completed_onboarding : false);
-  result.last_persona = data.lastPersona !== undefined ? data.lastPersona : (data.last_persona !== undefined ? data.last_persona : null);
-  result.persona_stability = data.personaStability !== undefined ? data.personaStability : (data.persona_stability !== undefined ? data.persona_stability : 0);
-
-  result.idf_word_frequency = data.idfWordFrequency || data.idf_word_frequency || {};
-  result.idf_total_documents = data.idfTotalDocuments !== undefined ? data.idfTotalDocuments : (data.idf_total_documents !== undefined ? data.idf_total_documents : 0);
-  result.watch_history_map = data.watchHistoryMap || data.watch_history_map || {};
-  result.channel_topic_profiles = data.channelTopicProfiles || data.channel_topic_profiles || {};
-  result.suppressed_video_ids = data.suppressedVideoIds || data.suppressed_video_ids || {};
-  result.suppressed_channels = data.suppressedChannels || data.suppressed_channels || {};
-
-  result.rejection_patterns = {};
-  const inputRejection = data.rejectionPatterns || data.rejection_patterns || {};
-  Object.keys(inputRejection).forEach(k => {
-    const pattern = inputRejection[k] || {};
-    result.rejection_patterns[k] = {
-      count: typeof pattern.count === "number" ? pattern.count : 0,
-      last_rejected_at: typeof pattern.lastRejectedAt === "number" ? pattern.lastRejectedAt : (typeof pattern.last_rejected_at === "number" ? pattern.last_rejected_at : 0)
-    };
-  });
-
-  result.feed_history = {};
-  const inputFeed = data.feedHistory || data.feed_history || {};
-  Object.keys(inputFeed).forEach(k => {
-    const entry = inputFeed[k] || {};
-    result.feed_history[k] = {
-      last_shown: typeof entry.lastShown === "number" ? entry.lastShown : (typeof entry.last_shown === "number" ? entry.last_shown : 0),
-      show_count: typeof entry.showCount === "number" ? entry.showCount : (typeof entry.show_count === "number" ? entry.show_count : 0)
-    };
-  });
-
-  result.recent_query_tokens = (data.recentQueryTokens || data.recent_query_tokens || []).map((tokens: any) => Array.from(tokens || []));
-
-  result.topic_evidence = {};
-  const inputEvidence = data.topicEvidence || data.topic_evidence || {};
-  Object.keys(inputEvidence).forEach(k => {
-    const evidence = inputEvidence[k] || {};
-    result.topic_evidence[k] = {
-      positive_signals: typeof evidence.positiveSignals === "number" ? evidence.positiveSignals : (typeof evidence.positive_signals === "number" ? evidence.positive_signals : 0),
-      watch_signals: typeof evidence.watchSignals === "number" ? evidence.watchSignals : (typeof evidence.watch_signals === "number" ? evidence.watch_signals : 0),
-      explicit_signals: typeof evidence.explicitSignals === "number" ? evidence.explicitSignals : (typeof evidence.explicit_signals === "number" ? evidence.explicit_signals : 0),
-      positive_score: typeof evidence.positiveScore === "number" ? evidence.positiveScore : (typeof evidence.positive_score === "number" ? evidence.positive_score : 0.0),
-      video_ids: Array.from(evidence.videoIds || evidence.video_ids || []),
-      channel_ids: Array.from(evidence.channelIds || evidence.channel_ids || []),
-      first_seen_at: typeof evidence.firstSeenAt === "number" ? evidence.firstSeenAt : (typeof evidence.first_seen_at === "number" ? evidence.first_seen_at : 0),
-      last_seen_at: typeof evidence.lastSeenAt === "number" ? evidence.lastSeenAt : (typeof evidence.last_seen_at === "number" ? evidence.last_seen_at : 0)
-    };
-  });
-
-  return result;
 }
 
 export const ImportData: React.FC = () => {
@@ -406,7 +295,11 @@ export const ImportData: React.FC = () => {
           if (!arrayBuffer) throw new Error("The chosen archive buffer is empty.");
           
           const decompressed = unzipSync(new Uint8Array(arrayBuffer));
-          const jsonKey = Object.keys(decompressed).find(k => k.endsWith(".json"));
+          const jsonKeys = Object.keys(decompressed).filter((key) => key.toLowerCase().endsWith(".json"));
+          const jsonKey =
+            jsonKeys.find((key) => /app[_-]?data|master[_-]?backup/i.test(key)) ??
+            jsonKeys.find((key) => /engine[_-]?brain|neuro[_-]?brain|flow[_-]?brain/i.test(key)) ??
+            jsonKeys[0];
           if (!jsonKey) {
             throw new Error("No database export JSON file was found inside this master backup ZIP.");
           }
@@ -446,24 +339,14 @@ export const ImportData: React.FC = () => {
         let timelineCount = 0;
 
         // Try to extract recommendation engine data
-        let brainToImport = null;
+        let brainToImport: unknown | null = null;
         if (isJson && backupData) {
-          if (backupData.timeVectors !== undefined || backupData.time_vectors !== undefined) {
-            brainToImport = backupData;
-          } else if (backupData.user_neuro_brain) {
-            try {
-              brainToImport = typeof backupData.user_neuro_brain === "string" ? JSON.parse(backupData.user_neuro_brain) : backupData.user_neuro_brain;
-            } catch {}
-          } else if (backupData.userNeuroBrain) {
-            try {
-              brainToImport = typeof backupData.userNeuroBrain === "string" ? JSON.parse(backupData.userNeuroBrain) : backupData.userNeuroBrain;
-            } catch {}
-          }
+          brainToImport = extractFlowNeuroBrainCandidate(backupData);
         }
 
-        if (importNeuro && brainToImport) {
+        if (importNeuro && brainToImport && isFlowNeuroBrainCandidate(brainToImport)) {
           setStatusMessage("Synchronizing FlowNeuro engine data...");
-          const convertedBrain = convertBrainData(brainToImport);
+          const convertedBrain = convertFlowNeuroBrainData(brainToImport);
           await setSetting("user_neuro_brain", JSON.stringify(convertedBrain));
           setNeuroCount(1);
         }

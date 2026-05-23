@@ -1,10 +1,10 @@
+use crate::api::innertube::InnertubeClient;
 use crate::api::innertube::core::botguard::generate_po_token;
 use crate::api::innertube::core::context::{get_android_vr_context, get_ios_context};
 use crate::api::innertube::core::utils::{
     collect_related_content_items, dedupe_related_content_items,
     extract_channel_id_from_video_renderer, extract_text_from_value, thumbnail_url_from_array,
 };
-use crate::api::innertube::InnertubeClient;
 use crate::errors::{AppError, AppResult};
 use crate::models::video::{
     AudioTrack, CaptionTrack, RelatedContentItem, StreamInfo, StreamVariant, VideoChapter,
@@ -805,9 +805,9 @@ impl InnertubeClient {
         {
             let mut primary_info = &serde_json::Value::Null;
             let mut secondary_info = &serde_json::Value::Null;
-            if let Some(contents) = next_res["contents"]["twoColumnWatchNextResults"]["results"]
-                ["results"]["contents"]
-                .as_array()
+            if let Some(contents) =
+                next_res["contents"]["twoColumnWatchNextResults"]["results"]["results"]["contents"]
+                    .as_array()
             {
                 for c in contents {
                     if c.get("videoPrimaryInfoRenderer").is_some() {
@@ -837,24 +837,24 @@ impl InnertubeClient {
 
             if !primary_info.is_null() {
                 // Extract views
-                if let Some(views) = primary_info["viewCount"]["videoViewCountRenderer"]
-                    ["viewCount"]["simpleText"]
-                    .as_str()
-                    .or_else(|| {
-                        primary_info["viewCount"]["videoViewCountRenderer"]["viewCount"]["runs"][0]
-                            ["text"]
-                            .as_str()
-                    })
-                    .or_else(|| {
-                        primary_info["viewCount"]["videoViewCountRenderer"]["shortViewCount"]
+                if let Some(views) =
+                    primary_info["viewCount"]["videoViewCountRenderer"]["viewCount"]["simpleText"]
+                        .as_str()
+                        .or_else(|| {
+                            primary_info["viewCount"]["videoViewCountRenderer"]["viewCount"]["runs"]
+                                [0]["text"]
+                                .as_str()
+                        })
+                        .or_else(|| {
+                            primary_info["viewCount"]["videoViewCountRenderer"]["shortViewCount"]
                             ["simpleText"]
                             .as_str()
-                    })
-                    .or_else(|| {
-                        primary_info["viewCount"]["videoViewCountRenderer"]["shortViewCount"]
+                        })
+                        .or_else(|| {
+                            primary_info["viewCount"]["videoViewCountRenderer"]["shortViewCount"]
                             ["runs"][0]["text"]
                             .as_str()
-                    })
+                        })
                 {
                     view_count_text = Some(views.to_string());
                 }
@@ -875,9 +875,8 @@ impl InnertubeClient {
                 {
                     for btn in top_level_buttons {
                         if let Some(view_model) = btn.get("segmentedLikeDislikeButtonViewModel") {
-                            let button_vm = &view_model["likeButtonViewModel"]
-                                ["likeButtonViewModel"]["toggleButtonViewModel"]
-                                ["toggleButtonViewModel"]["defaultButtonViewModel"]
+                            let button_vm = &view_model["likeButtonViewModel"]["likeButtonViewModel"]
+                                ["toggleButtonViewModel"]["toggleButtonViewModel"]["defaultButtonViewModel"]
                                 ["buttonViewModel"];
                             if let Some(title) = button_vm["title"]["runs"][0]["text"]
                                 .as_str()

@@ -52,7 +52,7 @@ pub async fn log_interaction(
         _ => {
             return Err(ErrorResponse::from(crate::errors::AppError::Validation(
                 "Invalid interaction type provided".to_string(),
-            )))
+            )));
         }
     };
 

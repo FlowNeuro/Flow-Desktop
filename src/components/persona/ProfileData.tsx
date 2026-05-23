@@ -1,6 +1,11 @@
 import React, { useRef, useState } from "react";
 import { AlertTriangle, Check, Download, Loader2, RotateCcw, Upload } from "lucide-react";
 import type { UserBrain } from "../../lib/api/recommendation";
+import {
+  convertFlowNeuroBrainData,
+  extractFlowNeuroBrainCandidate,
+  isFlowNeuroBrainCandidate,
+} from "../../lib/flowNeuroImport";
 
 interface ProfileDataProps {
   brain: UserBrain;
@@ -49,18 +54,14 @@ export function ProfileData({ brain, onImport, onReset }: ProfileDataProps) {
     reader.onload = async (event) => {
       try {
         const text = event.target?.result as string;
-        const parsed = JSON.parse(text) as UserBrain;
+        const parsed = JSON.parse(text) as unknown;
+        const brainCandidate = extractFlowNeuroBrainCandidate(parsed);
 
-        if (
-          typeof parsed !== "object" ||
-          parsed === null ||
-          !("global_vector" in parsed) ||
-          !("total_interactions" in parsed)
-        ) {
+        if (!brainCandidate || !isFlowNeuroBrainCandidate(brainCandidate)) {
           throw new Error("Invalid FlowNeuro brain schema.");
         }
 
-        await onImport(parsed);
+        await onImport(convertFlowNeuroBrainData(brainCandidate));
         showNotification("success", "Brain profile imported.");
       } catch (err: any) {
         console.error("Brain import parse failed:", err);

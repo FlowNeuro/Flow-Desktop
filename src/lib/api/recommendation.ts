@@ -214,6 +214,7 @@ export interface UserBrain {
   persona_stability: number;
   idf_word_frequency: Record<string, number>;
   idf_total_documents: number;
+  watch_signal_progress: Record<string, number>;
   watch_history_map: Record<string, number>;
   channel_topic_profiles: Record<string, Record<string, number>>;
   suppressed_video_ids: Record<string, number>;
@@ -288,6 +289,7 @@ const MOCK_BRAIN: UserBrain = {
   persona_stability: 18,
   idf_word_frequency: {},
   idf_total_documents: 168,
+  watch_signal_progress: {},
   watch_history_map: {
     "vid1": 0.95,
     "vid2": 1.0,

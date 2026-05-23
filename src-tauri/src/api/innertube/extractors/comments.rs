@@ -2,10 +2,10 @@ use serde_json::Value;
 use std::collections::HashMap;
 use tracing::debug;
 
+use crate::api::innertube::InnertubeClient;
 use crate::api::innertube::core::utils::{
     extract_text_from_value, parse_mixed_number_word_to_long, thumbnail_url_from_array,
 };
-use crate::api::innertube::InnertubeClient;
 use crate::errors::{AppError, AppResult};
 use crate::models::comment::{Comment, CommentsResponse};
 
