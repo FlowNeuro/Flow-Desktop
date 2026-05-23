@@ -154,21 +154,14 @@ export function FlowNeuroPersona() {
           <TimePatterns brain={activeBrain} />
         </div>
 
-        {/* Creator Memories & Semantic Prompts */}
-        <div className="col-span-12 md:col-span-8">
+        {/* Creator Memories & Blocked Filters */}
+        <div className="col-span-12 lg:col-span-6">
           <ChannelMemory brain={activeBrain} />
-        </div>
-        <div className="col-span-12 md:col-span-4">
-          <ProfileData
-            brain={activeBrain}
-            onImport={handleImportBrain}
-            onReset={handleResetBrain}
-          />
         </div>
 
         {/* Blocked Filters Section (rendered conditionally if blocks exist) */}
         {(activeBrain.blocked_topics?.length > 0 || activeBrain.blocked_channels?.length > 0) && (
-          <div className="col-span-12">
+          <div className="col-span-12 lg:col-span-6">
             <BlockedContent 
               brain={activeBrain} 
               onUnblockTopic={handleUnblockTopic} 
@@ -176,6 +169,14 @@ export function FlowNeuroPersona() {
             />
           </div>
         )}
+
+        <div className="col-span-12">
+          <ProfileData
+            brain={activeBrain}
+            onImport={handleImportBrain}
+            onReset={handleResetBrain}
+          />
+        </div>
 
       </div>
     </div>

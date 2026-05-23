@@ -5,19 +5,21 @@ interface PersonaOverviewProps {
   persona: PersonaDetails | null;
 }
 
-export function PersonaOverview({ brain }: PersonaOverviewProps) {
+export function PersonaOverview({ brain, persona }: PersonaOverviewProps) {
   const total = brain.total_interactions || 0;
   const target = 250;
   const maturityPercent = Math.min(100, Math.round((total / target) * 100));
-  const maturityTitle = "The Initiate";
-  const maturitySubtitle = "Profile is still forming";
+  const maturityLabel =
+    total >= target ? "Mature profile" : total >= 50 ? "Maturing profile" : total >= 15 ? "Early profile" : "New profile";
+  const maturityTitle = persona?.title ?? "The Initiate";
+  const maturitySubtitle = persona?.description ?? "Profile is still forming";
 
   return (
     <section className="w-full rounded-2xl bg-[var(--color-surface-container-low)] border border-[var(--color-outline-variant)] p-6">
       <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
         <div className="min-w-0">
           <p className="text-xs font-semibold uppercase tracking-widest text-[var(--color-on-surface-variant)]">
-            Maturity State
+            Flow Persona
           </p>
           <h2 className="mt-2 text-2xl font-semibold tracking-tight text-[var(--color-on-surface)]">
             {maturityTitle}
@@ -33,7 +35,7 @@ export function PersonaOverview({ brain }: PersonaOverviewProps) {
               Neuro-maturity
             </span>
             <span className="font-mono text-sm text-[var(--color-on-surface)]">
-              {maturityPercent}% / {total}/{target}
+              {maturityLabel} / {maturityPercent}% / {total}/{target}
             </span>
           </div>
           <div className="mt-3 h-1 w-full overflow-hidden rounded-full bg-[var(--color-outline-variant)]">

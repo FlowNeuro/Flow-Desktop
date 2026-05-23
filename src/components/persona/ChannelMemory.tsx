@@ -46,7 +46,7 @@ export function ChannelMemory({ brain }: ChannelMemoryProps) {
   }, [brain.channel_scores]);
 
   return (
-    <section className="w-full rounded-2xl bg-[var(--color-surface-container-low)] border border-[var(--color-outline-variant)] p-6">
+    <section className="h-full w-full rounded-2xl bg-[var(--color-surface-container-low)] border border-[var(--color-outline-variant)] p-6">
       <div className="flex flex-col gap-1">
         <h3 className="text-lg font-semibold text-[var(--color-on-surface)]">
           Creator Channel Memory
