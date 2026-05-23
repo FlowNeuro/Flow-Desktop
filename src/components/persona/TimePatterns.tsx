@@ -72,6 +72,8 @@ function getCurrentTimeBucket(): string {
 function fallbackVector(): ContentVector {
   return {
     topics: {},
+    topic_confidence: {},
+    anchor_topics: [],
     pacing: 0.5,
     complexity: 0.5,
     duration: 0.5,
@@ -91,6 +93,8 @@ function averageVectors(vectors: ContentVector[]): ContentVector {
 
   return {
     topics,
+    topic_confidence: {},
+    anchor_topics: [],
     pacing: vectors.reduce((sum, vector) => sum + (vector.pacing ?? 0.5), 0) / vectors.length,
     complexity: vectors.reduce((sum, vector) => sum + (vector.complexity ?? 0.5), 0) / vectors.length,
     duration: vectors.reduce((sum, vector) => sum + (vector.duration ?? 0.5), 0) / vectors.length,

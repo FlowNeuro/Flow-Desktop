@@ -1,45 +1,285 @@
+use chrono::Datelike;
+use serde::Serialize;
+use sqlx::SqlitePool;
 use std::collections::{HashMap, HashSet};
 use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
-use sqlx::SqlitePool;
+use tracing::info;
 
 use crate::errors::AppResult;
-use crate::models::video::{VideoSummary, MusicHomeSection, MusicHomeChip};
-use crate::services::youtube_service::YoutubeService;
 use crate::flow_neuro::scoring::{
-    apply_smart_diversity, calculate_cosine_similarity, classify_persona, extract_features,
+    apply_smart_diversity, calculate_anti_recommendation_penalty, calculate_cosine_similarity,
     calculate_feed_history_penalty, calculate_implicit_disinterest_penalty,
-    calculate_rejection_pattern_penalty, calculate_relevance_floor,
-    calculate_anti_recommendation_penalty,
-    normalize_lemma, strip_domain_tag, tokenize, FeedEntry, ScoredVideo, TimeBucket, TimeDecay,
-    TopicEvidence, FlowPersona, UserBrain, IdfSnapshot,
-    AFFINITY_BOOST_PER_PAIR, AFFINITY_MAX_BOOST_PER_VIDEO, BINGE_NOVELTY_FACTOR, BINGE_THRESHOLD,
-    CHANNEL_PROFILE_BLEND_WEIGHT, CHANNEL_PROFILE_MAX_TOPICS, CHANNEL_SUPPRESSION_DAYS,
-    CLASSIC_VIEW_THRESHOLD, COLD_START_THRESHOLD,
-    CURIOSITY_GAP_BONUS, IMPRESSION_CACHE_MAX, IMPRESSION_DECAY_RATE,
-    IMPRESSION_PENALTY_HEAVY, IMPRESSION_PENALTY_LIGHT, IMPRESSION_PENALTY_MEDIUM, IMPRESSION_THRESHOLD_DROP,
+    calculate_rejection_pattern_penalty, calculate_relevance_floor, classify_persona,
+    extract_features, get_topic_categories, is_generic_word, normalize_lemma, strip_domain_tag,
+    tokenize, FeedEntry, FlowPersona, IdfSnapshot, ScoredVideo, TimeBucket, TimeDecay,
+    TopicEvidence, UserBrain, AFFINITY_BOOST_PER_PAIR, AFFINITY_MAX_BOOST_PER_VIDEO,
+    BINGE_NOVELTY_FACTOR, BINGE_THRESHOLD, CHANNEL_PROFILE_BLEND_WEIGHT,
+    CHANNEL_PROFILE_MAX_TOPICS, CHANNEL_SUPPRESSION_DAYS, CLASSIC_VIEW_THRESHOLD,
+    COLD_START_THRESHOLD, CURIOSITY_GAP_BONUS, FEED_HISTORY_EXPIRY_DAYS, FEED_HISTORY_MAX,
+    IMPRESSION_CACHE_MAX, IMPRESSION_DECAY_RATE, IMPRESSION_PENALTY_HEAVY,
+    IMPRESSION_PENALTY_LIGHT, IMPRESSION_PENALTY_MEDIUM, IMPRESSION_THRESHOLD_DROP,
     IMPRESSION_THRESHOLD_HEAVY, IMPRESSION_THRESHOLD_LIGHT, JITTER_COLD_START, JITTER_NORMAL,
-    MUSIC_REWATCH_MAX_DURATION, ONBOARDING_MAX_BOOST, ONBOARDING_WARMUP_INTERACTIONS, SERENDIPITY_BONUS,
-    FEED_HISTORY_EXPIRY_DAYS, FEED_HISTORY_MAX, NOT_INTERESTED_CHANNEL_FLOOR,
-    QUERY_OVERLAP_THRESHOLD, RECENT_QUERY_TOKENS_MAX,
-    SESSION_AFFINITY_MILD_BOOST, SESSION_AFFINITY_MILD_THRESHOLD, SESSION_AFFINITY_STRONG_BOOST,
-    SESSION_AFFINITY_STRONG_THRESHOLD, SUBSCRIPTION_BOOST, WATCHED_PENALTY_FULL, WATCHED_PENALTY_HALF,
-    VIDEO_SUPPRESSION_DAYS, WATCHED_PENALTY_SAMPLED, WATCHED_THRESHOLD_FULL, WATCHED_THRESHOLD_HALF,
+    MUSIC_REWATCH_MAX_DURATION, NOT_INTERESTED_CHANNEL_FLOOR, ONBOARDING_MAX_BOOST,
+    ONBOARDING_WARMUP_INTERACTIONS, QUERY_OVERLAP_THRESHOLD, RECENT_QUERY_TOKENS_MAX,
+    SERENDIPITY_BONUS, SESSION_AFFINITY_MILD_BOOST, SESSION_AFFINITY_MILD_THRESHOLD,
+    SESSION_AFFINITY_STRONG_BOOST, SESSION_AFFINITY_STRONG_THRESHOLD, SESSION_TOPIC_HISTORY_MAX,
+    SUBSCRIPTION_BOOST, VIDEO_SUPPRESSION_DAYS, WATCHED_PENALTY_FULL, WATCHED_PENALTY_HALF,
+    WATCHED_PENALTY_SAMPLED, WATCHED_THRESHOLD_FULL, WATCHED_THRESHOLD_HALF,
     WATCHED_THRESHOLD_SAMPLED,
 };
 use crate::flow_neuro::signals::{
     get_or_create_brain, on_video_interaction, save_brain, InteractionType,
 };
+use crate::models::video::{MusicHomeChip, MusicHomeSection, VideoSummary};
+use crate::services::youtube_service::YoutubeService;
+
+const TIME_CONTEXT_SELECTION_MULTIPLIER: f64 = 3.0;
+const TIME_CONTEXT_MIN_SCORE: f64 = 0.12;
+const DISCOVER_FEED_TARGET_SIZE: usize = 35;
 
 pub struct RecommendationService {
     pool: SqlitePool,
     impression_cache: Mutex<HashMap<String, (i32, u64)>>, // video_id -> (seen_count, last_seen_timestamp)
     session_topic_history: Mutex<Vec<String>>,
     session_video_count: Mutex<i32>,
+    #[allow(dead_code)]
     session_start_time: u64,
 }
 
+#[derive(Clone)]
+struct DiscoveryQuery {
+    query: String,
+    confidence: f64,
+    strategy: &'static str,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum TopicMaturity {
+    Emerging,
+    Developing,
+    Established,
+    Core,
+}
+
+#[derive(Clone)]
+struct MatureTopic {
+    name: String,
+    score: f64,
+    maturity: TopicMaturity,
+    category_support: usize,
+    has_time_context: bool,
+    has_discovery_evidence: bool,
+}
+
+#[derive(Clone, Debug, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct FeedQuotas {
+    pub maturity: String,
+    pub total_interactions: i32,
+    pub subscription_percent: f64,
+    pub discovery_percent: f64,
+    pub viral_percent: f64,
+    pub subscription_limit: usize,
+    pub discovery_limit: usize,
+    pub viral_limit: usize,
+}
+
 impl RecommendationService {
+    pub fn calculate_feed_quotas(total_interactions: i32, target_size: usize) -> FeedQuotas {
+        let target_size = target_size.max(1);
+        let (maturity, subscription_percent, discovery_percent, viral_percent) =
+            if total_interactions < 30 {
+                ("cold_start", 0.60, 0.35, 0.05)
+            } else if total_interactions <= 100 {
+                ("maturing", 0.40, 0.50, 0.10)
+            } else {
+                ("mature", 10.0 / 35.0, 15.0 / 35.0, 10.0 / 35.0)
+            };
+
+        let subscription_limit = ((target_size as f64) * subscription_percent).round() as usize;
+        let mut discovery_limit = ((target_size as f64) * discovery_percent).round() as usize;
+        let mut viral_limit = ((target_size as f64) * viral_percent).round() as usize;
+
+        let rounded_total = subscription_limit + discovery_limit + viral_limit;
+        if rounded_total > target_size {
+            let overflow = rounded_total - target_size;
+            let viral_reduction = viral_limit.min(overflow);
+            viral_limit -= viral_reduction;
+            let remaining_overflow = overflow - viral_reduction;
+            if remaining_overflow > 0 {
+                discovery_limit = discovery_limit.saturating_sub(remaining_overflow);
+            }
+        } else if rounded_total < target_size {
+            discovery_limit += target_size - rounded_total;
+        }
+
+        FeedQuotas {
+            maturity: maturity.to_string(),
+            total_interactions,
+            subscription_percent,
+            discovery_percent,
+            viral_percent,
+            subscription_limit,
+            discovery_limit,
+            viral_limit,
+        }
+    }
+
+    fn topic_maturity_label(maturity: TopicMaturity) -> &'static str {
+        match maturity {
+            TopicMaturity::Emerging => "emerging",
+            TopicMaturity::Developing => "developing",
+            TopicMaturity::Established => "established",
+            TopicMaturity::Core => "core",
+        }
+    }
+
+    fn discovery_freshness_words() -> &'static [&'static str] {
+        &["latest", "new"]
+    }
+
+    fn discovery_long_form_words() -> &'static [&'static str] {
+        &["documentary", "deep dive", "analysis", "breakdown"]
+    }
+
+    fn discovery_short_form_words() -> &'static [&'static str] {
+        &["highlights", "best moments", "compilation"]
+    }
+
+    fn discovery_noise_words() -> &'static [&'static str] {
+        &[
+            "prompt",
+            "prompts",
+            "prompting",
+            "use",
+            "used",
+            "using",
+            "guide",
+            "tutorial",
+            "tips",
+            "tricks",
+            "thing",
+            "things",
+            "stuff",
+            "way",
+            "ways",
+            "type",
+            "types",
+            "kind",
+            "level",
+            "sensei",
+            "guru",
+            "master",
+            "pro",
+            "official",
+            "studio",
+            "studios",
+            "media",
+            "network",
+            "viral",
+            "popular",
+            "meme",
+            "memes",
+            "tiktok",
+            "tiktoks",
+            "short",
+            "shorts",
+            "minute",
+            "minutes",
+            "now",
+        ]
+    }
+
+    fn discovery_filler_words() -> &'static [&'static str] {
+        &[
+            "best",
+            "new",
+            "top",
+            "how",
+            "what",
+            "why",
+            "complete",
+            "full",
+            "advanced",
+            "beginner",
+            "learn",
+            "understand",
+            "understanding",
+            "morning",
+            "evening",
+            "night",
+            "afternoon",
+            "late",
+            "early",
+            "chill",
+            "relaxing",
+            "quick",
+            "fast",
+            "slow",
+            "must",
+            "watch",
+            "see",
+            "latest",
+        ]
+    }
+
+    fn discovery_polysemous_words() -> &'static [&'static str] {
+        &[
+            "code", "design", "build", "run", "play", "model", "train", "stream", "rock", "metal",
+            "spring", "cell", "plant", "jam", "wave", "track", "scale", "craft", "mix", "beat",
+            "sound", "flow", "space", "match",
+        ]
+    }
+
+    fn broad_discovery_seed_words() -> &'static [&'static str] {
+        &[
+            "technology",
+            "tech",
+            "science",
+            "music",
+            "song",
+            "build",
+            "make",
+            "game",
+            "gaming",
+            "basketball",
+            "sport",
+            "sports",
+            "fitness",
+            "workout",
+            "food",
+            "news",
+            "day",
+            "review",
+            "tutorial",
+            "guide",
+        ]
+    }
+
+    fn domain_to_query_word(domain: &str) -> Option<&'static str> {
+        match domain {
+            "programming" => Some("programming"),
+            "music" => Some("music"),
+            "gaming" => Some("gaming"),
+            "tech" => Some("technology"),
+            "sport" => Some("sports"),
+            "fitness" => Some("fitness"),
+            "science" => Some("science"),
+            "nature" => Some("nature"),
+            "live" => Some("livestream"),
+            "ai" => Some("artificial intelligence"),
+            "business" => Some("business"),
+            "pc" => Some("pc build"),
+            "graphic" => Some("graphic design"),
+            "interior" => Some("interior design"),
+            "game" => Some("game design"),
+            "diy" => Some("diy crafts"),
+            "entertainment" => Some("movie"),
+            _ => None,
+        }
+    }
+
     pub fn new(pool: SqlitePool) -> Self {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -66,7 +306,10 @@ impl RecommendationService {
             Some(val) => val.to_lowercase(),
             None => return 0,
         };
-        let clean: String = t.chars().filter(|c| c.is_ascii_digit() || *c == '.').collect();
+        let clean: String = t
+            .chars()
+            .filter(|c| c.is_ascii_digit() || *c == '.')
+            .collect();
         if clean.is_empty() {
             return 0;
         }
@@ -89,13 +332,28 @@ impl RecommendationService {
         }
         let title_lower = title.to_lowercase();
         let channel_lower = channel.to_lowercase();
-        let music_keywords = ["music", "song", "lyrics", "remix", "lofi", "playlist", "official video", "official audio"];
-        music_keywords.iter().any(|&kw| title_lower.contains(kw) || channel_lower.contains(kw))
+        let music_keywords = [
+            "music",
+            "song",
+            "lyrics",
+            "remix",
+            "lofi",
+            "playlist",
+            "official video",
+            "official audio",
+        ];
+        music_keywords
+            .iter()
+            .any(|&kw| title_lower.contains(kw) || channel_lower.contains(kw))
     }
 
     fn has_confirmed_topic_evidence(brain: &UserBrain, topic: &str) -> bool {
         let base = strip_domain_tag(topic);
-        if brain.preferred_topics.iter().any(|preferred| normalize_lemma(preferred) == base) {
+        if brain
+            .preferred_topics
+            .iter()
+            .any(|preferred| normalize_lemma(preferred) == base)
+        {
             return true;
         }
 
@@ -116,27 +374,78 @@ impl RecommendationService {
         )
     }
 
+    fn is_substantial_topic(topic: &str) -> bool {
+        let lower = topic.trim().to_lowercase();
+        if lower.len() < 3 {
+            return false;
+        }
+        if Self::discovery_noise_words().contains(&lower.as_str()) {
+            return false;
+        }
+        if !lower.chars().any(|c| c.is_ascii_alphabetic()) {
+            return false;
+        }
+        if lower.starts_with("20") && lower.len() == 4 && lower.chars().all(|c| c.is_ascii_digit())
+        {
+            return false;
+        }
+        let base = strip_domain_tag(&lower);
+        base.len() >= 3
+            && base.chars().any(|c| c.is_ascii_alphabetic())
+            && !base.chars().all(|c| c.is_ascii_digit())
+    }
+
+    fn needs_query_enrichment(topic: &str) -> bool {
+        let base = strip_domain_tag(topic);
+        Self::is_broad_singleton_query(&base)
+            || base.len() < 6
+            || Self::discovery_polysemous_words().contains(&base.as_str())
+    }
+
+    fn is_broad_singleton_query(query: &str) -> bool {
+        let normalized = normalize_lemma(&strip_domain_tag(query).replace('_', " "));
+        !normalized.contains(' ')
+            && (is_generic_word(&normalized)
+                || Self::broad_discovery_seed_words().contains(&normalized.as_str()))
+    }
+
     fn build_discovery_query(topic: &str, brain: &UserBrain) -> String {
         let base = strip_domain_tag(topic);
-        if base.len() >= 6 {
+        let normalized_base = normalize_lemma(&base);
+        if !Self::needs_query_enrichment(&base) {
             return base;
         }
 
-        let partner = brain
+        if let Some((_, domain)) = topic.split_once(':') {
+            return match Self::domain_to_query_word(domain) {
+                Some(qualifier) => format!("{} {}", base, qualifier),
+                None => format!("{} {}", base, domain),
+            };
+        }
+
+        let affinity_partner = brain
             .topic_affinities
             .iter()
             .filter_map(|(key, score)| {
-                if *score <= 0.12 {
+                if *score <= 0.10 {
                     return None;
                 }
                 let parts: Vec<&str> = key.split([':', '|']).collect();
                 if parts.len() != 2 {
                     return None;
                 }
-                if parts[0] == base {
-                    Some((parts[1].to_string(), *score))
-                } else if parts[1] == base {
-                    Some((parts[0].to_string(), *score))
+                let left = strip_domain_tag(parts[0]);
+                let right = strip_domain_tag(parts[1]);
+                if left == base
+                    && Self::is_substantial_topic(&right)
+                    && !Self::is_broad_singleton_query(&right)
+                {
+                    Some((right, *score))
+                } else if right == base
+                    && Self::is_substantial_topic(&left)
+                    && !Self::is_broad_singleton_query(&left)
+                {
+                    Some((left, *score))
                 } else {
                     None
                 }
@@ -144,11 +453,354 @@ impl RecommendationService {
             .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal))
             .map(|(partner, _)| partner);
 
-        if let Some(partner) = partner {
-            format!("{} {}", base, strip_domain_tag(&partner))
-        } else {
-            base
+        if let Some(partner) = affinity_partner {
+            return format!("{} {}", base, partner);
         }
+
+        if let Some((co_topic, _)) = brain
+            .global_vector
+            .topics
+            .iter()
+            .filter_map(|(topic_name, score)| {
+                let co_topic = strip_domain_tag(topic_name);
+                if co_topic != base
+                    && *score > 0.05
+                    && Self::is_substantial_topic(&co_topic)
+                    && !Self::is_broad_singleton_query(&co_topic)
+                {
+                    Some((co_topic, *score))
+                } else {
+                    None
+                }
+            })
+            .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal))
+        {
+            return format!("{} {}", base, co_topic);
+        }
+
+        if let Some(category_keyword) = get_topic_categories()
+            .iter()
+            .find(|category| {
+                category
+                    .keywords
+                    .iter()
+                    .any(|keyword| normalize_lemma(keyword) == normalized_base)
+            })
+            .and_then(|category| {
+                category
+                    .keywords
+                    .iter()
+                    .find(|keyword| {
+                        let lemma = normalize_lemma(keyword);
+                        lemma != normalized_base
+                            && keyword.len() > 3
+                            && !Self::is_broad_singleton_query(&lemma)
+                    })
+                    .cloned()
+            })
+        {
+            return format!("{} {}", base, category_keyword.to_lowercase());
+        }
+
+        base
+    }
+
+    fn analyze_mature_topics(
+        brain: &UserBrain,
+        time_topic_scores: &HashMap<String, f64>,
+    ) -> Vec<MatureTopic> {
+        let mut topic_scores: HashMap<String, (f64, f64)> = HashMap::new();
+
+        for (name, score) in &brain.global_vector.topics {
+            let normalized = strip_domain_tag(name);
+            if !Self::is_substantial_topic(&normalized) {
+                continue;
+            }
+            let entry = topic_scores.entry(normalized).or_insert((0.0, 0.0));
+            entry.0 = entry.0.max(*score);
+        }
+
+        for (name, score) in time_topic_scores {
+            let normalized = strip_domain_tag(name);
+            if !Self::is_substantial_topic(&normalized) {
+                continue;
+            }
+            let entry = topic_scores.entry(normalized).or_insert((0.0, 0.0));
+            entry.1 = entry.1.max(*score);
+        }
+
+        let mut topics: Vec<MatureTopic> = topic_scores
+            .into_iter()
+            .map(|(normalized, (global_score, time_score))| {
+                let has_time_context =
+                    time_score > 0.0 || time_topic_scores.contains_key(&normalized);
+                let selection_score = if has_time_context {
+                    (global_score.max(time_score).max(TIME_CONTEXT_MIN_SCORE)
+                        * TIME_CONTEXT_SELECTION_MULTIPLIER)
+                        .min(1.0)
+                } else {
+                    global_score
+                };
+
+                let maturity = if selection_score >= 0.70 {
+                    TopicMaturity::Core
+                } else if selection_score >= 0.40 {
+                    TopicMaturity::Established
+                } else if selection_score >= 0.20 {
+                    TopicMaturity::Developing
+                } else {
+                    TopicMaturity::Emerging
+                };
+
+                let category_support = get_topic_categories()
+                    .iter()
+                    .filter(|category| {
+                        let lemmas: Vec<String> = category
+                            .keywords
+                            .iter()
+                            .map(|keyword| normalize_lemma(keyword))
+                            .collect();
+                        lemmas.contains(&normalized)
+                            && lemmas
+                                .iter()
+                                .filter(|lemma| brain.global_vector.topics.contains_key(*lemma))
+                                .count()
+                                >= 2
+                    })
+                    .count();
+
+                MatureTopic {
+                    name: normalized.clone(),
+                    score: selection_score,
+                    maturity,
+                    category_support,
+                    has_time_context,
+                    has_discovery_evidence: Self::has_confirmed_topic_evidence(brain, &normalized),
+                }
+            })
+            .collect();
+
+        topics.sort_by(|a, b| {
+            b.maturity
+                .cmp(&a.maturity)
+                .then_with(|| {
+                    b.score
+                        .partial_cmp(&a.score)
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                })
+                .then_with(|| b.has_time_context.cmp(&a.has_time_context))
+                .then_with(|| b.category_support.cmp(&a.category_support))
+        });
+        topics
+    }
+
+    fn topic_is_discovery_eligible(topic: &MatureTopic, is_mature_brain: bool) -> bool {
+        topic.has_time_context
+            || topic.has_discovery_evidence
+            || topic.maturity >= TopicMaturity::Developing
+            || (is_mature_brain && topic.score >= 0.10)
+    }
+
+    fn calculate_discovery_confidence(topic: &MatureTopic) -> f64 {
+        let maturity_base = match topic.maturity {
+            TopicMaturity::Core => 0.90,
+            TopicMaturity::Established => 0.75,
+            TopicMaturity::Developing => 0.55,
+            TopicMaturity::Emerging => 0.35,
+        };
+        let support_bonus = (topic.category_support as f64 * 0.03).min(0.10);
+        let time_bonus = if topic.has_time_context { 0.20 } else { 0.0 };
+        (maturity_base + support_bonus + time_bonus).clamp(0.20, 0.95)
+    }
+
+    fn is_invalid_singleton_query(query: &str) -> bool {
+        let trimmed = query.trim();
+        if trimmed.is_empty() || trimmed.split_whitespace().count() != 1 {
+            return false;
+        }
+
+        let token = trimmed.to_lowercase();
+        Self::discovery_noise_words().contains(&token.as_str())
+            || !token.chars().any(|c| c.is_ascii_alphabetic())
+            || token.chars().filter(|c| c.is_ascii_alphabetic()).count() < 3
+    }
+
+    fn sanitize_discovery_query(raw: &str) -> Option<String> {
+        let mut deduped = Vec::new();
+        for word in raw.split_whitespace() {
+            let lower = word.trim().to_lowercase();
+            if lower.is_empty() || Self::discovery_noise_words().contains(&lower.as_str()) {
+                continue;
+            }
+            if lower.starts_with("20")
+                && lower.len() == 4
+                && lower.chars().all(|c| c.is_ascii_digit())
+            {
+                continue;
+            }
+            if !deduped.iter().any(|existing: &String| existing == &lower) {
+                deduped.push(lower);
+            }
+        }
+
+        if deduped.is_empty() {
+            return None;
+        }
+
+        let result = deduped.join(" ");
+        if Self::is_invalid_singleton_query(&result) {
+            return None;
+        }
+        if result.len() > 60 {
+            result[..60]
+                .rsplit_once(' ')
+                .map(|(head, _)| head.to_string())
+                .or(Some(result[..60].to_string()))
+        } else {
+            Some(result)
+        }
+    }
+
+    fn extract_query_root(query: &str) -> Option<String> {
+        let filler = Self::discovery_filler_words();
+        let tokens: Vec<String> = query
+            .split_whitespace()
+            .filter(|token| token.len() > 2)
+            .map(normalize_lemma)
+            .filter(|token| !filler.contains(&token.as_str()))
+            .collect();
+        if tokens.is_empty() {
+            return None;
+        }
+        let mut sorted = tokens;
+        sorted.sort();
+        sorted.dedup();
+        Some(sorted.join("|"))
+    }
+
+    fn balance_discovery_queries(
+        queries: Vec<DiscoveryQuery>,
+        available_topic_count: usize,
+    ) -> Vec<String> {
+        let mut sorted = queries;
+        sorted.sort_by(|a, b| {
+            b.confidence
+                .partial_cmp(&a.confidence)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+
+        let mut deduped: Vec<DiscoveryQuery> = Vec::new();
+        let mut seen_token_sets: Vec<HashSet<String>> = Vec::new();
+        for query in sorted {
+            let tokens: HashSet<String> = tokenize(&query.query).into_iter().collect();
+            let is_duplicate = seen_token_sets.iter().any(|existing| {
+                if existing.is_empty() || tokens.is_empty() {
+                    return false;
+                }
+                let intersection = tokens.intersection(existing).count();
+                let union = tokens.union(existing).count();
+                union > 0 && (intersection as f64 / union as f64) > 0.3
+            });
+            if !is_duplicate {
+                seen_token_sets.push(tokens);
+                deduped.push(query);
+            }
+        }
+
+        let min_distinct_topics = if available_topic_count >= 6 {
+            4
+        } else if available_topic_count >= 3 {
+            3
+        } else {
+            available_topic_count.max(1)
+        };
+
+        let strategy_priority = [
+            "deep_dive",
+            "cross_topic",
+            "trending",
+            "contextual",
+            "channel_discovery",
+            "adjacent_exploration",
+            "format_driven",
+        ];
+
+        let mut balanced: Vec<DiscoveryQuery> = Vec::new();
+        let mut covered_roots: HashSet<String> = HashSet::new();
+
+        for strategy in strategy_priority {
+            if let Some(best) = deduped.iter().find(|query| query.strategy == strategy) {
+                let query = best.clone();
+                if !balanced
+                    .iter()
+                    .any(|existing| existing.query == query.query)
+                {
+                    if let Some(root) = Self::extract_query_root(&query.query) {
+                        covered_roots.insert(root);
+                    }
+                    balanced.push(query);
+                }
+            }
+        }
+
+        if covered_roots.len() < min_distinct_topics {
+            let remaining: Vec<DiscoveryQuery> = deduped
+                .iter()
+                .filter(|query| {
+                    !balanced
+                        .iter()
+                        .any(|existing| existing.query == query.query)
+                })
+                .cloned()
+                .collect();
+            for query in remaining {
+                if let Some(root) = Self::extract_query_root(&query.query) {
+                    if !covered_roots.contains(&root) {
+                        covered_roots.insert(root);
+                        balanced.push(query);
+                    }
+                }
+                if covered_roots.len() >= min_distinct_topics {
+                    break;
+                }
+            }
+        }
+
+        let mut topic_count_in_output: HashMap<String, usize> = HashMap::new();
+        for query in &balanced {
+            if let Some(root) = Self::extract_query_root(&query.query) {
+                *topic_count_in_output.entry(root).or_insert(0) += 1;
+            }
+        }
+
+        for query in deduped {
+            if balanced.len() >= 12
+                || balanced
+                    .iter()
+                    .any(|existing| existing.query == query.query)
+            {
+                continue;
+            }
+            let root = Self::extract_query_root(&query.query);
+            if let Some(root_key) = root.clone() {
+                if topic_count_in_output.get(&root_key).copied().unwrap_or(0) >= 2 {
+                    continue;
+                }
+            }
+            let strategy_count = balanced
+                .iter()
+                .filter(|existing| existing.strategy == query.strategy)
+                .count();
+            if strategy_count >= 3 {
+                continue;
+            }
+            if let Some(root_key) = root {
+                *topic_count_in_output.entry(root_key).or_insert(0) += 1;
+            }
+            balanced.push(query);
+        }
+
+        balanced.into_iter().map(|query| query.query).collect()
     }
 
     fn calculate_channel_profile_boost(
@@ -170,8 +822,13 @@ impl RecommendationService {
                     .map(|(topic, weight)| (topic.clone(), *weight))
                     .collect();
                 entries.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
-                entries.into_iter().take(CHANNEL_PROFILE_MAX_TOPICS).collect()
+                entries
+                    .into_iter()
+                    .take(CHANNEL_PROFILE_MAX_TOPICS)
+                    .collect()
             },
+            topic_confidence: HashMap::new(),
+            anchor_topics: HashSet::new(),
             duration: 0.5,
             pacing: 0.5,
             complexity: 0.5,
@@ -206,119 +863,376 @@ impl RecommendationService {
 
     pub async fn generate_discovery_queries(&self) -> AppResult<Vec<String>> {
         let mut brain = get_or_create_brain(&self.pool).await?;
-        let mut queries = Vec::new();
-
-        let mut sorted_interest_scores: Vec<(String, f64)> = brain
-            .global_vector
-            .topics
-            .iter()
-            .filter(|(_, score)| **score > 0.0)
-            .map(|(topic, score)| (strip_domain_tag(topic), *score))
-            .collect();
-        sorted_interest_scores.sort_by(|a, b| {
-            b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal)
-        });
-
-        let sorted_interests: Vec<String> = sorted_interest_scores
-            .into_iter()
-            .filter(|(topic, score)| {
-                *score >= 0.20 || Self::has_confirmed_topic_evidence(&brain, topic)
-            })
-            .map(|(topic, _)| topic)
-            .take(6)
-            .collect();
-
-        queries.extend(sorted_interests.iter().take(2).map(|topic| Self::build_discovery_query(topic, &brain)));
-
-        let bucket_topic = brain
+        let persona = classify_persona(&brain);
+        let current_bucket = TimeBucket::current();
+        let current_year = chrono::Local::now().year();
+        let is_mature_brain = brain.total_interactions > 50;
+        let time_topic_scores: HashMap<String, f64> = brain
             .time_vectors
-            .get(&TimeBucket::current())
-            .and_then(|vector| {
-                vector
+            .get(&current_bucket)
+            .map(|vector| {
+                let mut topics: Vec<(String, f64)> = vector
                     .topics
                     .iter()
-                    .max_by(|a, b| a.1.partial_cmp(b.1).unwrap_or(std::cmp::Ordering::Equal))
-                    .map(|(topic, _)| strip_domain_tag(topic))
+                    .map(|(topic, score)| (strip_domain_tag(topic), *score))
+                    .filter(|(topic, _)| Self::is_substantial_topic(topic))
+                    .collect();
+                topics.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+                topics.into_iter().take(5).collect()
+            })
+            .unwrap_or_default();
+        let time_topics: HashSet<String> = time_topic_scores.keys().cloned().collect();
+        let mature_topics = Self::analyze_mature_topics(&brain, &time_topic_scores);
+        let mature_topic_snapshot: Vec<String> = mature_topics
+            .iter()
+            .take(8)
+            .map(|topic| {
+                format!(
+                    "{}:{:.2}:{}:support={}:time={}:evidence={}",
+                    topic.name,
+                    topic.score,
+                    Self::topic_maturity_label(topic.maturity),
+                    topic.category_support,
+                    topic.has_time_context,
+                    topic.has_discovery_evidence,
+                )
+            })
+            .collect();
+        let time_topic_snapshot: Vec<String> = time_topics.iter().cloned().collect();
+        info!(
+            persona = ?persona,
+            total_interactions = brain.total_interactions,
+            preferred_topics = brain.preferred_topics.len(),
+            mature_topics = mature_topics.len(),
+            time_topics = ?time_topic_snapshot,
+            topic_snapshot = ?mature_topic_snapshot,
+            "[discovery] starting query generation"
+        );
+        let mut queries: Vec<DiscoveryQuery> = Vec::new();
+        let primary = mature_topics
+            .iter()
+            .find(|topic| Self::topic_is_discovery_eligible(topic, is_mature_brain))
+            .cloned();
+        let secondary: Vec<MatureTopic> = mature_topics
+            .iter()
+            .filter(|topic| Self::topic_is_discovery_eligible(topic, is_mature_brain))
+            .skip(1)
+            .take(match persona {
+                FlowPersona::Specialist => 1,
+                FlowPersona::Explorer => 4,
+                FlowPersona::Skimmer => 3,
+                _ => 2,
+            })
+            .cloned()
+            .collect();
+
+        if let Some(primary_topic) = primary.clone() {
+            queries.push(DiscoveryQuery {
+                query: Self::build_discovery_query(&primary_topic.name, &brain),
+                confidence: Self::calculate_discovery_confidence(&primary_topic),
+                strategy: "deep_dive",
             });
-        if let Some(topic) = bucket_topic {
-            queries.push(Self::build_discovery_query(&topic, &brain));
+
+            for topic in &secondary {
+                queries.push(DiscoveryQuery {
+                    query: Self::build_discovery_query(&topic.name, &brain),
+                    confidence: Self::calculate_discovery_confidence(topic) - 0.05,
+                    strategy: "deep_dive",
+                });
+            }
+
+            for topic in secondary.iter().take(2) {
+                queries.push(DiscoveryQuery {
+                    query: format!(
+                        "{} {}",
+                        strip_domain_tag(&primary_topic.name),
+                        strip_domain_tag(&topic.name)
+                    ),
+                    confidence: 0.60,
+                    strategy: "cross_topic",
+                });
+            }
+
+            if secondary.len() >= 2 {
+                queries.push(DiscoveryQuery {
+                    query: format!(
+                        "{} {}",
+                        strip_domain_tag(&secondary[0].name),
+                        strip_domain_tag(&secondary[1].name)
+                    ),
+                    confidence: 0.50,
+                    strategy: "cross_topic",
+                });
+            }
+
+            let format_word = match persona {
+                FlowPersona::DeepDiver | FlowPersona::Scholar => {
+                    Some(Self::discovery_long_form_words()[0])
+                }
+                FlowPersona::Skimmer => Some(Self::discovery_short_form_words()[0]),
+                _ if brain.global_vector.duration > 0.75 => {
+                    Some(Self::discovery_long_form_words()[1])
+                }
+                _ if brain.global_vector.duration < 0.30 => {
+                    Some(Self::discovery_short_form_words()[1])
+                }
+                _ => None,
+            };
+            if let Some(format_word) = format_word {
+                queries.push(DiscoveryQuery {
+                    query: format!("{} {}", strip_domain_tag(&primary_topic.name), format_word),
+                    confidence: 0.55,
+                    strategy: "format_driven",
+                });
+            }
+
+            queries.push(DiscoveryQuery {
+                query: format!(
+                    "{} {}",
+                    Self::build_discovery_query(&primary_topic.name, &brain),
+                    current_year
+                ),
+                confidence: Self::calculate_discovery_confidence(&primary_topic) - 0.05,
+                strategy: "trending",
+            });
         }
 
-        if sorted_interests.len() >= 2 {
-            queries.push(format!("{} {}", sorted_interests[0], sorted_interests[1]));
-        }
-        if sorted_interests.len() >= 3 {
-            queries.push(format!("{} {}", sorted_interests[0], sorted_interests[2]));
-            queries.push(format!("{} {}", sorted_interests[1], sorted_interests[2]));
+        if secondary.len() >= 2 {
+            queries.push(DiscoveryQuery {
+                query: format!(
+                    "{} {}",
+                    strip_domain_tag(&secondary[0].name),
+                    Self::discovery_freshness_words()[0]
+                ),
+                confidence: 0.50,
+                strategy: "trending",
+            });
         }
 
-        let mut affinities: Vec<(String, f64)> = brain.topic_affinities.iter().map(|(key, score)| (key.clone(), *score)).collect();
+        let mut affinities: Vec<(String, f64)> = brain
+            .topic_affinities
+            .iter()
+            .map(|(key, score)| (key.clone(), *score))
+            .collect();
         affinities.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
-        for (key, _) in affinities.into_iter().take(3) {
+        for (key, score) in affinities
+            .into_iter()
+            .filter(|(_, score)| *score > 0.15)
+            .take(3)
+        {
             let parts: Vec<&str> = key.split([':', '|']).collect();
-            if parts.len() == 2 {
-                queries.push(format!("{} {}", parts[0], parts[1]));
+            if parts.len() == 2
+                && Self::is_substantial_topic(parts[0])
+                && Self::is_substantial_topic(parts[1])
+            {
+                queries.push(DiscoveryQuery {
+                    query: format!(
+                        "{} {}",
+                        strip_domain_tag(parts[0]),
+                        strip_domain_tag(parts[1])
+                    ),
+                    confidence: 0.55 + (score * 0.25),
+                    strategy: "cross_topic",
+                });
             }
         }
 
-        if queries.len() < 5 {
-            let mut channel_topics: Vec<(String, f64)> = brain
-                .channel_topic_profiles
-                .values()
-                .flat_map(|profile| profile.iter())
-                .map(|(topic, weight)| (strip_domain_tag(topic), *weight))
-                .filter(|(topic, _)| Self::has_confirmed_topic_evidence(&brain, topic))
-                .collect();
-            channel_topics.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
-            let channel_topics: Vec<String> = channel_topics
-                .into_iter()
-                .map(|(topic, _)| topic)
-                .filter(|topic| !queries.iter().any(|existing| existing.contains(topic)))
-                .take(3)
-                .collect();
-            queries.extend(channel_topics);
+        let confirmed_time_topics: Vec<String> = mature_topics
+            .iter()
+            .filter(|topic| topic.has_time_context)
+            .take(3)
+            .map(|topic| topic.name.clone())
+            .collect();
+        if let Some(first_time_topic) = confirmed_time_topics.first() {
+            queries.push(DiscoveryQuery {
+                query: Self::build_discovery_query(first_time_topic, &brain),
+                confidence: 0.80,
+                strategy: "contextual",
+            });
+        }
+        if confirmed_time_topics.len() >= 2 {
+            queries.push(DiscoveryQuery {
+                query: format!("{} {}", confirmed_time_topics[0], confirmed_time_topics[1]),
+                confidence: 0.70,
+                strategy: "contextual",
+            });
         }
 
-        let persona_suffix = match classify_persona(&brain) {
-            FlowPersona::DeepDiver => Some("documentary"),
-            FlowPersona::Scholar => Some("analysis explained"),
-            FlowPersona::Audiophile => Some("playlist mix"),
-            FlowPersona::Livewire => Some("live stream"),
-            FlowPersona::Binger => Some("full movie"),
-            FlowPersona::Skimmer => Some("shorts compilation"),
-            _ => None,
+        for (channel_id, score) in brain
+            .channel_scores
+            .iter()
+            .filter(|(_, score)| **score > 0.5)
+            .take(3)
+        {
+            let Some(profile) = brain.channel_topic_profiles.get(channel_id) else {
+                continue;
+            };
+            let mut top_topics: Vec<(String, f64)> = profile
+                .iter()
+                .filter_map(|(topic, weight)| {
+                    let normalized = strip_domain_tag(topic);
+                    if Self::is_substantial_topic(&normalized)
+                        && Self::has_confirmed_topic_evidence(&brain, &normalized)
+                    {
+                        Some((normalized, *weight))
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+            top_topics.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+            if top_topics.len() >= 2 {
+                queries.push(DiscoveryQuery {
+                    query: format!("{} {}", top_topics[0].0, top_topics[1].0),
+                    confidence: 0.50 + (*score * 0.15),
+                    strategy: "channel_discovery",
+                });
+            }
+        }
+
+        let top_channel_niche = brain
+            .channel_topic_profiles
+            .values()
+            .flat_map(|profile| profile.iter())
+            .fold(HashMap::<String, f64>::new(), |mut acc, (topic, weight)| {
+                let normalized = strip_domain_tag(topic);
+                if Self::is_substantial_topic(&normalized)
+                    && Self::has_confirmed_topic_evidence(&brain, &normalized)
+                {
+                    *acc.entry(normalized).or_insert(0.0) += *weight;
+                }
+                acc
+            })
+            .into_iter()
+            .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
+        if let Some((topic, _)) = top_channel_niche {
+            queries.push(DiscoveryQuery {
+                query: Self::build_discovery_query(&topic, &brain),
+                confidence: 0.50,
+                strategy: "channel_discovery",
+            });
+        }
+
+        let exploration_budget = if brain.total_interactions > 200 {
+            0
+        } else if brain.total_interactions > 80 {
+            1
+        } else {
+            2
         };
-        if let (Some(suffix), Some(topic)) = (persona_suffix, sorted_interests.first()) {
-            queries.push(format!("{} {}", topic, suffix));
+        if exploration_budget > 0 {
+            let mut underexplored: Vec<String> = get_topic_categories()
+                .iter()
+                .flat_map(|category| category.keywords.iter().take(3))
+                .map(|topic| normalize_lemma(topic))
+                .filter(|topic| {
+                    brain
+                        .global_vector
+                        .topics
+                        .get(topic)
+                        .copied()
+                        .unwrap_or(0.0)
+                        < 0.08
+                        && !brain
+                            .blocked_topics
+                            .iter()
+                            .any(|blocked| topic.contains(blocked))
+                })
+                .collect();
+            underexplored.sort();
+            underexplored.dedup();
+            for topic in underexplored.into_iter().take(exploration_budget) {
+                queries.push(DiscoveryQuery {
+                    query: Self::build_discovery_query(&topic, &brain),
+                    confidence: 0.35,
+                    strategy: "adjacent_exploration",
+                });
+            }
         }
 
-        if queries.is_empty() {
-            queries.extend(brain.preferred_topics.iter().take(5).cloned());
-        }
-        if queries.is_empty() {
-            queries.extend([
-                "technology".to_string(),
-                "music".to_string(),
-                "gaming".to_string(),
-                "science".to_string(),
-                "documentary".to_string(),
-            ]);
+        let existing_tokens: HashSet<String> = queries
+            .iter()
+            .flat_map(|query| tokenize(&query.query))
+            .collect();
+        for preferred in brain.preferred_topics.iter().take(5) {
+            let lemma = normalize_lemma(preferred);
+            if lemma.len() >= 3
+                && !existing_tokens.contains(&lemma)
+                && !brain
+                    .blocked_topics
+                    .iter()
+                    .any(|blocked| lemma.contains(blocked))
+            {
+                queries.push(DiscoveryQuery {
+                    query: Self::build_discovery_query(preferred.trim(), &brain),
+                    confidence: 0.45,
+                    strategy: "deep_dive",
+                });
+            }
         }
 
-        let mut deduped = Vec::new();
+        let mut sanitized: Vec<DiscoveryQuery> = Vec::new();
         let blocked = &brain.blocked_topics;
         for query in queries {
-            let normalized = query.trim().to_lowercase();
-            if normalized.is_empty() {
+            if blocked
+                .iter()
+                .any(|blocked_term| query.query.to_lowercase().contains(blocked_term))
+            {
+                info!(
+                    strategy = query.strategy,
+                    query = %query.query,
+                    "[discovery] dropped blocked query"
+                );
                 continue;
             }
-            if blocked.iter().any(|blocked_term| normalized.contains(blocked_term)) {
-                continue;
-            }
-            if !deduped.iter().any(|existing: &String| existing == &normalized) {
-                deduped.push(normalized);
+            if let Some(sanitized_query) = Self::sanitize_discovery_query(&query.query) {
+                let enriched_query = if Self::is_broad_singleton_query(&sanitized_query) {
+                    let enriched = Self::build_discovery_query(&sanitized_query, &brain);
+                    match Self::sanitize_discovery_query(&enriched) {
+                        Some(candidate) if !Self::is_broad_singleton_query(&candidate) => candidate,
+                        _ => {
+                            info!(
+                                strategy = query.strategy,
+                                query = %query.query,
+                                "[discovery] dropped broad singleton query"
+                            );
+                            continue;
+                        }
+                    }
+                } else {
+                    sanitized_query
+                };
+                sanitized.push(DiscoveryQuery {
+                    query: enriched_query,
+                    confidence: query.confidence,
+                    strategy: query.strategy,
+                });
+            } else {
+                info!(
+                    strategy = query.strategy,
+                    query = %query.query,
+                    "[discovery] dropped empty query after sanitization"
+                );
             }
         }
+
+        let generated_snapshot: Vec<String> = sanitized
+            .iter()
+            .map(|query| format!("{}:{:.2}:{}", query.query, query.confidence, query.strategy))
+            .collect();
+        info!(
+            generated = sanitized.len(),
+            queries = ?generated_snapshot,
+            "[discovery] generated sanitized queries"
+        );
+
+        let mut deduped = Self::balance_discovery_queries(sanitized, mature_topics.len());
+
+        info!(
+            balanced = deduped.len(),
+            queries = ?deduped,
+            "[discovery] balanced query set"
+        );
 
         if brain.recent_query_tokens.len() > 0 && deduped.len() > 3 {
             let rotated: Vec<String> = deduped
@@ -340,16 +1254,31 @@ impl RecommendationService {
                 .cloned()
                 .collect();
             if rotated.len() >= deduped.len() / 3 {
+                info!(
+                    before = deduped.len(),
+                    after = rotated.len(),
+                    rotated_queries = ?rotated,
+                    recent_sets = brain.recent_query_tokens.len(),
+                    "[discovery] rotated overlapping query set"
+                );
                 deduped = rotated;
             }
         }
 
+        let persisted_token_sets: Vec<Vec<String>> =
+            deduped.iter().map(|query| tokenize(query)).collect();
         brain.recent_query_tokens = deduped
             .iter()
             .map(|query| tokenize(query).into_iter().collect::<HashSet<String>>())
             .chain(brain.recent_query_tokens.into_iter())
             .take(RECENT_QUERY_TOKENS_MAX)
             .collect();
+        info!(
+            final_queries = ?deduped,
+            final_token_sets = ?persisted_token_sets,
+            stored_recent_query_sets = brain.recent_query_tokens.len(),
+            "[discovery] finalized query generation"
+        );
         save_brain(&self.pool, &brain).await?;
 
         Ok(deduped)
@@ -365,7 +1294,7 @@ impl RecommendationService {
         }
         let candidate_count = candidates.len();
 
-        let mut brain = get_or_create_brain(&self.pool).await?;
+        let brain = get_or_create_brain(&self.pool).await?;
         let now_ms = self.get_current_time_ms();
         let video_cutoff = now_ms.saturating_sub(VIDEO_SUPPRESSION_DAYS * 86_400_000);
         let channel_cutoff = now_ms.saturating_sub(CHANNEL_SUPPRESSION_DAYS * 86_400_000);
@@ -396,9 +1325,10 @@ impl RecommendationService {
                 }
                 let title_lower = video.title.to_lowercase();
                 let channel_lower = video.channel_name.to_lowercase();
-                !brain.blocked_topics.iter().any(|blocked| {
-                    title_lower.contains(blocked) || channel_lower.contains(blocked)
-                })
+                !brain
+                    .blocked_topics
+                    .iter()
+                    .any(|blocked| title_lower.contains(blocked) || channel_lower.contains(blocked))
             })
             .collect();
 
@@ -417,7 +1347,8 @@ impl RecommendationService {
         let feed_overlap_ratio = if filtered.is_empty() || brain.feed_history.is_empty() {
             0.0
         } else {
-            let candidate_ids: HashSet<String> = filtered.iter().map(|video| video.id.clone()).collect();
+            let candidate_ids: HashSet<String> =
+                filtered.iter().map(|video| video.id.clone()).collect();
             let history_ids: HashSet<String> = brain
                 .feed_history
                 .iter()
@@ -430,7 +1361,11 @@ impl RecommendationService {
 
         // Time context vector
         let current_bucket = TimeBucket::current();
-        let time_context_vec = brain.time_vectors.get(&current_bucket).cloned().unwrap_or_default();
+        let time_context_vec = brain
+            .time_vectors
+            .get(&current_bucket)
+            .cloned()
+            .unwrap_or_default();
 
         // Boredom detection & dynamic temperatures
         let boredom_factor = (brain.consecutive_skips as f64 / 20.0).clamp(0.0, 0.5);
@@ -447,21 +1382,24 @@ impl RecommendationService {
 
         let mut seed = now_ms;
         let mut next_random = move || {
-            seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            seed = seed
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
             (seed as f64) / (u64::MAX as f64)
         };
 
         // Score all candidate videos
         let mut scored_candidates = Vec::new();
         let mut rng = next_random();
-        let jitter_amount = Self::calculate_adaptive_jitter(brain.total_interactions, feed_overlap_ratio);
+        let jitter_amount =
+            Self::calculate_adaptive_jitter(brain.total_interactions, feed_overlap_ratio);
 
         for video in filtered {
             let channel_id = video.channel_id.clone().unwrap_or_else(|| video.id.clone());
             let view_count = Self::parse_view_count(video.view_count_text.as_deref());
             let is_short = video.duration_seconds.unwrap_or(0) <= 60;
             let is_subscription = user_subs.contains(&channel_id);
-            
+
             // Extract feature content vector for the candidate
             let video_vector = extract_features(
                 &video.title,
@@ -473,7 +1411,8 @@ impl RecommendationService {
                 &idf_snapshot,
             );
 
-            let personality_score = calculate_cosine_similarity(&brain.global_vector, &video_vector);
+            let personality_score =
+                calculate_cosine_similarity(&brain.global_vector, &video_vector);
             let context_score = calculate_cosine_similarity(&time_context_vec, &video_vector);
             let novelty_score = 1.0 - personality_score;
 
@@ -481,7 +1420,8 @@ impl RecommendationService {
                 + (context_score * w_context)
                 + (novelty_score * w_novelty);
 
-            total_score += Self::calculate_channel_profile_boost(&brain, &channel_id, &video_vector);
+            total_score +=
+                Self::calculate_channel_profile_boost(&brain, &channel_id, &video_vector);
 
             // Topic affinity boost
             let video_topics: Vec<String> = video_vector.topics.keys().cloned().collect();
@@ -559,7 +1499,8 @@ impl RecommendationService {
 
             // Curiosity gap (graduated ramp)
             if personality_score > 0.5 {
-                let complexity_diff = (brain.global_vector.complexity - video_vector.complexity).abs();
+                let complexity_diff =
+                    (brain.global_vector.complexity - video_vector.complexity).abs();
                 let curiosity_ramp = ((complexity_diff - 0.2) / 0.3).clamp(0.0, 1.0);
                 let topic_safety = ((personality_score - 0.5) / 0.3).clamp(0.0, 1.0);
                 total_score += CURIOSITY_GAP_BONUS * curiosity_ramp * topic_safety;
@@ -569,13 +1510,17 @@ impl RecommendationService {
             // (We skip if no channel score recorded)
 
             // Session fatigue
-            let video_primary_topic = video_vector.topics
+            let video_primary_topic = video_vector
+                .topics
                 .iter()
                 .max_by(|a, b| a.1.partial_cmp(b.1).unwrap())
                 .map(|(k, _)| k.clone())
                 .unwrap_or_default();
-                
-            let topic_session_count = session_topics.iter().filter(|&t| t == &video_primary_topic).count();
+
+            let topic_session_count = session_topics
+                .iter()
+                .filter(|&t| t == &video_primary_topic)
+                .count();
             let fatigue_multiplier = if video_primary_topic.is_empty() {
                 1.0
             } else if topic_session_count >= 5 {
@@ -591,9 +1536,10 @@ impl RecommendationService {
 
             // Onboarding warm-up boost
             if is_onboarding {
-                let has_preferred = brain.preferred_topics.iter().any(|pref| {
-                    video_vector.topics.contains_key(&normalize_lemma(pref))
-                });
+                let has_preferred = brain
+                    .preferred_topics
+                    .iter()
+                    .any(|pref| video_vector.topics.contains_key(&normalize_lemma(pref)));
                 if has_preferred {
                     total_score += onboarding_warmup * ONBOARDING_MAX_BOOST;
                 }
@@ -601,8 +1547,12 @@ impl RecommendationService {
 
             // Session affinity
             if !session_topics.is_empty() && !video_primary_topic.is_empty() {
-                let recent_topics: Vec<String> = session_topics.iter().rev().take(5).cloned().collect();
-                let recent_count = recent_topics.iter().filter(|&t| t == &video_primary_topic).count();
+                let recent_topics: Vec<String> =
+                    session_topics.iter().rev().take(5).cloned().collect();
+                let recent_count = recent_topics
+                    .iter()
+                    .filter(|&t| t == &video_primary_topic)
+                    .count();
                 let session_affinity_boost = if recent_count >= SESSION_AFFINITY_STRONG_THRESHOLD {
                     SESSION_AFFINITY_STRONG_BOOST
                 } else if recent_count >= SESSION_AFFINITY_MILD_THRESHOLD {
@@ -622,7 +1572,8 @@ impl RecommendationService {
             // Impression fatigue
             if let Some(&(seen_count, last_seen)) = impression_snap.get(&video.id) {
                 let hours_since_seen = (now_ms - last_seen) as f64 / 3_600_000.0;
-                let decayed_count = (seen_count as f64 * (-IMPRESSION_DECAY_RATE * hours_since_seen).exp()) as i32;
+                let decayed_count =
+                    (seen_count as f64 * (-IMPRESSION_DECAY_RATE * hours_since_seen).exp()) as i32;
 
                 let impression_penalty = if decayed_count >= IMPRESSION_THRESHOLD_DROP {
                     IMPRESSION_PENALTY_HEAVY
@@ -638,7 +1589,8 @@ impl RecommendationService {
 
             // Already-watched penalty
             if let Some(&percent) = brain.watch_history_map.get(&video.id) {
-                let is_music = Self::is_music_track(&video.title, &video.channel_name, video.duration_seconds);
+                let is_music =
+                    Self::is_music_track(&video.title, &video.channel_name, video.duration_seconds);
                 let watched_penalty = if is_music && percent > WATCHED_THRESHOLD_HALF {
                     1.0
                 } else if percent > WATCHED_THRESHOLD_FULL {
@@ -661,7 +1613,12 @@ impl RecommendationService {
             scored_candidates.push((
                 video,
                 ScoredVideo {
-                    id: video_vector.topics.keys().next().cloned().unwrap_or_default(), // Dummy ID to satisfy signature
+                    id: video_vector
+                        .topics
+                        .keys()
+                        .next()
+                        .cloned()
+                        .unwrap_or_default(), // Dummy ID to satisfy signature
                     title: "".to_string(),
                     channel_id: "".to_string(),
                     score: total_score + jitter,
@@ -691,59 +1648,15 @@ impl RecommendationService {
             .map(|(v, _)| (v.id.clone(), v))
             .collect();
 
-        {
-            let mut cache = self.impression_cache.lock().unwrap();
-
-            for id in reranked_ids {
-                if let Some(video) = candidates_map.remove(&id) {
-                    // Record impression for future reranking runs
-                    let entry = cache.entry(id.clone()).or_insert((0, now_ms));
-                    entry.0 += 1;
-                    entry.1 = now_ms;
-
-                    final_results.push(video);
-                }
-            }
-
-            // Restrict size of impression cache to avoid memory leaks
-            if cache.len() > IMPRESSION_CACHE_MAX {
-                if let Some(oldest_key) = cache.keys().next().cloned() {
-                    cache.remove(&oldest_key);
-                }
+        for id in reranked_ids {
+            if let Some(video) = candidates_map.remove(&id) {
+                final_results.push(video);
             }
         }
 
         // Append any leftovers that smart diversity dropped to maintain full list
         for (_, video) in candidates_map {
             final_results.push(video);
-        }
-
-        for video in &final_results {
-            let entry = brain.feed_history.entry(video.id.clone()).or_insert(FeedEntry {
-                last_shown: now_ms,
-                show_count: 0,
-            });
-            entry.last_shown = now_ms;
-            entry.show_count += 1;
-        }
-
-        let feed_cutoff = now_ms.saturating_sub(FEED_HISTORY_EXPIRY_DAYS * 86_400_000);
-        brain.feed_history.retain(|_, entry| entry.last_shown >= feed_cutoff);
-        if brain.feed_history.len() > FEED_HISTORY_MAX {
-            let mut entries: Vec<(String, FeedEntry)> = brain
-                .feed_history
-                .iter()
-                .map(|(video_id, entry)| (video_id.clone(), entry.clone()))
-                .collect();
-            entries.sort_by(|a, b| a.1.last_shown.cmp(&b.1.last_shown));
-            let removable: Vec<String> = entries
-                .into_iter()
-                .take(brain.feed_history.len() - FEED_HISTORY_MAX)
-                .map(|(video_id, _)| video_id)
-                .collect();
-            for video_id in removable {
-                brain.feed_history.remove(&video_id);
-            }
         }
 
         save_brain(&self.pool, &brain).await?;
@@ -780,7 +1693,9 @@ impl RecommendationService {
         .await?;
 
         // Adjust session counts/topics on positive interaction
-        if interaction_type == InteractionType::Click || interaction_type == InteractionType::Watched {
+        if interaction_type == InteractionType::Click
+            || interaction_type == InteractionType::Watched
+        {
             let idf_snapshot = {
                 let brain = get_or_create_brain(&self.pool).await?;
                 IdfSnapshot {
@@ -797,10 +1712,14 @@ impl RecommendationService {
                 is_short,
                 &idf_snapshot,
             );
-            if let Some((primary_topic, _)) = video_vector.topics.iter().max_by(|a, b| a.1.partial_cmp(b.1).unwrap()) {
+            if let Some((primary_topic, _)) = video_vector
+                .topics
+                .iter()
+                .max_by(|a, b| a.1.partial_cmp(b.1).unwrap())
+            {
                 let mut history = self.session_topic_history.lock().unwrap();
                 history.push(primary_topic.clone());
-                if history.len() > 50 {
+                if history.len() > SESSION_TOPIC_HISTORY_MAX {
                     history.remove(0);
                 }
             }
@@ -811,10 +1730,7 @@ impl RecommendationService {
         Ok(())
     }
 
-    pub async fn record_feed_impressions(
-        &self,
-        videos: Vec<VideoSummary>,
-    ) -> AppResult<()> {
+    pub async fn record_feed_impressions(&self, videos: Vec<VideoSummary>) -> AppResult<()> {
         if videos.is_empty() {
             return Ok(());
         }
@@ -845,16 +1761,21 @@ impl RecommendationService {
 
         let mut brain = get_or_create_brain(&self.pool).await?;
         for video in &unique_videos {
-            let entry = brain.feed_history.entry(video.id.clone()).or_insert(FeedEntry {
-                last_shown: now_ms,
-                show_count: 0,
-            });
+            let entry = brain
+                .feed_history
+                .entry(video.id.clone())
+                .or_insert(FeedEntry {
+                    last_shown: now_ms,
+                    show_count: 0,
+                });
             entry.last_shown = now_ms;
             entry.show_count += 1;
         }
 
         let feed_cutoff = now_ms.saturating_sub(FEED_HISTORY_EXPIRY_DAYS * 86_400_000);
-        brain.feed_history.retain(|_, entry| entry.last_shown >= feed_cutoff);
+        brain
+            .feed_history
+            .retain(|_, entry| entry.last_shown >= feed_cutoff);
         if brain.feed_history.len() > FEED_HISTORY_MAX {
             let mut entries: Vec<(String, FeedEntry)> = brain
                 .feed_history
@@ -867,7 +1788,9 @@ impl RecommendationService {
                 .take(FEED_HISTORY_MAX)
                 .map(|(video_id, _)| video_id)
                 .collect();
-            brain.feed_history.retain(|video_id, _| retained.contains(video_id));
+            brain
+                .feed_history
+                .retain(|video_id, _| retained.contains(video_id));
         }
 
         save_brain(&self.pool, &brain).await?;
@@ -880,8 +1803,27 @@ impl RecommendationService {
         Ok(classify_persona(&brain))
     }
 
-    pub async fn complete_onboarding(&self, preferred: HashSet<String>) -> AppResult<()> {
+    pub async fn complete_onboarding(&self, topics: Vec<String>) -> AppResult<()> {
         let mut brain = get_or_create_brain(&self.pool).await?;
+
+        let mut preferred = HashSet::new();
+        for topic in topics {
+            let trimmed = topic.trim();
+            if trimmed.is_empty() {
+                continue;
+            }
+
+            for token in tokenize(trimmed) {
+                brain.global_vector.topics.insert(token.clone(), 0.75);
+                brain
+                    .global_vector
+                    .topic_confidence
+                    .insert(token.clone(), 1.0);
+                brain.global_vector.anchor_topics.insert(token.clone());
+                preferred.insert(token);
+            }
+        }
+
         brain.preferred_topics = preferred;
         brain.has_completed_onboarding = true;
         save_brain(&self.pool, &brain).await?;
@@ -893,7 +1835,9 @@ impl RecommendationService {
         Ok(brain.has_completed_onboarding)
     }
 
-    pub async fn get_cached_music_home(&self) -> AppResult<Option<(Vec<MusicHomeSection>, Vec<MusicHomeChip>)>> {
+    pub async fn get_cached_music_home(
+        &self,
+    ) -> AppResult<Option<(Vec<MusicHomeSection>, Vec<MusicHomeChip>)>> {
         let sections_rows = sqlx::query(
             "SELECT section_id, title, subtitle, tracks_json, order_by FROM music_home_sections ORDER BY order_by ASC"
         )
@@ -902,7 +1846,7 @@ impl RecommendationService {
         .map_err(|e| crate::errors::AppError::Database(e.to_string()))?;
 
         let chips_rows = sqlx::query(
-            "SELECT title, browse_id, params, order_by FROM music_home_chips ORDER BY order_by ASC"
+            "SELECT title, browse_id, params, order_by FROM music_home_chips ORDER BY order_by ASC",
         )
         .fetch_all(&self.pool)
         .await
@@ -920,8 +1864,7 @@ impl RecommendationService {
             let tracks_json: String = sqlx::Row::get(&r, 3);
             let order_by: i32 = sqlx::Row::get(&r, 4);
 
-            let tracks = serde_json::from_str(&tracks_json)
-                .unwrap_or_else(|_| Vec::new());
+            let tracks = serde_json::from_str(&tracks_json).unwrap_or_else(|_| Vec::new());
 
             sections.push(MusicHomeSection {
                 section_id,
@@ -955,7 +1898,11 @@ impl RecommendationService {
         sections: &[MusicHomeSection],
         chips: &[MusicHomeChip],
     ) -> AppResult<()> {
-        let mut tx = self.pool.begin().await.map_err(|e| crate::errors::AppError::Database(e.to_string()))?;
+        let mut tx = self
+            .pool
+            .begin()
+            .await
+            .map_err(|e| crate::errors::AppError::Database(e.to_string()))?;
 
         sqlx::query("DELETE FROM music_home_sections")
             .execute(&mut *tx)
@@ -996,7 +1943,9 @@ impl RecommendationService {
             .map_err(|e| crate::errors::AppError::Database(e.to_string()))?;
         }
 
-        tx.commit().await.map_err(|e| crate::errors::AppError::Database(e.to_string()))?;
+        tx.commit()
+            .await
+            .map_err(|e| crate::errors::AppError::Database(e.to_string()))?;
         Ok(())
     }
 
@@ -1018,7 +1967,7 @@ impl RecommendationService {
             let title: String = sqlx::Row::get(&r, 1);
             let channel_name: Option<String> = sqlx::Row::get(&r, 2);
             let total_duration_seconds: Option<i64> = sqlx::Row::get(&r, 3);
-            
+
             let ch_name = channel_name.as_deref().unwrap_or("");
             let duration = total_duration_seconds.map(|d| d as u64);
             if Self::is_music_track(&title, ch_name, duration) {
@@ -1039,16 +1988,16 @@ impl RecommendationService {
                 .duration_since(UNIX_EPOCH)
                 .unwrap()
                 .as_millis() as u32;
-                
+
             let count_to_pick = music_seeds.len().min(4);
             let mut indices: Vec<usize> = (0..music_seeds.len()).collect();
-            
+
             for i in (1..indices.len()).rev() {
                 lcg_seed = lcg_seed.wrapping_mul(1103515245).wrapping_add(12345) & 0x7fffffff;
                 let j = (lcg_seed as usize) % (i + 1);
                 indices.swap(i, j);
             }
-            
+
             for &idx in indices.iter().take(count_to_pick) {
                 seeds.push(music_seeds[idx].clone());
             }
@@ -1073,10 +2022,14 @@ impl RecommendationService {
         }
 
         if candidates.is_empty() {
-            if let Ok(trending_music) = youtube_service.search_music("trending songs", "songs").await {
+            if let Ok(trending_music) = youtube_service
+                .search_music("trending songs", "songs")
+                .await
+            {
                 candidates = trending_music;
             } else if let Ok(trending_fallback) = youtube_service.get_trending_videos().await {
-                candidates = trending_fallback.into_iter()
+                candidates = trending_fallback
+                    .into_iter()
                     .filter(|v| Self::is_music_track(&v.title, &v.channel_name, v.duration_seconds))
                     .collect();
             }
@@ -1163,7 +2116,12 @@ impl RecommendationService {
 
         let mut futures = Vec::new();
         for cid in &batch_channels {
-            futures.push(youtube_service.get_channel_tab(cid, Some("EgZ2aWRlb3PyBgQKAjoA".to_string()), None, None));
+            futures.push(youtube_service.get_channel_tab(
+                cid,
+                Some("EgZ2aWRlb3PyBgQKAjoA".to_string()),
+                None,
+                None,
+            ));
         }
 
         let results = futures_util::future::join_all(futures).await;
@@ -1209,10 +2167,20 @@ impl RecommendationService {
         get_or_create_brain(&self.pool).await
     }
 
+    pub async fn get_feed_quotas(&self) -> AppResult<FeedQuotas> {
+        let brain = get_or_create_brain(&self.pool).await?;
+        Ok(Self::calculate_feed_quotas(
+            brain.total_interactions,
+            DISCOVER_FEED_TARGET_SIZE,
+        ))
+    }
+
     pub async fn unblock_topic(&self, topic: String) -> AppResult<()> {
         let mut brain = get_or_create_brain(&self.pool).await?;
         let topic_lower = topic.trim().to_lowercase();
-        brain.blocked_topics.retain(|t| t.to_lowercase() != topic_lower);
+        brain
+            .blocked_topics
+            .retain(|t| t.to_lowercase() != topic_lower);
         save_brain(&self.pool, &brain).await
     }
 
@@ -1225,5 +2193,91 @@ impl RecommendationService {
     pub async fn reset_brain(&self) -> AppResult<()> {
         let brain = UserBrain::default();
         save_brain(&self.pool, &brain).await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn enriches_broad_singleton_discovery_queries() {
+        let brain = UserBrain::default();
+
+        assert_eq!(
+            RecommendationService::build_discovery_query("technology", &brain),
+            "technology code"
+        );
+        assert_eq!(
+            RecommendationService::build_discovery_query("science", &brain),
+            "science physics"
+        );
+        assert_eq!(
+            RecommendationService::build_discovery_query("day", &brain),
+            "day"
+        );
+    }
+
+    #[test]
+    fn boosts_time_context_topics_without_global_weight() {
+        let brain = UserBrain::default();
+        let mut time_scores = HashMap::new();
+        time_scores.insert("roblox".to_string(), 0.0);
+
+        let topics = RecommendationService::analyze_mature_topics(&brain, &time_scores);
+        let roblox = topics
+            .iter()
+            .find(|topic| topic.name == "roblox")
+            .expect("time topic should be included");
+
+        assert!(roblox.has_time_context);
+        assert!(roblox.score >= TIME_CONTEXT_MIN_SCORE * TIME_CONTEXT_SELECTION_MULTIPLIER);
+        assert!(RecommendationService::topic_is_discovery_eligible(
+            roblox, false
+        ));
+    }
+
+    #[test]
+    fn rejects_viral_and_numeric_discovery_fragments() {
+        assert!(!RecommendationService::is_substantial_topic("viral"));
+        assert!(!RecommendationService::is_substantial_topic("3.1"));
+        assert_eq!(
+            RecommendationService::sanitize_discovery_query("3.1 pro"),
+            None
+        );
+        assert_eq!(
+            RecommendationService::sanitize_discovery_query("viral"),
+            None
+        );
+    }
+
+    #[test]
+    fn calculates_dynamic_cold_start_feed_quotas() {
+        let quotas = RecommendationService::calculate_feed_quotas(15, 35);
+
+        assert_eq!(quotas.maturity, "cold_start");
+        assert_eq!(quotas.subscription_limit, 21);
+        assert_eq!(quotas.discovery_limit, 12);
+        assert_eq!(quotas.viral_limit, 2);
+    }
+
+    #[test]
+    fn calculates_dynamic_maturing_feed_quotas() {
+        let quotas = RecommendationService::calculate_feed_quotas(50, 35);
+
+        assert_eq!(quotas.maturity, "maturing");
+        assert_eq!(quotas.subscription_limit, 14);
+        assert_eq!(quotas.discovery_limit, 18);
+        assert_eq!(quotas.viral_limit, 3);
+    }
+
+    #[test]
+    fn keeps_standard_mature_feed_shape() {
+        let quotas = RecommendationService::calculate_feed_quotas(150, 35);
+
+        assert_eq!(quotas.maturity, "mature");
+        assert_eq!(quotas.subscription_limit, 10);
+        assert_eq!(quotas.discovery_limit, 15);
+        assert_eq!(quotas.viral_limit, 10);
     }
 }

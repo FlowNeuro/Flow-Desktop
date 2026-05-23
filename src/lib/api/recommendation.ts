@@ -9,6 +9,28 @@ export interface PersonaDetails {
   icon: string;
 }
 
+export interface FeedQuotas {
+  maturity: "cold_start" | "maturing" | "mature" | string;
+  totalInteractions: number;
+  subscriptionPercent: number;
+  discoveryPercent: number;
+  viralPercent: number;
+  subscriptionLimit: number;
+  discoveryLimit: number;
+  viralLimit: number;
+}
+
+const MOCK_FEED_QUOTAS: FeedQuotas = {
+  maturity: "mature",
+  totalInteractions: 168,
+  subscriptionPercent: 10 / 35,
+  discoveryPercent: 15 / 35,
+  viralPercent: 10 / 35,
+  subscriptionLimit: 10,
+  discoveryLimit: 15,
+  viralLimit: 10,
+};
+
 export async function rankVideos(
   candidates: VideoSummary[],
   userSubs: string[],
@@ -18,6 +40,13 @@ export async function rankVideos(
     return [...candidates].sort(() => 0.5 - Math.random());
   }
   return invokeBackend<VideoSummary[]>("rank_videos", { candidates, userSubs });
+}
+
+export async function getFeedQuotas(): Promise<FeedQuotas> {
+  if (!(await isTauriEnv())) {
+    return MOCK_FEED_QUOTAS;
+  }
+  return invokeBackend<FeedQuotas>("get_feed_quotas");
 }
 
 export async function logInteraction(
@@ -92,7 +121,7 @@ export async function completeOnboarding(preferred: string[]): Promise<void> {
     localStorage.setItem("mock_setting_preferred_topics", JSON.stringify(preferred));
     return;
   }
-  return invokeBackend<void>("complete_onboarding", { preferred });
+  return invokeBackend<void>("complete_onboarding", { topics: preferred });
 }
 
 export async function getOnboardingStatus(): Promise<boolean> {
@@ -141,6 +170,8 @@ export async function getFlowPersona(): Promise<PersonaDetails> {
 
 export interface ContentVector {
   topics: Record<string, number>;
+  topic_confidence: Record<string, number>;
+  anchor_topics: string[];
   duration: number;
   pacing: number;
   complexity: number;
@@ -198,6 +229,8 @@ const MOCK_BRAIN: UserBrain = {
   time_vectors: {
     "WeekdayMorning": {
       topics: { "Coding": 0.8, "Tech News": 0.6, "Acoustic": 0.4 },
+      topic_confidence: {},
+      anchor_topics: [],
       duration: 0.35,
       pacing: 0.3,
       complexity: 0.75,
@@ -205,6 +238,8 @@ const MOCK_BRAIN: UserBrain = {
     },
     "WeekdayEvening": {
       topics: { "Gaming": 0.7, "Chill Lofi": 0.8, "Pop Culture": 0.5 },
+      topic_confidence: {},
+      anchor_topics: [],
       duration: 0.45,
       pacing: 0.4,
       complexity: 0.45,
@@ -224,6 +259,8 @@ const MOCK_BRAIN: UserBrain = {
       "Documentaries": 0.45,
       "Rust Language": 0.75
     },
+    topic_confidence: {},
+    anchor_topics: [],
     duration: 0.48,
     pacing: 0.32,
     complexity: 0.78,

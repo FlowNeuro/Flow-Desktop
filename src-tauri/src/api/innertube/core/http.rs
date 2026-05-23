@@ -1,6 +1,6 @@
-use serde_json::Value;
 use crate::api::innertube::InnertubeClient;
 use crate::errors::{AppError, AppResult};
+use serde_json::Value;
 
 pub fn get_client_id(client_name: &str) -> &'static str {
     match client_name {
@@ -18,6 +18,7 @@ pub fn get_client_id(client_name: &str) -> &'static str {
     }
 }
 
+#[allow(dead_code)]
 pub fn custom_url_encode(s: &str) -> String {
     let mut encoded = String::new();
     for b in s.as_bytes() {
@@ -76,10 +77,15 @@ impl InnertubeClient {
             }
         }
 
-        let url = format!("https://www.youtube.com/youtubei/v1/{}?prettyPrint=false", endpoint);
+        let url = format!(
+            "https://www.youtube.com/youtubei/v1/{}?prettyPrint=false",
+            endpoint
+        );
         let client_id = get_client_id(client_name);
 
-        let mut req = self.client.post(&url)
+        let mut req = self
+            .client
+            .post(&url)
             .header(reqwest::header::USER_AGENT, user_agent)
             .header("X-YouTube-Client-Name", client_id)
             .header("X-YouTube-Client-Version", client_version)
@@ -93,12 +99,14 @@ impl InnertubeClient {
             req = req.header("Referer", "https://www.youtube.com");
         }
 
-        let res = req.send()
+        let res = req
+            .send()
             .await
             .map_err(|e| AppError::Extractor(format!("Network error: {}", e)))?;
 
         let status = res.status();
-        let res_json = res.json::<Value>()
+        let res_json = res
+            .json::<Value>()
             .await
             .map_err(|e| AppError::Extractor(format!("JSON parse error: {}", e)))?;
 
@@ -106,7 +114,9 @@ impl InnertubeClient {
             return Err(AppError::Extractor(format!(
                 "Innertube returned status {}: {}",
                 status,
-                res_json["error"]["message"].as_str().unwrap_or("Unknown error")
+                res_json["error"]["message"]
+                    .as_str()
+                    .unwrap_or("Unknown error")
             )));
         }
 
@@ -117,26 +127,37 @@ impl InnertubeClient {
     pub async fn fetch_watch_next_metadata(
         &self,
         video_id: &str,
-    ) -> AppResult<(Option<String>, Option<String>, Option<String>, Option<String>)> {
+    ) -> AppResult<(
+        Option<String>,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+    )> {
         let mut payload = serde_json::json!({
             "videoId": video_id
         });
 
-        let res = self.post_innertube("next", "WEB_REMIX", "67", &mut payload).await?;
+        let res = self
+            .post_innertube("next", "WEB_REMIX", "67", &mut payload)
+            .await?;
 
-        let lyrics_tab = res["contents"]["singleColumnMusicWatchNextResultsRenderer"]["tabbedRenderer"]["watchNextTabbedResultsRenderer"]["tabs"].as_array()
+        let lyrics_tab = res["contents"]["singleColumnMusicWatchNextResultsRenderer"]
+            ["tabbedRenderer"]["watchNextTabbedResultsRenderer"]["tabs"]
+            .as_array()
             .and_then(|tabs| tabs.get(1))
             .and_then(|tab| tab.get("tabRenderer"));
-        
+
         let lyrics_browse_id = lyrics_tab
             .and_then(|renderer| renderer["endpoint"]["browseEndpoint"]["browseId"].as_str())
             .map(|s| s.to_string());
-            
+
         let lyrics_params = lyrics_tab
             .and_then(|renderer| renderer["endpoint"]["browseEndpoint"]["params"].as_str())
             .map(|s| s.to_string());
 
-        let related_tab = res["contents"]["singleColumnMusicWatchNextResultsRenderer"]["tabbedRenderer"]["watchNextTabbedResultsRenderer"]["tabs"].as_array()
+        let related_tab = res["contents"]["singleColumnMusicWatchNextResultsRenderer"]
+            ["tabbedRenderer"]["watchNextTabbedResultsRenderer"]["tabs"]
+            .as_array()
             .and_then(|tabs| tabs.get(2))
             .and_then(|tab| tab.get("tabRenderer"));
 
@@ -148,6 +169,11 @@ impl InnertubeClient {
             .and_then(|renderer| renderer["endpoint"]["browseEndpoint"]["params"].as_str())
             .map(|s| s.to_string());
 
-        Ok((lyrics_browse_id, lyrics_params, related_browse_id, related_params))
+        Ok((
+            lyrics_browse_id,
+            lyrics_params,
+            related_browse_id,
+            related_params,
+        ))
     }
 }

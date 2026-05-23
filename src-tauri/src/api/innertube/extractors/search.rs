@@ -1,12 +1,12 @@
-use serde_json::Value;
+use crate::api::innertube::core::utils::{
+    extract_channel_id_from_video_renderer, extract_continuation_token, parse_duration_seconds,
+};
+use crate::api::innertube::parsers::parse_music_search_json;
 use crate::api::innertube::InnertubeClient;
 use crate::errors::{AppError, AppResult};
 use crate::models::search::{SearchVideosRequest, SearchVideosResponse};
 use crate::models::video::VideoSummary;
-use crate::api::innertube::core::utils::{
-    parse_duration_seconds, extract_channel_id_from_video_renderer, extract_continuation_token
-};
-use crate::api::innertube::parsers::parse_music_search_json;
+use serde_json::Value;
 
 fn custom_url_encode(s: &str) -> String {
     let mut encoded = String::new();
@@ -38,23 +38,27 @@ fn parse_innertube_search(val: Value) -> (Vec<VideoSummary>, Option<String>) {
                     continue;
                 }
 
-                let title = video["title"]["runs"][0]["text"].as_str()
+                let title = video["title"]["runs"][0]["text"]
+                    .as_str()
                     .or_else(|| video["title"]["simpleText"].as_str())
                     .unwrap_or_default()
                     .to_string();
 
-                let channel_name = video["longBylineText"]["runs"][0]["text"].as_str()
+                let channel_name = video["longBylineText"]["runs"][0]["text"]
+                    .as_str()
                     .or_else(|| video["ownerText"]["runs"][0]["text"].as_str())
                     .or_else(|| video["shortBylineText"]["runs"][0]["text"].as_str())
                     .or_else(|| video["longBylineText"]["simpleText"].as_str())
                     .unwrap_or_default()
                     .to_string();
 
-                let thumbnail_url = video["thumbnail"]["thumbnails"][0]["url"].as_str()
+                let thumbnail_url = video["thumbnail"]["thumbnails"][0]["url"]
+                    .as_str()
                     .or_else(|| video["thumbnail"]["url"].as_str())
                     .map(|s| s.to_string());
 
-                let duration_text = video["lengthText"]["runs"][0]["text"].as_str()
+                let duration_text = video["lengthText"]["runs"][0]["text"]
+                    .as_str()
                     .or_else(|| video["lengthText"]["simpleText"].as_str())
                     .unwrap_or_default();
 
@@ -64,11 +68,13 @@ fn parse_innertube_search(val: Value) -> (Vec<VideoSummary>, Option<String>) {
                     Some(parse_duration_seconds(duration_text))
                 };
 
-                let published_text = video["publishedTimeText"]["runs"][0]["text"].as_str()
+                let published_text = video["publishedTimeText"]["runs"][0]["text"]
+                    .as_str()
                     .or_else(|| video["publishedTimeText"]["simpleText"].as_str())
                     .map(|s| s.to_string());
 
-                let view_count_text = video["viewCountText"]["runs"][0]["text"].as_str()
+                let view_count_text = video["viewCountText"]["runs"][0]["text"]
+                    .as_str()
                     .or_else(|| video["viewCountText"]["simpleText"].as_str())
                     .or_else(|| video["shortViewCountText"]["runs"][0]["text"].as_str())
                     .or_else(|| video["shortViewCountText"]["simpleText"].as_str())
@@ -87,17 +93,23 @@ fn parse_innertube_search(val: Value) -> (Vec<VideoSummary>, Option<String>) {
                     view_count_text,
                 });
             } else if let Some(channel) = item.get("channelRenderer") {
-                let channel_id = channel["channelId"].as_str().unwrap_or_default().to_string();
+                let channel_id = channel["channelId"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .to_string();
                 if !channel_id.is_empty() {
-                    let title = channel["title"]["simpleText"].as_str()
+                    let title = channel["title"]["simpleText"]
+                        .as_str()
                         .or_else(|| channel["title"]["runs"][0]["text"].as_str())
                         .unwrap_or_default()
                         .to_string();
 
-                    let thumbnail_url = channel["thumbnail"]["thumbnails"][0]["url"].as_str()
+                    let thumbnail_url = channel["thumbnail"]["thumbnails"][0]["url"]
+                        .as_str()
                         .map(|s| s.to_string());
 
-                    let subscriber_count_text = channel["subscriberCountText"]["simpleText"].as_str()
+                    let subscriber_count_text = channel["subscriberCountText"]["simpleText"]
+                        .as_str()
                         .or_else(|| channel["subscriberCountText"]["runs"][0]["text"].as_str())
                         .map(|s| s.to_string());
 
@@ -118,7 +130,10 @@ fn parse_innertube_search(val: Value) -> (Vec<VideoSummary>, Option<String>) {
         }
     };
 
-    if let Some(contents_arr) = val["contents"]["twoColumnSearchResultsRenderer"]["primaryContents"]["sectionListRenderer"]["contents"].as_array() {
+    if let Some(contents_arr) = val["contents"]["twoColumnSearchResultsRenderer"]["primaryContents"]
+        ["sectionListRenderer"]["contents"]
+        .as_array()
+    {
         for section in contents_arr {
             if let Some(items_arr) = section["itemSectionRenderer"]["contents"].as_array() {
                 process_search_items(items_arr);
@@ -128,9 +143,13 @@ fn parse_innertube_search(val: Value) -> (Vec<VideoSummary>, Option<String>) {
 
     if let Some(commands) = val["onResponseReceivedCommands"].as_array() {
         for command in commands {
-            if let Some(items_arr) = command["appendContinuationItemsAction"]["continuationItems"].as_array() {
+            if let Some(items_arr) =
+                command["appendContinuationItemsAction"]["continuationItems"].as_array()
+            {
                 process_search_items(items_arr);
-            } else if let Some(items_arr) = command["reloadContinuationItemsCommand"]["continuationItems"].as_array() {
+            } else if let Some(items_arr) =
+                command["reloadContinuationItemsCommand"]["continuationItems"].as_array()
+            {
                 process_search_items(items_arr);
             }
         }
@@ -138,9 +157,13 @@ fn parse_innertube_search(val: Value) -> (Vec<VideoSummary>, Option<String>) {
 
     if let Some(actions) = val["onResponseReceivedActions"].as_array() {
         for action in actions {
-            if let Some(items_arr) = action["appendContinuationItemsAction"]["continuationItems"].as_array() {
+            if let Some(items_arr) =
+                action["appendContinuationItemsAction"]["continuationItems"].as_array()
+            {
                 process_search_items(items_arr);
-            } else if let Some(items_arr) = action["reloadContinuationItemsCommand"]["continuationItems"].as_array() {
+            } else if let Some(items_arr) =
+                action["reloadContinuationItemsCommand"]["continuationItems"].as_array()
+            {
                 process_search_items(items_arr);
             }
         }
@@ -169,7 +192,9 @@ impl InnertubeClient {
             })
         };
 
-        let res = self.post_innertube("search", "WEB", "2.20260120.01.00", &mut payload).await?;
+        let res = self
+            .post_innertube("search", "WEB", "2.20260120.01.00", &mut payload)
+            .await?;
         let (items, next_page_token) = parse_innertube_search(res);
 
         Ok(SearchVideosResponse {
@@ -179,10 +204,7 @@ impl InnertubeClient {
         })
     }
 
-    pub async fn get_search_suggestions(
-        &self,
-        query: &str,
-    ) -> AppResult<Vec<String>> {
+    pub async fn get_search_suggestions(&self, query: &str) -> AppResult<Vec<String>> {
         let encoded_query = custom_url_encode(query);
         let url = format!(
             "https://suggestqueries-clients6.youtube.com/complete/search?client=youtube&ds=yt&xhr=t&q={}",
@@ -190,14 +212,16 @@ impl InnertubeClient {
         );
 
         let client = reqwest::Client::new();
-        let res = client.get(&url)
+        let res = client
+            .get(&url)
             .header("Origin", "https://www.youtube.com")
             .header("Referer", "https://www.youtube.com")
             .send()
             .await
             .map_err(|e| AppError::Extractor(format!("Network error suggestions: {}", e)))?;
 
-        let val: Value = res.json()
+        let val: Value = res
+            .json()
             .await
             .map_err(|e| AppError::Extractor(format!("JSON error suggestions: {}", e)))?;
 
@@ -215,11 +239,7 @@ impl InnertubeClient {
         Ok(suggestions)
     }
 
-    pub async fn search_music(
-        &self,
-        query: &str,
-        filter: &str,
-    ) -> AppResult<Vec<VideoSummary>> {
+    pub async fn search_music(&self, query: &str, filter: &str) -> AppResult<Vec<VideoSummary>> {
         let params = match filter {
             "songs" => Some("Eg-KAQwIARAAGAAgACgAMABqChAEEAUQAxAKEAk%3D"),
             "videos" => Some("Eg-KAQwIABABGAAgACgAMABqChAEEAUQAxAKEAk%3D"),
@@ -236,7 +256,9 @@ impl InnertubeClient {
             payload["params"] = serde_json::Value::String(p.to_string());
         }
 
-        let res = self.post_innertube("search", "WEB_REMIX", "67", &mut payload).await?;
+        let res = self
+            .post_innertube("search", "WEB_REMIX", "67", &mut payload)
+            .await?;
         let items = parse_music_search_json(&res);
 
         Ok(items)

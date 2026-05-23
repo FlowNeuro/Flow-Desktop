@@ -1,20 +1,22 @@
-use std::collections::HashMap;
 use serde_json::Value;
+use std::collections::HashMap;
 use tracing::debug;
 
+use crate::api::innertube::core::utils::{
+    extract_text_from_value, parse_mixed_number_word_to_long, thumbnail_url_from_array,
+};
 use crate::api::innertube::InnertubeClient;
 use crate::errors::{AppError, AppResult};
 use crate::models::comment::{Comment, CommentsResponse};
-use crate::api::innertube::core::utils::{
-    parse_mixed_number_word_to_long, extract_text_from_value, thumbnail_url_from_array,
-};
 
 fn find_comment_count_text(val: &Value) -> Option<String> {
     if let Some(panels) = val["engagementPanels"].as_array() {
         for panel in panels {
             let section = &panel["engagementPanelSectionListRenderer"];
             let panel_id = section["panelIdentifier"].as_str();
-            if panel_id == Some("comment-item-section") || panel_id == Some("engagement-panel-comments-section") {
+            if panel_id == Some("comment-item-section")
+                || panel_id == Some("engagement-panel-comments-section")
+            {
                 let header = &section["header"]["engagementPanelTitleHeaderRenderer"];
                 if let Some(text) = header["contextualInfo"]["runs"][0]["text"].as_str() {
                     return Some(text.to_string());
@@ -26,7 +28,9 @@ fn find_comment_count_text(val: &Value) -> Option<String> {
         }
     }
 
-    if let Some(contents) = val["contents"]["twoColumnWatchNextResults"]["results"]["results"]["contents"].as_array() {
+    if let Some(contents) =
+        val["contents"]["twoColumnWatchNextResults"]["results"]["results"]["contents"].as_array()
+    {
         for content in contents {
             let item_section = &content["itemSectionRenderer"];
             let target_id = item_section["targetId"].as_str();
@@ -65,10 +69,30 @@ fn parse_comments_json(val: &Value) -> CommentsResponse {
     let mut next_page_token = None;
     let mutation_payloads = build_comment_mutation_map(val);
 
-    collect_comments_from_value(&val["onResponseReceivedEndpoints"], &mut comments, &mut next_page_token, &mutation_payloads);
-    collect_comments_from_value(&val["onResponseReceivedActions"], &mut comments, &mut next_page_token, &mutation_payloads);
-    collect_comments_from_value(&val["contents"]["twoColumnWatchNextResults"]["results"]["results"]["contents"], &mut comments, &mut next_page_token, &mutation_payloads);
-    collect_comments_from_value(&val["engagementPanels"], &mut comments, &mut next_page_token, &mutation_payloads);
+    collect_comments_from_value(
+        &val["onResponseReceivedEndpoints"],
+        &mut comments,
+        &mut next_page_token,
+        &mutation_payloads,
+    );
+    collect_comments_from_value(
+        &val["onResponseReceivedActions"],
+        &mut comments,
+        &mut next_page_token,
+        &mutation_payloads,
+    );
+    collect_comments_from_value(
+        &val["contents"]["twoColumnWatchNextResults"]["results"]["results"]["contents"],
+        &mut comments,
+        &mut next_page_token,
+        &mutation_payloads,
+    );
+    collect_comments_from_value(
+        &val["engagementPanels"],
+        &mut comments,
+        &mut next_page_token,
+        &mutation_payloads,
+    );
 
     comments = dedupe_comments(comments);
 
@@ -101,17 +125,21 @@ fn find_initial_comments_token(response: &Value) -> Option<String> {
                     .as_array()
                     .and_then(|section_contents| {
                         section_contents.iter().find_map(|item| {
-                            item["continuationItemRenderer"]["continuationEndpoint"]["continuationCommand"]["token"]
+                            item["continuationItemRenderer"]["continuationEndpoint"]
+                                ["continuationCommand"]["token"]
                                 .as_str()
                                 .or_else(|| {
-                                    item["continuationItemRenderer"]["button"]["buttonRenderer"]["command"]["continuationCommand"]["token"]
+                                    item["continuationItemRenderer"]["button"]["buttonRenderer"]
+                                        ["command"]["continuationCommand"]["token"]
                                         .as_str()
                                 })
                                 .map(ToOwned::to_owned)
                         })
                     })
                     .or_else(|| {
-                        item_section["header"]["commentsHeaderRenderer"]["sortMenu"]["sortFilterSubMenuRenderer"]["subMenuItems"][0]["serviceEndpoint"]["continuationCommand"]["token"]
+                        item_section["header"]["commentsHeaderRenderer"]["sortMenu"]
+                            ["sortFilterSubMenuRenderer"]["subMenuItems"][0]["serviceEndpoint"]
+                            ["continuationCommand"]["token"]
                             .as_str()
                             .map(ToOwned::to_owned)
                     })
@@ -132,13 +160,17 @@ fn find_initial_comments_token(response: &Value) -> Option<String> {
                         .as_array()
                         .and_then(|contents| {
                             contents.iter().find_map(|content| {
-                                content["itemSectionRenderer"]["contents"][0]["continuationItemRenderer"]["continuationEndpoint"]["continuationCommand"]["token"]
+                                content["itemSectionRenderer"]["contents"][0]
+                                    ["continuationItemRenderer"]["continuationEndpoint"]
+                                    ["continuationCommand"]["token"]
                                     .as_str()
                                     .map(ToOwned::to_owned)
                             })
                         })
                         .or_else(|| {
-                            section["header"]["engagementPanelTitleHeaderRenderer"]["menu"]["sortFilterSubMenuRenderer"]["subMenuItems"][0]["serviceEndpoint"]["continuationCommand"]["token"]
+                            section["header"]["engagementPanelTitleHeaderRenderer"]["menu"]
+                                ["sortFilterSubMenuRenderer"]["subMenuItems"][0]["serviceEndpoint"]
+                                ["continuationCommand"]["token"]
                                 .as_str()
                                 .map(ToOwned::to_owned)
                         })
@@ -161,7 +193,9 @@ fn collect_comments_from_value(
         {
             if let Some(comment) = build_comment_from_view_model(
                 view_model,
-                thread.get("replies").and_then(|r| r.get("commentRepliesRenderer")),
+                thread
+                    .get("replies")
+                    .and_then(|r| r.get("commentRepliesRenderer")),
                 mutation_payloads,
             ) {
                 comments.push(comment);
@@ -171,14 +205,19 @@ fn collect_comments_from_value(
 
         let renderer = &thread["comment"]["commentRenderer"];
         if !renderer.is_null() {
-            let id = renderer["commentId"].as_str().unwrap_or_default().to_string();
+            let id = renderer["commentId"]
+                .as_str()
+                .unwrap_or_default()
+                .to_string();
             if !id.is_empty() {
-                let author = renderer["authorText"]["runs"][0]["text"].as_str()
+                let author = renderer["authorText"]["runs"][0]["text"]
+                    .as_str()
                     .or_else(|| renderer["authorText"]["simpleText"].as_str())
                     .unwrap_or("Anonymous")
                     .to_string();
 
-                let author_thumbnail = renderer["authorThumbnail"]["thumbnails"][0]["url"].as_str()
+                let author_thumbnail = renderer["authorThumbnail"]["thumbnails"][0]["url"]
+                    .as_str()
                     .map(|s| s.to_string());
 
                 let mut text = String::new();
@@ -192,19 +231,25 @@ fn collect_comments_from_value(
                     text = simple.to_string();
                 }
 
-                let published_text = renderer["publishedTimeText"]["runs"][0]["text"].as_str()
+                let published_text = renderer["publishedTimeText"]["runs"][0]["text"]
+                    .as_str()
                     .or_else(|| renderer["publishedTimeText"]["simpleText"].as_str())
                     .map(|s| s.to_string());
 
-                let like_count = renderer["voteCount"]["simpleText"].as_str()
+                let like_count = renderer["voteCount"]["simpleText"]
+                    .as_str()
                     .map(parse_mixed_number_word_to_long);
 
                 let reply_count = renderer["replyCount"].as_u64();
 
-                let reply_token = thread["replies"]["commentRepliesRenderer"]["contents"][0]["continuationItemRenderer"]["continuationEndpoint"]["continuationCommand"]["token"].as_str()
+                let reply_token = thread["replies"]["commentRepliesRenderer"]["contents"][0]
+                    ["continuationItemRenderer"]["continuationEndpoint"]["continuationCommand"]
+                    ["token"]
+                    .as_str()
                     .map(|s| s.to_string());
 
-                let author_channel_id = renderer["authorEndpoint"]["browseEndpoint"]["browseId"].as_str()
+                let author_channel_id = renderer["authorEndpoint"]["browseEndpoint"]["browseId"]
+                    .as_str()
                     .map(|s| s.to_string());
 
                 comments.push(Comment {
@@ -231,14 +276,19 @@ fn collect_comments_from_value(
     }
 
     if let Some(renderer) = value.get("commentRenderer") {
-        let id = renderer["commentId"].as_str().unwrap_or_default().to_string();
+        let id = renderer["commentId"]
+            .as_str()
+            .unwrap_or_default()
+            .to_string();
         if !id.is_empty() {
-            let author = renderer["authorText"]["runs"][0]["text"].as_str()
+            let author = renderer["authorText"]["runs"][0]["text"]
+                .as_str()
                 .or_else(|| renderer["authorText"]["simpleText"].as_str())
                 .unwrap_or("Anonymous")
                 .to_string();
 
-            let author_thumbnail = renderer["authorThumbnail"]["thumbnails"][0]["url"].as_str()
+            let author_thumbnail = renderer["authorThumbnail"]["thumbnails"][0]["url"]
+                .as_str()
                 .map(|s| s.to_string());
 
             let mut text = String::new();
@@ -252,14 +302,17 @@ fn collect_comments_from_value(
                 text = simple.to_string();
             }
 
-            let published_text = renderer["publishedTimeText"]["runs"][0]["text"].as_str()
+            let published_text = renderer["publishedTimeText"]["runs"][0]["text"]
+                .as_str()
                 .or_else(|| renderer["publishedTimeText"]["simpleText"].as_str())
                 .map(|s| s.to_string());
 
-            let like_count = renderer["voteCount"]["simpleText"].as_str()
+            let like_count = renderer["voteCount"]["simpleText"]
+                .as_str()
                 .map(parse_mixed_number_word_to_long);
 
-            let author_channel_id = renderer["authorEndpoint"]["browseEndpoint"]["browseId"].as_str()
+            let author_channel_id = renderer["authorEndpoint"]["browseEndpoint"]["browseId"]
+                .as_str()
                 .map(|s| s.to_string());
 
             comments.push(Comment {
@@ -279,7 +332,9 @@ fn collect_comments_from_value(
 
     if next_page_token.is_none() {
         if let Some(renderer) = value.get("continuationItemRenderer") {
-            if let Some(token) = renderer["continuationEndpoint"]["continuationCommand"]["token"].as_str() {
+            if let Some(token) =
+                renderer["continuationEndpoint"]["continuationCommand"]["token"].as_str()
+            {
                 *next_page_token = Some(token.to_string());
             }
         }
@@ -318,7 +373,8 @@ fn comment_reply_token(replies_renderer: Option<&Value>) -> Option<String> {
         .and_then(|renderer| renderer["contents"].as_array())
         .and_then(|contents| {
             contents.iter().find_map(|content| {
-                content["continuationItemRenderer"]["continuationEndpoint"]["continuationCommand"]["token"]
+                content["continuationItemRenderer"]["continuationEndpoint"]["continuationCommand"]
+                    ["token"]
                     .as_str()
                     .map(ToOwned::to_owned)
             })
@@ -375,7 +431,10 @@ fn build_comment_from_view_model(
 
     Some(Comment {
         id,
-        author: author["displayName"].as_str().unwrap_or("Anonymous").to_string(),
+        author: author["displayName"]
+            .as_str()
+            .unwrap_or("Anonymous")
+            .to_string(),
         author_thumbnail,
         author_channel_id,
         text,
@@ -422,7 +481,9 @@ impl InnertubeClient {
 
         debug!(video_id = %video_id_trimmed, has_page_token = page_token.is_some(), "[get_comments] Starting comments fetch");
 
-        let res = self.post_innertube("next", "WEB", "2.20260120.01.00", &mut payload).await?;
+        let res = self
+            .post_innertube("next", "WEB", "2.20260120.01.00", &mut payload)
+            .await?;
         let mut comments_res = parse_comments_json(&res);
 
         debug!(
@@ -434,8 +495,8 @@ impl InnertubeClient {
 
         if page_token.is_none() && comments_res.comments.is_empty() {
             let initial_count_text = comments_res.comment_count_text.clone();
-            let continuation_token = find_initial_comments_token(&res)
-                .or_else(|| comments_res.next_page_token.clone());
+            let continuation_token =
+                find_initial_comments_token(&res).or_else(|| comments_res.next_page_token.clone());
 
             debug!(
                 video_id = %video_id_trimmed,
@@ -447,7 +508,9 @@ impl InnertubeClient {
                 let mut next_payload = serde_json::json!({
                     "continuation": token
                 });
-                let next_res = self.post_innertube("next", "WEB", "2.20260120.01.00", &mut next_payload).await?;
+                let next_res = self
+                    .post_innertube("next", "WEB", "2.20260120.01.00", &mut next_payload)
+                    .await?;
                 comments_res = parse_comments_json(&next_res);
                 if comments_res.comment_count_text.is_none() {
                     comments_res.comment_count_text = initial_count_text;

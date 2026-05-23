@@ -1,6 +1,11 @@
-use std::collections::{HashMap, HashSet};
-use serde::{Serialize, Deserialize};
+pub use crate::flow_neuro::tokenizer::{
+    get_polysemous_words, get_priority_bigrams, is_generic_word, normalize_lemma, strip_domain_tag,
+    tokenize, tokenize_unigrams, unigram_weight_multiplier,
+};
 use chrono::{Datelike, Local, Timelike, Weekday};
+use serde::{Deserialize, Serialize};
+use std::collections::{HashMap, HashSet};
+use std::sync::OnceLock;
 
 pub const SCHEMA_VERSION: i32 = 13;
 
@@ -9,7 +14,9 @@ pub const SUBSCRIPTION_BOOST: f64 = 0.15;
 pub const SERENDIPITY_BONUS: f64 = 0.10;
 pub const CURIOSITY_GAP_BONUS: f64 = 0.10;
 
+#[allow(dead_code)]
 pub const CHANNEL_BOREDOM_MULTIPLIER: f64 = 0.5;
+#[allow(dead_code)]
 pub const CHANNEL_BOREDOM_THRESHOLD: f64 = 0.05;
 pub const CHANNEL_EMA_ALPHA: f64 = 0.05;
 pub const CHANNEL_EMA_DECAY: f64 = 1.0 - CHANNEL_EMA_ALPHA;
@@ -39,12 +46,18 @@ pub const COLD_START_THRESHOLD: i32 = 30;
 pub const ONBOARDING_WARMUP_INTERACTIONS: i32 = 50;
 pub const ONBOARDING_MAX_BOOST: f64 = 0.15;
 
+#[allow(dead_code)]
 pub const ENGAGEMENT_RATE_BASELINE: f64 = 0.05;
+#[allow(dead_code)]
 pub const ENGAGEMENT_MAX_BOOST: f64 = 0.05;
+#[allow(dead_code)]
 pub const ENGAGEMENT_MIN_VIEWS: u64 = 1000;
 
+#[allow(dead_code)]
 pub const ENGAGEMENT_FLOOR_RATE: f64 = 0.01;
+#[allow(dead_code)]
 pub const ENGAGEMENT_FLOOR_MIN_VIEWS: u64 = 50_000;
+#[allow(dead_code)]
 pub const ENGAGEMENT_FLOOR_PENALTY: f64 = 0.2;
 
 pub const BINGE_THRESHOLD: i32 = 20;
@@ -56,6 +69,7 @@ pub const JITTER_NORMAL: f64 = 0.02;
 pub const TITLE_SIMILARITY_STRICT: f64 = 0.55;
 pub const TITLE_SIMILARITY_RELAXED: f64 = 0.60;
 
+#[allow(dead_code)]
 pub const FEATURE_CACHE_MAX: usize = 150;
 pub const IDF_MIN_WEIGHT: f64 = 0.15;
 
@@ -99,11 +113,14 @@ pub const COMPLEXITY_CHAPTER_BONUS: f64 = 0.2;
 pub const DESCRIPTION_MIN_LENGTH: usize = 20;
 pub const DESCRIPTION_TAKE_CHARS: usize = 200;
 pub const DESCRIPTION_TAKE_WORDS: usize = 15;
+pub const DESCRIPTION_TAKE_LINES: usize = 5;
+pub const DESCRIPTION_LINE_MIN_LENGTH: usize = 15;
 pub const DESCRIPTION_WORD_WEIGHT: f64 = 0.2;
 
 pub const CHANNEL_KEYWORD_WEIGHT: f64 = 1.0;
 pub const TITLE_KEYWORD_WEIGHT: f64 = 0.5;
 pub const BIGRAM_WEIGHT: f64 = 0.75;
+pub const BIGRAM_PRIORITY_WEIGHT: f64 = 1.2;
 
 pub const PERSONA_STABILITY_THRESHOLD: i32 = 3;
 pub const PERSONA_MAX_STABILITY: i32 = 10;
@@ -161,6 +178,8 @@ pub const TOPIC_EVIDENCE_MAX_IDS: usize = 6;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ContentVector {
     pub topics: HashMap<String, f64>,
+    pub topic_confidence: HashMap<String, f64>,
+    pub anchor_topics: HashSet<String>,
     pub duration: f64,
     pub pacing: f64,
     pub complexity: f64,
@@ -171,6 +190,8 @@ impl Default for ContentVector {
     fn default() -> Self {
         Self {
             topics: HashMap::new(),
+            topic_confidence: HashMap::new(),
+            anchor_topics: HashSet::new(),
             duration: 0.5,
             pacing: 0.5,
             complexity: 0.5,
@@ -196,9 +217,9 @@ impl TimeBucket {
         let now = Local::now();
         let hour = now.hour();
         let weekday = now.weekday();
-        
+
         let is_weekend = weekday == Weekday::Sat || weekday == Weekday::Sun;
-        
+
         if is_weekend {
             match hour {
                 6..=11 => TimeBucket::WeekendMorning,
@@ -247,6 +268,7 @@ pub struct UserBrain {
     pub persona_stability: i32,
     pub idf_word_frequency: HashMap<String, i32>,
     pub idf_total_documents: i32,
+    pub watch_signal_progress: HashMap<String, f32>,
     pub watch_history_map: HashMap<String, f32>,
     pub channel_topic_profiles: HashMap<String, HashMap<String, f64>>,
     pub suppressed_video_ids: HashMap<String, u64>,
@@ -279,6 +301,7 @@ impl Default for UserBrain {
             persona_stability: 0,
             idf_word_frequency: HashMap::new(),
             idf_total_documents: 0,
+            watch_signal_progress: HashMap::new(),
             watch_history_map: HashMap::new(),
             channel_topic_profiles: HashMap::new(),
             suppressed_video_ids: HashMap::new(),
@@ -316,6 +339,7 @@ pub struct FeedEntry {
     pub show_count: i32,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TopicCategory {
     pub name: String,
@@ -414,61 +438,84 @@ impl FlowPersona {
     }
 }
 
-// --- Lemmatizer & Tokenizer ---
+// --- Tokenizer-adjacent scoring dictionaries ---
 
-pub fn normalize_lemma(word: &str) -> String {
-    let w = word.to_lowercase();
-    match w.as_str() {
-        "gaming" | "games" | "gamer" | "gamers" | "gameplay" | "gamed" => "game".to_string(),
-        "coding" | "coder" | "coders" | "codes" | "coded" => "code".to_string(),
-        "programming" | "programmer" | "programmers" | "programs" | "programmed" => "program".to_string(),
-        "cooking" | "cooked" | "cooks" | "cooker" => "cook".to_string(),
-        "songs" | "song" => "song".to_string(),
-        "singing" | "singer" | "singers" => "sing".to_string(),
-        "musics" | "musical" | "musician" | "musicians" => "music".to_string(),
-        "technologies" | "technological" => "technology".to_string(),
-        "computers" | "computing" | "computed" => "computer".to_string(),
-        "drawing" | "drawings" | "drawn" => "draw".to_string(),
-        "painting" | "paintings" | "painted" | "painter" => "paint".to_string(),
-        "designing" | "designs" | "designer" | "designed" => "design".to_string(),
-        "animating" | "animated" | "animations" | "animator" => "animation".to_string(),
-        "workouts" | "workout" => "workout".to_string(),
-        "exercising" | "exercises" | "exercised" => "exercise".to_string(),
-        "running" | "runner" | "runners" => "run".to_string(),
-        "training" | "trained" | "trainer" | "trainers" => "train".to_string(),
-        "learning" | "learned" | "learner" | "learners" => "learn".to_string(),
-        "teaching" | "teacher" | "teachers" | "taught" => "teach".to_string(),
-        "studying" | "studies" | "study" => "study".to_string(),
-        other => other.to_string(),
-    }
-}
-
-pub fn strip_domain_tag(topic: &str) -> String {
-    match topic.find(':') {
-        Some(index) if index > 0 => topic[..index].to_string(),
-        _ => topic.to_string(),
-    }
-}
-
-use std::sync::OnceLock;
-
-pub fn get_stop_words() -> &'static HashSet<&'static str> {
-    static INSTANCE: OnceLock<HashSet<&'static str>> = OnceLock::new();
-    INSTANCE.get_or_init(|| {
-        [
-            "the", "and", "a", "of", "to", "in", "is", "that", "it", "on", "for", "with", "as", "at", "by", "an", "be", "this", "are", "from",
-            "about", "how", "what", "why", "who", "where", "when", "your", "my", "our", "their", "his", "her", "its", "you", "me", "us", "them",
-            "they", "he", "she", "i", "we", "can", "will", "would", "should", "could", "have", "has", "had", "do", "does", "did", "but", "or"
-        ].iter().cloned().collect()
-    })
+pub fn get_sponsor_line_patterns() -> &'static [&'static str] {
+    &[
+        "use code ",
+        "% off",
+        "free trial",
+        "link in",
+        "sponsored by",
+        "brought to you",
+        "check out",
+        "sign up",
+        "discount",
+        "promo code",
+        "coupon",
+        "affiliate",
+        "partner",
+        "merch",
+        "merchandise",
+        "patreon",
+        "ko-fi",
+        "buymeacoffee",
+        "buy me a coffee",
+        "subscribe",
+        "follow me",
+        "social media",
+        "instagram",
+        "twitter",
+        "tiktok",
+        "discord",
+        "join the",
+        "become a member",
+        "membership",
+        "business inquiries",
+        "business email",
+        "contact:",
+        "►",
+        "→",
+        "⬇",
+        "⇩",
+        "👇",
+        "timestamps:",
+        "chapters:",
+    ]
 }
 
 pub fn get_high_pacing_words() -> &'static HashSet<&'static str> {
     static INSTANCE: OnceLock<HashSet<&'static str>> = OnceLock::new();
     INSTANCE.get_or_init(|| {
         [
-            "speedrun", "fast", "insane", "epic", "rage", "challenge", "extreme", "fail", "win", "clutch", "shorts", "quick", "worst", "best"
-        ].iter().cloned().collect()
+            "compilation",
+            "tiktok",
+            "tiktoks",
+            "highlights",
+            "speedrun",
+            "trailer",
+            "shorts",
+            "montage",
+            "moments",
+            "best of",
+            "try not to",
+            "memes",
+            "funny",
+            "fails",
+            "rapid",
+            "fast",
+            "quick",
+            "minute",
+            "seconds",
+            "top 10",
+            "top 5",
+            "ranked",
+            "tier list",
+            "versus",
+        ]
+        .iter()
+        .cloned()
+        .collect()
     })
 }
 
@@ -476,12 +523,34 @@ pub fn get_low_pacing_words() -> &'static HashSet<&'static str> {
     static INSTANCE: OnceLock<HashSet<&'static str>> = OnceLock::new();
     INSTANCE.get_or_init(|| {
         [
-            "podcast", "essay", "ambient", "explained", "study", "meditation", "sleep", "asmr", "relaxing", "calm",
-            "deep dive", "analysis", "lecture", "course", "documentary", "interview", "conversation", "discussion", "breakdown", "walkthrough"
-        ].iter().cloned().collect()
+            "podcast",
+            "essay",
+            "ambient",
+            "explained",
+            "study",
+            "meditation",
+            "sleep",
+            "asmr",
+            "relaxing",
+            "calm",
+            "deep dive",
+            "analysis",
+            "lecture",
+            "course",
+            "documentary",
+            "interview",
+            "conversation",
+            "discussion",
+            "breakdown",
+            "walkthrough",
+        ]
+        .iter()
+        .cloned()
+        .collect()
     })
 }
 
+#[allow(dead_code)]
 pub fn get_topic_categories() -> &'static Vec<TopicCategory> {
     static INSTANCE: OnceLock<Vec<TopicCategory>> = OnceLock::new();
     INSTANCE.get_or_init(|| {
@@ -489,49 +558,283 @@ pub fn get_topic_categories() -> &'static Vec<TopicCategory> {
             TopicCategory {
                 name: "🎮 Gaming".to_string(),
                 icon: "🎮".to_string(),
-                keywords: vec!["game".to_string(), "gaming".to_string(), "gameplay".to_string(), "minecraft".to_string(), "roblox".to_string(), "ps5".to_string(), "xbox".to_string(), "nintendo".to_string(), "steam".to_string(), "zelda".to_string(), "pokemon".to_string(), "fortnite".to_string()],
+                keywords: vec![
+                    "game".to_string(),
+                    "gaming".to_string(),
+                    "gameplay".to_string(),
+                    "minecraft".to_string(),
+                    "roblox".to_string(),
+                    "ps5".to_string(),
+                    "xbox".to_string(),
+                    "nintendo".to_string(),
+                    "steam".to_string(),
+                    "zelda".to_string(),
+                    "pokemon".to_string(),
+                    "fortnite".to_string(),
+                ],
             },
             TopicCategory {
                 name: "🎵 Music".to_string(),
                 icon: "🎵".to_string(),
-                keywords: vec!["music".to_string(), "song".to_string(), "lyrics".to_string(), "official video".to_string(), "official audio".to_string(), "remix".to_string(), "lofi".to_string(), "playlist".to_string(), "concert".to_string(), "cover".to_string(), "album".to_string(), "acoustic".to_string()],
+                keywords: vec![
+                    "music".to_string(),
+                    "song".to_string(),
+                    "lyrics".to_string(),
+                    "official video".to_string(),
+                    "official audio".to_string(),
+                    "remix".to_string(),
+                    "lofi".to_string(),
+                    "playlist".to_string(),
+                    "concert".to_string(),
+                    "cover".to_string(),
+                    "album".to_string(),
+                    "acoustic".to_string(),
+                ],
             },
             TopicCategory {
                 name: "💻 Technology".to_string(),
                 icon: "💻".to_string(),
-                keywords: vec!["tech".to_string(), "technology".to_string(), "code".to_string(), "coding".to_string(), "programming".to_string(), "developer".to_string(), "computer".to_string(), "software".to_string(), "iphone".to_string(), "android".to_string(), "ai".to_string(), "artificial intelligence".to_string(), "review".to_string(), "gadget".to_string()],
+                keywords: vec![
+                    "tech".to_string(),
+                    "technology".to_string(),
+                    "code".to_string(),
+                    "coding".to_string(),
+                    "programming".to_string(),
+                    "developer".to_string(),
+                    "computer".to_string(),
+                    "software".to_string(),
+                    "iphone".to_string(),
+                    "android".to_string(),
+                    "ai".to_string(),
+                    "artificial intelligence".to_string(),
+                    "review".to_string(),
+                    "gadget".to_string(),
+                ],
             },
             TopicCategory {
                 name: "📚 Education".to_string(),
                 icon: "📚".to_string(),
-                keywords: vec!["learn".to_string(), "study".to_string(), "teach".to_string(), "education".to_string(), "history".to_string(), "explained".to_string(), "lesson".to_string(), "course".to_string(), "lecture".to_string(), "math".to_string(), "physics".to_string(), "tutorial".to_string()],
+                keywords: vec![
+                    "learn".to_string(),
+                    "study".to_string(),
+                    "teach".to_string(),
+                    "education".to_string(),
+                    "history".to_string(),
+                    "explained".to_string(),
+                    "lesson".to_string(),
+                    "course".to_string(),
+                    "lecture".to_string(),
+                    "math".to_string(),
+                    "physics".to_string(),
+                    "tutorial".to_string(),
+                ],
             },
             TopicCategory {
                 name: "🏋️ Health & Fitness".to_string(),
                 icon: "🏋️".to_string(),
-                keywords: vec!["gym".to_string(), "workout".to_string(), "fitness".to_string(), "exercise".to_string(), "diet".to_string(), "nutrition".to_string(), "healthy".to_string(), "muscle".to_string(), "running".to_string(), "cardio".to_string(), "weight loss".to_string()],
+                keywords: vec![
+                    "gym".to_string(),
+                    "workout".to_string(),
+                    "fitness".to_string(),
+                    "exercise".to_string(),
+                    "diet".to_string(),
+                    "nutrition".to_string(),
+                    "healthy".to_string(),
+                    "muscle".to_string(),
+                    "running".to_string(),
+                    "cardio".to_string(),
+                    "weight loss".to_string(),
+                ],
+            },
+            TopicCategory {
+                name: "🧪 Science".to_string(),
+                icon: "🧪".to_string(),
+                keywords: vec![
+                    "science".to_string(),
+                    "physics".to_string(),
+                    "chemistry".to_string(),
+                    "biology".to_string(),
+                    "space".to_string(),
+                    "astronomy".to_string(),
+                    "rocket".to_string(),
+                    "experiment".to_string(),
+                    "research".to_string(),
+                    "scientist".to_string(),
+                    "engineering".to_string(),
+                    "math".to_string(),
+                ],
+            },
+            TopicCategory {
+                name: "🎬 Film & Storytelling".to_string(),
+                icon: "🎬".to_string(),
+                keywords: vec![
+                    "movie".to_string(),
+                    "film".to_string(),
+                    "cinema".to_string(),
+                    "documentary".to_string(),
+                    "screenplay".to_string(),
+                    "story".to_string(),
+                    "storytelling".to_string(),
+                    "director".to_string(),
+                    "editing".to_string(),
+                    "camera".to_string(),
+                    "photography".to_string(),
+                    "animation".to_string(),
+                ],
+            },
+            TopicCategory {
+                name: "🏀 Sports".to_string(),
+                icon: "🏀".to_string(),
+                keywords: vec![
+                    "sport".to_string(),
+                    "football".to_string(),
+                    "basketball".to_string(),
+                    "soccer".to_string(),
+                    "tennis".to_string(),
+                    "formula 1".to_string(),
+                    "racing".to_string(),
+                    "mma".to_string(),
+                    "boxing".to_string(),
+                    "training".to_string(),
+                    "highlights".to_string(),
+                    "athlete".to_string(),
+                ],
+            },
+            TopicCategory {
+                name: "🛠️ DIY & Making".to_string(),
+                icon: "🛠️".to_string(),
+                keywords: vec![
+                    "build".to_string(),
+                    "maker".to_string(),
+                    "diy".to_string(),
+                    "woodworking".to_string(),
+                    "3d printing".to_string(),
+                    "electronics".to_string(),
+                    "arduino".to_string(),
+                    "raspberry pi".to_string(),
+                    "craft".to_string(),
+                    "project".to_string(),
+                    "repair".to_string(),
+                    "tool".to_string(),
+                ],
+            },
+            TopicCategory {
+                name: "💼 Business & Finance".to_string(),
+                icon: "💼".to_string(),
+                keywords: vec![
+                    "business".to_string(),
+                    "startup".to_string(),
+                    "finance".to_string(),
+                    "investing".to_string(),
+                    "stocks".to_string(),
+                    "economy".to_string(),
+                    "marketing".to_string(),
+                    "entrepreneur".to_string(),
+                    "sales".to_string(),
+                    "strategy".to_string(),
+                    "productivity".to_string(),
+                    "career".to_string(),
+                ],
+            },
+            TopicCategory {
+                name: "🌍 Travel & Culture".to_string(),
+                icon: "🌍".to_string(),
+                keywords: vec![
+                    "travel".to_string(),
+                    "culture".to_string(),
+                    "city".to_string(),
+                    "country".to_string(),
+                    "food".to_string(),
+                    "street food".to_string(),
+                    "language".to_string(),
+                    "documentary".to_string(),
+                    "adventure".to_string(),
+                    "vlog".to_string(),
+                    "tour".to_string(),
+                    "history".to_string(),
+                ],
             },
         ]
     })
 }
 
-pub fn tokenize(text: &str) -> Vec<String> {
-    text.to_lowercase()
-        .split_whitespace()
-        .map(|word| {
-            word.trim_matches(|c: char| !c.is_alphanumeric())
-        })
-        .filter(|word| word.chars().count() > 2)
-        .map(|word| normalize_lemma(word))
-        .filter(|word| !get_stop_words().contains(word.as_str()))
-        .collect()
+fn is_description_content_line(line: &str) -> bool {
+    let trimmed = line.trim();
+    if trimmed.len() <= DESCRIPTION_LINE_MIN_LENGTH {
+        return false;
+    }
+
+    let lower = trimmed.to_lowercase();
+    if get_sponsor_line_patterns()
+        .iter()
+        .any(|pattern| lower.contains(pattern))
+    {
+        return false;
+    }
+    if lower.contains("http") || trimmed.starts_with('#') {
+        return false;
+    }
+    if trimmed.len() > 5 && trimmed == trimmed.to_uppercase() {
+        return false;
+    }
+
+    true
+}
+
+fn extract_description_keywords(description: &str, idf: &IdfSnapshot) -> HashMap<String, f64> {
+    if description.len() < DESCRIPTION_MIN_LENGTH {
+        return HashMap::new();
+    }
+
+    let content_lines = description
+        .lines()
+        .filter(|line| is_description_content_line(line))
+        .take(DESCRIPTION_TAKE_LINES)
+        .collect::<Vec<&str>>()
+        .join(" ");
+
+    if content_lines.trim().is_empty() {
+        return HashMap::new();
+    }
+
+    let mut result = HashMap::new();
+    for word in tokenize(&content_lines)
+        .into_iter()
+        .take(DESCRIPTION_TAKE_WORDS)
+    {
+        let current_weight = *result.get(&word).unwrap_or(&0.0);
+        let adjusted_weight = DESCRIPTION_WORD_WEIGHT * unigram_weight_multiplier(&word);
+        result.insert(
+            word.clone(),
+            current_weight + calculate_idf_weight(&word, adjusted_weight, idf),
+        );
+    }
+    result
 }
 
 pub fn extract_rejection_keys(video_vector: &ContentVector) -> Vec<String> {
     let broad_topics: HashSet<&str> = [
-        "music", "game", "video", "sport", "food", "art", "tech", "science", "news",
-        "show", "movie", "film", "learn", "education", "entertainment", "review",
-        "react", "challenge", "build", "design", "travel",
+        "music",
+        "game",
+        "video",
+        "sport",
+        "food",
+        "art",
+        "tech",
+        "science",
+        "news",
+        "show",
+        "movie",
+        "film",
+        "learn",
+        "education",
+        "entertainment",
+        "review",
+        "react",
+        "challenge",
+        "build",
+        "design",
+        "travel",
     ]
     .iter()
     .copied()
@@ -555,7 +858,10 @@ pub fn extract_rejection_keys(video_vector: &ContentVector) -> Vec<String> {
     }
 
     let mut keys = Vec::new();
-    if let Some(primary) = top_topics.iter().find(|topic| !broad_topics.contains(topic.as_str())) {
+    if let Some(primary) = top_topics
+        .iter()
+        .find(|topic| !broad_topics.contains(topic.as_str()))
+    {
         keys.push(primary.clone());
     }
     if top_topics.len() >= 2 {
@@ -720,6 +1026,7 @@ impl TimeDecay {
         }
     }
 
+    #[allow(dead_code)]
     pub fn is_older_than_24_hours(date_text: &str) -> bool {
         let text = date_text.to_lowercase();
         if text.contains("second") || text.contains("minute") || text.contains("hour") {
@@ -762,48 +1069,52 @@ pub fn extract_features(
 ) -> ContentVector {
     let mut topics = HashMap::new();
 
-    let title_words = tokenize(title);
-    let ch_words = tokenize(channel_name);
+    let title_words = tokenize_unigrams(title);
+    let ch_words = tokenize_unigrams(channel_name);
 
     for word in ch_words {
+        let adjusted_weight = CHANNEL_KEYWORD_WEIGHT * unigram_weight_multiplier(&word);
         topics.insert(
             word.clone(),
-            calculate_idf_weight(&word, CHANNEL_KEYWORD_WEIGHT, idf),
-        );
-    }
-
-    for word in &title_words {
-        let current_weight = *topics.get(word).unwrap_or(&0.0);
-        topics.insert(
-            word.clone(),
-            current_weight + calculate_idf_weight(word, TITLE_KEYWORD_WEIGHT, idf),
+            calculate_idf_weight(&word, adjusted_weight, idf),
         );
     }
 
     if title_words.len() >= 2 {
         for i in 0..title_words.len() - 1 {
-            let bigram = format!("{} {}", title_words[i], title_words[i + 1]);
+            let bigram_phrase = format!("{} {}", title_words[i], title_words[i + 1]);
+            let bigram = format!("{}_{}", title_words[i], title_words[i + 1]);
+            let is_meaningful_bigram = get_priority_bigrams().contains(bigram_phrase.as_str())
+                || get_polysemous_words().contains(title_words[i].as_str())
+                || get_polysemous_words().contains(title_words[i + 1].as_str())
+                || is_generic_word(title_words[i].as_str())
+                || is_generic_word(title_words[i + 1].as_str());
+            let bigram_weight = if is_meaningful_bigram {
+                BIGRAM_WEIGHT * BIGRAM_PRIORITY_WEIGHT
+            } else {
+                BIGRAM_WEIGHT
+            };
             topics.insert(
                 bigram.clone(),
-                calculate_idf_weight(&bigram, BIGRAM_WEIGHT, idf),
+                calculate_idf_weight(&bigram, bigram_weight, idf),
             );
         }
     }
 
+    for word in &title_words {
+        let current_weight = *topics.get(word).unwrap_or(&0.0);
+        let adjusted_weight = TITLE_KEYWORD_WEIGHT * unigram_weight_multiplier(word);
+        topics.insert(
+            word.clone(),
+            current_weight + calculate_idf_weight(word, adjusted_weight, idf),
+        );
+    }
+
     if let Some(desc) = description {
-        if desc.len() > DESCRIPTION_MIN_LENGTH {
-            let limit_chars: String = desc.chars().take(DESCRIPTION_TAKE_CHARS).collect();
-            let desc_words: Vec<String> = tokenize(&limit_chars)
-                .into_iter()
-                .take(DESCRIPTION_TAKE_WORDS)
-                .collect();
-            for word in desc_words {
-                let current_weight = *topics.get(&word).unwrap_or(&0.0);
-                topics.insert(
-                    word.clone(),
-                    current_weight + calculate_idf_weight(&word, DESCRIPTION_WORD_WEIGHT, idf),
-                );
-            }
+        let limit_chars: String = desc.chars().take(DESCRIPTION_TAKE_CHARS).collect();
+        for (word, weight) in extract_description_keywords(&limit_chars, idf) {
+            let current_weight = *topics.get(&word).unwrap_or(&0.0);
+            topics.insert(word.clone(), current_weight + weight);
         }
     }
 
@@ -814,7 +1125,10 @@ pub fn extract_features(
         }
         let magnitude = magnitude.sqrt();
         if magnitude > 0.0 {
-            topics.iter().map(|(k, &v)| (k.clone(), v / magnitude)).collect()
+            topics
+                .iter()
+                .map(|(k, &v)| (k.clone(), v / magnitude))
+                .collect()
         } else {
             topics
         }
@@ -890,14 +1204,22 @@ pub fn extract_features(
         4.0
     };
 
-    let title_len_factor = (title.len() as f64 / COMPLEXITY_TITLE_LEN_MAX).clamp(0.0, COMPLEXITY_TITLE_LEN_WEIGHT);
-    let word_len_factor = (avg_word_len / COMPLEXITY_WORD_LEN_DIVISOR).clamp(0.0, COMPLEXITY_WORD_LEN_WEIGHT);
-    let chapter_bonus = if has_chapters { COMPLEXITY_CHAPTER_BONUS } else { 0.0 };
+    let title_len_factor =
+        (title.len() as f64 / COMPLEXITY_TITLE_LEN_MAX).clamp(0.0, COMPLEXITY_TITLE_LEN_WEIGHT);
+    let word_len_factor =
+        (avg_word_len / COMPLEXITY_WORD_LEN_DIVISOR).clamp(0.0, COMPLEXITY_WORD_LEN_WEIGHT);
+    let chapter_bonus = if has_chapters {
+        COMPLEXITY_CHAPTER_BONUS
+    } else {
+        0.0
+    };
 
     let complexity_score = (title_len_factor + word_len_factor + chapter_bonus).clamp(0.0, 1.0);
 
     ContentVector {
         topics: normalized,
+        topic_confidence: HashMap::new(),
+        anchor_topics: HashSet::new(),
         duration: duration_score,
         pacing: pacing_score,
         complexity: complexity_score,
@@ -927,12 +1249,15 @@ pub fn calculate_cosine_similarity(user: &ContentVector, content: &ContentVector
     }
 
     // Build O(1) reverse-lookup maps for migration-compatibility matches
-    let mut large_base_to_tagged: HashMap<String, (String, f64)> = HashMap::with_capacity(large_map.len());
+    let mut large_base_to_tagged: HashMap<String, (String, f64)> =
+        HashMap::with_capacity(large_map.len());
     let mut large_untagged: HashMap<String, f64> = HashMap::with_capacity(large_map.len());
     for (k, &v) in large_map {
         if let Some(idx) = k.find(':') {
             let base = k[..idx].to_string();
-            large_base_to_tagged.entry(base).or_insert_with(|| (k.clone(), v));
+            large_base_to_tagged
+                .entry(base)
+                .or_insert_with(|| (k.clone(), v));
         } else {
             large_untagged.insert(k.clone(), v);
         }
@@ -994,12 +1319,14 @@ pub fn adjust_vector(
     base_rate: f64,
 ) -> ContentVector {
     let mut new_topics = current.topics.clone();
+    let mut new_confidence = current.topic_confidence.clone();
     let is_negative = base_rate < 0.0;
 
     for (key, &target_val) in &target.topics {
         let current_val = *new_topics.get(key).unwrap_or(&0.0);
         let delta = if is_negative {
-            let proportional = current_val * current_val.powf(NEGATIVE_PROPORTIONAL_EXPONENT) * base_rate;
+            let proportional =
+                current_val * current_val.powf(NEGATIVE_PROPORTIONAL_EXPONENT) * base_rate;
             let absolute_floor = base_rate * NEGATIVE_FLOOR_FACTOR;
             proportional.min(absolute_floor)
         } else {
@@ -1009,6 +1336,7 @@ pub fn adjust_vector(
             (target_val - current_val) * effective_rate
         };
         new_topics.insert(key.clone(), (current_val + delta).clamp(0.0, 1.0));
+        new_confidence.entry(key.clone()).or_insert(0.5);
     }
 
     if base_rate > 0.0 {
@@ -1029,6 +1357,7 @@ pub fn adjust_vector(
     new_topics.retain(|key, val| {
         let is_current_target = target.topics.contains_key(key);
         if !is_current_target && *val < TOPIC_PRUNE_THRESHOLD {
+            new_confidence.remove(key);
             false
         } else {
             true
@@ -1061,6 +1390,8 @@ pub fn adjust_vector(
 
     ContentVector {
         topics: new_topics,
+        topic_confidence: new_confidence,
+        anchor_topics: current.anchor_topics.clone(),
         duration: update_scalar(current.duration, target.duration),
         pacing: update_scalar(current.pacing, target.pacing),
         complexity: update_scalar(current.complexity, target.complexity),
@@ -1072,9 +1403,10 @@ pub fn calculate_anti_recommendation_penalty(
     video_vector: &ContentVector,
     brain: &UserBrain,
 ) -> f64 {
-    let negative_channels: Vec<&String> = brain.channel_scores
+    let negative_channels: Vec<&String> = brain
+        .channel_scores
         .iter()
-        .filter(|(_, &score)| score < NOT_INTERESTED_CHANNEL_FLOOR)
+        .filter(|(_, score)| **score < NOT_INTERESTED_CHANNEL_FLOOR)
         .map(|(channel_id, _)| channel_id)
         .collect();
 
@@ -1087,6 +1419,8 @@ pub fn calculate_anti_recommendation_penalty(
         if let Some(profile) = brain.channel_topic_profiles.get(channel_id) {
             let neg_vector = ContentVector {
                 topics: profile.clone(),
+                topic_confidence: HashMap::new(),
+                anchor_topics: HashSet::new(),
                 duration: 0.5,
                 pacing: 0.5,
                 complexity: 0.5,
@@ -1100,7 +1434,9 @@ pub fn calculate_anti_recommendation_penalty(
     }
 
     if max_similarity > ANTI_REC_PENALTY_THRESHOLD {
-        let penalty_strength = ((max_similarity - ANTI_REC_PENALTY_THRESHOLD) / (1.0 - ANTI_REC_PENALTY_THRESHOLD)).clamp(0.0, 1.0);
+        let penalty_strength = ((max_similarity - ANTI_REC_PENALTY_THRESHOLD)
+            / (1.0 - ANTI_REC_PENALTY_THRESHOLD))
+            .clamp(0.0, 1.0);
         1.0 - (penalty_strength * (1.0 - ANTI_REC_PENALTY))
     } else {
         1.0
@@ -1133,9 +1469,7 @@ pub struct ScoredVideo {
     pub vector: ContentVector,
 }
 
-pub fn apply_smart_diversity(
-    mut candidates: Vec<ScoredVideo>,
-) -> Vec<String> {
+pub fn apply_smart_diversity(mut candidates: Vec<ScoredVideo>) -> Vec<String> {
     if candidates.is_empty() {
         return Vec::new();
     }
@@ -1144,12 +1478,17 @@ pub fn apply_smart_diversity(
     let mut channel_window = Vec::new();
     let mut topic_window = Vec::new();
 
-    candidates.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+    candidates.sort_by(|a, b| {
+        b.score
+            .partial_cmp(&a.score)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
 
     let unique_topics: Vec<String> = candidates
         .iter()
         .filter_map(|sv| {
-            sv.vector.topics
+            sv.vector
+                .topics
                 .iter()
                 .max_by(|a, b| a.1.partial_cmp(b.1).unwrap_or(std::cmp::Ordering::Equal))
                 .map(|(k, _)| k.clone())
@@ -1161,7 +1500,13 @@ pub fn apply_smart_diversity(
     let topic_diversity = unique_topics.len();
 
     let max_per_topic = if topic_diversity <= 4 { 2 } else { 3 };
-    let exploration_slots = if topic_diversity <= 2 { 6 } else if topic_diversity <= 4 { 4 } else { 2 };
+    let exploration_slots = if topic_diversity <= 2 {
+        6
+    } else if topic_diversity <= 4 {
+        4
+    } else {
+        2
+    };
 
     let mut topic_sums = HashMap::new();
     for sv in &candidates {
@@ -1171,7 +1516,11 @@ pub fn apply_smart_diversity(
     }
     let mut sorted_topic_sums: Vec<(String, f64)> = topic_sums.into_iter().collect();
     sorted_topic_sums.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
-    let user_top_topics: HashSet<String> = sorted_topic_sums.iter().take(3).map(|t| t.0.clone()).collect();
+    let user_top_topics: HashSet<String> = sorted_topic_sums
+        .iter()
+        .take(3)
+        .map(|t| t.0.clone())
+        .collect();
 
     let top_score = candidates.first().map(|sv| sv.score).unwrap_or(0.0);
 
@@ -1183,22 +1532,32 @@ pub fn apply_smart_diversity(
     let mut idx = 0;
     while idx < phase1_candidates.len() && final_playlist.len() < DIVERSITY_PHASE1_TARGET {
         let current = &phase1_candidates[idx];
-        let primary_topic = current.vector.topics
+        let primary_topic = current
+            .vector
+            .topics
             .iter()
             .max_by(|a, b| a.1.partial_cmp(b.1).unwrap_or(std::cmp::Ordering::Equal))
             .map(|(k, _)| k.clone())
             .unwrap_or_default();
 
-        let channel_count = channel_window.iter().filter(|&&ref c| c == &current.channel_id).count();
-        let topic_count = topic_window.iter().filter(|&&ref t| t == &primary_topic).count();
-
-        let is_title_similar = final_playlist
+        let channel_count = channel_window
             .iter()
-            .rev()
-            .take(5)
-            .any(|existing: &(String, String, String)| {
-                calculate_title_similarity(&current.title, &existing.1) > TITLE_SIMILARITY_STRICT
-            });
+            .filter(|&&ref c| c == &current.channel_id)
+            .count();
+        let topic_count = topic_window
+            .iter()
+            .filter(|&&ref t| t == &primary_topic)
+            .count();
+
+        let is_title_similar =
+            final_playlist
+                .iter()
+                .rev()
+                .take(5)
+                .any(|existing: &(String, String, String)| {
+                    calculate_title_similarity(&current.title, &existing.1)
+                        > TITLE_SIMILARITY_STRICT
+                });
 
         let is_novel_topic = !primary_topic.is_empty() && !user_top_topics.contains(&primary_topic);
         let effective_topic_cap = if is_novel_topic && exploration_count < exploration_slots {
@@ -1208,7 +1567,11 @@ pub fn apply_smart_diversity(
         };
 
         if channel_count == 0 && topic_count < effective_topic_cap && !is_title_similar {
-            final_playlist.push((current.id.clone(), current.title.clone(), current.channel_id.clone()));
+            final_playlist.push((
+                current.id.clone(),
+                current.title.clone(),
+                current.channel_id.clone(),
+            ));
             channel_window.push(current.channel_id.clone());
             if !primary_topic.is_empty() {
                 topic_window.push(primary_topic);
@@ -1225,34 +1588,73 @@ pub fn apply_smart_diversity(
     }
 
     // Phase 2: Deferred quality
-    deferred_high_quality.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+    deferred_high_quality.sort_by(|a, b| {
+        b.score
+            .partial_cmp(&a.score)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
     for scored in deferred_high_quality {
-        let recent_channels: Vec<String> = final_playlist.iter().rev().take(7).map(|t| t.2.clone()).collect();
-        let channel_ok = recent_channels.iter().filter(|c| *c == &scored.channel_id).count() < 2;
+        let recent_channels: Vec<String> = final_playlist
+            .iter()
+            .rev()
+            .take(7)
+            .map(|t| t.2.clone())
+            .collect();
+        let channel_ok = recent_channels
+            .iter()
+            .filter(|c| *c == &scored.channel_id)
+            .count()
+            < 2;
         let title_ok = !final_playlist
             .iter()
             .rev()
             .take(5)
-            .any(|t: &(String, String, String)| calculate_title_similarity(&scored.title, &t.1) > TITLE_SIMILARITY_RELAXED);
+            .any(|t: &(String, String, String)| {
+                calculate_title_similarity(&scored.title, &t.1) > TITLE_SIMILARITY_RELAXED
+            });
 
         if channel_ok && title_ok {
-            final_playlist.push((scored.id.clone(), scored.title.clone(), scored.channel_id.clone()));
+            final_playlist.push((
+                scored.id.clone(),
+                scored.title.clone(),
+                scored.channel_id.clone(),
+            ));
         }
     }
 
     // Phase 3: Relaxed fill
-    phase1_candidates.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+    phase1_candidates.sort_by(|a, b| {
+        b.score
+            .partial_cmp(&a.score)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
     for scored in phase1_candidates {
-        let recent_channels: Vec<String> = final_playlist.iter().rev().take(5).map(|t| t.2.clone()).collect();
-        let channel_spam = recent_channels.iter().filter(|c| *c == &scored.channel_id).count() >= 2;
-        let title_similar = final_playlist
+        let recent_channels: Vec<String> = final_playlist
             .iter()
             .rev()
             .take(5)
-            .any(|t: &(String, String, String)| calculate_title_similarity(&scored.title, &t.1) > TITLE_SIMILARITY_RELAXED);
+            .map(|t| t.2.clone())
+            .collect();
+        let channel_spam = recent_channels
+            .iter()
+            .filter(|c| *c == &scored.channel_id)
+            .count()
+            >= 2;
+        let title_similar =
+            final_playlist
+                .iter()
+                .rev()
+                .take(5)
+                .any(|t: &(String, String, String)| {
+                    calculate_title_similarity(&scored.title, &t.1) > TITLE_SIMILARITY_RELAXED
+                });
 
         if !channel_spam && !title_similar {
-            final_playlist.push((scored.id.clone(), scored.title.clone(), scored.channel_id.clone()));
+            final_playlist.push((
+                scored.id.clone(),
+                scored.title.clone(),
+                scored.channel_id.clone(),
+            ));
         }
     }
 
@@ -1268,7 +1670,7 @@ pub fn classify_persona(brain: &UserBrain) -> FlowPersona {
 
     let mut sorted_topics: Vec<f64> = v.topics.values().cloned().collect();
     sorted_topics.sort_by(|a, b| b.partial_cmp(a).unwrap_or(std::cmp::Ordering::Equal));
-    
+
     let top_score = sorted_topics.first().cloned().unwrap_or(0.0);
     let diversity_index = if sorted_topics.len() >= 5 && top_score > 0.0 {
         sorted_topics[4] / top_score
@@ -1276,23 +1678,43 @@ pub fn classify_persona(brain: &UserBrain) -> FlowPersona {
         0.0
     };
 
-    let music_keywords = ["music", "song", "lyrics", "remix", "lofi", "playlist", "official audio"];
+    let music_keywords = [
+        "music",
+        "song",
+        "lyrics",
+        "remix",
+        "lofi",
+        "playlist",
+        "official audio",
+    ];
     let mut music_score = 0.0;
     for (k, val) in &v.topics {
         if music_keywords.iter().any(|&kw| k.contains(kw)) || k.contains("feat") {
             music_score += val;
         }
     }
-    
+
     let total_score: f64 = v.topics.values().sum();
 
     let mag = |cv: &ContentVector| -> f64 { cv.topics.values().sum() };
-    
-    let night_mag = mag(brain.time_vectors.get(&TimeBucket::WeekdayNight).unwrap_or(&ContentVector::default()))
-        + mag(brain.time_vectors.get(&TimeBucket::WeekendNight).unwrap_or(&ContentVector::default()));
-    let morning_mag = mag(brain.time_vectors.get(&TimeBucket::WeekdayMorning).unwrap_or(&ContentVector::default()))
-        + mag(brain.time_vectors.get(&TimeBucket::WeekendMorning).unwrap_or(&ContentVector::default()));
-        
+
+    let night_mag = mag(brain
+        .time_vectors
+        .get(&TimeBucket::WeekdayNight)
+        .unwrap_or(&ContentVector::default()))
+        + mag(brain
+            .time_vectors
+            .get(&TimeBucket::WeekendNight)
+            .unwrap_or(&ContentVector::default()));
+    let morning_mag = mag(brain
+        .time_vectors
+        .get(&TimeBucket::WeekdayMorning)
+        .unwrap_or(&ContentVector::default()))
+        + mag(brain
+            .time_vectors
+            .get(&TimeBucket::WeekendMorning)
+            .unwrap_or(&ContentVector::default()));
+
     let is_nocturnal = night_mag > (morning_mag * 1.5) && night_mag > 5.0;
 
     let raw_persona = if total_score > 0.0 && music_score > (total_score * 0.4) {

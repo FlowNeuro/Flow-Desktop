@@ -1,10 +1,12 @@
-use serde_json::Value;
-use tracing::warn;
+use crate::api::innertube::core::utils::{
+    extract_channel_id_from_video_renderer, parse_duration_seconds, unique_video_summaries,
+};
 use crate::api::innertube::InnertubeClient;
 use crate::errors::AppResult;
 use crate::models::search::SearchVideosRequest;
 use crate::models::video::VideoSummary;
-use crate::api::innertube::core::utils::{parse_duration_seconds, extract_channel_id_from_video_renderer, unique_video_summaries};
+use serde_json::Value;
+use tracing::warn;
 
 // Parses and extracts trending kiosk videos
 fn parse_trending_json(val: &Value) -> Vec<VideoSummary> {
@@ -14,20 +16,24 @@ fn parse_trending_json(val: &Value) -> Vec<VideoSummary> {
         for item in arr {
             if let Some(video) = item.get("videoRenderer") {
                 if let Some(video_id) = video["videoId"].as_str() {
-                    let title = video["title"]["runs"][0]["text"].as_str()
+                    let title = video["title"]["runs"][0]["text"]
+                        .as_str()
                         .or_else(|| video["title"]["simpleText"].as_str())
                         .unwrap_or_default()
                         .to_string();
 
-                    let channel_name = video["ownerText"]["runs"][0]["text"].as_str()
+                    let channel_name = video["ownerText"]["runs"][0]["text"]
+                        .as_str()
                         .or_else(|| video["longBylineText"]["runs"][0]["text"].as_str())
                         .unwrap_or_default()
                         .to_string();
 
-                    let thumbnail_url = video["thumbnail"]["thumbnails"][0]["url"].as_str()
+                    let thumbnail_url = video["thumbnail"]["thumbnails"][0]["url"]
+                        .as_str()
                         .map(|s| s.to_string());
 
-                    let duration_text = video["lengthText"]["runs"][0]["text"].as_str()
+                    let duration_text = video["lengthText"]["runs"][0]["text"]
+                        .as_str()
                         .or_else(|| video["lengthText"]["simpleText"].as_str())
                         .unwrap_or_default();
 
@@ -37,11 +43,13 @@ fn parse_trending_json(val: &Value) -> Vec<VideoSummary> {
                         Some(parse_duration_seconds(duration_text))
                     };
 
-                    let published_text = video["publishedTimeText"]["simpleText"].as_str()
+                    let published_text = video["publishedTimeText"]["simpleText"]
+                        .as_str()
                         .or_else(|| video["publishedTimeText"]["runs"][0]["text"].as_str())
                         .map(|s| s.to_string());
 
-                    let view_count_text = video["viewCountText"]["simpleText"].as_str()
+                    let view_count_text = video["viewCountText"]["simpleText"]
+                        .as_str()
                         .or_else(|| video["viewCountText"]["runs"][0]["text"].as_str())
                         .map(|s| s.to_string());
 
@@ -68,10 +76,15 @@ fn parse_trending_json(val: &Value) -> Vec<VideoSummary> {
                 let content = &tab_renderer["content"];
                 if let Some(sections) = content["sectionListRenderer"]["contents"].as_array() {
                     for section in sections {
-                        if let Some(items_arr) = section["itemSectionRenderer"]["contents"].as_array() {
+                        if let Some(items_arr) =
+                            section["itemSectionRenderer"]["contents"].as_array()
+                        {
                             for item in items_arr {
                                 if let Some(shelf) = item.get("shelfRenderer") {
-                                    if let Some(sub_items) = shelf["content"]["expandedShelfContentsRenderer"]["items"].as_array() {
+                                    if let Some(sub_items) = shelf["content"]
+                                        ["expandedShelfContentsRenderer"]["items"]
+                                        .as_array()
+                                    {
                                         process_array(sub_items);
                                     }
                                 }
@@ -87,24 +100,28 @@ fn parse_trending_json(val: &Value) -> Vec<VideoSummary> {
 }
 
 impl InnertubeClient {
-    pub async fn get_trending_videos(
-        &self,
-    ) -> AppResult<Vec<VideoSummary>> {
+    pub async fn get_trending_videos(&self) -> AppResult<Vec<VideoSummary>> {
         let mut payload = serde_json::json!({
             "browseId": "FEtrending"
         });
 
-        match self.post_innertube("browse", "WEB", "2.20260120.01.00", &mut payload).await {
+        match self
+            .post_innertube("browse", "WEB", "2.20260120.01.00", &mut payload)
+            .await
+        {
             Ok(res) => Ok(parse_trending_json(&res)),
             Err(error) => {
                 warn!(error = %error, "[get_trending_videos] Trending browse failed, falling back to search queries");
 
                 let mut fallback = Vec::new();
                 for query in ["trending", "viral videos", "popular now"] {
-                    match self.search_videos(SearchVideosRequest {
-                        query: query.to_string(),
-                        page_token: None,
-                    }).await {
+                    match self
+                        .search_videos(SearchVideosRequest {
+                            query: query.to_string(),
+                            page_token: None,
+                        })
+                        .await
+                    {
                         Ok(response) => fallback.extend(response.items),
                         Err(search_error) => {
                             warn!(query = %query, error = %search_error, "[get_trending_videos] Fallback search query failed");

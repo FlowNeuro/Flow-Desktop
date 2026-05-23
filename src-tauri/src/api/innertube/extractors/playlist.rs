@@ -1,9 +1,11 @@
-use serde_json::Value;
+use crate::api::innertube::core::utils::{
+    extract_channel_id_from_video_renderer, parse_mixed_number_word_to_long,
+};
 use crate::api::innertube::InnertubeClient;
 use crate::errors::{AppError, AppResult};
 use crate::models::playlist::PlaylistDetailsResponse;
 use crate::models::video::VideoSummary;
-use crate::api::innertube::core::utils::{parse_mixed_number_word_to_long, extract_channel_id_from_video_renderer};
+use serde_json::Value;
 
 fn extract_videos_from_playlist_browse(val: &Value) -> (Vec<VideoSummary>, Option<String>) {
     let mut items = Vec::new();
@@ -13,20 +15,24 @@ fn extract_videos_from_playlist_browse(val: &Value) -> (Vec<VideoSummary>, Optio
         for item in arr {
             if let Some(video) = item.get("playlistVideoRenderer") {
                 if let Some(video_id) = video["videoId"].as_str() {
-                    let title = video["title"]["runs"][0]["text"].as_str()
+                    let title = video["title"]["runs"][0]["text"]
+                        .as_str()
                         .or_else(|| video["title"]["simpleText"].as_str())
                         .unwrap_or_default()
                         .to_string();
 
-                    let channel_name = video["shortBylineText"]["runs"][0]["text"].as_str()
+                    let channel_name = video["shortBylineText"]["runs"][0]["text"]
+                        .as_str()
                         .or_else(|| video["longBylineText"]["runs"][0]["text"].as_str())
                         .unwrap_or_default()
                         .to_string();
 
-                    let thumbnail_url = video["thumbnail"]["thumbnails"][0]["url"].as_str()
+                    let thumbnail_url = video["thumbnail"]["thumbnails"][0]["url"]
+                        .as_str()
                         .map(|s| s.to_string());
 
-                    let duration_seconds = video["lengthSeconds"].as_str()
+                    let duration_seconds = video["lengthSeconds"]
+                        .as_str()
                         .and_then(|s| s.parse::<u64>().ok())
                         .or_else(|| video["lengthSeconds"].as_u64());
 
@@ -42,7 +48,9 @@ fn extract_videos_from_playlist_browse(val: &Value) -> (Vec<VideoSummary>, Optio
                     });
                 }
             } else if let Some(cont) = item.get("continuationItemRenderer") {
-                if let Some(token) = cont["continuationEndpoint"]["continuationCommand"]["token"].as_str() {
+                if let Some(token) =
+                    cont["continuationEndpoint"]["continuationCommand"]["token"].as_str()
+                {
                     next_page_token = Some(token.to_string());
                 }
             }
@@ -52,7 +60,9 @@ fn extract_videos_from_playlist_browse(val: &Value) -> (Vec<VideoSummary>, Optio
     // Case 1: Continuation append/reload
     if let Some(actions) = val["onResponseReceivedActions"].as_array() {
         for action in actions {
-            if let Some(items_arr) = action["appendContinuationItemsAction"]["continuationItems"].as_array() {
+            if let Some(items_arr) =
+                action["appendContinuationItemsAction"]["continuationItems"].as_array()
+            {
                 process_array(items_arr);
             }
         }
@@ -65,9 +75,13 @@ fn extract_videos_from_playlist_browse(val: &Value) -> (Vec<VideoSummary>, Optio
                 let content = &tab_renderer["content"];
                 if let Some(sections) = content["sectionListRenderer"]["contents"].as_array() {
                     for section in sections {
-                        if let Some(items_arr) = section["itemSectionRenderer"]["contents"].as_array() {
+                        if let Some(items_arr) =
+                            section["itemSectionRenderer"]["contents"].as_array()
+                        {
                             for sub_item in items_arr {
-                                if let Some(playlist_items) = sub_item["playlistVideoListRenderer"]["contents"].as_array() {
+                                if let Some(playlist_items) =
+                                    sub_item["playlistVideoListRenderer"]["contents"].as_array()
+                                {
                                     process_array(playlist_items);
                                 }
                             }
@@ -102,26 +116,36 @@ impl InnertubeClient {
             })
         };
 
-        let res = self.post_innertube("browse", "WEB", "2.20260120.01.00", &mut payload).await?;
-        
+        let res = self
+            .post_innertube("browse", "WEB", "2.20260120.01.00", &mut payload)
+            .await?;
+
         let header = &res["header"]["playlistHeaderRenderer"];
-        let title = header["title"]["runs"][0]["text"].as_str()
+        let title = header["title"]["runs"][0]["text"]
+            .as_str()
             .or_else(|| header["title"]["simpleText"].as_str())
             .unwrap_or("Unknown Playlist")
             .to_string();
 
-        let description = header["descriptionText"]["runs"][0]["text"].as_str()
+        let description = header["descriptionText"]["runs"][0]["text"]
+            .as_str()
             .or_else(|| header["descriptionText"]["simpleText"].as_str())
             .map(|s| s.to_string());
 
-        let channel_name = header["ownerText"]["runs"][0]["text"].as_str()
+        let channel_name = header["ownerText"]["runs"][0]["text"]
+            .as_str()
             .or_else(|| header["ownerText"]["simpleText"].as_str())
             .unwrap_or("Unknown Owner")
             .to_string();
 
-        let video_count = header["numVideosText"]["runs"][0]["text"].as_str()
+        let video_count = header["numVideosText"]["runs"][0]["text"]
+            .as_str()
             .and_then(|s| s.parse::<u64>().ok())
-            .or_else(|| header["numVideosText"]["simpleText"].as_str().map(|s| parse_mixed_number_word_to_long(s)));
+            .or_else(|| {
+                header["numVideosText"]["simpleText"]
+                    .as_str()
+                    .map(|s| parse_mixed_number_word_to_long(s))
+            });
 
         let (videos, next_page_token) = extract_videos_from_playlist_browse(&res);
 

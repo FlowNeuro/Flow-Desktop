@@ -1,5 +1,5 @@
-use serde_json::Value;
 use crate::api::innertube::InnertubeClient;
+use serde_json::Value;
 
 pub fn get_ios_context(visitor_data: Option<String>, po_token: Option<String>) -> Value {
     let mut client = serde_json::json!({
@@ -57,7 +57,10 @@ pub fn get_android_vr_context(visitor_data: Option<String>) -> Value {
 impl InnertubeClient {
     pub async fn fetch_visitor_data(&self) -> Option<String> {
         let mut payload = serde_json::json!({});
-        if let Ok(res) = self.post_innertube("visitor_id", "WEB", "2.20260120.01.00", &mut payload).await {
+        if let Ok(res) = self
+            .post_innertube("visitor_id", "WEB", "2.20260120.01.00", &mut payload)
+            .await
+        {
             if let Some(vd) = res["responseContext"]["visitorData"].as_str() {
                 return Some(vd.to_string());
             }

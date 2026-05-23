@@ -1,6 +1,6 @@
-use sqlx::SqlitePool;
 use crate::errors::{AppError, AppResult};
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
+use sqlx::SqlitePool;
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 #[serde(rename_all = "camelCase")]
@@ -31,7 +31,7 @@ pub async fn upsert_watch_record(pool: &SqlitePool, record: &WatchHistoryRecord)
                 watch_date = ?, 
                 watch_duration_seconds = ?, 
                 total_duration_seconds = ?
-             WHERE id = ?"
+             WHERE id = ?",
         )
         .bind(&record.title)
         .bind(&record.channel_name)
@@ -61,7 +61,11 @@ pub async fn upsert_watch_record(pool: &SqlitePool, record: &WatchHistoryRecord)
     Ok(())
 }
 
-pub async fn get_watch_history(pool: &SqlitePool, limit: i64, offset: i64) -> AppResult<Vec<WatchHistoryRecord>> {
+pub async fn get_watch_history(
+    pool: &SqlitePool,
+    limit: i64,
+    offset: i64,
+) -> AppResult<Vec<WatchHistoryRecord>> {
     let records = sqlx::query_as::<_, WatchHistoryRecord>(
         "SELECT id, video_id, title, channel_name, watch_date, watch_duration_seconds, total_duration_seconds
          FROM watch_history 
@@ -77,7 +81,11 @@ pub async fn get_watch_history(pool: &SqlitePool, limit: i64, offset: i64) -> Ap
     Ok(records)
 }
 
-pub async fn get_watch_record(pool: &SqlitePool, video_id: &str) -> AppResult<Option<WatchHistoryRecord>> {
+#[allow(dead_code)]
+pub async fn get_watch_record(
+    pool: &SqlitePool,
+    video_id: &str,
+) -> AppResult<Option<WatchHistoryRecord>> {
     let record = sqlx::query_as::<_, WatchHistoryRecord>(
         "SELECT id, video_id, title, channel_name, watch_date, watch_duration_seconds, total_duration_seconds 
          FROM watch_history 

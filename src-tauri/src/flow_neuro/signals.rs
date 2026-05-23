@@ -1,21 +1,21 @@
-use std::collections::{HashMap, HashSet};
+use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
-use serde::{Serialize, Deserialize};
+use std::collections::{HashMap, HashSet};
 
-use crate::errors::AppResult;
-use crate::db::settings;
 use crate::db::recommendations;
+use crate::db::settings;
+use crate::errors::AppResult;
 use crate::flow_neuro::scoring::{
-    adjust_vector, classify_persona, extract_features, strip_domain_tag, ContentVector, IdfSnapshot, RejectionSignal,
-    TimeBucket, TopicEvidence, UserBrain,
-    AFFINITY_INCREMENT, AFFINITY_KEEP_TOP, AFFINITY_MAX, AFFINITY_MAX_ENTRIES, AFFINITY_PRUNE_THRESHOLD,
-    CHANNEL_PROFILE_LEARNING_RATE, CHANNEL_PROFILE_MAX_CHANNELS, CHANNEL_PROFILE_MAX_TOPICS,
-    CHANNEL_PROFILE_PRUNE_THRESHOLD,
-    CHANNEL_EMA_ALPHA, CHANNEL_EMA_DECAY, CHANNEL_KEEP_HIGH, CHANNEL_KEEP_LOW, MAX_CHANNEL_SCORES,
-    MAX_CONSECUTIVE_SKIPS, MAX_SUPPRESSED_CHANNELS, MAX_SUPPRESSED_VIDEOS, NOT_INTERESTED_SKIP_INCREMENT,
-    PERSONA_MAX_STABILITY, REJECTION_EXPIRY_DAYS, REJECTION_MEMORY_MAX, TOPIC_EVIDENCE_MAX_ENTRIES,
-    TOPIC_EVIDENCE_MAX_IDS, VIDEO_SUPPRESSION_DAYS, CHANNEL_SUPPRESSION_DAYS,
-    WATCHED_THRESHOLD_FULL, WATCHED_THRESHOLD_SAMPLED, WATCH_HISTORY_MAX, extract_rejection_keys,
+    adjust_vector, classify_persona, extract_features, extract_rejection_keys, strip_domain_tag,
+    ContentVector, IdfSnapshot, RejectionSignal, TimeBucket, TopicEvidence, UserBrain,
+    AFFINITY_INCREMENT, AFFINITY_KEEP_TOP, AFFINITY_MAX, AFFINITY_MAX_ENTRIES,
+    AFFINITY_PRUNE_THRESHOLD, CHANNEL_EMA_ALPHA, CHANNEL_EMA_DECAY, CHANNEL_KEEP_HIGH,
+    CHANNEL_KEEP_LOW, CHANNEL_PROFILE_LEARNING_RATE, CHANNEL_PROFILE_MAX_CHANNELS,
+    CHANNEL_PROFILE_MAX_TOPICS, CHANNEL_PROFILE_PRUNE_THRESHOLD, CHANNEL_SUPPRESSION_DAYS,
+    MAX_CHANNEL_SCORES, MAX_CONSECUTIVE_SKIPS, MAX_SUPPRESSED_CHANNELS, MAX_SUPPRESSED_VIDEOS,
+    NOT_INTERESTED_SKIP_INCREMENT, PERSONA_MAX_STABILITY, REJECTION_EXPIRY_DAYS,
+    REJECTION_MEMORY_MAX, TOPIC_EVIDENCE_MAX_ENTRIES, TOPIC_EVIDENCE_MAX_IDS,
+    VIDEO_SUPPRESSION_DAYS, WATCHED_THRESHOLD_FULL, WATCHED_THRESHOLD_SAMPLED, WATCH_HISTORY_MAX,
 };
 
 pub const SHORTS_LEARNING_PENALTY: f64 = 0.40;
@@ -47,6 +47,28 @@ pub fn make_affinity_key(t1: &str, t2: &str) -> String {
     } else {
         format!("{}:{}", t2, t1)
     }
+}
+
+fn should_learn_from_watch(existing_progress: f32, next_progress: f32) -> bool {
+    const MIN_PROGRESS_DELTA: f32 = 0.15;
+    const WATCH_MILESTONES: [f32; 4] = [
+        WATCHED_THRESHOLD_SAMPLED,
+        0.40,
+        0.65,
+        WATCHED_THRESHOLD_FULL,
+    ];
+
+    if next_progress <= existing_progress {
+        return false;
+    }
+
+    if (next_progress - existing_progress) >= MIN_PROGRESS_DELTA {
+        return true;
+    }
+
+    WATCH_MILESTONES
+        .iter()
+        .any(|milestone| existing_progress < *milestone && next_progress >= *milestone)
 }
 
 fn calculate_topic_evidence_signal(
@@ -85,7 +107,11 @@ fn capped_set(existing: &HashSet<String>, value: &str) -> HashSet<String> {
 
     let mut values: Vec<String> = existing.iter().cloned().collect();
     values.push(value.to_string());
-    values.into_iter().rev().take(TOPIC_EVIDENCE_MAX_IDS).collect()
+    values
+        .into_iter()
+        .rev()
+        .take(TOPIC_EVIDENCE_MAX_IDS)
+        .collect()
 }
 
 fn update_topic_evidence(
@@ -127,11 +153,16 @@ fn update_topic_evidence(
             TopicEvidence {
                 positive_signals: existing.positive_signals + 1,
                 watch_signals: existing.watch_signals + if is_watch_signal { 1 } else { 0 },
-                explicit_signals: existing.explicit_signals + if is_explicit_signal { 1 } else { 0 },
+                explicit_signals: existing.explicit_signals
+                    + if is_explicit_signal { 1 } else { 0 },
                 positive_score: (existing.positive_score + signal_score).min(50.0),
                 video_ids: capped_set(&existing.video_ids, video_id),
                 channel_ids: capped_set(&existing.channel_ids, channel_id),
-                first_seen_at: if existing.first_seen_at > 0 { existing.first_seen_at } else { now },
+                first_seen_at: if existing.first_seen_at > 0 {
+                    existing.first_seen_at
+                } else {
+                    now
+                },
                 last_seen_at: now,
             },
         );
@@ -187,6 +218,30 @@ pub async fn on_video_interaction(
 ) -> AppResult<()> {
     let mut brain = get_or_create_brain(pool).await?;
     let now_ms = chrono::Utc::now().timestamp_millis() as u64;
+    let clamped_percent = percent_watched.clamp(0.0, 1.0);
+    let existing_watch_progress = brain
+        .watch_signal_progress
+        .get(video_id)
+        .copied()
+        .unwrap_or(0.0);
+    let should_apply_watch_learning = interaction_type != InteractionType::Watched
+        || should_learn_from_watch(existing_watch_progress, clamped_percent);
+
+    if interaction_type == InteractionType::Watched && clamped_percent > existing_watch_progress {
+        brain
+            .watch_signal_progress
+            .insert(video_id.to_string(), clamped_percent);
+        if brain.watch_signal_progress.len() > WATCH_HISTORY_MAX {
+            if let Some(oldest_key) = brain.watch_signal_progress.keys().next().cloned() {
+                brain.watch_signal_progress.remove(&oldest_key);
+            }
+        }
+    }
+
+    if interaction_type == InteractionType::Watched && !should_apply_watch_learning {
+        save_brain(pool, &brain).await?;
+        return Ok(());
+    }
 
     let idf_snapshot = IdfSnapshot {
         word_frequencies: brain.idf_word_frequency.clone(),
@@ -207,9 +262,9 @@ pub async fn on_video_interaction(
         InteractionType::Click => 0.10,
         InteractionType::Liked => 0.30,
         InteractionType::Watched => {
-            let base_watch_rate = 0.15 * (percent_watched as f64);
+            let base_watch_rate = 0.15 * (clamped_percent as f64);
             let abs_duration_min = duration_sec.unwrap_or(0) as f64 / 60.0;
-            let absolute_minutes_watched = percent_watched as f64 * abs_duration_min;
+            let absolute_minutes_watched = clamped_percent as f64 * abs_duration_min;
             let time_bonus = (1.0 + absolute_minutes_watched).ln() / (61.0_f64).ln() * 0.08;
             base_watch_rate + time_bonus
         }
@@ -221,18 +276,19 @@ pub async fn on_video_interaction(
         learning_rate *= SHORTS_LEARNING_PENALTY;
     }
 
-    let topic_evidence_signal = calculate_topic_evidence_signal(
-        interaction_type,
-        percent_watched,
-        is_short,
-    );
+    let topic_evidence_signal =
+        calculate_topic_evidence_signal(interaction_type, clamped_percent, is_short);
 
     // 1. Update global vector
     let new_global = adjust_vector(&brain.global_vector, &video_vector, learning_rate);
 
     // 2. Update time bucket vector
     let current_bucket = TimeBucket::current();
-    let current_bucket_vec = brain.time_vectors.get(&current_bucket).cloned().unwrap_or_default();
+    let current_bucket_vec = brain
+        .time_vectors
+        .get(&current_bucket)
+        .cloned()
+        .unwrap_or_default();
     let new_bucket_vec = adjust_vector(&current_bucket_vec, &video_vector, learning_rate * 1.5);
     brain.time_vectors.insert(current_bucket, new_bucket_vec);
 
@@ -240,16 +296,23 @@ pub async fn on_video_interaction(
     let current_ch_score = *brain.channel_scores.get(channel_id).unwrap_or(&0.5);
     let outcome = if learning_rate > 0.0 { 1.0 } else { 0.0 };
     let new_ch_score = (current_ch_score * CHANNEL_EMA_DECAY) + (outcome * CHANNEL_EMA_ALPHA);
-    brain.channel_scores.insert(channel_id.to_string(), new_ch_score);
+    brain
+        .channel_scores
+        .insert(channel_id.to_string(), new_ch_score);
 
     // Channel pruning
     if brain.channel_scores.len() > MAX_CHANNEL_SCORES {
         let mut sorted: Vec<(String, f64)> = brain.channel_scores.clone().into_iter().collect();
         sorted.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
-        
+
         let keep_low: Vec<(String, f64)> = sorted.iter().take(CHANNEL_KEEP_LOW).cloned().collect();
-        let keep_high: Vec<(String, f64)> = sorted.iter().rev().take(CHANNEL_KEEP_HIGH).cloned().collect();
-        
+        let keep_high: Vec<(String, f64)> = sorted
+            .iter()
+            .rev()
+            .take(CHANNEL_KEEP_HIGH)
+            .cloned()
+            .collect();
+
         let mut new_channel_scores = HashMap::new();
         for (k, v) in keep_low.into_iter().chain(keep_high.into_iter()) {
             new_channel_scores.insert(k, v);
@@ -281,9 +344,12 @@ pub async fn on_video_interaction(
                     brain.topic_affinities.insert(key, new_val);
                 }
             }
-            brain.topic_affinities.retain(|_, &mut v| v > AFFINITY_PRUNE_THRESHOLD);
+            brain
+                .topic_affinities
+                .retain(|_, &mut v| v > AFFINITY_PRUNE_THRESHOLD);
             if brain.topic_affinities.len() > AFFINITY_MAX_ENTRIES {
-                let mut sorted: Vec<(String, f64)> = brain.topic_affinities.clone().into_iter().collect();
+                let mut sorted: Vec<(String, f64)> =
+                    brain.topic_affinities.clone().into_iter().collect();
                 sorted.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
                 brain.topic_affinities = sorted.into_iter().take(AFFINITY_KEEP_TOP).collect();
             }
@@ -318,11 +384,17 @@ pub async fn on_video_interaction(
     brain.persona_stability = new_stability;
 
     // 8. Watch history persistence
-    if interaction_type == InteractionType::Watched && percent_watched > WATCHED_THRESHOLD_SAMPLED {
-        let existing = brain.watch_history_map.get(video_id).cloned().unwrap_or(0.0);
-        if percent_watched > existing {
-            brain.watch_history_map.insert(video_id.to_string(), percent_watched);
-            
+    if interaction_type == InteractionType::Watched && clamped_percent > WATCHED_THRESHOLD_SAMPLED {
+        let existing = brain
+            .watch_history_map
+            .get(video_id)
+            .cloned()
+            .unwrap_or(0.0);
+        if clamped_percent > existing {
+            brain
+                .watch_history_map
+                .insert(video_id.to_string(), clamped_percent);
+
             // Keep watch history size restricted
             if brain.watch_history_map.len() > WATCH_HISTORY_MAX {
                 // Find and remove oldest or just a key to satisfy capacity bounds.
@@ -364,7 +436,10 @@ pub async fn on_video_interaction(
         if existing_profile.len() > CHANNEL_PROFILE_MAX_TOPICS {
             let mut entries: Vec<(String, f64)> = existing_profile.into_iter().collect();
             entries.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
-            existing_profile = entries.into_iter().take(CHANNEL_PROFILE_MAX_TOPICS).collect();
+            existing_profile = entries
+                .into_iter()
+                .take(CHANNEL_PROFILE_MAX_TOPICS)
+                .collect();
         }
 
         brain
@@ -396,13 +471,18 @@ pub async fn on_video_interaction(
             video_id,
             channel_id,
             topic_evidence_signal,
-            interaction_type == InteractionType::Watched && percent_watched >= 0.40,
+            interaction_type == InteractionType::Watched && clamped_percent >= 0.40,
             interaction_type == InteractionType::Liked,
         );
     }
 
-    if matches!(interaction_type, InteractionType::Skipped | InteractionType::Disliked) {
-        brain.suppressed_video_ids.insert(video_id.to_string(), now_ms);
+    if matches!(
+        interaction_type,
+        InteractionType::Skipped | InteractionType::Disliked
+    ) {
+        brain
+            .suppressed_video_ids
+            .insert(video_id.to_string(), now_ms);
         if brain.suppressed_video_ids.len() > MAX_SUPPRESSED_VIDEOS {
             let cutoff = now_ms.saturating_sub(VIDEO_SUPPRESSION_DAYS * 86_400_000);
             brain.suppressed_video_ids.retain(|_, ts| *ts >= cutoff);
@@ -413,7 +493,9 @@ pub async fn on_video_interaction(
                 brain.blocked_channels.insert(channel_id.to_string());
                 brain.suppressed_channels.remove(channel_id);
             } else {
-                brain.suppressed_channels.insert(channel_id.to_string(), now_ms);
+                brain
+                    .suppressed_channels
+                    .insert(channel_id.to_string(), now_ms);
             }
 
             if brain.suppressed_channels.len() > MAX_SUPPRESSED_CHANNELS {
@@ -423,7 +505,11 @@ pub async fn on_video_interaction(
         }
 
         for key in extract_rejection_keys(&video_vector) {
-            let existing = brain.rejection_patterns.get(&key).cloned().unwrap_or_default();
+            let existing = brain
+                .rejection_patterns
+                .get(&key)
+                .cloned()
+                .unwrap_or_default();
             brain.rejection_patterns.insert(
                 key,
                 RejectionSignal {
@@ -456,12 +542,18 @@ pub async fn on_video_interaction(
 
         if !channel_id.is_empty() {
             let current = *brain.channel_scores.get(channel_id).unwrap_or(&0.5);
-            let penalty = if matches!(interaction_type, InteractionType::Disliked) { 0.10 } else { 0.25 };
-            brain.channel_scores.insert(channel_id.to_string(), (current * penalty).max(0.01));
+            let penalty = if matches!(interaction_type, InteractionType::Disliked) {
+                0.10
+            } else {
+                0.25
+            };
+            brain
+                .channel_scores
+                .insert(channel_id.to_string(), (current * penalty).max(0.01));
         }
 
-        brain.consecutive_skips = (brain.consecutive_skips + NOT_INTERESTED_SKIP_INCREMENT)
-            .min(MAX_CONSECUTIVE_SKIPS);
+        brain.consecutive_skips =
+            (brain.consecutive_skips + NOT_INTERESTED_SKIP_INCREMENT).min(MAX_CONSECUTIVE_SKIPS);
     }
 
     brain.total_interactions += 1;
@@ -477,7 +569,8 @@ pub async fn on_video_interaction(
         Some(channel_name),
         None,
         Some(learning_rate),
-    ).await?;
+    )
+    .await?;
 
     Ok(())
 }

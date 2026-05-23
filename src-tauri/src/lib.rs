@@ -17,23 +17,25 @@ use std::sync::Arc;
 use tauri::Manager;
 
 use api::innertube::InnertubeClient;
+use commands::db::{
+    add_watch_record, clear_watch_history, delete_watch_record, get_setting, get_watch_history,
+    set_setting,
+};
+use commands::recommendation::{
+    complete_onboarding, generate_discovery_queries, get_brain_snapshot, get_feed_quotas,
+    get_flow_persona, get_onboarding_status, log_interaction, mark_not_interested, rank_videos,
+    record_feed_impressions, reset_brain, unblock_channel, unblock_topic,
+};
 use commands::youtube::{
-    get_channel_details, get_channel_tab, get_comments, get_dearrow_override,
+    fetch_subtitles, get_channel_details, get_channel_tab, get_comments, get_dearrow_override,
     get_music_album, get_music_artist, get_music_charts, get_music_explore, get_music_home,
     get_music_lyrics, get_music_related, get_personalized_music_recommendations,
-    get_playlist_details, get_search_suggestions, get_sponsorblock_segments, get_stream_info,
-    get_subscription_rotation_feed, get_trending_videos, get_related_videos, get_video_details,
+    get_playlist_details, get_related_videos, get_search_suggestions, get_sponsorblock_segments,
+    get_stream_info, get_subscription_rotation_feed, get_trending_videos, get_video_details,
     parse_subscription_export, refresh_music_home, search_music, search_videos,
-    fetch_subtitles,
 };
-use commands::db::{get_watch_history, add_watch_record, delete_watch_record, clear_watch_history, get_setting, set_setting};
-use commands::recommendation::{
-    rank_videos, log_interaction, mark_not_interested, record_feed_impressions,
-    complete_onboarding, get_onboarding_status, generate_discovery_queries, get_flow_persona,
-    get_brain_snapshot, unblock_topic, unblock_channel, reset_brain
-};
-use services::youtube_service::YoutubeService;
 use services::recommendation_service::RecommendationService;
+use services::youtube_service::YoutubeService;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -42,10 +44,12 @@ pub fn run() {
     tauri::Builder::default()
         .setup(|app| {
             // Resolve app data directory
-            let app_data_dir = app
-                .path()
-                .app_data_dir()
-                .map_err(|error| Box::new(std::io::Error::new(std::io::ErrorKind::Other, error.to_string())))?;
+            let app_data_dir = app.path().app_data_dir().map_err(|error| {
+                Box::new(std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    error.to_string(),
+                ))
+            })?;
 
             // Initialize native Innertube extractor
             let extractor = Arc::new(InnertubeClient::new(app.handle()));
@@ -56,7 +60,12 @@ pub fn run() {
             let pool = tauri::async_runtime::block_on(async {
                 db::initialize_database(app_data_dir).await
             })
-            .map_err(|error| Box::new(std::io::Error::new(std::io::ErrorKind::Other, error.to_string())))?;
+            .map_err(|error| {
+                Box::new(std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    error.to_string(),
+                ))
+            })?;
 
             // Manage database pool
             app.manage(pool.clone());
@@ -114,6 +123,7 @@ pub fn run() {
             generate_discovery_queries,
             get_flow_persona,
             get_brain_snapshot,
+            get_feed_quotas,
             unblock_topic,
             unblock_channel,
             reset_brain,
@@ -128,8 +138,6 @@ pub fn run() {
             get_music_charts,
             fetch_subtitles
         ])
-
         .run(tauri::generate_context!())
         .expect("error while running Flow Desktop");
 }
-

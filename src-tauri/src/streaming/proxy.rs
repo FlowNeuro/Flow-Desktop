@@ -1,10 +1,10 @@
+use futures_util::StreamExt;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
-use tokio::net::{TcpListener, TcpStream};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use futures_util::StreamExt;
-use tracing::{info, error};
+use tokio::net::{TcpListener, TcpStream};
+use tracing::{error, info};
 
 #[derive(Clone)]
 pub enum StreamSessionKind {
@@ -45,7 +45,8 @@ const CACHE_TTL_SECONDS: u64 = 30 * 60;
 impl StreamingManager {
     pub fn new() -> (Self, std::net::TcpListener) {
         // Bind to a random available port on 127.0.0.1
-        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("Failed to bind streaming proxy");
+        let listener =
+            std::net::TcpListener::bind("127.0.0.1:0").expect("Failed to bind streaming proxy");
         let port = listener.local_addr().unwrap().port();
 
         let manager = Self {
@@ -61,11 +62,23 @@ impl StreamingManager {
         self.port
     }
 
-    pub fn register_session(&self, token: String, remote_url: String, content_type: String, user_agent: String) {
+    pub fn register_session(
+        &self,
+        token: String,
+        remote_url: String,
+        content_type: String,
+        user_agent: String,
+    ) {
         self.register_remote_session(token, remote_url, content_type, user_agent);
     }
 
-    pub fn register_remote_session(&self, token: String, remote_url: String, content_type: String, user_agent: String) {
+    pub fn register_remote_session(
+        &self,
+        token: String,
+        remote_url: String,
+        content_type: String,
+        user_agent: String,
+    ) {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
@@ -105,7 +118,7 @@ impl StreamingManager {
             .unwrap()
             .as_secs();
         let mut lock = self.sessions.lock().unwrap();
-        
+
         if let Some(session) = lock.get(token) {
             if session.expires_at > now {
                 return Some(StreamSession {
@@ -157,7 +170,10 @@ impl StreamingManager {
     }
 }
 
-async fn write_cached_response(socket: &mut TcpStream, cached: CachedResponse) -> std::io::Result<()> {
+async fn write_cached_response(
+    socket: &mut TcpStream,
+    cached: CachedResponse,
+) -> std::io::Result<()> {
     let mut response_headers = format!(
         "HTTP/1.1 {} {}\r\nContent-Type: {}\r\nContent-Length: {}\r\n",
         cached.status_code,
@@ -178,13 +194,16 @@ async fn write_cached_response(socket: &mut TcpStream, cached: CachedResponse) -
 }
 
 pub async fn start_proxy_server(manager: StreamingManager, std_listener: std::net::TcpListener) {
-    std_listener.set_nonblocking(true).expect("Failed to set nonblocking");
+    std_listener
+        .set_nonblocking(true)
+        .expect("Failed to set nonblocking");
     let listener = TcpListener::from_std(std_listener).expect("Failed to convert TcpListener");
 
-    info!("Starting local media proxy on 127.0.0.1:{}", manager.get_port());
-    let client = reqwest::Client::builder()
-        .build()
-        .unwrap_or_default();
+    info!(
+        "Starting local media proxy on 127.0.0.1:{}",
+        manager.get_port()
+    );
+    let client = reqwest::Client::builder().build().unwrap_or_default();
 
     loop {
         match listener.accept().await {
@@ -208,7 +227,7 @@ async fn handle_connection(
     mut socket: TcpStream,
     manager: StreamingManager,
     client: reqwest::Client,
- ) -> std::io::Result<()> {
+) -> std::io::Result<()> {
     let mut buffer = vec![0u8; 4096];
     let bytes_read = socket.read(&mut buffer).await?;
     if bytes_read == 0 {
@@ -217,7 +236,7 @@ async fn handle_connection(
 
     let request_str = String::from_utf8_lossy(&buffer[..bytes_read]);
     let mut lines = request_str.lines();
-    
+
     // Parse Request Line: "GET /stream/TOKEN HTTP/1.1"
     let req_line = match lines.next() {
         Some(line) => line,
@@ -227,14 +246,18 @@ async fn handle_connection(
     let parts: Vec<&str> = req_line.split_whitespace().collect();
     if parts.len() < 2 || parts[0] != "GET" {
         // Send a simple 400 Bad Request
-        socket.write_all(b"HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n").await?;
+        socket
+            .write_all(b"HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n")
+            .await?;
         return Ok(());
     }
 
     let request_url = match reqwest::Url::parse(&format!("http://localhost{}", parts[1])) {
         Ok(url) => url,
         Err(_) => {
-            socket.write_all(b"HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n").await?;
+            socket
+                .write_all(b"HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n")
+                .await?;
             return Ok(());
         }
     };
@@ -248,7 +271,9 @@ async fn handle_connection(
             .find_map(|(key, value)| (key == "url").then(|| value.into_owned()));
         (token.trim_start_matches('/'), override_url)
     } else {
-        socket.write_all(b"HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\nUnknown proxy route").await?;
+        socket
+            .write_all(b"HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\nUnknown proxy route")
+            .await?;
         return Ok(());
     };
 
@@ -287,16 +312,19 @@ async fn handle_connection(
         StreamSessionKind::Inline { .. } => String::new(),
     });
 
-    let range_spec = range_header
-        .as_ref()
-        .and_then(|range| range.find('=').map(|pos| range[pos + 1..].trim().to_string()));
+    let range_spec = range_header.as_ref().and_then(|range| {
+        range
+            .find('=')
+            .map(|pos| range[pos + 1..].trim().to_string())
+    });
     let cache_key = format!("{}|{}", target_url, range_spec.as_deref().unwrap_or("full"));
     if let Some(cached) = manager.get_cached_response(&cache_key) {
         write_cached_response(&mut socket, cached).await?;
         return Ok(());
     }
 
-    let mut req_builder = client.get(&target_url)
+    let mut req_builder = client
+        .get(&target_url)
         .header("User-Agent", &session.user_agent);
 
     if let Some(ref spec) = range_spec {
@@ -393,18 +421,21 @@ async fn handle_connection(
 
     if let Some(body) = cached_body {
         if body.len() == content_length_value {
-            manager.store_cached_response(cache_key, CachedResponse {
-                status_code: status.as_u16(),
-                reason: status.canonical_reason().unwrap_or("").to_string(),
-                content_type: content_type_value.clone(),
-                content_range,
-                accept_ranges,
-                body,
-                cached_at: SystemTime::now()
-                    .duration_since(UNIX_EPOCH)
-                    .unwrap()
-                    .as_secs(),
-            });
+            manager.store_cached_response(
+                cache_key,
+                CachedResponse {
+                    status_code: status.as_u16(),
+                    reason: status.canonical_reason().unwrap_or("").to_string(),
+                    content_type: content_type_value.clone(),
+                    content_range,
+                    accept_ranges,
+                    body,
+                    cached_at: SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .unwrap()
+                        .as_secs(),
+                },
+            );
         }
     }
 

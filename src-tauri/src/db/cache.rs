@@ -1,14 +1,15 @@
-use sqlx::SqlitePool;
 use crate::errors::{AppError, AppResult};
 use crate::models::video::VideoSummary;
+use sqlx::SqlitePool;
 
+#[allow(dead_code)]
 pub async fn cache_video_summary(
     pool: &SqlitePool,
     video: &VideoSummary,
     expires_in_seconds: i64,
 ) -> AppResult<()> {
     let duration_secs = video.duration_seconds.map(|d| d as i64);
-    
+
     // Calculate expiration timestamp using SQLite string formatting
     sqlx::query(
         "INSERT INTO video_cache (video_id, title, channel_name, thumbnail_url, duration_seconds, description, cached_at, expires_at)
@@ -34,6 +35,7 @@ pub async fn cache_video_summary(
     Ok(())
 }
 
+#[allow(dead_code)]
 pub async fn get_cached_video_summary(
     pool: &SqlitePool,
     video_id: &str,
@@ -48,7 +50,7 @@ pub async fn get_cached_video_summary(
         "SELECT video_id, title, channel_name, thumbnail_url, duration_seconds
          FROM video_cache
          WHERE video_id = ? AND datetime(expires_at) >= datetime('now')
-         LIMIT 1"
+         LIMIT 1",
     )
     .bind(video_id)
     .fetch_optional(pool)
@@ -77,6 +79,7 @@ pub async fn get_cached_video_summary(
     }
 }
 
+#[allow(dead_code)]
 pub async fn clear_cache(pool: &SqlitePool) -> AppResult<()> {
     sqlx::query("DELETE FROM video_cache")
         .execute(pool)
@@ -94,7 +97,7 @@ pub async fn get_cached_dearrow(
         "SELECT title, thumbnail_url
          FROM dearrow_cache
          WHERE video_id = ? AND datetime(cached_at) >= datetime('now', '-7 days')
-         LIMIT 1"
+         LIMIT 1",
     )
     .bind(video_id)
     .fetch_optional(pool)
@@ -104,7 +107,10 @@ pub async fn get_cached_dearrow(
     if let Some(r) = row {
         let title: Option<String> = sqlx::Row::get(&r, 0);
         let thumbnail_url: Option<String> = sqlx::Row::get(&r, 1);
-        Ok(Some(crate::api::dearrow::DeArrowOverride { title, thumbnail_url }))
+        Ok(Some(crate::api::dearrow::DeArrowOverride {
+            title,
+            thumbnail_url,
+        }))
     } else {
         Ok(None)
     }
@@ -121,7 +127,7 @@ pub async fn cache_dearrow(
          ON CONFLICT(video_id) DO UPDATE SET
             title = excluded.title,
             thumbnail_url = excluded.thumbnail_url,
-            cached_at = CURRENT_TIMESTAMP"
+            cached_at = CURRENT_TIMESTAMP",
     )
     .bind(video_id)
     .bind(&override_data.title)

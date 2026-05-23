@@ -38,9 +38,11 @@ pub enum AppError {
     Database(String),
 
     #[error("Streaming error: {0}")]
+    #[allow(dead_code)]
     Streaming(String),
 
     #[error("Internal error: {0}")]
+    #[allow(dead_code)]
     Internal(String),
 }
 

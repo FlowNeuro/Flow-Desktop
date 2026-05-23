@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use crate::errors::AppResult;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -43,9 +43,7 @@ pub async fn fetch_dearrow_override_api(video_id: &str) -> AppResult<Option<DeAr
         .unwrap_or_default();
 
     let url = format!("https://sponsor.ajay.app/api/branding?videoID={}", video_id);
-    let res = client.get(&url)
-        .send()
-        .await;
+    let res = client.get(&url).send().await;
 
     let response = match res {
         Ok(r) => r,
@@ -71,13 +69,17 @@ pub async fn fetch_dearrow_override_api(video_id: &str) -> AppResult<Option<DeAr
     // - Prefers locked entries over voted ones
     // - Ignores entries with negative votes (downvoted)
     // - Ignores "original" entries (keep as-is)
-    let best_title = content.titles.iter()
+    let best_title = content
+        .titles
+        .iter()
         .filter(|t| !t.original && (t.votes >= 0 || t.locked))
         .max_by_key(|t| if t.locked { i32::MAX } else { t.votes })
         .map(|t| t.title.clone());
 
     // Filter and pick the best thumbnail
-    let best_thumb = content.thumbnails.iter()
+    let best_thumb = content
+        .thumbnails
+        .iter()
         .filter(|t| !t.original && (t.votes >= 0 || t.locked))
         .max_by_key(|t| if t.locked { i32::MAX } else { t.votes });
 

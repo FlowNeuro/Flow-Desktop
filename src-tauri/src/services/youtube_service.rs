@@ -2,13 +2,13 @@ use std::sync::Arc;
 
 use crate::api::extractor::YoutubeExtractor;
 use crate::errors::AppResult;
-use crate::models::search::{SearchVideosRequest, SearchVideosResponse};
-use crate::models::video::{StreamInfo, VideoDetails, RelatedContentItem};
 use crate::models::channel::{ChannelDetails, ChannelTabResponse};
-use crate::models::playlist::PlaylistDetailsResponse;
 use crate::models::comment::CommentsResponse;
-use crate::models::video::{VideoSummary, MusicHomeSection, MusicHomeChip};
-use crate::models::music::{ArtistPage, ExplorePage, ChartsPage};
+use crate::models::music::{ArtistPage, ChartsPage, ExplorePage};
+use crate::models::playlist::PlaylistDetailsResponse;
+use crate::models::search::{SearchVideosRequest, SearchVideosResponse};
+use crate::models::video::{MusicHomeChip, MusicHomeSection, VideoSummary};
+use crate::models::video::{RelatedContentItem, StreamInfo, VideoDetails};
 
 pub struct YoutubeService {
     extractor: Arc<dyn YoutubeExtractor>,
@@ -27,31 +27,19 @@ impl YoutubeService {
         self.extractor.search_videos(request).await
     }
 
-    pub async fn get_video_details(
-        &self,
-        video_id: &str,
-    ) -> AppResult<VideoDetails> {
+    pub async fn get_video_details(&self, video_id: &str) -> AppResult<VideoDetails> {
         self.extractor.get_video_details(video_id).await
     }
 
-    pub async fn get_related_videos(
-        &self,
-        video_id: &str,
-    ) -> AppResult<Vec<RelatedContentItem>> {
+    pub async fn get_related_videos(&self, video_id: &str) -> AppResult<Vec<RelatedContentItem>> {
         self.extractor.get_related_videos(video_id).await
     }
 
-    pub async fn get_stream_info(
-        &self,
-        video_id: &str,
-    ) -> AppResult<StreamInfo> {
+    pub async fn get_stream_info(&self, video_id: &str) -> AppResult<StreamInfo> {
         self.extractor.get_stream_info(video_id).await
     }
 
-    pub async fn get_channel_details(
-        &self,
-        channel_id: &str,
-    ) -> AppResult<ChannelDetails> {
+    pub async fn get_channel_details(&self, channel_id: &str) -> AppResult<ChannelDetails> {
         self.extractor.get_channel_details(channel_id).await
     }
 
@@ -62,7 +50,9 @@ impl YoutubeService {
         page_token: Option<String>,
         query: Option<String>,
     ) -> AppResult<ChannelTabResponse> {
-        self.extractor.get_channel_tab(channel_id, params, page_token, query).await
+        self.extractor
+            .get_channel_tab(channel_id, params, page_token, query)
+            .await
     }
 
     pub async fn get_playlist_details(
@@ -70,7 +60,9 @@ impl YoutubeService {
         playlist_id: &str,
         page_token: Option<String>,
     ) -> AppResult<PlaylistDetailsResponse> {
-        self.extractor.get_playlist_details(playlist_id, page_token).await
+        self.extractor
+            .get_playlist_details(playlist_id, page_token)
+            .await
     }
 
     pub async fn get_comments(
@@ -81,65 +73,39 @@ impl YoutubeService {
         self.extractor.get_comments(video_id, page_token).await
     }
 
-    pub async fn get_trending_videos(
-        &self,
-    ) -> AppResult<Vec<VideoSummary>> {
+    pub async fn get_trending_videos(&self) -> AppResult<Vec<VideoSummary>> {
         self.extractor.get_trending_videos().await
     }
 
-    pub async fn get_search_suggestions(
-        &self,
-        query: &str,
-    ) -> AppResult<Vec<String>> {
+    pub async fn get_search_suggestions(&self, query: &str) -> AppResult<Vec<String>> {
         self.extractor.get_search_suggestions(query).await
     }
 
-    pub async fn search_music(
-        &self,
-        query: &str,
-        filter: &str,
-    ) -> AppResult<Vec<VideoSummary>> {
+    pub async fn search_music(&self, query: &str, filter: &str) -> AppResult<Vec<VideoSummary>> {
         self.extractor.search_music(query, filter).await
     }
 
-    pub fn parse_subscription_export(
-        &self,
-        data: &str,
-    ) -> AppResult<Vec<(String, String)>> {
+    pub fn parse_subscription_export(&self, data: &str) -> AppResult<Vec<(String, String)>> {
         self.extractor.parse_subscription_export(data)
     }
 
-    pub async fn get_music_lyrics(
-        &self,
-        video_id: &str,
-    ) -> AppResult<Option<String>> {
+    pub async fn get_music_lyrics(&self, video_id: &str) -> AppResult<Option<String>> {
         self.extractor.get_music_lyrics(video_id).await
     }
 
-    pub async fn get_music_related(
-        &self,
-        video_id: &str,
-    ) -> AppResult<Vec<VideoSummary>> {
+    pub async fn get_music_related(&self, video_id: &str) -> AppResult<Vec<VideoSummary>> {
         self.extractor.get_music_related(video_id).await
     }
 
-    pub async fn get_music_album(
-        &self,
-        album_browse_id: &str,
-    ) -> AppResult<Vec<VideoSummary>> {
+    pub async fn get_music_album(&self, album_browse_id: &str) -> AppResult<Vec<VideoSummary>> {
         self.extractor.get_music_album(album_browse_id).await
     }
 
-    pub async fn get_music_home(
-        &self,
-    ) -> AppResult<(Vec<MusicHomeSection>, Vec<MusicHomeChip>)> {
+    pub async fn get_music_home(&self) -> AppResult<(Vec<MusicHomeSection>, Vec<MusicHomeChip>)> {
         self.extractor.get_music_home().await
     }
 
-    pub async fn get_music_artist(
-        &self,
-        artist_browse_id: &str,
-    ) -> AppResult<ArtistPage> {
+    pub async fn get_music_artist(&self, artist_browse_id: &str) -> AppResult<ArtistPage> {
         self.extractor.get_music_artist(artist_browse_id).await
     }
 
@@ -147,10 +113,7 @@ impl YoutubeService {
         self.extractor.get_music_explore().await
     }
 
-    pub async fn get_music_charts(
-        &self,
-        continuation: Option<String>,
-    ) -> AppResult<ChartsPage> {
+    pub async fn get_music_charts(&self, continuation: Option<String>) -> AppResult<ChartsPage> {
         self.extractor.get_music_charts(continuation).await
     }
 }

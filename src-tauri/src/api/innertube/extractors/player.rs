@@ -1,33 +1,35 @@
-use serde_json::Value;
-use tracing::{debug, warn};
+use crate::api::innertube::core::botguard::generate_po_token;
+use crate::api::innertube::core::context::{get_android_vr_context, get_ios_context};
+use crate::api::innertube::core::utils::{
+    collect_related_content_items, dedupe_related_content_items,
+    extract_channel_id_from_video_renderer, extract_text_from_value, thumbnail_url_from_array,
+};
 use crate::api::innertube::InnertubeClient;
 use crate::errors::{AppError, AppResult};
 use crate::models::video::{
-    StreamInfo, StreamVariant, VideoDetails, VideoChapter, CaptionTrack, AudioTrack, RelatedContentItem
+    AudioTrack, CaptionTrack, RelatedContentItem, StreamInfo, StreamVariant, VideoChapter,
+    VideoDetails,
 };
-use crate::api::innertube::core::context::{get_ios_context, get_android_vr_context};
-use crate::api::innertube::core::botguard::generate_po_token;
-use crate::api::innertube::core::utils::{
-    thumbnail_url_from_array, extract_text_from_value, extract_channel_id_from_video_renderer,
-    parse_duration_seconds, collect_related_content_items, dedupe_related_content_items
-};
+use serde_json::Value;
+use tracing::{debug, warn};
 
 fn parse_timestamp(s: &str) -> Option<u64> {
-    let cleaned: String = s.chars()
+    let cleaned: String = s
+        .chars()
         .filter(|&c| c.is_ascii_digit() || c == ':')
         .collect();
-    
+
     let parts: Vec<&str> = cleaned.split(':').collect();
     if parts.len() < 2 || parts.len() > 3 {
         return None;
     }
-    
+
     for part in &parts {
         if part.is_empty() || !part.chars().all(|c| c.is_ascii_digit()) {
             return None;
         }
     }
-    
+
     if parts.len() == 2 {
         let minutes = parts[0].parse::<u64>().ok()?;
         let seconds = parts[1].parse::<u64>().ok()?;
@@ -47,25 +49,26 @@ fn parse_timestamp(s: &str) -> Option<u64> {
 
 fn parse_chapters_from_description(description: &str, duration_seconds: u64) -> Vec<VideoChapter> {
     let mut temp_chapters = Vec::new();
-    
+
     for line in description.lines() {
         let line = line.trim();
         if line.is_empty() {
             continue;
         }
-        
+
         let words: Vec<&str> = line.split_whitespace().collect();
         if words.is_empty() {
             continue;
         }
-        
+
         let mut found_ts = None;
         let mut ts_index = 0;
         for (idx, word) in words.iter().enumerate() {
-            let cleaned: String = word.chars()
+            let cleaned: String = word
+                .chars()
                 .filter(|&c| c.is_ascii_digit() || c == ':')
                 .collect();
-            
+
             if !cleaned.is_empty() && cleaned.contains(':') {
                 if let Some(secs) = parse_timestamp(&cleaned) {
                     found_ts = Some(secs);
@@ -74,7 +77,7 @@ fn parse_chapters_from_description(description: &str, duration_seconds: u64) -> 
                 }
             }
         }
-        
+
         if let Some(start_seconds) = found_ts {
             let mut title_words = Vec::new();
             for (idx, &word) in words.iter().enumerate() {
@@ -86,43 +89,57 @@ fn parse_chapters_from_description(description: &str, duration_seconds: u64) -> 
                 }
                 title_words.push(word);
             }
-            
+
             let mut title = title_words.join(" ");
-            title = title.trim_matches(|c: char| c == '(' || c == ')' || c == '[' || c == ']' || c == '-' || c == '–' || c == ':' || c == ' ').to_string();
-            
+            title = title
+                .trim_matches(|c: char| {
+                    c == '('
+                        || c == ')'
+                        || c == '['
+                        || c == ']'
+                        || c == '-'
+                        || c == '–'
+                        || c == ':'
+                        || c == ' '
+                })
+                .to_string();
+
             if !title.is_empty() {
                 temp_chapters.push((start_seconds, title));
             } else {
-                temp_chapters.push((start_seconds, format!("Chapter {}", temp_chapters.len() + 1)));
+                temp_chapters.push((
+                    start_seconds,
+                    format!("Chapter {}", temp_chapters.len() + 1),
+                ));
             }
         }
     }
-    
+
     if temp_chapters.is_empty() {
         return Vec::new();
     }
-    
+
     temp_chapters.sort_by_key(|c| c.0);
     temp_chapters.dedup_by_key(|c| c.0);
-    
+
     if temp_chapters[0].0 > 10 {
         temp_chapters.insert(0, (0, "Intro".to_string()));
     } else {
         temp_chapters[0].0 = 0;
     }
-    
+
     let mut chapters = Vec::new();
     let num_chapters = temp_chapters.len();
     for i in 0..num_chapters {
         let start_seconds = temp_chapters[i].0;
         let title = temp_chapters[i].1.clone();
-        
+
         let end_seconds = if i < num_chapters - 1 {
             temp_chapters[i + 1].0
         } else {
             duration_seconds
         };
-        
+
         if end_seconds > start_seconds {
             chapters.push(VideoChapter {
                 title,
@@ -131,23 +148,26 @@ fn parse_chapters_from_description(description: &str, duration_seconds: u64) -> 
             });
         }
     }
-    
+
     chapters
 }
 
-fn parse_chapters_from_marker_map(res: &serde_json::Value, duration_seconds: u64) -> Option<Vec<VideoChapter>> {
+fn parse_chapters_from_marker_map(
+    res: &serde_json::Value,
+    duration_seconds: u64,
+) -> Option<Vec<VideoChapter>> {
     let chapters_arr = res["markerMap"]["chapters"]["chapters"].as_array()?;
     if chapters_arr.is_empty() {
         return None;
     }
-    
+
     let mut temp_chapters = Vec::new();
     for chap in chapters_arr {
         let chapter_renderer = &chap["chapterRenderer"];
         if chapter_renderer.is_null() {
             continue;
         }
-        
+
         let title = if let Some(t) = extract_text_from_value(&chapter_renderer["title"]) {
             t
         } else if let Some(t) = chapter_renderer["title"]["simpleText"].as_str() {
@@ -155,26 +175,26 @@ fn parse_chapters_from_marker_map(res: &serde_json::Value, duration_seconds: u64
         } else {
             continue;
         };
-        
+
         let start_millis = chapter_renderer["timeRangeStartMillis"].as_u64()?;
         let start_seconds = start_millis / 1000;
-        
+
         temp_chapters.push((start_seconds, title));
     }
-    
+
     if temp_chapters.is_empty() {
         return None;
     }
-    
+
     temp_chapters.sort_by_key(|c| c.0);
     temp_chapters.dedup_by_key(|c| c.0);
-    
+
     if temp_chapters[0].0 > 10 {
         temp_chapters.insert(0, (0, "Intro".to_string()));
     } else {
         temp_chapters[0].0 = 0;
     }
-    
+
     let mut chapters = Vec::new();
     let num_chapters = temp_chapters.len();
     for i in 0..num_chapters {
@@ -185,7 +205,7 @@ fn parse_chapters_from_marker_map(res: &serde_json::Value, duration_seconds: u64
         } else {
             duration_seconds
         };
-        
+
         if end_seconds > start_seconds {
             chapters.push(VideoChapter {
                 title,
@@ -194,18 +214,24 @@ fn parse_chapters_from_marker_map(res: &serde_json::Value, duration_seconds: u64
             });
         }
     }
-    
+
     Some(chapters)
 }
 
 fn check_needs_reload(val: &Value) -> bool {
     if let Some(status) = val["playabilityStatus"]["status"].as_str() {
-        if status.to_ascii_lowercase().contains("page needs to be reloaded") {
+        if status
+            .to_ascii_lowercase()
+            .contains("page needs to be reloaded")
+        {
             return true;
         }
     }
     if let Some(reason) = val["playabilityStatus"]["reason"].as_str() {
-        if reason.to_ascii_lowercase().contains("page needs to be reloaded") {
+        if reason
+            .to_ascii_lowercase()
+            .contains("page needs to be reloaded")
+        {
             return true;
         }
     }
@@ -261,10 +287,7 @@ fn map_playability_error(status: &str, reason: Option<&str>) -> AppError {
         }
     }
 
-    AppError::ContentNotAvailable(format!(
-        "Got error {}: \"{}\"",
-        status, reason_text
-    ))
+    AppError::ContentNotAvailable(format!("Got error {}: \"{}\"", status, reason_text))
 }
 
 fn check_playability_status(playability_status: &Value) -> AppResult<()> {
@@ -282,10 +305,7 @@ fn check_playability_status(playability_status: &Value) -> AppResult<()> {
     ))
 }
 
-fn validate_stream_url(
-    stream_url: &str,
-    video_id: &str,
-) -> AppResult<String> {
+fn validate_stream_url(stream_url: &str, video_id: &str) -> AppResult<String> {
     let parsed_url = reqwest::Url::parse(stream_url).map_err(|error| {
         AppError::Extractor(format!(
             "Failed to parse extracted stream URL for video {video_id}: {error}"
@@ -305,10 +325,7 @@ fn validate_stream_url(
     Ok(parsed_url.into())
 }
 
-fn extract_stream_url_from_format(
-    format: &Value,
-    video_id: &str,
-) -> AppResult<Option<String>> {
+fn extract_stream_url_from_format(format: &Value, video_id: &str) -> AppResult<Option<String>> {
     if let Some(url) = format["url"].as_str() {
         return validate_stream_url(url, video_id).map(Some);
     }
@@ -373,30 +390,32 @@ fn extract_stream_url_from_format(
 }
 
 fn quality_height(format: &Value) -> Option<u64> {
-    format["height"]
-        .as_u64()
-        .or_else(|| {
-            format["qualityLabel"]
-                .as_str()
-                .and_then(|label| {
-                    let digits = label
-                        .chars()
-                        .take_while(|c| c.is_ascii_digit())
-                        .collect::<String>();
-                    digits.parse::<u64>().ok()
-                })
+    format["height"].as_u64().or_else(|| {
+        format["qualityLabel"].as_str().and_then(|label| {
+            let digits = label
+                .chars()
+                .take_while(|c| c.is_ascii_digit())
+                .collect::<String>();
+            digits.parse::<u64>().ok()
         })
+    })
 }
 
 fn parse_range_value(range: &Value) -> (Option<u64>, Option<u64>) {
     (
-        range["start"].as_str().and_then(|value| value.parse::<u64>().ok()),
-        range["end"].as_str().and_then(|value| value.parse::<u64>().ok())
+        range["start"]
+            .as_str()
+            .and_then(|value| value.parse::<u64>().ok()),
+        range["end"]
+            .as_str()
+            .and_then(|value| value.parse::<u64>().ok()),
     )
 }
 
 fn parse_approx_duration_ms(format: &Value) -> Option<u64> {
-    format["approxDurationMs"].as_str().and_then(|value| value.parse::<u64>().ok())
+    format["approxDurationMs"]
+        .as_str()
+        .and_then(|value| value.parse::<u64>().ok())
 }
 
 fn format_is_video(format: &Value) -> bool {
@@ -445,7 +464,12 @@ fn build_stream_variant_from_format(
         is_playable,
         has_audio: is_progressive,
         is_video_only: !is_progressive,
-        delivery_method: if is_progressive { "progressive" } else { "adaptive" }.to_string(),
+        delivery_method: if is_progressive {
+            "progressive"
+        } else {
+            "adaptive"
+        }
+        .to_string(),
         init_range_start,
         init_range_end,
         index_range_start,
@@ -495,7 +519,9 @@ fn collect_stream_variants(
     variants.retain(|variant| {
         let key = format!(
             "{}:{}:{}",
-            variant.quality_label, variant.fps.unwrap_or(0), variant.is_playable
+            variant.quality_label,
+            variant.fps.unwrap_or(0),
+            variant.is_playable
         );
         seen.insert(key)
     });
@@ -529,7 +555,10 @@ fn collect_caption_tracks(response: &Value) -> Vec<CaptionTrack> {
                         .filter(|(key, _)| key != "fmt" && key != "tlang")
                         .map(|(key, value)| (key.into_owned(), value.into_owned()))
                         .collect();
-                    url.query_pairs_mut().clear().extend_pairs(query_pairs).append_pair("fmt", "vtt");
+                    url.query_pairs_mut()
+                        .clear()
+                        .extend_pairs(query_pairs)
+                        .append_pair("fmt", "vtt");
 
                     Some(CaptionTrack {
                         id: format!("caption-{index}-{language_code}"),
@@ -563,7 +592,11 @@ fn collect_audio_tracks(streaming_data: &Value) -> Vec<AudioTrack> {
                 .map(ToOwned::to_owned)
                 .or_else(|| format["itag"].as_i64().map(|itag| format!("itag-{itag}")))
                 .unwrap_or_else(|| "default".to_string());
-            let language_code = id.split('.').next().filter(|value| value.len() <= 8).map(ToOwned::to_owned);
+            let language_code = id
+                .split('.')
+                .next()
+                .filter(|value| value.len() <= 8)
+                .map(ToOwned::to_owned);
             let label = audio_track["displayName"]
                 .as_str()
                 .filter(|value| !value.is_empty())
@@ -591,7 +624,9 @@ fn collect_audio_tracks(streaming_data: &Value) -> Vec<AudioTrack> {
                 local_url,
                 mime_type: format["mimeType"].as_str().map(ToOwned::to_owned),
                 bitrate,
-                is_default: audio_track["audioIsDefault"].as_bool().unwrap_or(tracks.is_empty()),
+                is_default: audio_track["audioIsDefault"]
+                    .as_bool()
+                    .unwrap_or(tracks.is_empty()),
                 init_range_start,
                 init_range_end,
                 index_range_start,
@@ -599,7 +634,10 @@ fn collect_audio_tracks(streaming_data: &Value) -> Vec<AudioTrack> {
                 approx_duration_ms: parse_approx_duration_ms(format),
             };
 
-            if let Some(existing_index) = tracks.iter().position(|existing: &AudioTrack| existing.id == id) {
+            if let Some(existing_index) = tracks
+                .iter()
+                .position(|existing: &AudioTrack| existing.id == id)
+            {
                 let existing_bitrate = tracks[existing_index].bitrate.unwrap_or(0);
                 if track.bitrate.unwrap_or(0) > existing_bitrate {
                     tracks[existing_index] = track;
@@ -650,10 +688,7 @@ fn clean_like_count_from_accessibility(text: &str) -> String {
 }
 
 impl InnertubeClient {
-    pub async fn get_video_details(
-        &self,
-        video_id: &str,
-    ) -> AppResult<VideoDetails> {
+    pub async fn get_video_details(&self, video_id: &str) -> AppResult<VideoDetails> {
         let video_id_trimmed = video_id.trim();
         if video_id_trimmed.is_empty() {
             return Err(AppError::Validation("Video ID cannot be empty".into()));
@@ -702,8 +737,10 @@ impl InnertubeClient {
                 }
             });
 
-            let mut ios_res = self.post_innertube("player", "IOS", "19.29.1", &mut ios_payload).await;
-            
+            let mut ios_res = self
+                .post_innertube("player", "IOS", "19.29.1", &mut ios_payload)
+                .await;
+
             let mut needs_retry = false;
             if let Ok(ref val) = ios_res {
                 if check_needs_reload(val) {
@@ -725,7 +762,9 @@ impl InnertubeClient {
                     },
                     "custom_referer": format!("https://youtu.be/{}", video_id_trimmed)
                 });
-                ios_res = self.post_innertube("player", "IOS", "19.29.1", &mut retry_payload).await;
+                ios_res = self
+                    .post_innertube("player", "IOS", "19.29.1", &mut retry_payload)
+                    .await;
             }
             res = ios_res;
         }
@@ -735,14 +774,19 @@ impl InnertubeClient {
 
         let details = &res["videoDetails"];
         if details.is_null() {
-            return Err(AppError::Extractor("Failed to fetch video details from Innertube".into()));
+            return Err(AppError::Extractor(
+                "Failed to fetch video details from Innertube".into(),
+            ));
         }
 
-        let id = details["videoId"].as_str().unwrap_or(video_id_trimmed).to_string();
+        let id = details["videoId"]
+            .as_str()
+            .unwrap_or(video_id_trimmed)
+            .to_string();
         let title = details["title"].as_str().unwrap_or_default().to_string();
         let mut channel_name = details["author"].as_str().unwrap_or_default().to_string();
         let description = details["shortDescription"].as_str().map(|s| s.to_string());
-        
+
         let thumbnail_url = thumbnail_url_from_array(&details["thumbnail"]["thumbnails"]);
 
         let duration_seconds = extract_duration_seconds_from_player_response(&res);
@@ -755,10 +799,16 @@ impl InnertubeClient {
         let mut next_payload = serde_json::json!({
             "videoId": &id
         });
-        if let Ok(next_res) = self.post_innertube("next", "WEB", "2.20260120.01.00", &mut next_payload).await {
+        if let Ok(next_res) = self
+            .post_innertube("next", "WEB", "2.20260120.01.00", &mut next_payload)
+            .await
+        {
             let mut primary_info = &serde_json::Value::Null;
             let mut secondary_info = &serde_json::Value::Null;
-            if let Some(contents) = next_res["contents"]["twoColumnWatchNextResults"]["results"]["results"]["contents"].as_array() {
+            if let Some(contents) = next_res["contents"]["twoColumnWatchNextResults"]["results"]
+                ["results"]["contents"]
+                .as_array()
+            {
                 for c in contents {
                     if c.get("videoPrimaryInfoRenderer").is_some() {
                         primary_info = &c["videoPrimaryInfoRenderer"];
@@ -787,16 +837,31 @@ impl InnertubeClient {
 
             if !primary_info.is_null() {
                 // Extract views
-                if let Some(views) = primary_info["viewCount"]["videoViewCountRenderer"]["viewCount"]["simpleText"].as_str()
-                    .or_else(|| primary_info["viewCount"]["videoViewCountRenderer"]["viewCount"]["runs"][0]["text"].as_str())
-                    .or_else(|| primary_info["viewCount"]["videoViewCountRenderer"]["shortViewCount"]["simpleText"].as_str())
-                    .or_else(|| primary_info["viewCount"]["videoViewCountRenderer"]["shortViewCount"]["runs"][0]["text"].as_str())
+                if let Some(views) = primary_info["viewCount"]["videoViewCountRenderer"]
+                    ["viewCount"]["simpleText"]
+                    .as_str()
+                    .or_else(|| {
+                        primary_info["viewCount"]["videoViewCountRenderer"]["viewCount"]["runs"][0]
+                            ["text"]
+                            .as_str()
+                    })
+                    .or_else(|| {
+                        primary_info["viewCount"]["videoViewCountRenderer"]["shortViewCount"]
+                            ["simpleText"]
+                            .as_str()
+                    })
+                    .or_else(|| {
+                        primary_info["viewCount"]["videoViewCountRenderer"]["shortViewCount"]
+                            ["runs"][0]["text"]
+                            .as_str()
+                    })
                 {
                     view_count_text = Some(views.to_string());
                 }
 
                 // Extract published text
-                if let Some(pub_date) = primary_info["dateText"]["simpleText"].as_str()
+                if let Some(pub_date) = primary_info["dateText"]["simpleText"]
+                    .as_str()
                     .or_else(|| primary_info["dateText"]["runs"][0]["text"].as_str())
                     .or_else(|| primary_info["relativeDateText"]["simpleText"].as_str())
                     .or_else(|| primary_info["relativeDateText"]["runs"][0]["text"].as_str())
@@ -805,29 +870,47 @@ impl InnertubeClient {
                 }
 
                 // Extract like count
-                if let Some(top_level_buttons) = primary_info["videoActions"]["menuRenderer"]["topLevelButtons"].as_array() {
+                if let Some(top_level_buttons) =
+                    primary_info["videoActions"]["menuRenderer"]["topLevelButtons"].as_array()
+                {
                     for btn in top_level_buttons {
                         if let Some(view_model) = btn.get("segmentedLikeDislikeButtonViewModel") {
-                            let button_vm = &view_model["likeButtonViewModel"]["likeButtonViewModel"]["toggleButtonViewModel"]["toggleButtonViewModel"]["defaultButtonViewModel"]["buttonViewModel"];
-                            if let Some(title) = button_vm["title"]["runs"][0]["text"].as_str()
+                            let button_vm = &view_model["likeButtonViewModel"]
+                                ["likeButtonViewModel"]["toggleButtonViewModel"]
+                                ["toggleButtonViewModel"]["defaultButtonViewModel"]
+                                ["buttonViewModel"];
+                            if let Some(title) = button_vm["title"]["runs"][0]["text"]
+                                .as_str()
                                 .or_else(|| button_vm["title"]["simpleText"].as_str())
                             {
                                 like_count_text = Some(title.to_string());
                             } else if let Some(acc_text) = button_vm["accessibilityText"].as_str() {
-                                like_count_text = Some(clean_like_count_from_accessibility(acc_text));
+                                like_count_text =
+                                    Some(clean_like_count_from_accessibility(acc_text));
                             }
                         }
                         if like_count_text.is_none() {
                             if let Some(renderer) = btn.get("segmentedLikeDislikeButtonRenderer") {
                                 let toggle_btn = &renderer["likeButton"]["toggleButtonRenderer"];
                                 if !toggle_btn.is_null() {
-                                    if let Some(label) = toggle_btn["accessibilityData"]["accessibilityData"]["label"].as_str()
+                                    if let Some(label) = toggle_btn["accessibilityData"]
+                                        ["accessibilityData"]["label"]
+                                        .as_str()
                                         .or_else(|| toggle_btn["accessibility"]["label"].as_str())
-                                        .or_else(|| toggle_btn["defaultText"]["accessibility"]["accessibilityData"]["label"].as_str())
+                                        .or_else(|| {
+                                            toggle_btn["defaultText"]["accessibility"]
+                                                ["accessibilityData"]["label"]
+                                                .as_str()
+                                        })
                                     {
-                                        like_count_text = Some(clean_like_count_from_accessibility(label));
-                                    } else if let Some(text) = toggle_btn["defaultText"]["runs"][0]["text"].as_str()
-                                        .or_else(|| toggle_btn["defaultText"]["simpleText"].as_str())
+                                        like_count_text =
+                                            Some(clean_like_count_from_accessibility(label));
+                                    } else if let Some(text) = toggle_btn["defaultText"]["runs"][0]
+                                        ["text"]
+                                        .as_str()
+                                        .or_else(|| {
+                                            toggle_btn["defaultText"]["simpleText"].as_str()
+                                        })
                                     {
                                         like_count_text = Some(text.to_string());
                                     }
@@ -840,14 +923,13 @@ impl InnertubeClient {
         }
 
         let duration_secs = duration_seconds.unwrap_or(0);
-        let chapters = parse_chapters_from_marker_map(&res, duration_secs)
-            .unwrap_or_else(|| {
-                if let Some(ref desc) = description {
-                    parse_chapters_from_description(desc, duration_secs)
-                } else {
-                    Vec::new()
-                }
-            });
+        let chapters = parse_chapters_from_marker_map(&res, duration_secs).unwrap_or_else(|| {
+            if let Some(ref desc) = description {
+                parse_chapters_from_description(desc, duration_secs)
+            } else {
+                Vec::new()
+            }
+        });
 
         Ok(VideoDetails {
             id,
@@ -864,10 +946,7 @@ impl InnertubeClient {
         })
     }
 
-    pub async fn get_related_videos(
-        &self,
-        video_id: &str,
-    ) -> AppResult<Vec<RelatedContentItem>> {
+    pub async fn get_related_videos(&self, video_id: &str) -> AppResult<Vec<RelatedContentItem>> {
         let video_id_trimmed = video_id.trim();
         if video_id_trimmed.is_empty() {
             return Err(AppError::Validation("Video ID cannot be empty".into()));
@@ -877,21 +956,26 @@ impl InnertubeClient {
             "videoId": video_id_trimmed
         });
 
-        let next_res = self.post_innertube("next", "WEB", "2.20260120.01.00", &mut payload).await?;
+        let next_res = self
+            .post_innertube("next", "WEB", "2.20260120.01.00", &mut payload)
+            .await?;
         let mut related = Vec::new();
-        collect_related_content_items(&next_res["contents"]["twoColumnWatchNextResults"]["secondaryResults"], &mut related);
+        collect_related_content_items(
+            &next_res["contents"]["twoColumnWatchNextResults"]["secondaryResults"],
+            &mut related,
+        );
 
         if related.is_empty() {
-            collect_related_content_items(&next_res["contents"]["twoColumnWatchNextResults"]["autoplay"], &mut related);
+            collect_related_content_items(
+                &next_res["contents"]["twoColumnWatchNextResults"]["autoplay"],
+                &mut related,
+            );
         }
 
         Ok(dedupe_related_content_items(related))
     }
 
-    pub async fn get_stream_info(
-        &self,
-        video_id: &str,
-    ) -> AppResult<StreamInfo> {
+    pub async fn get_stream_info(&self, video_id: &str) -> AppResult<StreamInfo> {
         let video_id_trimmed = video_id.trim();
         if video_id_trimmed.is_empty() {
             return Err(AppError::Validation("Video ID cannot be empty".into()));
@@ -908,7 +992,9 @@ impl InnertubeClient {
             "racyCheckOk": true
         });
 
-        let mut res = self.post_innertube("player", "ANDROID_VR", "1.61.48", &mut vr_payload).await;
+        let mut res = self
+            .post_innertube("player", "ANDROID_VR", "1.61.48", &mut vr_payload)
+            .await;
 
         let mut should_fallback_to_ios = false;
         let mut current_user_agent = "com.google.android.apps.youtube.vr.oculus/1.61.48 (Linux; U; Android 12; en_US; Quest 3; Build/SQ3A.220605.009.A1; Cronet/132.0.6808.3)";
@@ -941,8 +1027,10 @@ impl InnertubeClient {
                     }
                 }
             });
-            let mut ios_res = self.post_innertube("player", "IOS", "19.29.1", &mut ios_payload).await;
-            
+            let mut ios_res = self
+                .post_innertube("player", "IOS", "19.29.1", &mut ios_payload)
+                .await;
+
             let mut needs_retry = false;
             if let Ok(ref val) = ios_res {
                 if check_needs_reload(val) {
@@ -964,7 +1052,9 @@ impl InnertubeClient {
                     },
                     "custom_referer": format!("https://youtu.be/{}", video_id_trimmed)
                 });
-                ios_res = self.post_innertube("player", "IOS", "19.29.1", &mut retry_payload).await;
+                ios_res = self
+                    .post_innertube("player", "IOS", "19.29.1", &mut retry_payload)
+                    .await;
             }
             res = ios_res;
             current_user_agent = "com.google.ios.youtube/19.29.1 (iPhone14,5; U; CPU iOS 17_5_1 like Mac OS X; en_US)";
@@ -979,7 +1069,9 @@ impl InnertubeClient {
         if streaming_data.is_null() {
             return Err(AppError::Extractor(format!(
                 "No streaming data found. Playability: {} (Status: {})",
-                playability["reason"].as_str().unwrap_or("Unknown playability reason"),
+                playability["reason"]
+                    .as_str()
+                    .unwrap_or("Unknown playability reason"),
                 playability["status"].as_str().unwrap_or("UNKNOWN")
             )));
         }
@@ -1033,8 +1125,12 @@ impl InnertubeClient {
             variants,
             captions: collect_caption_tracks(&res),
             audio_tracks: collect_audio_tracks(streaming_data),
-            hls_manifest_url: streaming_data["hlsManifestUrl"].as_str().map(ToOwned::to_owned),
-            dash_manifest_url: streaming_data["dashManifestUrl"].as_str().map(ToOwned::to_owned),
+            hls_manifest_url: streaming_data["hlsManifestUrl"]
+                .as_str()
+                .map(ToOwned::to_owned),
+            dash_manifest_url: streaming_data["dashManifestUrl"]
+                .as_str()
+                .map(ToOwned::to_owned),
         })
     }
 }

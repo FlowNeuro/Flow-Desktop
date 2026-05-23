@@ -1,11 +1,11 @@
+use serde::Serialize;
 use std::collections::HashSet;
 use tauri::State;
-use serde::Serialize;
 
 use crate::errors::ErrorResponse;
-use crate::models::video::VideoSummary;
-use crate::services::recommendation_service::RecommendationService;
 use crate::flow_neuro::signals::InteractionType;
+use crate::models::video::VideoSummary;
+use crate::services::recommendation_service::{FeedQuotas, RecommendationService};
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -49,7 +49,11 @@ pub async fn log_interaction(
         "WATCHED" => InteractionType::Watched,
         "SKIPPED" => InteractionType::Skipped,
         "DISLIKED" => InteractionType::Disliked,
-        _ => return Err(ErrorResponse::from(crate::errors::AppError::Validation("Invalid interaction type provided".to_string()))),
+        _ => {
+            return Err(ErrorResponse::from(crate::errors::AppError::Validation(
+                "Invalid interaction type provided".to_string(),
+            )))
+        }
     };
 
     recommendation_service
@@ -111,12 +115,11 @@ pub async fn record_feed_impressions(
 
 #[tauri::command]
 pub async fn complete_onboarding(
-    preferred: Vec<String>,
+    topics: Vec<String>,
     recommendation_service: State<'_, RecommendationService>,
 ) -> Result<(), ErrorResponse> {
-    let pref_set = preferred.into_iter().collect::<HashSet<String>>();
     recommendation_service
-        .complete_onboarding(pref_set)
+        .complete_onboarding(topics)
         .await
         .map_err(ErrorResponse::from)
 }
@@ -164,6 +167,16 @@ pub async fn get_brain_snapshot(
 ) -> Result<crate::flow_neuro::scoring::UserBrain, ErrorResponse> {
     recommendation_service
         .get_brain_snapshot()
+        .await
+        .map_err(ErrorResponse::from)
+}
+
+#[tauri::command]
+pub async fn get_feed_quotas(
+    recommendation_service: State<'_, RecommendationService>,
+) -> Result<FeedQuotas, ErrorResponse> {
+    recommendation_service
+        .get_feed_quotas()
         .await
         .map_err(ErrorResponse::from)
 }

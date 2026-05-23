@@ -13,6 +13,7 @@ import {
 } from "../lib/api/youtube";
 import { getSponsorBlockSegments, getReturnYouTubeDislike, getDeArrowOverride } from "../lib/api/foss";
 import { addWatchRecord } from "../lib/api/db";
+import { logInteraction } from "../lib/api/recommendation";
 import { Loader2, ThumbsUp, ThumbsDown, Share2, Bookmark, MoreHorizontal,WandSparkles } from "lucide-react";
 import Player from "../components/player/Player";
 import { Chapters } from "../components/player/chapters";
@@ -526,6 +527,22 @@ export function Watch() {
     const now = Date.now();
     if (now - lastProgressPersistedAtRef.current < 5000) return;
     lastProgressPersistedAtRef.current = now;
+
+    // Send watch progress feedback to neural recommendation engine
+    const percentWatched = nextDuration > 0 ? Math.min(1.0, Math.max(0.0, time / nextDuration)) : 0.0;
+    void logInteraction(
+      currentVideo.id,
+      currentVideo.title,
+      currentVideo.channelName,
+      resolvedChannelId || currentVideo.channelId || currentVideo.id,
+      videoDetails?.description || null,
+      Math.floor(nextDuration) || null,
+      false,
+      nextDuration <= 60,
+      "WATCHED",
+      percentWatched
+    ).catch(err => console.warn("Failed to log watch interaction to recommendation engine", err));
+
     void addWatchRecord({
       videoId: currentVideo.id,
       title: currentVideo.title,
@@ -534,7 +551,7 @@ export function Watch() {
       watchDurationSeconds: Math.floor(time),
       totalDurationSeconds: Math.floor(nextDuration || 0),
     });
-  }, [setCurrentTime, setDuration, currentVideo]);
+  }, [setCurrentTime, setDuration, currentVideo, resolvedChannelId, videoDetails]);
 
   useEffect(() => {
     if (!currentVideo) return;
@@ -543,6 +560,22 @@ export function Watch() {
       const latestProgress = latestProgressRef.current;
       if (!latestProgress) return;
       saveLocalWatchProgress(currentVideo.id, latestProgress.time, latestProgress.duration);
+
+      const duration = latestProgress.duration || currentVideo.durationSeconds || 1;
+      const percentWatched = duration > 0 ? Math.min(1.0, Math.max(0.0, latestProgress.time / duration)) : 0.0;
+      void logInteraction(
+        currentVideo.id,
+        currentVideo.title,
+        currentVideo.channelName,
+        resolvedChannelId || currentVideo.channelId || currentVideo.id,
+        videoDetails?.description || null,
+        Math.floor(duration) || null,
+        false,
+        duration <= 60,
+        "WATCHED",
+        percentWatched
+      ).catch(err => console.warn("Failed to log final watch interaction on unload", err));
+
       void addWatchRecord({
         videoId: currentVideo.id,
         title: currentVideo.title,
@@ -558,7 +591,7 @@ export function Watch() {
       window.removeEventListener("beforeunload", persistLatestProgress);
       persistLatestProgress();
     };
-  }, [currentVideo]);
+  }, [currentVideo, resolvedChannelId, videoDetails]);
 
   const handleQualitySelect = useCallback((variant: StreamVariant | "auto") => {
     if (variant === "auto") {
@@ -824,6 +857,20 @@ export function Watch() {
                 onSelectQuality={handleQualitySelect}
                 onTimeUpdate={handleTimeUpdate}
                 onEnded={() => {
+                  const duration = latestProgressRef.current?.duration || currentVideo.durationSeconds || 1;
+                  void logInteraction(
+                    currentVideo.id,
+                    currentVideo.title,
+                    currentVideo.channelName,
+                    resolvedChannelId || currentVideo.channelId || currentVideo.id,
+                    videoDetails?.description || null,
+                    Math.floor(duration) || null,
+                    false,
+                    duration <= 60,
+                    "WATCHED",
+                    1.0
+                  ).catch(err => console.warn("Failed to log watch interaction on ended", err));
+
                   clearLocalWatchProgress(currentVideo.id);
                   playNext();
                 }}

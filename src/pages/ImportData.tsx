@@ -21,6 +21,122 @@ interface LocalPlaylist {
   tracks: VideoSummary[];
 }
 
+// Map the Android mobile recommendation profile (camelCase, UPPER_SNAKE_CASE enums) to the desktop Tauri (snake_case, PascalCase) schema.
+function convertBrainData(data: any): any {
+  const result: any = {};
+
+  result.schema_version = data.schemaVersion !== undefined ? data.schemaVersion : (data.schema_version !== undefined ? data.schema_version : 13);
+
+  const mapContentVector = (vector: any) => {
+    if (!vector) return { topics: {}, duration: 0.5, pacing: 0.5, complexity: 0.5, is_live: 0.0 };
+    return {
+      topics: vector.topics || {},
+      duration: typeof vector.duration === "number" ? vector.duration : 0.5,
+      pacing: typeof vector.pacing === "number" ? vector.pacing : 0.5,
+      complexity: typeof vector.complexity === "number" ? vector.complexity : 0.5,
+      is_live: typeof vector.isLive === "number" ? vector.isLive : (typeof vector.is_live === "number" ? vector.is_live : 0.0)
+    };
+  };
+
+  result.global_vector = mapContentVector(data.global || data.global_vector);
+
+  result.time_vectors = {};
+  const inputTimeVectors = data.timeVectors || data.time_vectors || {};
+  const timeBucketMap: Record<string, string> = {
+    "WEEKDAY_MORNING": "WeekdayMorning",
+    "WEEKDAY_AFTERNOON": "WeekdayAfternoon",
+    "WEEKDAY_EVENING": "WeekdayEvening",
+    "WEEKDAY_NIGHT": "WeekdayNight",
+    "WEEKEND_MORNING": "WeekendMorning",
+    "WEEKEND_AFTERNOON": "WeekendAfternoon",
+    "WEEKEND_EVENING": "WeekendEvening",
+    "WEEKEND_NIGHT": "WeekendNight",
+    "WeekdayMorning": "WeekdayMorning",
+    "WeekdayAfternoon": "WeekdayAfternoon",
+    "WeekdayEvening": "WeekdayEvening",
+    "WeekdayNight": "WeekdayNight",
+    "WeekendMorning": "WeekendMorning",
+    "WeekendAfternoon": "WeekendAfternoon",
+    "WeekendEvening": "WeekendEvening",
+    "WeekendNight": "WeekendNight"
+  };
+
+  const allBuckets = [
+    "WeekdayMorning", "WeekdayAfternoon", "WeekdayEvening", "WeekdayNight",
+    "WeekendMorning", "WeekendAfternoon", "WeekendEvening", "WeekendNight"
+  ];
+  allBuckets.forEach(b => {
+    result.time_vectors[b] = mapContentVector(null);
+  });
+
+  Object.keys(inputTimeVectors).forEach(key => {
+    const mappedKey = timeBucketMap[key] || key;
+    if (allBuckets.includes(mappedKey)) {
+      result.time_vectors[mappedKey] = mapContentVector(inputTimeVectors[key]);
+    }
+  });
+
+  result.channel_scores = data.channelScores || data.channel_scores || {};
+  result.topic_affinities = data.topicAffinities || data.topic_affinities || {};
+  result.total_interactions = data.interactions !== undefined ? data.interactions : (data.total_interactions !== undefined ? data.total_interactions : 0);
+  result.consecutive_skips = data.consecutiveSkips !== undefined ? data.consecutiveSkips : (data.consecutive_skips !== undefined ? data.consecutive_skips : 0);
+
+  result.blocked_topics = Array.from(data.blockedTopics || data.blocked_topics || []);
+  result.blocked_channels = Array.from(data.blockedChannels || data.blocked_channels || []);
+  result.preferred_topics = Array.from(data.preferredTopics || data.preferred_topics || []);
+
+  result.has_completed_onboarding = data.hasCompletedOnboarding !== undefined ? data.hasCompletedOnboarding : (data.has_completed_onboarding !== undefined ? data.has_completed_onboarding : false);
+  result.last_persona = data.lastPersona !== undefined ? data.lastPersona : (data.last_persona !== undefined ? data.last_persona : null);
+  result.persona_stability = data.personaStability !== undefined ? data.personaStability : (data.persona_stability !== undefined ? data.persona_stability : 0);
+
+  result.idf_word_frequency = data.idfWordFrequency || data.idf_word_frequency || {};
+  result.idf_total_documents = data.idfTotalDocuments !== undefined ? data.idfTotalDocuments : (data.idf_total_documents !== undefined ? data.idf_total_documents : 0);
+  result.watch_history_map = data.watchHistoryMap || data.watch_history_map || {};
+  result.channel_topic_profiles = data.channelTopicProfiles || data.channel_topic_profiles || {};
+  result.suppressed_video_ids = data.suppressedVideoIds || data.suppressed_video_ids || {};
+  result.suppressed_channels = data.suppressedChannels || data.suppressed_channels || {};
+
+  result.rejection_patterns = {};
+  const inputRejection = data.rejectionPatterns || data.rejection_patterns || {};
+  Object.keys(inputRejection).forEach(k => {
+    const pattern = inputRejection[k] || {};
+    result.rejection_patterns[k] = {
+      count: typeof pattern.count === "number" ? pattern.count : 0,
+      last_rejected_at: typeof pattern.lastRejectedAt === "number" ? pattern.lastRejectedAt : (typeof pattern.last_rejected_at === "number" ? pattern.last_rejected_at : 0)
+    };
+  });
+
+  result.feed_history = {};
+  const inputFeed = data.feedHistory || data.feed_history || {};
+  Object.keys(inputFeed).forEach(k => {
+    const entry = inputFeed[k] || {};
+    result.feed_history[k] = {
+      last_shown: typeof entry.lastShown === "number" ? entry.lastShown : (typeof entry.last_shown === "number" ? entry.last_shown : 0),
+      show_count: typeof entry.showCount === "number" ? entry.showCount : (typeof entry.show_count === "number" ? entry.show_count : 0)
+    };
+  });
+
+  result.recent_query_tokens = (data.recentQueryTokens || data.recent_query_tokens || []).map((tokens: any) => Array.from(tokens || []));
+
+  result.topic_evidence = {};
+  const inputEvidence = data.topicEvidence || data.topic_evidence || {};
+  Object.keys(inputEvidence).forEach(k => {
+    const evidence = inputEvidence[k] || {};
+    result.topic_evidence[k] = {
+      positive_signals: typeof evidence.positiveSignals === "number" ? evidence.positiveSignals : (typeof evidence.positive_signals === "number" ? evidence.positive_signals : 0),
+      watch_signals: typeof evidence.watchSignals === "number" ? evidence.watchSignals : (typeof evidence.watch_signals === "number" ? evidence.watch_signals : 0),
+      explicit_signals: typeof evidence.explicitSignals === "number" ? evidence.explicitSignals : (typeof evidence.explicit_signals === "number" ? evidence.explicit_signals : 0),
+      positive_score: typeof evidence.positiveScore === "number" ? evidence.positiveScore : (typeof evidence.positive_score === "number" ? evidence.positive_score : 0.0),
+      video_ids: Array.from(evidence.videoIds || evidence.video_ids || []),
+      channel_ids: Array.from(evidence.channelIds || evidence.channel_ids || []),
+      first_seen_at: typeof evidence.firstSeenAt === "number" ? evidence.firstSeenAt : (typeof evidence.first_seen_at === "number" ? evidence.first_seen_at : 0),
+      last_seen_at: typeof evidence.lastSeenAt === "number" ? evidence.lastSeenAt : (typeof evidence.last_seen_at === "number" ? evidence.last_seen_at : 0)
+    };
+  });
+
+  return result;
+}
+
 export const ImportData: React.FC = () => {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -28,6 +144,7 @@ export const ImportData: React.FC = () => {
   const [importSubs, setImportSubs] = useState(true);
   const [importPlaylists, setImportPlaylists] = useState(true);
   const [importHistory, setImportHistory] = useState(true);
+  const [importNeuro, setImportNeuro] = useState(true);
 
   const [importState, setImportState] = useState<"idle" | "reading" | "parsing" | "saving" | "success" | "error">("idle");
   const [progress, setProgress] = useState(0);
@@ -37,6 +154,7 @@ export const ImportData: React.FC = () => {
   const [subsCount, setSubsCount] = useState(0);
   const [playlistsCount, setPlaylistsCount] = useState(0);
   const [historyCount, setHistoryCount] = useState(0);
+  const [neuroCount, setNeuroCount] = useState(0);
 
   const { subscribe } = useSubscriptionStore();
 
@@ -262,6 +380,7 @@ export const ImportData: React.FC = () => {
     setSubsCount(0);
     setPlaylistsCount(0);
     setHistoryCount(0);
+    setNeuroCount(0);
 
     const isZip = file.name.endsWith(".zip");
     const reader = new FileReader();
@@ -325,6 +444,29 @@ export const ImportData: React.FC = () => {
         let subbedCount = 0;
         let playCount = 0;
         let timelineCount = 0;
+
+        // Try to extract recommendation engine data
+        let brainToImport = null;
+        if (isJson && backupData) {
+          if (backupData.timeVectors !== undefined || backupData.time_vectors !== undefined) {
+            brainToImport = backupData;
+          } else if (backupData.user_neuro_brain) {
+            try {
+              brainToImport = typeof backupData.user_neuro_brain === "string" ? JSON.parse(backupData.user_neuro_brain) : backupData.user_neuro_brain;
+            } catch {}
+          } else if (backupData.userNeuroBrain) {
+            try {
+              brainToImport = typeof backupData.userNeuroBrain === "string" ? JSON.parse(backupData.userNeuroBrain) : backupData.userNeuroBrain;
+            } catch {}
+          }
+        }
+
+        if (importNeuro && brainToImport) {
+          setStatusMessage("Synchronizing FlowNeuro engine data...");
+          const convertedBrain = convertBrainData(brainToImport);
+          await setSetting("user_neuro_brain", JSON.stringify(convertedBrain));
+          setNeuroCount(1);
+        }
 
         if (importSubs) {
           let parsedSubs: ParseChannelResult[] = [];
@@ -530,7 +672,7 @@ export const ImportData: React.FC = () => {
                 Select database tables to merge
               </h3>
               
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
                 {/* Checkbox Subscriptions */}
                 <div
                   onClick={() => setImportSubs(!importSubs)}
@@ -599,6 +741,29 @@ export const ImportData: React.FC = () => {
                     <p className="text-[10px] text-zinc-500 mt-0.5 leading-normal">Seed learning timeline records</p>
                   </div>
                 </div>
+
+                {/* Checkbox FlowNeuro Profile */}
+                <div
+                  onClick={() => setImportNeuro(!importNeuro)}
+                  className={`border rounded-2xl p-4 cursor-pointer transition-all flex flex-col justify-between h-[120px] ${
+                    importNeuro
+                      ? "border-primary/20 bg-red-950/5 text-zinc-200"
+                      : "border-zinc-850 hover:border-zinc-700 bg-zinc-950/20 text-zinc-400"
+                  }`}
+                >
+                  <div className="flex justify-between items-center w-full">
+                    <Sparkles size={18} className={importNeuro ? "text-primary animate-pulse" : "text-zinc-500"} />
+                    <div className={`w-4 h-4 rounded flex items-center justify-center border transition-all ${
+                      importNeuro ? "border-primary bg-primary text-white" : "border-zinc-700 bg-zinc-900"
+                    }`}>
+                      {importNeuro && <Check size={10} strokeWidth={3} />}
+                    </div>
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold">FlowNeuro Profile</h4>
+                    <p className="text-[10px] text-zinc-500 mt-0.5 leading-normal">Import recommendation engine brain</p>
+                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -660,6 +825,7 @@ export const ImportData: React.FC = () => {
                     {subsCount > 0 && <p className="flex justify-between bg-zinc-950 p-2 rounded-xl border border-zinc-900"><span>Subscriptions Imported</span> <span className="font-bold text-zinc-200">{subsCount} creators</span></p>}
                     {playlistsCount > 0 && <p className="flex justify-between bg-zinc-950 p-2 rounded-xl border border-zinc-900"><span>Custom Playlists Restored</span> <span className="font-bold text-zinc-200">{playlistsCount} folders</span></p>}
                     {historyCount > 0 && <p className="flex justify-between bg-zinc-950 p-2 rounded-xl border border-zinc-900"><span>Watch history items imported</span> <span className="font-bold text-zinc-200">{historyCount} items</span></p>}
+                    {neuroCount > 0 && <p className="flex justify-between bg-zinc-950 p-2 rounded-xl border border-zinc-900"><span>FlowNeuro Profile</span> <span className="font-bold text-zinc-200">Imported & Calibrated</span></p>}
                   </div>
                   <p className="text-[10px] text-zinc-500 pt-3">Click anywhere inside the card to upload another payload.</p>
                 </div>

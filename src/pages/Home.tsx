@@ -1,13 +1,22 @@
 import React, { useRef, useState, useEffect } from "react";
-import { Sparkles, Loader2, ChevronDown } from "lucide-react";
-import { getTrendingVideos, getChannelTab, searchVideos } from "../lib/api/youtube";
+import { Loader2, ChevronDown } from "lucide-react";
+import {
+  getTrendingVideos,
+  getChannelTab,
+  getPersonalizedMusicRecommendations,
+  getRelatedVideos,
+  getSubscriptionRotationFeed,
+  searchVideos,
+} from "../lib/api/youtube";
 import {
   generateDiscoveryQueries,
+  getFeedQuotas,
   markNotInterested,
   recordFeedImpressions,
   rankVideos,
   logInteraction,
 } from "../lib/api/recommendation";
+import type { FeedQuotas } from "../lib/api/recommendation";
 import { getSetting, getWatchHistory } from "../lib/api/db";
 import type { VideoSummary } from "../types/video";
 import type { WatchHistoryRecord } from "../types/db";
@@ -18,70 +27,44 @@ interface HomeProps {
   onAddToQueue: (video: VideoSummary) => void;
 }
 
-const FALLBACK_VIDEOS: VideoSummary[] = [
-  {
-    id: "dQw4w9WgXcQ",
-    title: "Building an Offline Recommendation Engine with Rust & SQLite",
-    channelName: "Fireship",
-    thumbnailUrl: "https://images.unsplash.com/photo-1607799279861-4dd421887fb3?q=80&w=300",
-    durationSeconds: 156,
-    publishedText: "3 days ago",
-    viewCountText: "235K views",
-  },
-  {
-    id: "3s7h2tqD9oI",
-    title: "Astrophysics Masterclass: Understanding the Quantum Field",
-    channelName: "Veritasium",
-    thumbnailUrl: "https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=300",
-    durationSeconds: 980,
-    publishedText: "1 week ago",
-    viewCountText: "1.2M views",
-  },
-  {
-    id: "9T8y3H1xQ4s",
-    title: "Cosmic Lo-Fi Session: Music to Code/Relax/Study",
-    channelName: "Lofi Girl",
-    thumbnailUrl: "https://images.unsplash.com/photo-1518495973542-4542c06a5843?q=80&w=300",
-    durationSeconds: 18000,
-    publishedText: "Live Now",
-    viewCountText: "45K watching",
-  },
-  {
-    id: "6H7J8K9L0M1",
-    title: "Designing Material 3 Systems for Desktop Applications",
-    channelName: "Google Design",
-    thumbnailUrl: "https://images.unsplash.com/photo-1507238691740-187a5b1d37b8?q=80&w=300",
-    durationSeconds: 642,
-    publishedText: "2 weeks ago",
-    viewCountText: "85K views",
-  },
-  {
-    id: "y8Y9z0A1B2C",
-    title: "Rust Concurrency Deep-Dive: Channels & Mutexes",
-    channelName: "Jon Gjengset",
-    thumbnailUrl: "https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?q=80&w=300",
-    durationSeconds: 7200,
-    publishedText: "5 days ago",
-    viewCountText: "120K views",
-  },
-  {
-    id: "d3E4f5G6h7I",
-    title: "Ambient Landscapes: Chill Synthwave Sessions",
-    channelName: "Synthwave Odyssey",
-    thumbnailUrl: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=300",
-    durationSeconds: 10800,
-    publishedText: "3 months ago",
-    viewCountText: "1.8M views",
-  }
-];
-
 const HOME_FEED_CACHE_TTL_MS = 30 * 60 * 1000;
 const SESSION_SEEN_VIDEO_LIMIT = 500;
+const STARTER_SUBSCRIPTION_TIMEOUT_MS = 12000;
+const STARTER_DISCOVERY_TIMEOUT_MS = 25000;
+const STARTER_EMPTY_RESCUE_TIMEOUT_MS = 20000;
+const FULL_DISCOVER_SOURCE_TIMEOUT_MS = 30000;
+const VIRAL_FALLBACK_TIMEOUT_MS = 8000;
+const DISCOVER_EMPTY_RESCUE_TIMEOUT_MS = 45000;
+const LOAD_MORE_SOURCE_TIMEOUT_MS = 12000;
+const LOAD_MORE_MUSIC_TIMEOUT_MS = 8000;
+
+const STANDARD_DISCOVER_QUOTAS: FeedQuotas = {
+  maturity: "mature",
+  totalInteractions: 101,
+  subscriptionPercent: 10 / 35,
+  discoveryPercent: 15 / 35,
+  viralPercent: 10 / 35,
+  subscriptionLimit: 10,
+  discoveryLimit: 15,
+  viralLimit: 10,
+};
 
 const homeFeedCache: Record<"discover" | "trending", { videos: VideoSummary[]; timestamp: number }> = {
   discover: { videos: [], timestamp: 0 },
   trending: { videos: [], timestamp: 0 },
 };
+
+const logHomeFeed = (stage: string, details: Record<string, unknown>) => {
+  console.info(`[home-feed] ${stage}`, details);
+};
+
+  const summarizeVideosForLog = (items: VideoSummary[]) => (
+    items.slice(0, 5).map((video) => ({
+      id: video.id,
+      title: video.title,
+    channel: video.channelName,
+  }))
+);
 
 export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
   const [activeTab] = useState<"discover" | "trending">("discover");
@@ -95,10 +78,16 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
   const lastImpressionSignatureRef = useRef<string>("");
   const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null);
   const loadingMoreRef = useRef(false);
+  const initialDiscoverHydratingRef = useRef(false);
+  const didRequestInitialFeedRef = useRef(false);
+  const videosRef = useRef<VideoSummary[]>([]);
+  const loadMoreBackoffUntilRef = useRef(0);
+  const loadMoreMissesRef = useRef(0);
   const discoveryQueriesRef = useRef<string[]>([]);
   const discoveryIndexRef = useRef(0);
   const subscriptionIdsRef = useRef<string[]>([]);
   const subscriptionIndexRef = useRef(0);
+  const watchHistoryRef = useRef<WatchHistoryRecord[]>([]);
   const watchedIdsRef = useRef<Set<string>>(new Set());
   const sessionSeenOrderRef = useRef<string[]>([]);
   const sessionSeenIdsRef = useRef<Set<string>>(new Set());
@@ -157,6 +146,51 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
     return [...unseen, ...seen.slice(0, Math.max(0, minimumCount - unseen.length))];
   };
 
+  const isDiscoverJunkVideo = (video: VideoSummary) => {
+    const text = `${video.title ?? ""} ${video.channelName ?? ""}`.toLowerCase();
+    const junkPatterns = [
+      "viral",
+      "popular meme",
+      "internet meme",
+      "memes now",
+      "tiktok",
+      "funniest",
+      "street food",
+      "compilation",
+      "went viral",
+      "then and now",
+    ];
+
+    return junkPatterns.some((pattern) => text.includes(pattern));
+  };
+
+  const withTimeout = async <T,>(
+    promise: Promise<T>,
+    timeoutMs: number,
+    fallback: T,
+    label: string,
+  ): Promise<T> => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      return await Promise.race([
+        promise,
+        new Promise<T>((resolve) => {
+          timer = setTimeout(() => {
+            logHomeFeed("source-timeout", { label, timeoutMs });
+            resolve(fallback);
+          }, timeoutMs);
+        }),
+      ]);
+    } catch (error: any) {
+      console.warn(`${label} failed`, error?.message || error);
+      return fallback;
+    } finally {
+      if (timer) {
+        clearTimeout(timer);
+      }
+    }
+  };
+
   const getFreshCachedFeed = (tab: "discover" | "trending") => {
     const cache = homeFeedCache[tab];
     if (cache.videos.length === 0) {
@@ -167,7 +201,10 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
     }
 
     const minimumCount = tab === "discover" ? 12 : 8;
-    const sessionFresh = preferSessionFreshVideos(cache.videos, minimumCount);
+    const cachedVideos = tab === "discover"
+      ? cache.videos.filter((video) => !isDiscoverJunkVideo(video))
+      : cache.videos;
+    const sessionFresh = preferSessionFreshVideos(cachedVideos, minimumCount);
     return sessionFresh.length > 0 ? sessionFresh : null;
   };
 
@@ -242,23 +279,39 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
     discoveryLane: VideoSummary[],
     subscriptionLane: VideoSummary[],
     viralLane: VideoSummary[],
+    quotas: FeedQuotas = STANDARD_DISCOVER_QUOTAS,
   ) => {
     const finalMix: VideoSummary[] = [];
     const usedVideos = new Set<string>();
     const recentChannels = new Set<string>();
+    type LaneName = "subscriptions" | "discovery" | "viral";
     const queues = {
       discovery: [...discoveryLane],
       subscriptions: [...subscriptionLane],
       viral: [...viralLane],
     };
+    const targets: Record<LaneName, number> = {
+      subscriptions: quotas.subscriptionLimit,
+      discovery: quotas.discoveryLimit,
+      viral: quotas.viralLimit,
+    };
+    const counts: Record<LaneName, number> = {
+      subscriptions: 0,
+      discovery: 0,
+      viral: 0,
+    };
+    const targetTotal = Math.max(
+      1,
+      quotas.subscriptionLimit + quotas.discoveryLimit + quotas.viralLimit,
+    );
 
-    const pushUnique = (candidate?: VideoSummary) => {
+    const pushUnique = (candidate?: VideoSummary, relaxChannel = false) => {
       if (!candidate || usedVideos.has(candidate.id)) {
-        return;
+        return false;
       }
       const channelKey = candidate.channelId ?? candidate.id;
-      if (recentChannels.has(channelKey) && finalMix.length > 0) {
-        return;
+      if (!relaxChannel && recentChannels.has(channelKey) && finalMix.length > 0) {
+        return false;
       }
       finalMix.push(candidate);
       usedVideos.add(candidate.id);
@@ -271,20 +324,74 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
           recentChannels.delete(first);
         }
       }
+      return true;
     };
 
-    while (
-      queues.discovery.length > 0 ||
-      queues.subscriptions.length > 0 ||
-      queues.viral.length > 0
-    ) {
-      pushUnique(queues.discovery.shift());
-      pushUnique(queues.subscriptions.shift());
-      pushUnique(queues.discovery.shift());
-      pushUnique(queues.viral.shift());
+    const pushFromLane = (lane: LaneName) => {
+      const queue = queues[lane];
+      const attempts = queue.length;
+      const deferred: VideoSummary[] = [];
 
-      if (queues.discovery.length === 0 && queues.subscriptions.length === 0 && queues.viral.length === 0) {
+      for (let attempt = 0; attempt < attempts; attempt += 1) {
+        const candidate = queue.shift();
+        if (!candidate) {
+          break;
+        }
+        if (pushUnique(candidate)) {
+          queue.push(...deferred);
+          return true;
+        }
+        if (!usedVideos.has(candidate.id)) {
+          deferred.push(candidate);
+        }
+      }
+
+      for (const candidate of deferred) {
+        if (pushUnique(candidate, true)) {
+          queue.push(...deferred.filter((item) => item.id !== candidate.id));
+          return true;
+        }
+      }
+
+      queue.push(...deferred);
+      return false;
+    };
+
+    while (finalMix.length < targetTotal) {
+      const underTarget = (["subscriptions", "discovery", "viral"] as LaneName[])
+        .filter((lane) => queues[lane].length > 0)
+        .filter((lane) => targets[lane] > 0 && counts[lane] < targets[lane]);
+      const backfill = (["subscriptions", "discovery"] as LaneName[])
+        .filter((lane) => queues[lane].length > 0);
+      const candidates = underTarget.length > 0 ? underTarget : backfill;
+
+      if (candidates.length === 0) {
         break;
+      }
+
+      candidates.sort((a, b) => {
+        const ratioA = counts[a] / Math.max(targets[a], 1);
+        const ratioB = counts[b] / Math.max(targets[b], 1);
+        if (ratioA !== ratioB) {
+          return ratioA - ratioB;
+        }
+        const priority: Record<LaneName, number> = {
+          subscriptions: 0,
+          discovery: 1,
+          viral: 2,
+        };
+        return priority[a] - priority[b];
+      });
+
+      const lane = candidates[0];
+      if (!lane) {
+        break;
+      }
+      const pushed = pushFromLane(lane);
+      if (pushed) {
+        counts[lane] += 1;
+      } else {
+        queues[lane] = [];
       }
     }
 
@@ -365,19 +472,94 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
     }
   };
 
-  const fetchDiscoveryPool = async (queryCandidates: string[]) => {
-    const queries = queryCandidates.length > 0
-      ? queryCandidates.slice(0, 3)
-      : ["technology", "music", "gaming"];
+  const fetchDiscoveryPool = async (
+    queryCandidates: string[],
+    stage = "discovery-pool",
+    queryLimit = 6,
+  ) => {
+    const queries = queryCandidates.slice(0, queryLimit);
+    if (queries.length === 0) {
+      logHomeFeed(stage, {
+        queries,
+        breakdown: [],
+        uniqueCount: 0,
+        sample: [],
+      });
+      return [];
+    }
 
     const settled = await Promise.allSettled(
       queries.map((query) => searchVideos({ query })),
     );
 
-    return uniqueByVideoId(
+    const queryBreakdown = queries.map((query, index) => {
+      const result = settled[index];
+      if (result?.status !== "fulfilled") {
+        return { query, status: "rejected", count: 0 };
+      }
+      return { query, status: "fulfilled", count: result.value.items.length };
+    });
+
+    const pool = uniqueByVideoId(
       settled.flatMap((result) =>
         result.status === "fulfilled" ? result.value.items : [],
       ),
+    );
+
+    logHomeFeed(stage, {
+      queries,
+      breakdown: queryBreakdown,
+      uniqueCount: pool.length,
+      sample: summarizeVideosForLog(pool),
+    });
+
+    return pool;
+  };
+
+  const fetchWatchHistoryRelatedPool = async (history: WatchHistoryRecord[], seedLimit = 4) => {
+    const seedVideoIds = uniqueByVideoId(
+      history
+        .filter((record) => {
+          const total = record.totalDurationSeconds ?? 0;
+          const ratio = total > 0 ? record.watchDurationSeconds / total : 0;
+          return ratio >= 0.35 || record.watchDurationSeconds >= 180;
+        })
+        .map((record) => ({
+          id: record.videoId,
+          title: record.title,
+          channelName: record.channelName ?? "",
+        }) as VideoSummary),
+    )
+      .slice(0, seedLimit)
+      .map((record) => record.id);
+
+    if (seedVideoIds.length === 0) {
+      return [];
+    }
+
+    const settled = await Promise.allSettled(
+      seedVideoIds.map((videoId) => getRelatedVideos(videoId)),
+    );
+
+    return uniqueByVideoId(
+      settled.flatMap((result) => {
+        if (result.status !== "fulfilled") {
+          return [];
+        }
+
+        return result.value
+          .filter((item) => item.itemType === "video" && !item.isMix)
+          .map((item) => ({
+            id: item.videoId ?? item.id,
+            title: item.title,
+            channelName: item.channelName,
+            channelId: item.channelId ?? null,
+            thumbnailUrl: item.thumbnailUrl ?? null,
+            durationSeconds: item.durationSeconds ?? null,
+            publishedText: item.publishedText ?? null,
+            viewCountText: item.viewCountText ?? null,
+          } satisfies VideoSummary));
+      }),
     );
   };
 
@@ -390,13 +572,13 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
     };
   };
 
-  const fetchSubscriptionPool = async (subscriptionIds: string[]) => {
+  const fetchSubscriptionPool = async (subscriptionIds: string[], channelLimit = 6) => {
     if (subscriptionIds.length === 0) {
       return [];
     }
 
     const settled = await Promise.allSettled(
-      subscriptionIds.slice(0, 6).map((channelId) => getChannelVideosHelper(channelId)),
+      subscriptionIds.slice(0, channelLimit).map((channelId) => getChannelVideosHelper(channelId)),
     );
 
     return uniqueByVideoId(
@@ -404,6 +586,40 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
         result.status === "fulfilled" ? result.value.videos : [],
       ),
     );
+  };
+
+  const fetchSubscriptionBatchPool = async (channelIds: string[]) => {
+    if (channelIds.length === 0) {
+      return [];
+    }
+
+    const settled = await Promise.allSettled(
+      channelIds.map((channelId) => getChannelVideosHelper(channelId)),
+    );
+
+    return uniqueByVideoId(
+      settled.flatMap((result) =>
+        result.status === "fulfilled" ? result.value.videos : [],
+      ),
+    );
+  };
+
+  const fetchSubscriptionRotationPool = async () => {
+    try {
+      return uniqueByVideoId(await getSubscriptionRotationFeed());
+    } catch (error) {
+      console.warn("Failed to load subscription rotation feed", error);
+      return [];
+    }
+  };
+
+  const fetchPersonalizedMusicPool = async () => {
+    try {
+      return uniqueByVideoId(await getPersonalizedMusicRecommendations(12));
+    } catch (error) {
+      console.warn("Failed to load personalized music candidates", error);
+      return [];
+    }
   };
 
   const getRotatedSubscriptionBatch = (subscriptionIds: string[], batchSize: number) => {
@@ -447,11 +663,21 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
       ),
     );
 
-    return fallbackTrending.length > 0 ? fallbackTrending : FALLBACK_VIDEOS;
+    return fallbackTrending;
   };
 
   const handleLoadMore = async () => {
-    if (activeTab !== "discover" || loadingMoreRef.current || loadingMore || loading || !hasMoreDiscover) {
+    if (
+      activeTab !== "discover" ||
+      loadingMoreRef.current ||
+      initialDiscoverHydratingRef.current ||
+      loadingMore ||
+      loading ||
+      !hasMoreDiscover
+    ) {
+      return;
+    }
+    if (Date.now() < loadMoreBackoffUntilRef.current) {
       return;
     }
 
@@ -460,59 +686,128 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
     try {
       let queryPool = discoveryQueriesRef.current;
       if (queryPool.length === 0 || discoveryIndexRef.current >= queryPool.length) {
-        queryPool = await generateDiscoveryQueries();
+        queryPool = await withTimeout(
+          generateDiscoveryQueries(),
+          5000,
+          [] as string[],
+          "load-more-query-refresh",
+        );
         discoveryQueriesRef.current = queryPool;
         discoveryIndexRef.current = 0;
+        logHomeFeed("load-more-refresh-discovery-queries", {
+          queryPool,
+          queryCount: queryPool.length,
+        });
       }
 
       const queryA = queryPool[discoveryIndexRef.current];
       const queryB = queryPool[discoveryIndexRef.current + 1];
-      discoveryIndexRef.current += 2;
+      const queryC = queryPool[discoveryIndexRef.current + 2];
+      discoveryIndexRef.current += 3;
 
-      const searchQueries = [queryA, queryB].filter(
+      const searchQueries = [queryA, queryB, queryC].filter(
         (query): query is string => typeof query === "string" && query.length > 0,
       );
-      const finalQueries = searchQueries.length > 0 ? searchQueries : ["viral"];
+      const finalQueries = searchQueries;
       const subscriptionBatchIds = getRotatedSubscriptionBatch(subscriptionIdsRef.current, 3);
+      logHomeFeed("load-more-inputs", {
+        queryPoolSize: queryPool.length,
+        discoveryIndex: discoveryIndexRef.current,
+        finalQueries,
+        subscriptionBatchIds,
+      });
 
-      const searchSettled = await Promise.allSettled(
-        finalQueries.map((query) => searchVideos({ query })),
-      );
-      const subscriptionSettled = await Promise.allSettled(
-        subscriptionBatchIds.map((channelId) => getChannelVideosHelper(channelId)),
-      );
-
-      const rawDiscoveryVideos = searchSettled.flatMap((result) =>
-        result.status === "fulfilled" ? result.value.items : [],
-      );
-      const rawSubscriptionVideos = subscriptionSettled.flatMap((result) =>
-        result.status === "fulfilled" ? result.value.videos : [],
-      );
+      const [rawDiscoveryVideos, rawSubscriptionVideos, subscriptionRotationVideos, personalizedMusicVideos, relatedVideos] = await Promise.all([
+        withTimeout(
+          fetchDiscoveryPool(finalQueries, "load-more-discovery-pool", 3),
+          LOAD_MORE_SOURCE_TIMEOUT_MS,
+          [] as VideoSummary[],
+          "load-more-discovery",
+        ),
+        withTimeout(
+          fetchSubscriptionBatchPool(subscriptionBatchIds),
+          LOAD_MORE_SOURCE_TIMEOUT_MS,
+          [] as VideoSummary[],
+          "load-more-subscription-batch",
+        ),
+        withTimeout(
+          fetchSubscriptionRotationPool(),
+          LOAD_MORE_SOURCE_TIMEOUT_MS,
+          [] as VideoSummary[],
+          "load-more-subscription-rotation",
+        ),
+        withTimeout(
+          fetchPersonalizedMusicPool(),
+          LOAD_MORE_MUSIC_TIMEOUT_MS,
+          [] as VideoSummary[],
+          "load-more-personalized-music",
+        ),
+        withTimeout(
+          fetchWatchHistoryRelatedPool(watchHistoryRef.current, 2),
+          LOAD_MORE_SOURCE_TIMEOUT_MS,
+          [] as VideoSummary[],
+          "load-more-related",
+        ),
+      ]);
 
       const filteredDiscovery = filterDiscoveryLane(
         preferSessionFreshVideos(
-          filterFeedVideos(rawDiscoveryVideos, watchedIdsRef.current),
+          filterFeedVideos([...personalizedMusicVideos, ...relatedVideos, ...rawDiscoveryVideos], watchedIdsRef.current),
         ),
       );
       const filteredSubscriptions = preferSessionFreshVideos(
-        filterFeedVideos(rawSubscriptionVideos, watchedIdsRef.current),
+        filterFeedVideos([...subscriptionRotationVideos, ...rawSubscriptionVideos], watchedIdsRef.current),
       );
 
+      logHomeFeed("load-more-pools", {
+        finalQueries,
+        rawDiscoveryCount: rawDiscoveryVideos.length,
+        rawSubscriptionCount: rawSubscriptionVideos.length,
+        subscriptionRotationCount: subscriptionRotationVideos.length,
+        personalizedMusicCount: personalizedMusicVideos.length,
+        relatedCount: relatedVideos.length,
+        filteredDiscoveryCount: filteredDiscovery.length,
+        filteredSubscriptionCount: filteredSubscriptions.length,
+        filteredDiscoverySample: summarizeVideosForLog(filteredDiscovery),
+      });
+
       if (filteredDiscovery.length === 0 && filteredSubscriptions.length === 0) {
-        setHasMoreDiscover(false);
+        loadMoreMissesRef.current += 1;
+        loadMoreBackoffUntilRef.current = Date.now() + Math.min(8000, 1500 * loadMoreMissesRef.current);
+        logHomeFeed("load-more-empty", {
+          finalQueries,
+          subscriptionBatchIds,
+          misses: loadMoreMissesRef.current,
+        });
         return;
       }
 
       const [rankedSubscriptions, rankedDiscovery] = await Promise.all([
         filteredSubscriptions.length > 0
-          ? rankVideos(filteredSubscriptions, subscriptionIdsRef.current).then((items) => items.slice(0, 8))
+          ? withTimeout(
+              rankVideos(filteredSubscriptions, subscriptionIdsRef.current),
+              5000,
+              filteredSubscriptions,
+              "load-more-rank-subscriptions",
+            ).then((items) => items.slice(0, 8))
           : Promise.resolve([]),
         filteredDiscovery.length > 0
-          ? rankVideos(filteredDiscovery, subscriptionIdsRef.current).then((items) => items.slice(0, 12))
+          ? withTimeout(
+              rankVideos(filteredDiscovery, subscriptionIdsRef.current),
+              5000,
+              filteredDiscovery,
+              "load-more-rank-discovery",
+            ).then((items) => items.slice(0, 12))
           : Promise.resolve([]),
       ]);
 
       const dedupedBatch = mixRankedLanes(rankedDiscovery, rankedSubscriptions, []);
+      logHomeFeed("load-more-ranked", {
+        rankedDiscoveryCount: rankedDiscovery.length,
+        rankedSubscriptionCount: rankedSubscriptions.length,
+        appendedCandidateCount: dedupedBatch.length,
+        sample: summarizeVideosForLog(dedupedBatch),
+      });
 
       let appendedVideos: VideoSummary[] = [];
       setVideos((currentVideos) => {
@@ -525,12 +820,28 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
       });
 
       if (appendedVideos.length > 0) {
+        loadMoreMissesRef.current = 0;
+        loadMoreBackoffUntilRef.current = 0;
+        setHasMoreDiscover(true);
         rememberSeenVideos(appendedVideos);
+        logHomeFeed("load-more-appended", {
+          appendedCount: appendedVideos.length,
+          sample: summarizeVideosForLog(appendedVideos),
+        });
         void recordFeedImpressions(appendedVideos.slice(0, 12)).catch((error) => {
           console.warn("Failed to record appended feed impressions", error);
         });
       } else {
-        setHasMoreDiscover(false);
+        loadMoreMissesRef.current += 1;
+        loadMoreBackoffUntilRef.current = Date.now() + Math.min(8000, 1500 * loadMoreMissesRef.current);
+        if (discoveryIndexRef.current >= discoveryQueriesRef.current.length) {
+          discoveryQueriesRef.current = [];
+          discoveryIndexRef.current = 0;
+        }
+        logHomeFeed("load-more-no-append", {
+          dedupedBatchCount: dedupedBatch.length,
+          misses: loadMoreMissesRef.current,
+        });
       }
     } catch (error) {
       console.warn("Failed to load more videos", error);
@@ -540,8 +851,134 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
     }
   };
 
+  const buildDiscoverFeedFromPools = async (
+    pools: {
+      subscriptionPool: VideoSummary[];
+      subscriptionRotationPool: VideoSummary[];
+      discoveryPool: VideoSummary[];
+      relatedPool: VideoSummary[];
+      personalizedMusicPool: VideoSummary[];
+      viralPool: VideoSummary[];
+    },
+    watchedIds: Set<string>,
+    subscriptionIds: string[],
+    feedQuotas: FeedQuotas,
+    rankTimeoutMs?: number,
+    rankLabelPrefix = "discover",
+  ) => {
+    const filteredSubscriptions = preferSessionFreshVideos(
+      filterFeedVideos([...pools.subscriptionRotationPool, ...pools.subscriptionPool], watchedIds),
+    );
+    const filteredDiscovery = filterDiscoveryLane(
+      preferSessionFreshVideos(
+        filterFeedVideos([...pools.personalizedMusicPool, ...pools.relatedPool, ...pools.discoveryPool], watchedIds),
+      ),
+    );
+
+    const rankLane = async (
+      lane: VideoSummary[],
+      limit: number,
+      label: string,
+    ) => {
+      if (lane.length === 0 || limit <= 0) {
+        return [];
+      }
+
+      const fallback = lane.slice(0, limit);
+      const ranked = rankVideos(lane, subscriptionIds).then((items) => items.slice(0, limit));
+      return rankTimeoutMs
+        ? withTimeout(ranked, rankTimeoutMs, fallback, `${rankLabelPrefix}-rank-${label}`)
+        : ranked;
+    };
+
+    let rankedLanes: [VideoSummary[], VideoSummary[], VideoSummary[]];
+    try {
+      const [bestSubscriptions, bestDiscovery, bestViral] = await Promise.all([
+        rankLane(filteredSubscriptions, feedQuotas.subscriptionLimit, "subscriptions"),
+        rankLane(filteredDiscovery, feedQuotas.discoveryLimit, "discovery"),
+        rankLane(pools.viralPool, feedQuotas.viralLimit, "viral"),
+      ]);
+      rankedLanes = [bestSubscriptions, bestDiscovery, bestViral];
+    } catch (rankErr: any) {
+      console.warn("Ranking engine failed, displaying baseline feed. Error:", rankErr?.message || rankErr);
+      rankedLanes = [
+        filteredSubscriptions.slice(0, feedQuotas.subscriptionLimit),
+        filteredDiscovery.slice(0, feedQuotas.discoveryLimit),
+        pools.viralPool.slice(0, feedQuotas.viralLimit),
+      ];
+    }
+
+    return {
+      filteredSubscriptions,
+      filteredDiscovery,
+      rankedLanes,
+      mixedFeed: mixRankedLanes(rankedLanes[1], rankedLanes[0], rankedLanes[2], feedQuotas),
+    };
+  };
+
+  const buildStarterDiscoverFeed = async (
+    starterRotationPool: VideoSummary[],
+    starterDiscoveryPool: VideoSummary[],
+    watchedIds: Set<string>,
+    subscriptionIds: string[],
+    feedQuotas: FeedQuotas,
+    rankLabelPrefix = "starter",
+  ) => {
+    const starterSubscriptions = preferSessionFreshVideos(
+      filterFeedVideos(starterRotationPool, watchedIds),
+    );
+    const starterDiscovery = filterDiscoveryLane(
+      preferSessionFreshVideos(
+        filterFeedVideos(starterDiscoveryPool, watchedIds)
+          .filter((video) => !isDiscoverJunkVideo(video)),
+      ),
+    );
+
+    const starterQuotas: FeedQuotas = {
+      ...feedQuotas,
+      subscriptionLimit: Math.min(feedQuotas.subscriptionLimit, 8),
+      discoveryLimit: Math.min(feedQuotas.discoveryLimit, 12),
+      viralLimit: 0,
+      viralPercent: 0,
+    };
+
+    const [rankedStarterSubscriptions, rankedStarterDiscovery] = await Promise.all([
+      starterSubscriptions.length > 0
+        ? withTimeout(
+            rankVideos(starterSubscriptions, subscriptionIds),
+            1800,
+            starterSubscriptions,
+            `${rankLabelPrefix}-rank-subscriptions`,
+          ).then((items) => items.slice(0, starterQuotas.subscriptionLimit))
+        : Promise.resolve([]),
+      starterDiscovery.length > 0
+        ? withTimeout(
+            rankVideos(starterDiscovery, subscriptionIds),
+            1800,
+            starterDiscovery,
+            `${rankLabelPrefix}-rank-discovery`,
+          ).then((items) => items.slice(0, starterQuotas.discoveryLimit))
+        : Promise.resolve([]),
+    ]);
+
+    return {
+      starterSubscriptions,
+      starterDiscovery,
+      rankedStarterSubscriptions,
+      rankedStarterDiscovery,
+      starterFeed: mixRankedLanes(
+        rankedStarterDiscovery,
+        rankedStarterSubscriptions,
+        [],
+        starterQuotas,
+      ),
+    };
+  };
+
   const fetchFeed = async (isRefresh = false) => {
     const requestId = ++requestSequenceRef.current;
+    let renderedInitialFeed = false;
+    initialDiscoverHydratingRef.current = activeTab === "discover";
     if (isRefresh) setRefreshing(true);
     else setLoading(true);
 
@@ -549,106 +986,311 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
       const cached = getFreshCachedFeed(activeTab);
       if (cached) {
         setVideos(cached);
+        videosRef.current = cached;
         rememberSeenVideos(cached);
+        renderedInitialFeed = true;
         setLoading(false);
       }
     }
 
     try {
-      const [subscriptionIds, watchedHistory, queryCandidates] = await Promise.all([
+      const [subscriptionIds, watchedHistory, queryCandidates, feedQuotas] = await Promise.all([
         loadSubscriptions(),
         getWatchHistory(200, 0),
         generateDiscoveryQueries(),
+        getFeedQuotas(),
       ]);
       const watchedIds = getMostlyWatchedIds(watchedHistory);
       subscriptionIdsRef.current = subscriptionIds;
       subscriptionIndexRef.current = subscriptionIds.length === 0 ? 0 : Math.min(subscriptionIds.length, 6) % subscriptionIds.length;
+      watchHistoryRef.current = watchedHistory;
       watchedIdsRef.current = watchedIds;
       discoveryQueriesRef.current = queryCandidates;
       discoveryIndexRef.current = 3;
+      loadMoreMissesRef.current = 0;
+      loadMoreBackoffUntilRef.current = 0;
       setHasMoreDiscover(true);
-      const trendingPromise = fetchTrendingPool();
-
+      logHomeFeed("initial-inputs", {
+        activeTab,
+        requestId,
+        isRefresh,
+        subscriptions: subscriptionIds.length,
+        watchHistory: watchedHistory.length,
+        watchedIds: watchedIds.size,
+        queryCandidates,
+        feedQuotas,
+      });
+      if (requestSequenceRef.current !== requestId) {
+        return;
+      }
       if (activeTab === "trending") {
+        initialDiscoverHydratingRef.current = false;
         const trendingList = preferSessionFreshVideos(
-          filterFeedVideos(await trendingPromise, watchedIds),
+          filterFeedVideos(await fetchTrendingPool(), watchedIds),
           12,
         );
         if (requestSequenceRef.current !== requestId) {
           return;
         }
-        const finalTrending = trendingList.length > 0 ? trendingList : FALLBACK_VIDEOS;
-        setVideos(finalTrending);
-        rememberSeenVideos(finalTrending);
-        updateCache("trending", finalTrending);
+        logHomeFeed("trending-feed", {
+          trendingCount: trendingList.length,
+          finalCount: trendingList.length,
+          sample: summarizeVideosForLog(trendingList),
+        });
+        setVideos(trendingList);
+        videosRef.current = trendingList;
+        rememberSeenVideos(trendingList);
+        updateCache("trending", trendingList);
       } else {
-        const quickTrending = preferSessionFreshVideos(
-          filterFeedVideos(await trendingPromise, watchedIds),
-          18,
+        const starterRotationPoolPromise = fetchSubscriptionRotationPool();
+        const starterDiscoveryPoolPromise = fetchDiscoveryPool(queryCandidates, "discovery-starter-pool", 2);
+        const [starterRotationPool, starterDiscoveryPool] = await Promise.all([
+          withTimeout(
+            starterRotationPoolPromise,
+            STARTER_SUBSCRIPTION_TIMEOUT_MS,
+            [] as VideoSummary[],
+            "starter-subscription-rotation",
+          ),
+          withTimeout(
+            starterDiscoveryPoolPromise,
+            STARTER_DISCOVERY_TIMEOUT_MS,
+            [] as VideoSummary[],
+            "starter-discovery",
+          ),
+        ]);
+
+        const starterResult = await buildStarterDiscoverFeed(
+          starterRotationPool,
+          starterDiscoveryPool,
+          watchedIds,
+          subscriptionIds,
+          feedQuotas,
         );
-        if (quickTrending.length > 0) {
-          const quickFeed = (await rankVideos(quickTrending, subscriptionIds)).slice(0, 15);
+
+        if (starterResult.starterFeed.length > 0) {
           if (requestSequenceRef.current !== requestId) {
             return;
           }
-          if (quickFeed.length > 0) {
-            setVideos(quickFeed);
-            rememberSeenVideos(quickFeed);
-            setLoading(false);
+          logHomeFeed("discover-starter-feed", {
+            starterSubscriptions: starterResult.rankedStarterSubscriptions.length,
+            starterDiscovery: starterResult.rankedStarterDiscovery.length,
+            starterFeedCount: starterResult.starterFeed.length,
+            sample: summarizeVideosForLog(starterResult.starterFeed),
+          });
+          setVideos(starterResult.starterFeed);
+          videosRef.current = starterResult.starterFeed;
+          rememberSeenVideos(starterResult.starterFeed);
+          renderedInitialFeed = true;
+          setLoading(false);
+        } else if (requestSequenceRef.current === requestId) {
+          logHomeFeed("discover-starter-empty", {
+            starterSubscriptions: starterResult.starterSubscriptions.length,
+            starterDiscovery: starterResult.starterDiscovery.length,
+          });
+
+          if (!renderedInitialFeed && videosRef.current.length === 0) {
+            const [lateStarterRotationPool, lateStarterDiscoveryPool] = await Promise.all([
+              withTimeout(
+                starterRotationPoolPromise,
+                STARTER_EMPTY_RESCUE_TIMEOUT_MS,
+                [] as VideoSummary[],
+                "starter-subscription-rotation-rescue",
+              ),
+              withTimeout(
+                starterDiscoveryPoolPromise,
+                STARTER_EMPTY_RESCUE_TIMEOUT_MS,
+                [] as VideoSummary[],
+                "starter-discovery-rescue",
+              ),
+            ]);
+            const lateStarterResult = await buildStarterDiscoverFeed(
+              lateStarterRotationPool,
+              lateStarterDiscoveryPool,
+              watchedIds,
+              subscriptionIds,
+              feedQuotas,
+              "starter-rescue",
+            );
+
+            logHomeFeed("discover-starter-rescue", {
+              starterSubscriptions: lateStarterResult.rankedStarterSubscriptions.length,
+              starterDiscovery: lateStarterResult.rankedStarterDiscovery.length,
+              starterFeedCount: lateStarterResult.starterFeed.length,
+              sample: summarizeVideosForLog(lateStarterResult.starterFeed),
+            });
+
+            if (requestSequenceRef.current !== requestId) {
+              return;
+            }
+            if (lateStarterResult.starterFeed.length > 0) {
+              setVideos(lateStarterResult.starterFeed);
+              videosRef.current = lateStarterResult.starterFeed;
+              rememberSeenVideos(lateStarterResult.starterFeed);
+              renderedInitialFeed = true;
+              setLoading(false);
+            }
           }
         }
 
-        const [subscriptionPool, discoveryPool] = await Promise.all([
-          fetchSubscriptionPool(subscriptionIds),
-          fetchDiscoveryPool(queryCandidates),
+        const subscriptionPoolPromise = fetchSubscriptionPool(subscriptionIds, 3);
+        const subscriptionRotationPoolPromise = fetchSubscriptionRotationPool();
+        const discoveryPoolPromise = fetchDiscoveryPool(queryCandidates, "discovery-pool", 4);
+        const relatedPoolPromise = fetchWatchHistoryRelatedPool(watchedHistory, 2);
+        const personalizedMusicPoolPromise = fetchPersonalizedMusicPool();
+
+        const [subscriptionPool, subscriptionRotationPool, discoveryPool, relatedPool, personalizedMusicPool] = await Promise.all([
+          withTimeout(subscriptionPoolPromise, FULL_DISCOVER_SOURCE_TIMEOUT_MS, [] as VideoSummary[], "subscriptions"),
+          withTimeout(subscriptionRotationPoolPromise, FULL_DISCOVER_SOURCE_TIMEOUT_MS, [] as VideoSummary[], "subscription-rotation"),
+          withTimeout(discoveryPoolPromise, FULL_DISCOVER_SOURCE_TIMEOUT_MS, [] as VideoSummary[], "discovery"),
+          withTimeout(relatedPoolPromise, FULL_DISCOVER_SOURCE_TIMEOUT_MS, [] as VideoSummary[], "related"),
+          withTimeout(personalizedMusicPoolPromise, FULL_DISCOVER_SOURCE_TIMEOUT_MS, [] as VideoSummary[], "personalized-music"),
         ]);
 
-        const viralPool = quickTrending;
-        const filteredSubscriptions = preferSessionFreshVideos(
-          filterFeedVideos(subscriptionPool, watchedIds),
-        );
-        const filteredDiscovery = filterDiscoveryLane(
-          preferSessionFreshVideos(
-            filterFeedVideos(discoveryPool, watchedIds),
-          ),
+        const viralPool = feedQuotas.viralLimit > 0
+          ? preferSessionFreshVideos(
+              filterFeedVideos(
+                await withTimeout(fetchTrendingPool(), VIRAL_FALLBACK_TIMEOUT_MS, [] as VideoSummary[], "viral-fallback"),
+                watchedIds,
+              )
+                .filter((video) => !isDiscoverJunkVideo(video)),
+              feedQuotas.viralLimit,
+            )
+          : [];
+        const discoverFeed = await buildDiscoverFeedFromPools(
+          {
+            subscriptionPool,
+            subscriptionRotationPool,
+            discoveryPool,
+            relatedPool,
+            personalizedMusicPool,
+            viralPool,
+          },
+          watchedIds,
+          subscriptionIds,
+          feedQuotas,
+          8000,
         );
 
-        let rankedLanes: [VideoSummary[], VideoSummary[], VideoSummary[]];
-        try {
-          const [bestSubscriptions, bestDiscovery, bestViral] = await Promise.all([
-            filteredSubscriptions.length > 0
-              ? rankVideos(filteredSubscriptions, subscriptionIds).then((items) => items.slice(0, 10))
-              : Promise.resolve([]),
-            filteredDiscovery.length > 0
-              ? rankVideos(filteredDiscovery, subscriptionIds).then((items) => items.slice(0, 15))
-              : Promise.resolve([]),
-            viralPool.length > 0
-              ? rankVideos(viralPool, subscriptionIds).then((items) => items.slice(0, 10))
-              : Promise.resolve([]),
-          ]);
-          rankedLanes = [bestSubscriptions, bestDiscovery, bestViral];
-        } catch (rankErr: any) {
-          console.warn("Ranking engine failed, displaying baseline feed. Error:", rankErr?.message || rankErr);
-          rankedLanes = [filteredSubscriptions, filteredDiscovery, viralPool];
-        }
+        logHomeFeed("discover-pools", {
+          queryCandidates,
+          subscriptionPool: subscriptionPool.length,
+          subscriptionRotationPool: subscriptionRotationPool.length,
+          discoveryPool: discoveryPool.length,
+          relatedPool: relatedPool.length,
+          personalizedMusicPool: personalizedMusicPool.length,
+          filteredSubscriptions: discoverFeed.filteredSubscriptions.length,
+          filteredDiscovery: discoverFeed.filteredDiscovery.length,
+          discoverySample: summarizeVideosForLog(discoverFeed.filteredDiscovery),
+          subscriptionSample: summarizeVideosForLog(discoverFeed.filteredSubscriptions),
+          viralSample: summarizeVideosForLog(viralPool),
+          feedQuotas,
+        });
 
-        const mixedFeed = mixRankedLanes(rankedLanes[1], rankedLanes[0], rankedLanes[2]);
+        logHomeFeed("discover-ranked", {
+          rankedSubscriptions: discoverFeed.rankedLanes[0].length,
+          rankedDiscovery: discoverFeed.rankedLanes[1].length,
+          rankedViral: discoverFeed.rankedLanes[2].length,
+          feedQuotas,
+          mixedFeedCount: discoverFeed.mixedFeed.length,
+          finalFeedSample: summarizeVideosForLog(discoverFeed.mixedFeed),
+        });
         if (requestSequenceRef.current !== requestId) {
           return;
         }
-        const finalFeed = mixedFeed.length > 0 ? mixedFeed : FALLBACK_VIDEOS;
-        setVideos(finalFeed);
-        rememberSeenVideos(finalFeed);
-        updateCache("discover", finalFeed);
+        if (discoverFeed.mixedFeed.length > 0) {
+          setVideos(discoverFeed.mixedFeed);
+          videosRef.current = discoverFeed.mixedFeed;
+          rememberSeenVideos(discoverFeed.mixedFeed);
+          updateCache("discover", discoverFeed.mixedFeed);
+          setHasMoreDiscover(true);
+        } else {
+          logHomeFeed("discover-ranked-empty-keep-current", {
+            queryCandidates,
+            feedQuotas,
+          });
+          if (!renderedInitialFeed && videosRef.current.length === 0) {
+            logHomeFeed("discover-empty-rescue-start", {
+              queryCandidates,
+              timeoutMs: DISCOVER_EMPTY_RESCUE_TIMEOUT_MS,
+            });
+
+            const [
+              rescuedSubscriptionPool,
+              rescuedSubscriptionRotationPool,
+              rescuedDiscoveryPool,
+              rescuedRelatedPool,
+              rescuedPersonalizedMusicPool,
+            ] = await Promise.all([
+              withTimeout(subscriptionPoolPromise, DISCOVER_EMPTY_RESCUE_TIMEOUT_MS, [] as VideoSummary[], "subscriptions-rescue"),
+              withTimeout(subscriptionRotationPoolPromise, DISCOVER_EMPTY_RESCUE_TIMEOUT_MS, [] as VideoSummary[], "subscription-rotation-rescue"),
+              withTimeout(discoveryPoolPromise, DISCOVER_EMPTY_RESCUE_TIMEOUT_MS, [] as VideoSummary[], "discovery-rescue"),
+              withTimeout(relatedPoolPromise, DISCOVER_EMPTY_RESCUE_TIMEOUT_MS, [] as VideoSummary[], "related-rescue"),
+              withTimeout(personalizedMusicPoolPromise, DISCOVER_EMPTY_RESCUE_TIMEOUT_MS, [] as VideoSummary[], "personalized-music-rescue"),
+            ]);
+
+            const rescuedViralPool = feedQuotas.viralLimit > 0
+              ? preferSessionFreshVideos(
+                  filterFeedVideos(
+                    await withTimeout(fetchTrendingPool(), VIRAL_FALLBACK_TIMEOUT_MS, [] as VideoSummary[], "viral-fallback-rescue"),
+                    watchedIds,
+                  )
+                    .filter((video) => !isDiscoverJunkVideo(video)),
+                  feedQuotas.viralLimit,
+                )
+              : [];
+            const rescuedFeed = await buildDiscoverFeedFromPools(
+              {
+                subscriptionPool: rescuedSubscriptionPool,
+                subscriptionRotationPool: rescuedSubscriptionRotationPool,
+                discoveryPool: rescuedDiscoveryPool,
+                relatedPool: rescuedRelatedPool,
+                personalizedMusicPool: rescuedPersonalizedMusicPool,
+                viralPool: rescuedViralPool,
+              },
+              watchedIds,
+              subscriptionIds,
+              feedQuotas,
+              8000,
+              "discover-rescue",
+            );
+
+            logHomeFeed("discover-empty-rescue-ranked", {
+              subscriptionPool: rescuedSubscriptionPool.length,
+              subscriptionRotationPool: rescuedSubscriptionRotationPool.length,
+              discoveryPool: rescuedDiscoveryPool.length,
+              relatedPool: rescuedRelatedPool.length,
+              personalizedMusicPool: rescuedPersonalizedMusicPool.length,
+              filteredSubscriptions: rescuedFeed.filteredSubscriptions.length,
+              filteredDiscovery: rescuedFeed.filteredDiscovery.length,
+              rankedSubscriptions: rescuedFeed.rankedLanes[0].length,
+              rankedDiscovery: rescuedFeed.rankedLanes[1].length,
+              rankedViral: rescuedFeed.rankedLanes[2].length,
+              mixedFeedCount: rescuedFeed.mixedFeed.length,
+              sample: summarizeVideosForLog(rescuedFeed.mixedFeed),
+            });
+
+            if (requestSequenceRef.current !== requestId) {
+              return;
+            }
+            if (rescuedFeed.mixedFeed.length > 0) {
+              setVideos(rescuedFeed.mixedFeed);
+              videosRef.current = rescuedFeed.mixedFeed;
+              rememberSeenVideos(rescuedFeed.mixedFeed);
+              updateCache("discover", rescuedFeed.mixedFeed);
+              setHasMoreDiscover(true);
+            }
+          }
+        }
       }
     } catch (e: any) {
       console.error("Failed to load feed. Error:", e?.message || e);
       if (requestSequenceRef.current === requestId) {
-        setVideos(FALLBACK_VIDEOS);
-        rememberSeenVideos(FALLBACK_VIDEOS);
+        setVideos([]);
+        videosRef.current = [];
       }
     } finally {
       if (requestSequenceRef.current === requestId) {
+        initialDiscoverHydratingRef.current = false;
         setLoading(false);
         setRefreshing(false);
       }
@@ -656,7 +1298,15 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
   };
 
   useEffect(() => {
-    fetchFeed();
+    videosRef.current = videos;
+  }, [videos]);
+
+  useEffect(() => {
+    if (didRequestInitialFeedRef.current) {
+      return;
+    }
+    didRequestInitialFeedRef.current = true;
+    void fetchFeed();
   }, [activeTab]);
 
   useEffect(() => {
@@ -670,6 +1320,12 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
       return;
     }
     lastImpressionSignatureRef.current = signature;
+
+    logHomeFeed("record-impressions", {
+      activeTab,
+      count: visibleVideos.length,
+      sample: summarizeVideosForLog(visibleVideos),
+    });
 
     void recordFeedImpressions(visibleVideos).catch((error) => {
       console.warn("Failed to record feed impressions", error);
@@ -710,6 +1366,18 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
     observer.observe(target);
     return () => observer.disconnect();
   }, [activeTab, hasMoreDiscover, loading, loadingMore, videos.length]);
+
+  useEffect(() => {
+    if (activeTab !== "discover" || loading || loadingMore || videos.length > 0) {
+      return;
+    }
+
+    const retry = window.setTimeout(() => {
+      void handleLoadMore();
+    }, 500);
+
+    return () => window.clearTimeout(retry);
+  }, [activeTab, loading, loadingMore, videos.length]);
 
   const handlePlayVideo = async (video: VideoSummary) => {
     onPlay(video);
@@ -757,7 +1425,6 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
         <VideoGrid loading={true} onPlay={handlePlayVideo} />
       ) : videos.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-24 text-center border border-dashed border-zinc-800 rounded-3xl p-8 bg-zinc-900/10">
-          <Sparkles className="text-zinc-600 mb-4" size={48} />
           <h3 className="font-bold text-zinc-300">No content found</h3>
           <p className="text-zinc-500 text-xs mt-1 max-w-sm">
             Try playing some videos or searching to help the recommendation engine learn your profile
@@ -777,7 +1444,7 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
               <div ref={loadMoreSentinelRef} className="h-px w-full" />
               <button
                 onClick={() => void handleLoadMore()}
-                disabled={loadingMore || !hasMoreDiscover}
+                disabled={loadingMore}
                 className="inline-flex items-center gap-2 rounded-2xl border border-zinc-800 bg-zinc-900/40 px-5 py-3 text-sm font-semibold text-zinc-300 transition-all hover:border-zinc-700 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {loadingMore ? (
@@ -785,16 +1452,14 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
                     <Loader2 size={16} className="animate-spin text-red-400" />
                     Loading more
                   </>
-                ) : hasMoreDiscover ? (
+                ) : (
                   <>
                     <ChevronDown size={16} />
                     Load more
                   </>
-                ) : (
-                  "No more recommendations right now"
                 )}
               </button>
-              {hasMoreDiscover && !loadingMore && (
+              {!loadingMore && (
                 <p className="text-xs text-zinc-500">
                   More recommendations load automatically as you scroll.
                 </p>

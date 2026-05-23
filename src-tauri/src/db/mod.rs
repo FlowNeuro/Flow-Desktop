@@ -1,12 +1,16 @@
 use std::path::PathBuf;
+use std::str::FromStr;
+use std::time::Duration;
 
-pub mod watch_history;
-pub mod settings;
 pub mod cache;
 pub mod recommendations;
+pub mod settings;
+pub mod watch_history;
 
-
-use sqlx::{sqlite::SqlitePoolOptions, SqlitePool};
+use sqlx::{
+    sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous},
+    SqlitePool,
+};
 
 use crate::errors::{AppError, AppResult};
 
@@ -23,9 +27,20 @@ pub async fn initialize_database(app_data_dir: PathBuf) -> AppResult<SqlitePool>
             .map_err(|error| AppError::Database(format!("Failed to create DB file: {}", error)))?;
     }
 
+    // 1. Configure the SQLite connection specifically for high concurrency
+    let connection_options = SqliteConnectOptions::from_str(&database_url)
+        .map_err(|error| AppError::Database(error.to_string()))?
+        .create_if_missing(true)
+        .journal_mode(SqliteJournalMode::Wal) // Allows concurrent readers!
+        .synchronous(SqliteSynchronous::Normal) // Massive write speed improvement
+        .busy_timeout(Duration::from_secs(5)); // Prevent "database is locked" errors
+
+    // 2. Build the optimized Connection Pool
     let pool = SqlitePoolOptions::new()
-        .max_connections(5)
-        .connect(&database_url)
+        .max_connections(10)
+        .min_connections(1)
+        .idle_timeout(Duration::from_secs(90))
+        .connect_with(connection_options)
         .await
         .map_err(|error| AppError::Database(error.to_string()))?;
 
@@ -35,7 +50,7 @@ pub async fn initialize_database(app_data_dir: PathBuf) -> AppResult<SqlitePool>
             key TEXT PRIMARY KEY,
             value TEXT NOT NULL,
             updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-         );"
+         );",
     )
     .execute(&pool)
     .await

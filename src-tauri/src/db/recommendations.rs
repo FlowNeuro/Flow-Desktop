@@ -1,7 +1,8 @@
-use sqlx::SqlitePool;
 use crate::errors::{AppError, AppResult};
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
+use sqlx::SqlitePool;
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 #[serde(rename_all = "camelCase")]
 pub struct RecommendationEvent {
@@ -24,7 +25,7 @@ pub async fn log_recommendation_event(
 ) -> AppResult<()> {
     sqlx::query(
         "INSERT INTO recommendation_events (event_type, video_id, channel_name, query, value)
-         VALUES (?, ?, ?, ?, ?)"
+         VALUES (?, ?, ?, ?, ?)",
     )
     .bind(event_type)
     .bind(video_id)
@@ -38,6 +39,7 @@ pub async fn log_recommendation_event(
     Ok(())
 }
 
+#[allow(dead_code)]
 pub async fn get_recommendation_events(
     pool: &SqlitePool,
     limit: i64,
@@ -46,7 +48,7 @@ pub async fn get_recommendation_events(
         "SELECT id, event_type, video_id, channel_name, query, value, created_at
          FROM recommendation_events
          ORDER BY created_at DESC
-         LIMIT ?"
+         LIMIT ?",
     )
     .bind(limit)
     .fetch_all(pool)
@@ -56,6 +58,7 @@ pub async fn get_recommendation_events(
     Ok(records)
 }
 
+#[allow(dead_code)]
 pub async fn clear_recommendation_events(pool: &SqlitePool) -> AppResult<()> {
     sqlx::query("DELETE FROM recommendation_events")
         .execute(pool)

@@ -42,7 +42,9 @@ pub fn validate_channel_id(channel_id: &str) -> AppResult<()> {
     }
 
     if trimmed.chars().count() > 100 {
-        return Err(AppError::Validation("Channel ID cannot exceed 100 characters".into()));
+        return Err(AppError::Validation(
+            "Channel ID cannot exceed 100 characters".into(),
+        ));
     }
 
     Ok(())
@@ -56,7 +58,9 @@ pub fn validate_page_token(page_token: &str) -> AppResult<()> {
     }
 
     if trimmed.chars().count() > 16384 {
-        return Err(AppError::Validation("Page token cannot exceed 16384 characters".into()));
+        return Err(AppError::Validation(
+            "Page token cannot exceed 16384 characters".into(),
+        ));
     }
 
     Ok(())
@@ -68,14 +72,22 @@ pub fn validate_browse_id(id: &str) -> AppResult<()> {
         return Err(AppError::Validation("ID parameter cannot be empty".into()));
     }
     // Check against path traversal or malicious characters
-    if trimmed.contains('/') || trimmed.contains('\\') || trimmed.contains('.') || trimmed.contains(':') {
+    if trimmed.contains('/')
+        || trimmed.contains('\\')
+        || trimmed.contains('.')
+        || trimmed.contains(':')
+    {
         return Err(AppError::Validation("Malformed ID format detected".into()));
     }
     // Verify prefix structure or alphanumeric + underscore/dash characters
-    if trimmed.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '-' || c == '%') {
+    if trimmed
+        .chars()
+        .all(|c| c.is_alphanumeric() || c == '_' || c == '-' || c == '%')
+    {
         Ok(())
     } else {
-        Err(AppError::Validation("Invalid character set in ID parameter".into()))
+        Err(AppError::Validation(
+            "Invalid character set in ID parameter".into(),
+        ))
     }
 }
-

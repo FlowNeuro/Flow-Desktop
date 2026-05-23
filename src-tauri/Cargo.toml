@@ -1,13 +1,12 @@
 [package]
 name = "flow-desktop"
 version = "0.1.0"
-description = "A Tauri App"
-authors = ["you"]
-edition = "2021"
+description = "A privacy-first, local recommendation YouTube client and companion to Flow for Android"
+authors = ["A-EDev"]
+edition = "2024"
 default-run = "flow-desktop"
-
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+license = "GPL-3.0-only"
+repository = "https://github.com/A-EDev/flow-desktop"
 
 [lib]
 name = "flow_desktop_lib"
@@ -19,17 +18,28 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 tauri = { version = "2", features = [] }
 tauri-plugin-opener = "2"
+
+# Core Async & Serialization
 tokio = { version = "1", features = ["full"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite", "macros", "migrate", "chrono"] }
-thiserror = "2"
-async-trait = "0.1"
-chrono = { version = "0.4", features = ["serde"] }
-uuid = { version = "1", features = ["v4", "serde"] }
-tracing = "0.1"
-tracing-subscriber = "0.3"
-reqwest = { version = "0.12", features = ["stream", "json"] }
 futures-util = "0.3"
 
+# Database & Data Types
+sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite", "macros", "migrate", "chrono"] }
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1", features = ["v4", "serde"] }
 
+# Error Handling & Observability
+thiserror = "2"
+async-trait = "0.1"
+tracing = "0.1"
+tracing-subscriber = "0.3"
+
+# HTTP Client
+reqwest = { version = "0.13.3", features = ["stream", "json", "http3", "brotli", "rustls"] }
+
+# NLP Pipeline
+rust-stemmers = "1.2"
+stop-words = "0.8"
+whatlang = "0.18"

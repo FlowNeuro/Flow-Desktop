@@ -1,8 +1,8 @@
-use tauri::State;
-use sqlx::SqlitePool;
-use crate::errors::ErrorResponse;
-use crate::db::watch_history::{self, WatchHistoryRecord};
 use crate::db::settings;
+use crate::db::watch_history::{self, WatchHistoryRecord};
+use crate::errors::ErrorResponse;
+use sqlx::SqlitePool;
+use tauri::State;
 
 #[tauri::command]
 pub async fn get_watch_history(
@@ -36,9 +36,7 @@ pub async fn delete_watch_record(
 }
 
 #[tauri::command]
-pub async fn clear_watch_history(
-    pool: State<'_, SqlitePool>,
-) -> Result<(), ErrorResponse> {
+pub async fn clear_watch_history(pool: State<'_, SqlitePool>) -> Result<(), ErrorResponse> {
     watch_history::clear_watch_history(&pool)
         .await
         .map_err(ErrorResponse::from)
