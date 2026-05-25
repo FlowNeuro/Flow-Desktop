@@ -113,8 +113,7 @@ export function FlowNeuroPersona() {
         <div className="col-span-12 flex items-center justify-between gap-4 border-b border-[var(--color-outline-variant)] pb-4">
           <div>
             <h1 className="text-3xl font-semibold tracking-tight text-[var(--color-on-surface)] flex items-center gap-3">
-              <Compass className="h-8 w-8 text-[var(--color-primary)]" />
-              FlowNeuro Control Center
+              Control Center
             </h1>
             <p className="text-sm text-[var(--color-on-surface-variant)] mt-1">
               Analyze and manage local recommendation signals, memory, and sync controls.

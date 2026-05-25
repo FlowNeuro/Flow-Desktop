@@ -18,21 +18,21 @@ export const ExtensionsPage: React.FC = () => {
   };
 
   return (
-    <div className="flex-1 overflow-y-auto px-8 py-6 space-y-6 pb-20 bg-[#121212]">
+    <div className="flex-1 overflow-y-auto px-8 py-6 space-y-6 pb-20 bg-[var(--color-background)]">
       {/* Sticky Header */}
-      <div className="sticky top-0 z-30 bg-[#121212]/95 backdrop-blur-sm pb-4 pt-2 border-b border-[#2A2A2A] flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+      <div className="sticky top-0 z-30 bg-[var(--color-background)] backdrop-blur-sm pb-4 pt-2 border-b border-[var(--color-outline-variant)] flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-extrabold tracking-tight text-neutral-100">
+          <h1 className="text-3xl font-extrabold tracking-tight text-[var(--color-on-surface)]">
             Extensions & Integrations
           </h1>
-          <p className="text-xs text-neutral-400 mt-1">
+          <p className="text-xs text-[var(--color-on-surface-variant)] mt-1">
             Configure crowdsourced SponsorBlock skips, DeArrow clickbait normalizations, and Return YouTube Dislike telemetry
           </p>
         </div>
 
         <button
           onClick={handleManualSave}
-          className="flex items-center gap-2 bg-primary hover:bg-primary active:scale-95 text-white font-bold text-xs py-2.5 px-6 rounded-full transition-all shadow-none shrink-0 cursor-pointer"
+          className="flex items-center gap-2 bg-[var(--color-primary)] hover:bg-[var(--color-primary)] active:scale-95 text-[var(--color-on-surface)] font-bold text-xs py-2.5 px-6 rounded-full transition-all shadow-none shrink-0 cursor-pointer"
         >
           {saveStatus === "saved" ? (
             <>
