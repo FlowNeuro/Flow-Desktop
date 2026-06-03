@@ -325,7 +325,12 @@ pub async fn start_proxy_server(manager: StreamingManager, std_listener: std::ne
         "Starting local media proxy on 127.0.0.1:{}",
         manager.get_port()
     );
-    let client = reqwest::Client::builder().build().unwrap_or_default();
+    let client = reqwest::Client::builder()
+        .no_gzip()
+        .no_brotli()
+        .no_deflate()
+        .build()
+        .unwrap_or_default();
 
     loop {
         match listener.accept().await {
@@ -498,7 +503,10 @@ async fn relay_remote(
             None
         };
 
-        let mut req = client.get(target_url).header("User-Agent", &session.user_agent);
+        let mut req = client
+            .get(target_url)
+            .header("User-Agent", &session.user_agent)
+            .header("Accept-Encoding", "identity");
         if let Some(rh) = &range_header {
             req = req.header("Range", rh);
         }

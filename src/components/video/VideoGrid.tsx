@@ -9,6 +9,9 @@ interface VideoGridProps {
   onPlay: (video: VideoSummary) => void;
   onAddToQueue?: (video: VideoSummary) => void;
   onMarkNotInterested?: (videoId: string) => void;
+  onRemoveFromHistory?: (videoId: string) => void;
+  getVideoKey?: (video: VideoSummary, index: number) => string;
+  variant?: "default" | "history";
   hideChannelAvatar?: boolean;
 }
 
@@ -34,6 +37,9 @@ export function VideoGrid({
   onPlay,
   onAddToQueue,
   onMarkNotInterested,
+  onRemoveFromHistory,
+  getVideoKey,
+  variant = "default",
   hideChannelAvatar,
 }: VideoGridProps) {
   const gridClass = "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-8 pb-8";
@@ -50,13 +56,15 @@ export function VideoGrid({
 
   return (
     <div className={gridClass}>
-      {videos.map((video) => (
+      {videos.map((video, index) => (
         <VideoCard 
-          key={video.id} 
+          key={getVideoKey ? getVideoKey(video, index) : `${video.id}-${index}`} 
           video={video} 
           onPlay={onPlay} 
           onAddToQueue={onAddToQueue}
           onMarkNotInterested={onMarkNotInterested}
+          onRemoveFromHistory={onRemoveFromHistory}
+          variant={variant}
           hideChannelAvatar={hideChannelAvatar}
         />
       ))}

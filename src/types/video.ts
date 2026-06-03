@@ -8,6 +8,7 @@ export interface VideoSummary {
   publishedText?: string | null;
   viewCountText?: string | null;
   channelAvatarUrl?: string | null;
+  watchProgressPercent?: number | null;
 }
 
 export interface RelatedContentItem {

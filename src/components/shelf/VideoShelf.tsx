@@ -4,10 +4,14 @@ import { VideoCard } from "../video/VideoCard";
 import type { VideoSummary } from "../../types/video";
 
 interface VideoShelfProps {
-  title: string;
+  title?: string;
   videos: VideoSummary[];
   onPlay: (video: VideoSummary) => void;
   onAddToQueue?: (video: VideoSummary) => void;
+  onRemoveFromHistory?: (videoId: string) => void;
+  getVideoKey?: (video: VideoSummary, index: number) => string;
+  variant?: "default" | "history";
+  hideChannelAvatar?: boolean;
 }
 
 export const VideoShelf: React.FC<VideoShelfProps> = ({
@@ -15,6 +19,10 @@ export const VideoShelf: React.FC<VideoShelfProps> = ({
   videos,
   onPlay,
   onAddToQueue,
+  onRemoveFromHistory,
+  getVideoKey,
+  variant = "default",
+  hideChannelAvatar = true,
 }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
@@ -62,16 +70,18 @@ export const VideoShelf: React.FC<VideoShelfProps> = ({
   if (!videos || videos.length === 0) return null;
 
   return (
-    <div className="relative group/shelf flex flex-col gap-4 py-4 border-b border-zinc-900 last:border-0">
+    <div className="relative group/shelf flex flex-col gap-4">
       {/* Shelf Header */}
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-bold text-zinc-100 tracking-tight flex items-center gap-2">
-          <span>{title}</span>
-          <span className="text-xs text-zinc-500 font-semibold bg-zinc-900 border border-zinc-800/80 px-2 py-0.5 rounded-full">
-            {videos.length}
-          </span>
-        </h2>
-      </div>
+      {title ? (
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-bold text-zinc-100 tracking-tight flex items-center gap-2">
+            <span>{title}</span>
+            <span className="text-xs text-zinc-500 font-semibold bg-surface-container-low border border-neutral-800 px-2 py-0.5 rounded-full">
+              {videos.length}
+            </span>
+          </h2>
+        </div>
+      ) : null}
 
       {/* Shelf Slider Area */}
       <div className="relative w-full overflow-visible">
@@ -79,7 +89,7 @@ export const VideoShelf: React.FC<VideoShelfProps> = ({
         {canScrollLeft && (
           <button
             onClick={() => handleScroll("left")}
-            className="absolute left-0 top-1/2 -translate-y-1/2 -ml-2 sm:-ml-4 z-20 flex items-center justify-center w-10 h-10 rounded-full bg-black/80 hover:bg-black border border-zinc-800 text-zinc-200 hover:text-white shadow-xl opacity-0 group-hover/shelf:opacity-100 transition-all duration-300 transform active:scale-90 hover:scale-105 pointer-events-auto backdrop-blur-sm cursor-pointer"
+            className="absolute left-0 top-1/2 -translate-y-1/2 -ml-2 sm:-ml-4 z-20 flex items-center justify-center w-10 h-10 rounded-full bg-surface-container-high hover:bg-surface-container-highest border border-neutral-800 text-neutral-300 hover:text-neutral-100 opacity-0 group-hover/shelf:opacity-100 transition-colors duration-200 ease-out pointer-events-auto cursor-pointer"
             aria-label="Scroll left"
           >
             <ChevronLeft size={20} strokeWidth={2.5} />
@@ -89,18 +99,20 @@ export const VideoShelf: React.FC<VideoShelfProps> = ({
         {/* Scrollable Container */}
         <div
           ref={scrollRef}
-          className="flex gap-4 overflow-x-auto scroll-smooth scrollbar-none pb-2 px-1 -mx-1"
+          className="flex gap-4 overflow-x-auto scroll-smooth scrollbar-none pb-2 px-1 -mx-1 snap-x"
         >
-          {videos.map((video) => (
+          {videos.map((video, index) => (
             <div
-              key={video.id}
+              key={getVideoKey ? getVideoKey(video, index) : `${video.id}-${index}`}
               className="w-[280px] sm:w-[320px] shrink-0 transform transition-transform duration-300 hover:translate-y-[-2px]"
             >
               <VideoCard
                 video={video}
                 onPlay={onPlay}
                 onAddToQueue={onAddToQueue}
-                hideChannelAvatar={true}
+                onRemoveFromHistory={onRemoveFromHistory}
+                variant={variant}
+                hideChannelAvatar={hideChannelAvatar}
               />
             </div>
           ))}
@@ -110,7 +122,7 @@ export const VideoShelf: React.FC<VideoShelfProps> = ({
         {canScrollRight && (
           <button
             onClick={() => handleScroll("right")}
-            className="absolute right-0 top-1/2 -translate-y-1/2 -mr-2 sm:-mr-4 z-20 flex items-center justify-center w-10 h-10 rounded-full bg-black/80 hover:bg-black border border-zinc-800 text-zinc-200 hover:text-white shadow-xl opacity-0 group-hover/shelf:opacity-100 transition-all duration-300 transform active:scale-90 hover:scale-105 pointer-events-auto backdrop-blur-sm cursor-pointer"
+            className="absolute right-0 top-1/2 -translate-y-1/2 -mr-2 sm:-mr-4 z-20 flex items-center justify-center w-10 h-10 rounded-full bg-surface-container-high hover:bg-surface-container-highest border border-neutral-800 text-neutral-300 hover:text-neutral-100 opacity-0 group-hover/shelf:opacity-100 transition-colors duration-200 ease-out pointer-events-auto cursor-pointer"
             aria-label="Scroll right"
           >
             <ChevronRight size={20} strokeWidth={2.5} />

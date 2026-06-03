@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { useSubscriptionStore } from '../../store/useSubscriptionStore';
-import { Plus, Ban, Check, MoreVertical } from 'lucide-react';
+import { Plus, Ban, Check, MoreVertical, Trash2 } from 'lucide-react';
 import type { VideoSummary } from '../../types/video';
 import { Button } from '../ui/Button';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
@@ -13,6 +13,8 @@ export interface VideoCardProps {
   onPlay: (video: VideoSummary) => void;
   onAddToQueue?: (video: VideoSummary) => void;
   onMarkNotInterested?: (videoId: string) => void;
+  onRemoveFromHistory?: (videoId: string) => void;
+  variant?: 'default' | 'history';
   hideChannelAvatar?: boolean;
 }
 
@@ -79,6 +81,8 @@ export function VideoCard({
   onPlay,
   onAddToQueue,
   onMarkNotInterested,
+  onRemoveFromHistory,
+  variant = 'default',
   hideChannelAvatar,
 }: VideoCardProps) {
   const navigate = useNavigate();
@@ -191,6 +195,8 @@ export function VideoCard({
   }, [showMenu]);
 
   const subStatus = isSubscribed(isChannel ? cleanId : channelId);
+  const isHistoryCard = variant === 'history';
+  const progressPercent = Math.min(100, Math.max(0, video.watchProgressPercent ?? 0));
 
   const handleSubscribeToggle = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -201,6 +207,11 @@ export function VideoCard({
     } else {
       subscribe(idToToggle, isChannel ? video.title : video.channelName, video.thumbnailUrl || undefined);
     }
+  };
+
+  const handleRemoveFromHistory = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onRemoveFromHistory?.(video.id);
   };
 
   // ── Menu dropdown ───
@@ -215,7 +226,7 @@ export function VideoCard({
       <div
         ref={menuRef}
         style={positionStyle}
-        className="z-50 w-52 rounded-xl bg-zinc-900/95 border border-zinc-700/60 shadow-2xl shadow-black/40 py-1.5 backdrop-blur-md"
+        className="z-50 w-52 rounded-xl border border-neutral-800 bg-surface-container-high py-1.5"
       >
         {onAddToQueue && (
           <button
@@ -332,12 +343,35 @@ export function VideoCard({
         )}
 
         {video.durationSeconds ? (
-          <div className="absolute bottom-1 right-1 bg-black/80 px-1 py-px rounded text-[12px] font-medium text-white leading-tight tracking-wide">
+          <div className={`absolute right-1 z-10 bg-black/80 px-1 py-px rounded text-[12px] font-medium text-white leading-tight tracking-wide ${isHistoryCard ? 'bottom-2' : 'bottom-1'}`}>
             {formatDuration(video.durationSeconds)}
           </div>
         ) : null}
 
-        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-200" />
+        {isHistoryCard ? (
+          <>
+            <div className="absolute bottom-0 left-0 z-10 h-[3px] w-full bg-neutral-600">
+              <div
+                className="h-full bg-primary"
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
+
+            {onRemoveFromHistory ? (
+              <button
+                type="button"
+                onClick={handleRemoveFromHistory}
+                title="Remove from history"
+                aria-label="Remove from history"
+                className="absolute right-2 top-2 z-30 flex h-8 w-8 items-center justify-center rounded-full border border-neutral-800 bg-neutral-950/90 text-neutral-300 opacity-0 transition-colors duration-200 ease-out hover:bg-red-950/50 backdrop-blur-md hover:text-red-400 group-hover:opacity-100"
+              >
+                <Trash2 size={15} />
+              </button>
+            ) : null}
+          </>
+        ) : null}
+
+        <div className="pointer-events-none absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-200" />
       </div>
 
       <div className="flex gap-3 pr-1 relative z-10">
