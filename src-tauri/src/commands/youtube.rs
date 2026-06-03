@@ -19,6 +19,149 @@ use crate::services::youtube_service::YoutubeService;
 
 use crate::streaming::proxy::StreamingManager;
 
+#[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SubscriptionRssChannel {
+    pub id: String,
+    pub name: Option<String>,
+    pub avatar_url: Option<String>,
+}
+
+#[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SubscriptionRssFeed {
+    pub videos: Vec<VideoSummary>,
+    pub channels: Vec<SubscriptionRssChannel>,
+}
+
+fn xml_text(source: &str, tag: &str) -> Option<String> {
+    let start_tag = format!("<{tag}>");
+    let end_tag = format!("</{tag}>");
+    let start = source.find(&start_tag)? + start_tag.len();
+    let end = source[start..].find(&end_tag)? + start;
+    Some(decode_xml_entities(source[start..end].trim()))
+}
+
+fn xml_attr(source: &str, tag_prefix: &str, attr: &str) -> Option<String> {
+    let tag_start = source.find(tag_prefix)?;
+    let tag_end = source[tag_start..].find('>')? + tag_start;
+    let tag = &source[tag_start..tag_end];
+    let attr_prefix = format!("{attr}=\"");
+    let value_start = tag.find(&attr_prefix)? + attr_prefix.len();
+    let value_end = tag[value_start..].find('"')? + value_start;
+    Some(decode_xml_entities(tag[value_start..value_end].trim()))
+}
+
+fn decode_xml_entities(value: &str) -> String {
+    value
+        .replace("&amp;", "&")
+        .replace("&quot;", "\"")
+        .replace("&#39;", "'")
+        .replace("&apos;", "'")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+}
+
+fn format_relative_published(published: &str) -> Option<String> {
+    let parsed = chrono::DateTime::parse_from_rfc3339(published).ok()?;
+    let now = chrono::Utc::now();
+    let elapsed = now.signed_duration_since(parsed.with_timezone(&chrono::Utc));
+
+    let text = if elapsed.num_days() >= 365 {
+        let years = elapsed.num_days() / 365;
+        format!("{years} {} ago", if years == 1 { "year" } else { "years" })
+    } else if elapsed.num_days() >= 30 {
+        let months = elapsed.num_days() / 30;
+        format!("{months} {} ago", if months == 1 { "month" } else { "months" })
+    } else if elapsed.num_days() >= 7 {
+        let weeks = elapsed.num_days() / 7;
+        format!("{weeks} {} ago", if weeks == 1 { "week" } else { "weeks" })
+    } else if elapsed.num_days() >= 1 {
+        let days = elapsed.num_days();
+        format!("{days} {} ago", if days == 1 { "day" } else { "days" })
+    } else if elapsed.num_hours() >= 1 {
+        let hours = elapsed.num_hours();
+        format!("{hours} {} ago", if hours == 1 { "hour" } else { "hours" })
+    } else if elapsed.num_minutes() >= 1 {
+        let minutes = elapsed.num_minutes();
+        format!("{minutes} {} ago", if minutes == 1 { "minute" } else { "minutes" })
+    } else {
+        "Just now".to_string()
+    };
+
+    Some(text)
+}
+
+fn parse_rss_feed(channel_id: &str, xml: &str) -> (Option<String>, Vec<(i64, VideoSummary)>) {
+    let channel_name = xml_text(xml, "name");
+    let videos = xml
+        .split("<entry>")
+        .skip(1)
+        .filter_map(|entry| {
+            let entry = entry.split("</entry>").next().unwrap_or(entry);
+            let video_id = xml_text(entry, "yt:videoId")?;
+            let title = xml_text(entry, "title").unwrap_or_else(|| "Untitled video".to_string());
+            let published = xml_text(entry, "published");
+            let sort_key = published
+                .as_deref()
+                .and_then(|value| chrono::DateTime::parse_from_rfc3339(value).ok())
+                .map_or(0, |date| date.timestamp());
+            let published_text = published.as_deref().and_then(format_relative_published);
+            let thumbnail_url = xml_attr(entry, "<media:thumbnail", "url")
+                .or_else(|| Some(format!("https://i.ytimg.com/vi/{video_id}/hqdefault.jpg")));
+            let duration_seconds = xml_attr(entry, "<media:content", "duration")
+                .and_then(|value| value.parse::<u64>().ok());
+
+            Some((
+                sort_key,
+                VideoSummary {
+                    id: video_id,
+                    title,
+                    channel_name: channel_name
+                        .clone()
+                        .unwrap_or_else(|| "Subscribed channel".to_string()),
+                    channel_id: Some(channel_id.to_string()),
+                    thumbnail_url,
+                    duration_seconds,
+                    published_text,
+                    view_count_text: None,
+                },
+            ))
+        })
+        .collect();
+
+    (channel_name, videos)
+}
+
+fn extract_channel_avatar_from_html(html: &str) -> Option<String> {
+    let candidates = [
+        "property=\"og:image\" content=\"",
+        "\"avatar\":{\"thumbnails\":[{\"url\":\"",
+        "\"width\":900,\"height\":900},{\"url\":\"",
+    ];
+
+    for marker in candidates {
+        if let Some(start) = html.find(marker) {
+            let value_start = start + marker.len();
+            if let Some(value_end) = html[value_start..].find('"') {
+                let raw = &html[value_start..value_start + value_end];
+                let decoded = raw.replace("\\u0026", "&").replace("\\/", "/");
+                if decoded.starts_with("http") && !decoded.contains("/vi/") {
+                    return Some(decoded);
+                }
+            }
+        }
+    }
+
+    None
+}
+
+async fn fetch_channel_avatar(client: &reqwest::Client, channel_id: &str) -> Option<String> {
+    let url = format!("https://www.youtube.com/channel/{channel_id}");
+    let html = client.get(url).send().await.ok()?.text().await.ok()?;
+    extract_channel_avatar_from_html(&html)
+}
+
 fn extract_codecs(mime_type: Option<&str>) -> Option<String> {
     let mime_type = mime_type?;
     let codecs = mime_type
@@ -747,6 +890,166 @@ pub async fn get_subscription_rotation_feed(
         .get_subscription_rotation_feed(&youtube_service)
         .await
         .map_err(ErrorResponse::from)
+}
+
+async fn populate_video_durations(
+    videos: &mut [VideoSummary],
+    youtube_service: &YoutubeService,
+    pool: &sqlx::SqlitePool,
+) {
+    let fetches = videos.iter_mut().map(|video| {
+        let youtube_service = youtube_service.clone();
+        let pool = pool.clone();
+        let video_id = video.id.clone();
+        let title = video.title.clone();
+        let channel_name = video.channel_name.clone();
+        let thumbnail_url = video.thumbnail_url.clone();
+        async move {
+            // 1. Try cache first
+            if let Ok(Some(cached)) = crate::db::cache::get_cached_video_summary(&pool, &video_id).await {
+                if cached.duration_seconds.is_some() {
+                    return (video_id, cached.duration_seconds);
+                }
+            }
+
+            // 2. Fetch from API
+            if let Ok(details) = youtube_service.get_video_details(&video_id).await {
+                let summary = VideoSummary {
+                    id: video_id.clone(),
+                    title,
+                    channel_name,
+                    channel_id: details.channel_id,
+                    thumbnail_url,
+                    duration_seconds: details.duration_seconds,
+                    published_text: None,
+                    view_count_text: None,
+                };
+                // Cache it for 7 days
+                let _ = crate::db::cache::cache_video_summary(&pool, &summary, 604800).await;
+                (video_id, details.duration_seconds)
+            } else {
+                (video_id, None)
+            }
+        }
+    });
+
+    let results = futures_util::future::join_all(fetches).await;
+    let mut durations = std::collections::HashMap::new();
+    for (id, dur) in results {
+        if let Some(d) = dur {
+            durations.insert(id, d);
+        }
+    }
+
+    for video in videos.iter_mut() {
+        if video.duration_seconds.is_none() {
+            if let Some(dur) = durations.get(&video.id) {
+                video.duration_seconds = Some(*dur);
+            }
+        }
+    }
+}
+
+#[tauri::command]
+pub async fn get_subscription_rss_feed(
+    channel_ids: Vec<String>,
+    limit: Option<usize>,
+    youtube_service: State<'_, YoutubeService>,
+    pool: State<'_, sqlx::SqlitePool>,
+) -> Result<SubscriptionRssFeed, ErrorResponse> {
+    let mut unique_channel_ids = Vec::new();
+    for channel_id in channel_ids {
+        let trimmed = channel_id.trim().trim_start_matches("channel:").to_string();
+        validate_channel_id(&trimmed).map_err(ErrorResponse::from)?;
+        if !unique_channel_ids.contains(&trimmed) {
+            unique_channel_ids.push(trimmed);
+        }
+    }
+
+    let limit = limit.unwrap_or(1500).clamp(1, 1500);
+    let client = reqwest::Client::builder()
+        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+        .build()
+        .unwrap_or_default();
+
+    let fetches = unique_channel_ids.iter().map(|channel_id| {
+        let client = client.clone();
+        let channel_id = channel_id.clone();
+        async move {
+            let rss_url = format!(
+                "https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}"
+            );
+            let xml = client
+                .get(rss_url)
+                .send()
+                .await
+                .map_err(|error| {
+                    crate::errors::AppError::Extractor(format!(
+                        "RSS fetch failed for {channel_id}: {error}"
+                    ))
+                })?
+                .text()
+                .await
+                .map_err(|error| {
+                    crate::errors::AppError::Extractor(format!(
+                        "RSS read failed for {channel_id}: {error}"
+                    ))
+                })?;
+
+            let (name, videos) = parse_rss_feed(&channel_id, &xml);
+            let avatar_url = fetch_channel_avatar(&client, &channel_id).await;
+
+            Ok::<_, crate::errors::AppError>((
+                SubscriptionRssChannel {
+                    id: channel_id,
+                    name,
+                    avatar_url,
+                },
+                videos,
+            ))
+        }
+    });
+
+    let results = futures_util::future::join_all(fetches).await;
+    let mut channels = Vec::new();
+    let mut videos = Vec::new();
+
+    for result in results {
+        match result {
+            Ok((channel, channel_videos)) => {
+                channels.push(channel);
+                videos.extend(channel_videos);
+            }
+            Err(error) => {
+                tracing::warn!("Subscription RSS channel fetch failed: {error}");
+            }
+        }
+    }
+
+    videos.sort_by(|(left, _), (right, _)| right.cmp(left));
+    videos.dedup_by(|(_, left), (_, right)| left.id == right.id);
+
+    let mut feed_videos: Vec<VideoSummary> = videos
+        .into_iter()
+        .map(|(_, video)| video)
+        .take(limit)
+        .collect();
+
+    // Populate video durations for the top videos (up to 100)
+    let num_to_populate = feed_videos.len().min(100);
+    if num_to_populate > 0 {
+        populate_video_durations(
+            &mut feed_videos[..num_to_populate],
+            &youtube_service,
+            &pool,
+        )
+        .await;
+    }
+
+    Ok(SubscriptionRssFeed {
+        videos: feed_videos,
+        channels,
+    })
 }
 
 #[tauri::command]

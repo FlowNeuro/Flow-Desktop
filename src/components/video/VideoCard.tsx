@@ -35,7 +35,7 @@ export function VideoCard({
   hideChannelAvatar,
 }: VideoCardProps) {
   const navigate = useNavigate();
-  const { isSubscribed, subscribe, unsubscribe } = useSubscriptionStore();
+  const { isSubscribed, subscribe, unsubscribe, subscriptions } = useSubscriptionStore();
   const [overriddenTitle, setOverriddenTitle] = useState<string | null>(null);
   const [overriddenThumbnail, setOverriddenThumbnail] = useState<string | null>(null);
 
@@ -141,6 +141,13 @@ export function VideoCard({
   }
 
   const channelInitials = video.channelName?.substring(0, 2).toUpperCase() || '?';
+  const subscribedChannel = subscriptions.find((subscription) => (
+    video.channelId ? subscription.id === video.channelId : false
+  ));
+  const channelAvatarUrl = subscribedChannel?.avatarUrl?.startsWith("http")
+    && !/ytimg\.com\/vi\//i.test(subscribedChannel.avatarUrl)
+    ? subscribedChannel.avatarUrl
+    : null;
 
   return (
     <div className="flex flex-col gap-3 cursor-pointer group relative" onClick={() => onPlay(video)}>
@@ -183,7 +190,16 @@ export function VideoCard({
             }}
             className="w-9 h-9 rounded-full bg-zinc-900 shrink-0 overflow-hidden border border-zinc-800 flex items-center justify-center cursor-pointer hover:border-primary transition-colors"
           >
-            <span className="text-xs font-bold text-zinc-400">{channelInitials}</span>
+            {channelAvatarUrl ? (
+              <img
+                src={channelAvatarUrl}
+                alt={video.channelName}
+                className="h-full w-full object-cover"
+                loading="lazy"
+              />
+            ) : (
+              <span className="text-xs font-bold text-zinc-400">{channelInitials}</span>
+            )}
           </div>
         )}
 

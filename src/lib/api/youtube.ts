@@ -496,3 +496,45 @@ export async function getSubscriptionRotationFeed(): Promise<VideoSummary[]> {
   }
   return invokeBackend<VideoSummary[]>("get_subscription_rotation_feed");
 }
+
+export interface SubscriptionRssChannel {
+  id: string;
+  name?: string | null;
+  avatarUrl?: string | null;
+}
+
+export interface SubscriptionRssFeed {
+  videos: VideoSummary[];
+  channels: SubscriptionRssChannel[];
+}
+
+export async function getSubscriptionRssFeed(
+  channelIds: string[],
+  limit = 1500,
+): Promise<SubscriptionRssFeed> {
+  if (!(await isTauriEnv())) {
+    console.warn("Tauri not detected. Returning mock subscription RSS feed.");
+    return {
+      videos: channelIds.slice(0, 4).map((channelId, index) => ({
+        id: `mockrss${index}`.padEnd(11, "x").slice(0, 11),
+        title: `Latest upload from subscribed channel ${index + 1}`,
+        channelName: `Subscribed Channel ${index + 1}`,
+        channelId,
+        thumbnailUrl: "https://images.unsplash.com/photo-1607799279861-4dd421887fb3?q=80&w=640",
+        publishedText: `${index + 1} days ago`,
+        viewCountText: null,
+        durationSeconds: null,
+      })),
+      channels: channelIds.map((id, index) => ({
+        id,
+        name: `Subscribed Channel ${index + 1}`,
+        avatarUrl: null,
+      })),
+    };
+  }
+
+  return invokeBackend<SubscriptionRssFeed>("get_subscription_rss_feed", {
+    channelIds,
+    limit,
+  });
+}

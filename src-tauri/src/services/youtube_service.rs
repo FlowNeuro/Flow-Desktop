@@ -10,6 +10,7 @@ use crate::models::search::{SearchVideosRequest, SearchVideosResponse};
 use crate::models::video::{MusicHomeChip, MusicHomeSection, VideoSummary};
 use crate::models::video::{RelatedContentItem, StreamInfo, VideoDetails};
 
+#[derive(Clone)]
 pub struct YoutubeService {
     extractor: Arc<dyn YoutubeExtractor>,
 }

@@ -1,36 +1,107 @@
-import React, { useState, useEffect } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { User, Search as SearchIcon, Upload, Loader2 } from "lucide-react";
+import { Check, ChevronDown, ChevronUp, ListChecks, Loader2, Pencil, Plus, Trash2, Upload, User } from "lucide-react";
 import { parseSubscriptionExport } from "../lib/api/youtube";
 import { useSubscriptionStore } from "../store/useSubscriptionStore";
 import { getString } from "../lib/i18n/index";
+import { Button } from "../components/ui/Button";
+import { SearchInput } from "../components/ui/SearchInput";
+import { CategoryChips } from "../components/layout/CategoryChips";
+import { ChannelSwiper } from "../components/subscriptions/ChannelSwiper";
+import { VideoGrid } from "../components/video/VideoGrid";
+import { useSubscriptionChannelDetails, useSubscriptionFeed } from "../lib/useSubscriptionFeed";
+import type { SubscribedChannel, SubscriptionGroup } from "../store/useSubscriptionStore";
+import type { VideoSummary } from "../types/video";
 
 interface SubscriptionsProps {
-  onPlay: (video: any) => void;
-  onAddToQueue: (video: any) => void;
+  onPlay: (video: VideoSummary) => void;
+  onAddToQueue: (video: VideoSummary) => void;
 }
 
-export const Subscriptions: React.FC<SubscriptionsProps> = () => {
+function getAvatarUrl(url?: string | null) {
+  if (!url?.startsWith("http")) return undefined;
+  if (/ytimg\.com\/vi\//i.test(url)) return undefined;
+  return url;
+}
+
+function channelCountLabel(count: number) {
+  return getString("subscriptions_groups_channels", count);
+}
+
+export const Subscriptions: React.FC<SubscriptionsProps> = ({ onPlay, onAddToQueue }) => {
   const navigate = useNavigate();
-  const { subscriptions, loadSubscriptions, loading, unsubscribe, subscribe } = useSubscriptionStore();
+  const {
+    subscriptions,
+    subscriptionGroups,
+    loadSubscriptions,
+    loadSubscriptionGroups,
+    loading,
+    unsubscribe,
+    subscribe,
+    updateSubscription,
+    createSubscriptionGroup,
+    updateSubscriptionGroup,
+    deleteSubscriptionGroup,
+    moveSubscriptionGroup,
+  } = useSubscriptionStore();
+  const { videos, rssChannels, loading: feedLoading, error: feedError } = useSubscriptionFeed(subscriptions);
+  const channelDetails = useSubscriptionChannelDetails(subscriptions);
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null);
+  const [selectedGroupName, setSelectedGroupName] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<"feed" | "manage">("feed");
   
   const [importText, setImportText] = useState("");
   const [showImportModal, setShowImportModal] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+  const [showGroupsModal, setShowGroupsModal] = useState(false);
+  const [editingGroup, setEditingGroup] = useState<SubscriptionGroup | null>(null);
 
   useEffect(() => {
     loadSubscriptions();
-  }, []);
+    loadSubscriptionGroups();
+  }, [loadSubscriptionGroups, loadSubscriptions]);
 
-  const handleSubscribeToggle = async (channelId: string, channelName: string) => {
-    const cleanId = channelId.replace("channel:", "");
-    if (subscriptions.some((c) => c.id === cleanId)) {
-      await unsubscribe(cleanId);
-    } else {
-      await subscribe(cleanId, channelName);
-    }
-  };
+  useEffect(() => {
+    subscriptions.forEach((channel) => {
+      const details = channelDetails[channel.id];
+      if (!details) return;
+
+      const avatarUrl = getAvatarUrl(details.avatarUrl);
+      const nextName = details.name || channel.name;
+      const nextSubscriberCountText = details.subscriberCountText || channel.subscriberCountText;
+      const hasBetterAvatar = avatarUrl && avatarUrl !== channel.avatarUrl;
+      const hasBetterName = nextName && nextName !== channel.name;
+      const hasBetterSubCount = nextSubscriberCountText && nextSubscriberCountText !== channel.subscriberCountText;
+
+      if (hasBetterAvatar || hasBetterName || hasBetterSubCount) {
+        updateSubscription(channel.id, {
+          ...(hasBetterAvatar ? { avatarUrl } : {}),
+          ...(hasBetterName ? { name: nextName } : {}),
+          ...(hasBetterSubCount ? { subscriberCountText: nextSubscriberCountText } : {}),
+        });
+      }
+    });
+  }, [channelDetails, subscriptions, updateSubscription]);
+
+  useEffect(() => {
+    rssChannels.forEach((rssChannel) => {
+      const existing = subscriptions.find((channel) => channel.id === rssChannel.id);
+      if (!existing) return;
+
+      const avatarUrl = getAvatarUrl(rssChannel.avatarUrl);
+      const nextName = rssChannel.name || existing.name;
+      const hasBetterAvatar = avatarUrl && avatarUrl !== existing.avatarUrl;
+      const hasBetterName = nextName && nextName !== existing.name && existing.name === "Imported Channel";
+
+      if (hasBetterAvatar || hasBetterName) {
+        updateSubscription(existing.id, {
+          ...(hasBetterAvatar ? { avatarUrl } : {}),
+          ...(hasBetterName ? { name: nextName } : {}),
+        });
+      }
+    });
+  }, [rssChannels, subscriptions, updateSubscription]);
 
   const handleImport = async () => {
     if (!importText.trim()) return;
@@ -53,153 +124,323 @@ export const Subscriptions: React.FC<SubscriptionsProps> = () => {
     }
   };
 
-  const filteredChannels = subscriptions.filter((c) =>
-    c.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const query = searchQuery.trim().toLowerCase();
+
+  const enrichedChannels = useMemo<SubscribedChannel[]>(() => {
+    return subscriptions.map((channel) => {
+      const details = channelDetails[channel.id];
+      return {
+        ...channel,
+        name: details?.name || channel.name,
+        avatarUrl: getAvatarUrl(channel.avatarUrl) || getAvatarUrl(details?.avatarUrl),
+        subscriberCountText: details?.subscriberCountText || channel.subscriberCountText,
+      };
+    });
+  }, [channelDetails, subscriptions]);
+
+  const selectedGroup = useMemo(() => {
+    if (!selectedGroupName) return null;
+    return subscriptionGroups.find((group) => group.name === selectedGroupName) || null;
+  }, [selectedGroupName, subscriptionGroups]);
+
+  useEffect(() => {
+    if (selectedGroupName && !selectedGroup) {
+      setSelectedGroupName(null);
+    }
+  }, [selectedGroup, selectedGroupName]);
+
+  const visibleChannels = useMemo(() => {
+    if (!query) return enrichedChannels;
+    return enrichedChannels.filter((channel) => channel.name.toLowerCase().includes(query));
+  }, [enrichedChannels, query]);
+
+  const feedChannels = useMemo(() => {
+    if (!selectedGroup) return visibleChannels;
+    const groupChannelIds = new Set(selectedGroup.channelIds);
+    return visibleChannels.filter((channel) => groupChannelIds.has(channel.id));
+  }, [selectedGroup, visibleChannels]);
+
+  const channelsWithNewVideos = useMemo(() => {
+    return new Set(
+      videos
+        .map((video) => video.channelId)
+        .filter((channelId): channelId is string => Boolean(channelId)),
+    );
+  }, [videos]);
+
+  const filteredVideos = useMemo(() => {
+    return videos.filter((video) => {
+      const matchesSearch = !query
+        || video.title.toLowerCase().includes(query)
+        || video.channelName.toLowerCase().includes(query);
+      const matchesChannel = !selectedChannelId || video.channelId === selectedChannelId;
+      const matchesGroup = !selectedGroup
+        || Boolean(video.channelId && selectedGroup.channelIds.includes(video.channelId));
+
+      return matchesSearch && matchesChannel && matchesGroup;
+    });
+  }, [query, selectedChannelId, selectedGroup, videos]);
+
+  const handleSelectChannel = (channel: SubscribedChannel) => {
+    setSelectedChannelId((current) => current === channel.id ? null : channel.id);
+    setViewMode("feed");
+  };
+
+  const handleGroupChange = (groupLabel: string) => {
+    setSelectedGroupName(groupLabel === getString("subscriptions_group_all") ? null : groupLabel);
+    setSelectedChannelId(null);
+  };
 
   return (
-    <div className="flex-grow overflow-y-auto px-8 py-6 space-y-6">
-      {/* Master Subscriptions manager layout */}
+    <div className="flex-grow overflow-y-auto px-6 py-6 md:px-8">
       <div className="space-y-6 pb-20">
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-zinc-50 to-zinc-400 bg-clip-text text-transparent">
-              {getString("top_bar_subscriptions_title")}
-            </h1>
-            <p className="text-sm text-zinc-400 mt-1">
-              Keep up with your favorite creators, importing lists in a snap
-            </p>
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <h1 className="text-3xl font-bold tracking-tight text-neutral-100">
+            {getString("top_bar_subscriptions_title")}
+          </h1>
+
+          <div className="flex w-full flex-col gap-3 sm:flex-row lg:w-auto lg:items-center">
+            <SearchInput
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder={getString("subscriptions_search_placeholder")}
+              containerClassName="w-full sm:w-72"
+            />
+            <div className="flex gap-2">
+              <Button
+                variant="tonal"
+                onClick={() => setShowImportModal(true)}
+                className="shrink-0"
+              >
+                <Upload size={16} />
+                {getString("subscriptions_import_button")}
+              </Button>
+              <Button
+                variant="tonal"
+                onClick={() => setViewMode((mode) => mode === "feed" ? "manage" : "feed")}
+                className="shrink-0"
+              >
+                <ListChecks size={16} />
+                {viewMode === "feed"
+                  ? getString("subscriptions_manage_button")
+                  : getString("subscriptions_latest_button")}
+              </Button>
+            </div>
           </div>
-
-          <button
-            onClick={() => setShowImportModal(true)}
-            className="flex items-center gap-2 bg-primary hover:bg-primary text-white py-2.5 px-4 rounded-xl text-xs font-semibold shadow-lg shadow-primary/10 transition-all active:scale-95 shrink-0"
-          >
-            <Upload size={14} />
-            Import Subscriptions
-          </button>
         </div>
 
-        {/* Search bar filter */}
-        <div className="relative max-w-md">
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder={getString("subscriptions_search_placeholder")}
-            className="w-full bg-zinc-900/50 border border-zinc-800 focus:border-primary/50 px-4 py-3 pl-11 rounded-2xl text-xs font-medium text-zinc-100 placeholder-zinc-500 outline-none transition-all"
-          />
-          <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" size={15} />
-        </div>
-
-        {/* Subscribed channels listing */}
         {loading && subscriptions.length === 0 ? (
-          <div className="flex items-center justify-center py-20">
-            <Loader2 className="animate-spin text-primary" size={32} />
-          </div>
-        ) : filteredChannels.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-24 text-center border border-dashed border-zinc-800 rounded-3xl p-8 bg-zinc-900/10">
-            <User className="text-zinc-700 mb-4" size={48} />
-            <h3 className="font-bold text-zinc-300">{getString("no_subscriptions_yet")}</h3>
-            <p className="text-zinc-500 text-xs mt-1 max-w-sm">
-              {getString("empty_subscriptions_body")}
-            </p>
+          <div className="flex items-center justify-center py-16">
+            <Loader2 className="animate-spin text-[var(--color-primary)]" size={28} />
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-5">
-            {filteredChannels.map((channel) => (
-              <div
-                key={channel.id}
-                onClick={() => navigate(`/channel/${channel.id}`)}
-                className="flex flex-col items-center p-5 bg-zinc-900/30 hover:bg-zinc-900/60 border border-zinc-800/40 hover:border-zinc-700/60 rounded-2xl cursor-pointer transition-all duration-300 group"
-              >
-                <div className="w-16 h-16 rounded-full overflow-hidden bg-zinc-800 mb-3 border border-zinc-700 group-hover:border-primary/50 transition-colors">
-                  {channel.avatarUrl ? (
-                    <img
-                      src={channel.avatarUrl}
-                      alt={channel.name}
-                      className="w-full h-full object-cover"
+          <>
+            {viewMode === "feed" ? (
+              <ChannelSwiper
+                channels={feedChannels}
+                selectedChannelId={selectedChannelId}
+                channelsWithNewVideos={channelsWithNewVideos}
+                onSelectChannel={handleSelectChannel}
+              />
+            ) : null}
+
+            {viewMode === "feed" ? (
+              <>
+                <div className="flex items-center gap-3 border-y border-neutral-800">
+                  <CategoryChips
+                    categories={[
+                      getString("subscriptions_group_all"),
+                      ...subscriptionGroups.map((group) => group.name),
+                    ]}
+                    activeCategory={selectedGroupName || getString("subscriptions_group_all")}
+                    onCategoryChange={handleGroupChange}
+                    sticky={false}
+                    className="min-w-0 flex-1"
+                  />
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="mr-1 shrink-0"
+                    onClick={() => setShowGroupsModal(true)}
+                  >
+                    <Pencil size={15} />
+                    {getString("subscriptions_groups_manage")}
+                  </Button>
+                </div>
+
+                <section className="pt-2">
+                  <h2 className="mb-4 text-xl font-semibold text-neutral-100">
+                    {getString("subscriptions_latest_header")}
+                  </h2>
+
+                  {feedError ? (
+                    <div className="rounded-2xl border border-neutral-800 bg-surface-container-low p-6 text-sm text-neutral-300">
+                      {getString("subscriptions_feed_error")}
+                    </div>
+                  ) : feedLoading ? (
+                    <VideoGrid loading={true} skeletonCount={10} onPlay={onPlay} />
+                  ) : filteredVideos.length > 0 ? (
+                    <VideoGrid
+                      videos={filteredVideos}
+                      onPlay={onPlay}
+                      onAddToQueue={onAddToQueue}
                     />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center text-xl font-bold text-zinc-400">
-                      {channel.name.charAt(0).toUpperCase()}
+                    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-neutral-800 bg-surface-container-low p-10 text-center">
+                      <User className="mb-3 text-neutral-600" size={36} />
+                      <h3 className="text-base font-medium text-neutral-200">
+                        {getString("subscriptions_empty_latest")}
+                      </h3>
+                      <p className="mt-1 max-w-md text-sm text-neutral-400">
+                        {getString("subscriptions_empty_latest_body")}
+                      </p>
                     </div>
                   )}
+                </section>
+              </>
+            ) : (
+              <section className="pt-2">
+                <div className="mb-4 flex items-end justify-between gap-4">
+                  <div>
+                    <h2 className="text-xl font-semibold text-neutral-100">
+                      {getString("subscriptions_manage_header")}
+                    </h2>
+                    <p className="mt-1 text-sm text-neutral-400">
+                      {getString("subscriptions_manage_subtitle", visibleChannels.length)}
+                    </p>
+                  </div>
                 </div>
-                <h4 className="font-bold text-xs text-zinc-200 line-clamp-1 group-hover:text-red-400 transition-colors">
-                  {channel.name}
-                </h4>
-                <div className="flex items-center justify-between w-full mt-3 pt-2 border-t border-zinc-800/40">
-                  <span className="text-[10px] text-zinc-550 font-semibold group-hover:text-zinc-300">View Channel</span>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleSubscribeToggle(channel.id, channel.name);
-                    }}
-                    className="text-[10px] text-red-400 hover:text-red-300 font-bold"
-                  >
-                    Remove
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
+
+                {visibleChannels.length > 0 ? (
+                  <div className="divide-y divide-neutral-800 rounded-2xl border border-neutral-800 bg-surface-container-low">
+                    {visibleChannels.map((channel) => {
+                      const details = channelDetails[channel.id];
+                      const avatarUrl = getAvatarUrl(channel.avatarUrl) || getAvatarUrl(details?.avatarUrl);
+                      const initial = channel.name.charAt(0).toUpperCase();
+
+                      return (
+                        <div
+                          key={channel.id}
+                          className="flex items-center gap-4 px-4 py-3 transition-colors duration-200 ease-out hover:bg-surface-container"
+                        >
+                          <button
+                            type="button"
+                            onClick={() => navigate(`/channel/${channel.id}`)}
+                            className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-surface-container-high text-sm font-semibold text-neutral-300"
+                          >
+                            {avatarUrl ? (
+                              <img src={avatarUrl} alt={channel.name} className="h-full w-full object-cover" />
+                            ) : (
+                              initial
+                            )}
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => navigate(`/channel/${channel.id}`)}
+                            className="min-w-0 flex-1 text-left"
+                          >
+                            <div className="line-clamp-1 text-sm font-medium text-neutral-100">
+                              {channel.name}
+                            </div>
+                            <div className="line-clamp-1 text-xs text-neutral-400">
+                              {channel.subscriberCountText || details?.subscriberCountText || getString("subscriptions_subscribers_unavailable")}
+                            </div>
+                          </button>
+
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-red-400 hover:bg-red-950/30"
+                            onClick={() => unsubscribe(channel.id)}
+                          >
+                            {getString("subscriptions_unsubscribe")}
+                          </Button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-neutral-800 bg-surface-container-low p-10 text-center">
+                    <User className="mb-3 text-neutral-600" size={36} />
+                    <h3 className="text-base font-medium text-neutral-200">
+                      {getString("subscriptions_empty_manage")}
+                    </h3>
+                    <p className="mt-1 max-w-md text-sm text-neutral-400">
+                      {getString("subscriptions_empty_manage_body")}
+                    </p>
+                  </div>
+                )}
+              </section>
+            )}
+          </>
         )}
       </div>
 
-      {/* Import OPML / CSV Dialog Overlay */}
+      {showGroupsModal && (
+        <GroupsModal
+          groups={subscriptionGroups}
+          channels={enrichedChannels}
+          editingGroup={editingGroup}
+          onEdit={setEditingGroup}
+          onClose={() => {
+            setShowGroupsModal(false);
+            setEditingGroup(null);
+          }}
+          onCreate={createSubscriptionGroup}
+          onUpdate={updateSubscriptionGroup}
+          onDelete={(name) => {
+            deleteSubscriptionGroup(name);
+            if (selectedGroupName === name) {
+              setSelectedGroupName(null);
+            }
+          }}
+          onMove={moveSubscriptionGroup}
+        />
+      )}
+
       {showImportModal && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fade-in">
-          <div className="bg-zinc-900 border border-zinc-800 max-w-lg w-full rounded-3xl p-6 shadow-2xl space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="w-full max-w-lg space-y-4 rounded-2xl border border-neutral-800 bg-surface-container p-6">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-bold text-zinc-100 flex items-center gap-2">
-                <Upload size={18} className="text-primary" />
-                Import Subscriptions list
+              <h3 className="flex items-center gap-2 text-lg font-semibold text-neutral-100">
+                <Upload size={18} className="text-[var(--color-primary)]" />
+                {getString("subscriptions_import_title")}
               </h3>
-              <button
-                onClick={() => setShowImportModal(false)}
-                className="text-zinc-500 hover:text-zinc-300 text-xs font-semibold py-1"
-              >
-                Close
-              </button>
+              <Button variant="ghost" size="sm" onClick={() => setShowImportModal(false)}>
+                {getString("close")}
+              </Button>
             </div>
 
-            <p className="text-xs text-zinc-400">
-              Paste RSS OPML outlines, Google Takeout CSV outlines, or raw lists of YouTube channel URLs. We will parse and subscribe to them instantly.
+            <p className="text-sm text-neutral-400">
+              {getString("subscriptions_import_body")}
             </p>
 
             <textarea
               value={importText}
               onChange={(e) => setImportText(e.target.value)}
-              placeholder={`<!-- OPML Outline template -->\n<outline xmlUrl="https://www.youtube.com/feeds/videos.xml?channel_id=UC..." title="Fireship"/>\n\n<!-- Or Takeout CSV line -->\nUCsBjURrdU234nU351gVEfTA,,Fireship`}
+              placeholder={getString("subscriptions_import_placeholder")}
               rows={8}
-              className="w-full bg-zinc-950 border border-zinc-800 focus:border-primary/50 p-4 rounded-2xl text-xs font-mono text-zinc-300 outline-none resize-none"
+              className="w-full resize-none rounded-lg border border-neutral-800 bg-surface-container-low p-4 font-mono text-xs text-neutral-300 outline-none transition-colors duration-200 ease-out placeholder:text-neutral-600 focus:border-neutral-700"
             />
 
             <div className="flex items-center justify-end gap-3 pt-2">
-              <button
-                onClick={() => setShowImportModal(false)}
-                className="px-4 py-2 border border-zinc-800 hover:bg-zinc-800 rounded-xl text-xs font-semibold text-zinc-400 hover:text-zinc-200 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleImport}
-                disabled={isImporting || !importText.trim()}
-                className="px-5 py-2.5 bg-primary hover:bg-primary disabled:opacity-50 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all shadow-lg shadow-primary/10 active:scale-95"
-              >
+              <Button variant="ghost" onClick={() => setShowImportModal(false)}>
+                {getString("cancel")}
+              </Button>
+              <Button onClick={handleImport} disabled={isImporting || !importText.trim()}>
                 {isImporting ? (
                   <>
-                    <Loader2 size={13} className="animate-spin" />
-                    Parsing...
+                    <Loader2 size={14} className="animate-spin" />
+                    {getString("subscriptions_import_parsing")}
                   </>
                 ) : (
                   <>
-                    <Upload size={13} />
-                    Parse & Import
+                    <Upload size={14} />
+                    {getString("subscriptions_import_parse")}
                   </>
                 )}
-              </button>
+              </Button>
             </div>
           </div>
         </div>
@@ -207,5 +448,204 @@ export const Subscriptions: React.FC<SubscriptionsProps> = () => {
     </div>
   );
 };
+
+interface GroupsModalProps {
+  groups: SubscriptionGroup[];
+  channels: SubscribedChannel[];
+  editingGroup: SubscriptionGroup | null;
+  onEdit: (group: SubscriptionGroup | null) => void;
+  onClose: () => void;
+  onCreate: (name: string, channelIds: string[]) => Promise<void>;
+  onUpdate: (oldName: string, name: string, channelIds: string[]) => Promise<void>;
+  onDelete: (name: string) => void;
+  onMove: (name: string, direction: -1 | 1) => void;
+}
+
+function GroupsModal({
+  groups,
+  channels,
+  editingGroup,
+  onEdit,
+  onClose,
+  onCreate,
+  onUpdate,
+  onDelete,
+  onMove,
+}: GroupsModalProps) {
+  const [draftName, setDraftName] = useState("");
+  const [selectedChannelIds, setSelectedChannelIds] = useState<Set<string>>(new Set());
+  const [channelSearch, setChannelSearch] = useState("");
+
+  const resetDraft = () => {
+    setDraftName("");
+    setSelectedChannelIds(new Set());
+    setChannelSearch("");
+    onEdit(null);
+  };
+
+  useEffect(() => {
+    setDraftName(editingGroup?.name || "");
+    setSelectedChannelIds(new Set(editingGroup?.channelIds || []));
+    setChannelSearch("");
+  }, [editingGroup]);
+
+  const filteredChannels = useMemo(() => {
+    const query = channelSearch.trim().toLowerCase();
+    if (!query) return channels;
+    return channels.filter((channel) => channel.name.toLowerCase().includes(query));
+  }, [channelSearch, channels]);
+
+  const canSave = draftName.trim() && selectedChannelIds.size > 0;
+
+  const toggleChannel = (channelId: string) => {
+    setSelectedChannelIds((current) => {
+      const next = new Set(current);
+      if (next.has(channelId)) {
+        next.delete(channelId);
+      } else {
+        next.add(channelId);
+      }
+      return next;
+    });
+  };
+
+  const handleSave = async () => {
+    if (!canSave) return;
+    const ids = Array.from(selectedChannelIds);
+    if (editingGroup) {
+      await onUpdate(editingGroup.name, draftName, ids);
+    } else {
+      await onCreate(draftName, ids);
+    }
+    resetDraft();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+      <div className="grid h-[86vh] w-full max-w-4xl grid-cols-1 overflow-hidden rounded-2xl border border-neutral-800 bg-surface-container md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+        <section className="flex min-h-0 flex-col border-b border-neutral-800 p-5 md:border-b-0 md:border-r">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <h3 className="text-lg font-semibold text-neutral-100">
+              {getString("subscriptions_groups_manage")}
+            </h3>
+          </div>
+
+          <Button variant="tonal" className="mb-4 justify-start" onClick={resetDraft}>
+            <Plus size={16} />
+            {getString("subscriptions_groups_new")}
+          </Button>
+
+          <div className="min-h-0 flex-1 overflow-y-auto rounded-lg border border-neutral-800 bg-surface-container-low">
+            {groups.length > 0 ? (
+              <div className="divide-y divide-neutral-800">
+                {groups.map((group, index) => (
+                  <div key={group.name} className="flex items-center gap-2 px-3 py-2">
+                    <button
+                      type="button"
+                      className="min-w-0 flex-1 text-left"
+                      onClick={() => onEdit(group)}
+                    >
+                      <div className="line-clamp-1 text-sm font-medium text-neutral-100">{group.name}</div>
+                      <div className="text-xs text-neutral-400">{channelCountLabel(group.channelIds.length)}</div>
+                    </button>
+                    <Button variant="ghost" size="sm" disabled={index === 0} onClick={() => onMove(group.name, -1)}>
+                      <ChevronUp size={15} />
+                    </Button>
+                    <Button variant="ghost" size="sm" disabled={index === groups.length - 1} onClick={() => onMove(group.name, 1)}>
+                      <ChevronDown size={15} />
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => onEdit(group)}>
+                      <Pencil size={15} />
+                    </Button>
+                    <Button variant="ghost" size="sm" className="text-red-400 hover:bg-red-950/30" onClick={() => onDelete(group.name)}>
+                      <Trash2 size={15} />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="p-4 text-sm text-neutral-400">
+                {getString("subscriptions_groups_empty")}
+              </p>
+            )}
+          </div>
+        </section>
+
+        <section className="flex min-h-0 flex-col p-5">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <h3 className="text-lg font-semibold text-neutral-100">
+              {editingGroup ? getString("subscriptions_groups_edit") : getString("subscriptions_groups_new")}
+            </h3>
+            <Button variant="ghost" size="md" onClick={onClose}>
+              {getString("close")}
+            </Button>
+          </div>
+
+          <input
+            value={draftName}
+            onChange={(event) => setDraftName(event.target.value)}
+            placeholder={getString("subscriptions_groups_name")}
+            className="mb-3 h-10 rounded-lg border border-neutral-800 bg-surface-container-low px-3 text-sm font-medium text-neutral-100 outline-none transition-colors duration-200 ease-out placeholder:text-neutral-500 focus:border-neutral-700"
+          />
+
+          <SearchInput
+            value={channelSearch}
+            onChange={(event) => setChannelSearch(event.target.value)}
+            placeholder={getString("subscriptions_groups_search")}
+            containerClassName="mb-3"
+          />
+
+          <div className="min-h-0 flex-1 overflow-y-auto rounded-lg border border-neutral-800 bg-surface-container-low">
+            <div className="divide-y divide-neutral-800">
+              {filteredChannels.map((channel) => {
+                const avatarUrl = getAvatarUrl(channel.avatarUrl);
+                const selected = selectedChannelIds.has(channel.id);
+                const initial = channel.name.charAt(0).toUpperCase();
+
+                return (
+                  <label
+                    key={channel.id}
+                    className="flex cursor-pointer items-center gap-3 px-3 py-2 transition-colors duration-200 ease-out hover:bg-surface-container"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selected}
+                      onChange={() => toggleChannel(channel.id)}
+                      className="peer sr-only"
+                    />
+                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded border border-neutral-700 bg-surface-container transition-colors duration-200 ease-out peer-checked:border-[var(--color-primary)] peer-checked:bg-[var(--color-primary)]">
+                      {selected ? (
+                        <Check size={14} className="text-[var(--color-on-primary)]" />
+                      ) : null}
+                    </span>
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-surface-container-high text-xs font-semibold text-neutral-300">
+                      {avatarUrl ? (
+                        <img src={avatarUrl} alt={channel.name} className="h-full w-full object-cover" />
+                      ) : (
+                        initial
+                      )}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="line-clamp-1 text-sm font-medium text-neutral-100">{channel.name}</span>
+                      <span className="line-clamp-1 text-xs text-neutral-400">
+                        {channel.subscriberCountText || getString("subscriptions_subscribers_unavailable")}
+                      </span>
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="mt-4 flex justify-end gap-2">
+            <Button disabled={!canSave} onClick={handleSave}>
+              {editingGroup ? getString("subscriptions_groups_save") : getString("subscriptions_groups_create")}
+            </Button>
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+}
 
 export default Subscriptions;

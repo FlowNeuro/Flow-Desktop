@@ -2,6 +2,7 @@
 
 @theme {
   --color-primary: #FF0000;
+  --color-on-primary: var(--color-on-primary-val);
   --color-secondary: var(--color-secondary-val);
   --color-background: var(--color-background-val);
   --color-surface: var(--color-surface-val);
@@ -27,6 +28,7 @@
     --color-outline-variant-val: #D7D7D7;
     --color-on-surface-val: #111111;
     --color-on-surface-variant-val: #5F5F5F;
+    --color-on-primary-val: #FFFFFF;
   }
 
   @media (prefers-color-scheme: dark) {
@@ -41,6 +43,7 @@
       --color-outline-variant-val: #2A2A2A;
       --color-on-surface-val: #F4F4F4;
       --color-on-surface-variant-val: #B8B8B8;
+      --color-on-primary-val: #FFFFFF;
     }
   }
 
@@ -181,6 +184,15 @@
 .scrollbar-none {
   -ms-overflow-style: none;  /* IE and Edge */
   scrollbar-width: none;  /* Firefox */
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 
 /* Fix fullscreen player squashing */

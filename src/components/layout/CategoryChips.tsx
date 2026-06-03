@@ -1,24 +1,41 @@
 import { useState } from 'react';
 import { Chip } from '../ui/Chip';
 
-export function CategoryChips() {
-  const [active, setActive] = useState('All');
-  const categories = [
+interface CategoryChipsProps {
+  categories?: string[];
+  activeCategory?: string;
+  onCategoryChange?: (category: string) => void;
+  sticky?: boolean;
+  className?: string;
+}
+
+export function CategoryChips({
+  categories = [
     "All", "Music", "Gaming", "FlowNeuro Insights", "Live", "Podcasts", "News", "Coding", "Lo-fi"
-  ];
+  ],
+  activeCategory,
+  onCategoryChange,
+  sticky = true,
+  className = '',
+}: CategoryChipsProps) {
+  const [internalActive, setInternalActive] = useState(categories[0] || 'All');
+  const active = activeCategory ?? internalActive;
+
+  const handleChange = (category: string) => {
+    setInternalActive(category);
+    onCategoryChange?.(category);
+  };
 
   return (
     <div 
-      className="sticky top-0 z-30 flex items-center gap-3 overflow-x-auto bg-background px-4 py-3 border-b border-zinc-800"
-      style={{ scrollbarWidth: 'none' }}
+      className={`${sticky ? 'sticky top-0 z-30 border-b border-neutral-800 bg-background px-4' : ''} flex items-center gap-3 overflow-x-auto py-3 hide-scrollbar ${className}`}
     >
-      <style>{`.hide-scroll::-webkit-scrollbar { display: none; }`}</style>
-      <div className="flex gap-3 hide-scroll">
+      <div className="flex gap-3">
         {categories.map((cat) => (
           <Chip 
             key={cat} 
             active={active === cat} 
-            onClick={() => setActive(cat)}
+            onClick={() => handleChange(cat)}
           >
             {cat}
           </Chip>

@@ -32,8 +32,8 @@ use commands::youtube::{
     get_music_lyrics, get_music_related, get_personalized_music_recommendations,
     get_playlist_details, get_related_videos, get_sabr_debug_state, get_search_suggestions,
     get_sponsorblock_segments, get_stream_info, get_subscription_rotation_feed,
-    get_trending_videos, get_video_details, parse_subscription_export, refresh_music_home,
-    search_music, search_videos,
+    get_subscription_rss_feed, get_trending_videos, get_video_details, parse_subscription_export,
+    refresh_music_home, search_music, search_videos,
 };
 use services::recommendation_service::RecommendationService;
 use services::youtube_service::YoutubeService;
@@ -134,6 +134,7 @@ pub fn run() {
             refresh_music_home,
             get_personalized_music_recommendations,
             get_subscription_rotation_feed,
+            get_subscription_rss_feed,
             get_music_artist,
             get_music_explore,
             get_music_charts,

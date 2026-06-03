@@ -1,7 +1,7 @@
 import { ButtonHTMLAttributes } from 'react';
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'outline' | 'ghost';
+  variant?: 'primary' | 'secondary' | 'tonal' | 'outline' | 'ghost' | 'destructive';
   size?: 'sm' | 'md' | 'lg';
 }
 
@@ -13,13 +13,15 @@ export function Button({
   disabled, 
   ...props 
 }: ButtonProps) {
-  const baseStyles = 'inline-flex items-center justify-center font-medium transition-colors focus:outline-none disabled:opacity-50 disabled:pointer-events-none rounded-full';
+  const baseStyles = 'inline-flex items-center justify-center gap-2 rounded-full font-medium transition-colors duration-200 ease-out focus:outline-none disabled:opacity-50 disabled:pointer-events-none';
   
   const variants = {
-    primary: 'bg-primary text-white hover:bg-red-700',
-    secondary: 'bg-surface text-zinc-100 border border-zinc-800 hover:bg-zinc-800',
-    outline: 'bg-transparent text-primary border border-primary hover:bg-primary/10',
-    ghost: 'bg-transparent text-zinc-100 hover:bg-zinc-800',
+    primary: 'bg-[var(--color-primary)] text-[var(--color-on-primary)] hover:opacity-90',
+    secondary: 'bg-surface-container-high text-neutral-200 hover:bg-surface-container-highest',
+    tonal: 'bg-surface-container-high text-neutral-200 hover:bg-surface-container-highest',
+    outline: 'bg-transparent text-neutral-200 border border-neutral-800 hover:bg-surface-container-high',
+    ghost: 'bg-transparent text-neutral-200 hover:bg-surface-container-high',
+    destructive: 'bg-red-950/30 text-red-400 border border-red-900/50 hover:bg-red-950/50',
   };
 
   const sizes = {
