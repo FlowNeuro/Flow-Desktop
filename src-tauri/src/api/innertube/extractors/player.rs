@@ -7,11 +7,14 @@ use crate::api::innertube::core::utils::{
 };
 use crate::errors::{AppError, AppResult};
 use crate::models::video::{
-    AudioTrack, CaptionTrack, RelatedContentItem, StreamInfo, StreamVariant, VideoChapter,
-    VideoDetails,
+    AudioTrack, CaptionTrack, RelatedContentItem, SabrStreamInfo, StreamInfo, StreamVariant,
+    VideoChapter, VideoDetails,
 };
+use crate::streaming::sabr::engine::decode_b64_loose;
+use crate::streaming::sabr::selector::{select_formats, CodecSupport, SabrFormat};
+use crate::streaming::sabr::{ClientProfile, SabrSessionDescriptor};
 use serde_json::Value;
-use tracing::{debug, warn};
+use tracing::{debug, info, warn};
 
 fn parse_timestamp(s: &str) -> Option<u64> {
     let cleaned: String = s
@@ -687,6 +690,178 @@ fn clean_like_count_from_accessibility(text: &str) -> String {
     text.to_string()
 }
 
+// ---------------------------------------------------------------------------
+// SABR metadata extraction
+// ---------------------------------------------------------------------------
+
+fn parse_sabr_formats(streaming_data: &Value) -> Vec<SabrFormat> {
+    let mut formats = Vec::new();
+    let Some(adaptive) = streaming_data["adaptiveFormats"].as_array() else {
+        return formats;
+    };
+    for format in adaptive {
+        let Some(itag) = format["itag"].as_i64() else {
+            continue;
+        };
+        let mime_type = format["mimeType"].as_str().unwrap_or_default().to_string();
+        if mime_type.is_empty() {
+            continue;
+        }
+        let is_audio = mime_type.starts_with("audio/");
+        let last_modified = format["lastModified"]
+            .as_str()
+            .and_then(|v| v.parse::<u64>().ok())
+            .or_else(|| format["lastModified"].as_u64())
+            .unwrap_or(0);
+        let xtags = format["xtags"].as_str().map(ToOwned::to_owned);
+        let bitrate = format["bitrate"]
+            .as_u64()
+            .or_else(|| format["averageBitrate"].as_u64())
+            .unwrap_or(0);
+        let approx_duration_ms = format["approxDurationMs"]
+            .as_str()
+            .and_then(|v| v.parse::<u64>().ok())
+            .unwrap_or(0);
+
+        formats.push(SabrFormat {
+            itag: itag as i32,
+            last_modified,
+            xtags,
+            mime_type,
+            bitrate,
+            width: format["width"].as_u64().unwrap_or(0),
+            height: format["height"].as_u64().unwrap_or(0),
+            fps: format["fps"].as_u64().unwrap_or(0),
+            approx_duration_ms,
+            is_audio,
+        });
+    }
+    formats
+}
+
+// `streamingData.serverAbrStreamingUrl`, if present and non-empty.
+fn extract_server_abr_url(streaming_data: &Value) -> Option<String> {
+    streaming_data["serverAbrStreamingUrl"]
+        .as_str()
+        .filter(|v| !v.is_empty())
+        .map(ToOwned::to_owned)
+}
+
+// Decode `playerConfig.mediaCommonConfig.mediaUstreamerRequestConfig
+// .videoPlaybackUstreamerConfig` (URL-safe base64) into raw protobuf bytes.
+fn extract_ustreamer_config(res: &Value) -> Vec<u8> {
+    res["playerConfig"]["mediaCommonConfig"]["mediaUstreamerRequestConfig"]
+        ["videoPlaybackUstreamerConfig"]
+        .as_str()
+        .filter(|v| !v.is_empty())
+        .and_then(decode_b64_loose)
+        .unwrap_or_default()
+}
+
+// Build the frontend-facing `SabrStreamInfo` and the internal session
+// descriptor from a successful player response. Returns `(None, None)` when no
+// SABR metadata is present at all.
+fn build_sabr_metadata(
+    res: &Value,
+    streaming_data: &Value,
+    video_id: &str,
+    visitor_data: Option<String>,
+    po_token: Option<String>,
+    client_name: &str,
+    duration_seconds: Option<u64>,
+) -> (Option<SabrStreamInfo>, Option<SabrSessionDescriptor>) {
+    let server_url = extract_server_abr_url(streaming_data);
+    let formats = parse_sabr_formats(streaming_data);
+    let ustreamer_config = extract_ustreamer_config(res);
+
+    let has_audio = formats.iter().any(|f| f.is_audio);
+    let has_video = formats.iter().any(|f| !f.is_audio);
+    let selectable = select_formats(&formats, None, CodecSupport::default());
+
+    // Observability: one structured line capturing SABR-capability inputs.
+    info!(
+        video_id = %video_id,
+        client = %client_name,
+        sabr_url_present = server_url.is_some(),
+        ustreamer_config_present = !ustreamer_config.is_empty(),
+        po_token_present = po_token.is_some(),
+        adaptive_format_count = formats.len(),
+        has_audio,
+        has_video,
+        selectable = selectable.is_some(),
+        "sabr_capability_probe"
+    );
+
+    // No SABR endpoint at all: nothing to expose.
+    let Some(server_url) = server_url else {
+        return (None, None);
+    };
+
+    let has_po_token = po_token.as_deref().map(|t| !t.is_empty()).unwrap_or(false);
+    let has_visitor_data = visitor_data.as_deref().map(|v| !v.is_empty()).unwrap_or(false);
+    let requires_po_token = !has_po_token;
+    let (selected_audio_itag, selected_video_itag) = match &selectable {
+        Some(sel) => (Some(sel.audio.itag), Some(sel.video.itag)),
+        None => (None, None),
+    };
+
+    let available =
+        has_audio && has_video && selectable.is_some() && has_po_token && has_visitor_data;
+    let reason_unavailable = if available {
+        None
+    } else if !has_po_token {
+        Some("SABR requires a PO token, which is unavailable for this client".to_string())
+    } else if !has_visitor_data {
+        Some("SABR requires visitor data, which is unavailable".to_string())
+    } else if !has_audio || !has_video {
+        Some("missing audio or video adaptive formats".to_string())
+    } else {
+        Some("no playable format pair under codec constraints".to_string())
+    };
+
+    let duration_ms = duration_seconds
+        .map(|s| s * 1000)
+        .or_else(|| {
+            formats
+                .iter()
+                .map(|f| f.approx_duration_ms)
+                .filter(|d| *d > 0)
+                .max()
+        })
+        .unwrap_or(0);
+
+    let info = SabrStreamInfo {
+        available,
+        manifest_url: None,
+        audio_url: None,
+        video_url: None,
+        selected_audio_itag,
+        selected_video_itag,
+        expires_in_seconds: streaming_data["expiresInSeconds"]
+            .as_str()
+            .and_then(|s| s.parse::<u64>().ok()),
+        requires_po_token,
+        reason_unavailable,
+    };
+
+    let descriptor = if available {
+        Some(SabrSessionDescriptor {
+            video_id: video_id.to_string(),
+            server_abr_streaming_url: server_url,
+            visitor_data,
+            po_token,
+            ustreamer_config,
+            client_profile: ClientProfile::from_client_name(client_name),
+            duration_ms,
+            formats,
+        })
+    } else {
+        None
+    };
+
+    (Some(info), descriptor)
+}
+
 impl InnertubeClient {
     pub async fn get_video_details(&self, video_id: &str) -> AppResult<VideoDetails> {
         let video_id_trimmed = video_id.trim();
@@ -982,6 +1157,7 @@ impl InnertubeClient {
 
         // 1. Fetch visitor session data
         let visitor_data = self.fetch_visitor_data().await;
+        let visitor_data_for_sabr = visitor_data.clone();
 
         // 2. Prefer ANDROID_VR first for faster playback and keep IOS as a signed fallback.
         let mut vr_payload = serde_json::json!({
@@ -997,6 +1173,8 @@ impl InnertubeClient {
 
         let mut should_fallback_to_ios = false;
         let mut current_user_agent = "com.google.android.apps.youtube.vr.oculus/1.61.48 (Linux; U; Android 12; en_US; Quest 3; Build/SQ3A.220605.009.A1; Cronet/132.0.6808.3)";
+        let mut sabr_client_name = "ANDROID_VR";
+        let mut po_token_used: Option<String> = None;
 
         if let Ok(ref val) = res {
             if check_needs_reload(val) {
@@ -1014,6 +1192,8 @@ impl InnertubeClient {
 
         if should_fallback_to_ios {
             let po_token = generate_po_token(video_id_trimmed).await;
+            po_token_used = po_token.clone();
+            sabr_client_name = "IOS";
             let mut ios_payload = serde_json::json!({
                 "context": get_ios_context(visitor_data.clone(), po_token.clone()),
                 "videoId": video_id_trimmed,
@@ -1117,6 +1297,18 @@ impl InnertubeClient {
         // Return expiration time and user-agent string joined by | delimiter
         let composite_expires_at = format!("{}|{}", expires_in_seconds, current_user_agent);
 
+        // Extract SABR metadata (safe: never fails the request, only annotates).
+        let duration_seconds = extract_duration_seconds_from_player_response(&res);
+        let (sabr, sabr_descriptor) = build_sabr_metadata(
+            &res,
+            streaming_data,
+            video_id_trimmed,
+            visitor_data_for_sabr,
+            po_token_used,
+            sabr_client_name,
+            duration_seconds,
+        );
+
         Ok(StreamInfo {
             stream_id: video_id_trimmed.to_string(),
             local_url,
@@ -1130,6 +1322,8 @@ impl InnertubeClient {
             dash_manifest_url: streaming_data["dashManifestUrl"]
                 .as_str()
                 .map(ToOwned::to_owned),
+            sabr,
+            sabr_descriptor,
         })
     }
 }

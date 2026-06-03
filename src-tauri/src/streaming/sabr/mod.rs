@@ -1,0 +1,300 @@
+//! SABR (Server Adaptive Bit Rate) streaming engine.
+//!
+//! YouTube is migrating playback away from direct media URLs / DASH / HLS toward
+//! SABR, where the client POSTs a protobuf `VideoPlaybackAbrRequest` and the
+//! server streams back media wrapped in UMP (Universal Media Protocol) frames.
+//! This module implements that protocol in Rust, behind the local media proxy,
+//! and exposes plain local HTTP endpoints (a DASH manifest + init/segment URLs)
+//! that the existing dash.js-based player can consume without knowing SABR exists.
+//!
+//! Layering (bottom-up):
+//!   - `pb`       — minimal protobuf wire codec (no protoc/prost dependency)
+//!   - `ump`      — UMP varint + streaming frame parser
+//!   - `messages` — typed SABR request/response messages
+//!   - `errors`   — error taxonomy + retry/reload classification
+//!   - `selector` — codec/browser-aware format selection
+//!   - `session`  — per-request state machine + request builder + part dispatch
+//!   - `engine`   — async network loop, bounded segment buffer, lifecycle
+//!   - `manifest` — local DASH manifest generation
+
+pub mod errors;
+pub mod messages;
+pub mod pb;
+pub mod selector;
+pub mod ump;
+
+pub mod engine;
+pub mod manifest;
+pub mod session;
+
+pub use errors::{SabrError, SabrResult};
+pub use selector::{CodecSupport, SabrFormat, SelectedFormats};
+
+use std::collections::HashMap;
+use std::sync::{
+    atomic::{AtomicU64, Ordering},
+    Arc, Mutex,
+};
+use std::time::{Duration, Instant};
+
+use engine::{SabrEngine, SabrEngineConfig};
+
+// Immutable inputs needed to drive a SABR session, assembled by extraction.
+#[derive(Debug, Clone)]
+pub struct SabrSessionDescriptor {
+    pub video_id: String,
+    pub server_abr_streaming_url: String,
+    pub visitor_data: Option<String>,
+    pub po_token: Option<String>,
+    // Base64-decoded `videoPlaybackUstreamerConfig`.
+    pub ustreamer_config: Vec<u8>,
+    pub client_profile: ClientProfile,
+    pub duration_ms: u64,
+    pub formats: Vec<SabrFormat>,
+}
+
+// The InnerTube client identity that produced the player response, echoed back
+// in SABR requests so the server keeps serving the same session.
+#[derive(Debug, Clone)]
+pub struct ClientProfile {
+    pub client_name_id: i32,
+    pub client_version: String,
+    pub user_agent: String,
+    pub device_make: String,
+    pub device_model: String,
+    pub os_name: String,
+    pub os_version: String,
+}
+
+impl ClientProfile {
+    // The iOS profile (client id 5) — the client our extractor most reliably
+    // gets a `serverAbrStreamingUrl` from today.
+    pub fn ios() -> Self {
+        Self {
+            client_name_id: 5,
+            client_version: "19.29.1".into(),
+            user_agent:
+                "com.google.ios.youtube/19.29.1 (iPhone14,5; U; CPU iOS 17_5_1 like Mac OS X; en_US)"
+                    .into(),
+            device_make: "Apple".into(),
+            device_model: "iPhone14,5".into(),
+            os_name: "iOS".into(),
+            os_version: "17.5.1".into(),
+        }
+    }
+
+    pub fn android_vr() -> Self {
+        Self {
+            client_name_id: 28,
+            client_version: "1.61.48".into(),
+            user_agent:
+                "com.google.android.apps.youtube.vr.oculus/1.61.48 (Linux; U; Android 12; en_US; Quest 3; Build/SQ3A.220605.009.A1; Cronet/132.0.6808.3)"
+                    .into(),
+            device_make: "Oculus".into(),
+            device_model: "Quest 3".into(),
+            os_name: "Android".into(),
+            os_version: "12".into(),
+        }
+    }
+
+    // Pick a profile from the InnerTube client name the player response came from.
+    pub fn from_client_name(client_name: &str) -> Self {
+        match client_name {
+            "IOS" => Self::ios(),
+            "ANDROID_VR" => Self::android_vr(),
+            _ => Self::web(),
+        }
+    }
+
+    pub fn web() -> Self {
+        Self {
+            client_name_id: 1,
+            client_version: "2.20240101.00.00".into(),
+            user_agent:
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                    .into(),
+            device_make: String::new(),
+            device_model: String::new(),
+            os_name: "Windows".into(),
+            os_version: "10.0".into(),
+        }
+    }
+}
+
+// Which track a proxy route refers to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SabrTrack {
+    Audio,
+    Video,
+}
+
+impl SabrTrack {
+    pub fn parse(s: &str) -> Option<Self> {
+        match s {
+            "audio" => Some(SabrTrack::Audio),
+            "video" => Some(SabrTrack::Video),
+            _ => None,
+        }
+    }
+}
+
+// A live SABR session: handle to its engine plus bookkeeping.
+pub struct SabrSessionHandle {
+    pub session_id: String,
+    pub video_id: String,
+    pub engine: Arc<SabrEngine>,
+    created_at: Instant,
+    last_access: Mutex<Instant>,
+    expires_in_seconds: u64,
+}
+
+impl SabrSessionHandle {
+    fn touch(&self) {
+        if let Ok(mut last) = self.last_access.lock() {
+            *last = Instant::now();
+        }
+    }
+
+    fn is_expired(&self, idle_ttl: Duration) -> bool {
+        let hard_cap = Duration::from_secs(self.expires_in_seconds.max(60).min(3600));
+        if self.created_at.elapsed() > hard_cap {
+            return true;
+        }
+        match self.last_access.lock() {
+            Ok(last) => last.elapsed() > idle_ttl,
+            Err(_) => false,
+        }
+    }
+}
+
+// Owns SABR sessions. Descriptors are *prepared* cheaply (no network) when a
+// stream is resolved, then *activated* lazily — the engine only starts hitting
+// YouTube once the player actually fetches the manifest/segments. This keeps
+// SABR a zero-cost fallback until it is genuinely used.
+#[derive(Clone)]
+pub struct SabrSessionManager {
+    sessions: Arc<Mutex<HashMap<String, Arc<SabrSessionHandle>>>>,
+    prepared: Arc<Mutex<HashMap<String, (SabrSessionDescriptor, CodecSupport)>>>,
+    counter: Arc<AtomicU64>,
+    config: SabrEngineConfig,
+    idle_ttl: Duration,
+    max_active: usize,
+    max_prepared: usize,
+}
+
+impl Default for SabrSessionManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl SabrSessionManager {
+    pub fn new() -> Self {
+        Self {
+            sessions: Arc::new(Mutex::new(HashMap::new())),
+            prepared: Arc::new(Mutex::new(HashMap::new())),
+            counter: Arc::new(AtomicU64::new(1)),
+            config: SabrEngineConfig::default(),
+            idle_ttl: Duration::from_secs(10 * 60),
+            max_active: 4,
+            max_prepared: 32,
+        }
+    }
+
+    // Register a descriptor for lazy activation. Returns the session id to embed
+    // in the manifest URL. No engine is started yet.
+    pub fn prepare(&self, descriptor: SabrSessionDescriptor, support: CodecSupport) -> String {
+        let id = format!("s{}", self.counter.fetch_add(1, Ordering::Relaxed));
+        let mut prepared = self.prepared.lock().unwrap();
+        if prepared.len() >= self.max_prepared {
+            // Drop an arbitrary stale prepared descriptor (bounded memory).
+            if let Some(k) = prepared.keys().next().cloned() {
+                prepared.remove(&k);
+            }
+        }
+        prepared.insert(id.clone(), (descriptor, support));
+        id
+    }
+
+    // Get a live session, or lazily create + spawn its engine from a prepared
+    // descriptor on first access.
+    pub fn activate(&self, session_id: &str) -> SabrResult<Arc<SabrSessionHandle>> {
+        self.prune_expired();
+
+        if let Some(handle) = self.get(session_id) {
+            return Ok(handle);
+        }
+
+        let (descriptor, support) = {
+            let prepared = self.prepared.lock().unwrap();
+            prepared.get(session_id).cloned()
+        }
+        .ok_or(SabrError::Cancelled)?;
+
+        let selected = selector::select_formats(&descriptor.formats, None, support)
+            .ok_or(SabrError::NoPlayableFormats)?;
+
+        let engine = Arc::new(SabrEngine::new(
+            session_id.to_string(),
+            descriptor.clone(),
+            selected,
+            self.config.clone(),
+        ));
+        engine.clone().spawn();
+
+        let handle = Arc::new(SabrSessionHandle {
+            session_id: session_id.to_string(),
+            video_id: descriptor.video_id.clone(),
+            engine,
+            created_at: Instant::now(),
+            last_access: Mutex::new(Instant::now()),
+            expires_in_seconds: 3600,
+        });
+
+        let mut sessions = self.sessions.lock().unwrap();
+        if sessions.len() >= self.max_active {
+            if let Some(oldest) = sessions
+                .values()
+                .min_by_key(|h| *h.last_access.lock().unwrap())
+                .map(|h| h.session_id.clone())
+            {
+                if let Some(removed) = sessions.remove(&oldest) {
+                    removed.engine.cancel();
+                }
+            }
+        }
+        sessions.insert(session_id.to_string(), handle.clone());
+        Ok(handle)
+    }
+
+    pub fn get(&self, session_id: &str) -> Option<Arc<SabrSessionHandle>> {
+        let sessions = self.sessions.lock().unwrap();
+        let handle = sessions.get(session_id).cloned();
+        if let Some(h) = &handle {
+            h.touch();
+        }
+        handle
+    }
+
+    pub fn remove(&self, session_id: &str) {
+        if let Some(removed) = self.sessions.lock().unwrap().remove(session_id) {
+            removed.engine.cancel();
+        }
+        self.prepared.lock().unwrap().remove(session_id);
+    }
+
+    fn prune_expired(&self) {
+        let mut sessions = self.sessions.lock().unwrap();
+        let idle_ttl = self.idle_ttl;
+        let expired: Vec<String> = sessions
+            .iter()
+            .filter(|(_, h)| h.is_expired(idle_ttl))
+            .map(|(k, _)| k.clone())
+            .collect();
+        for key in expired {
+            if let Some(removed) = sessions.remove(&key) {
+                removed.engine.cancel();
+            }
+        }
+    }
+}

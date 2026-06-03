@@ -53,6 +53,20 @@ export interface StreamInfo {
   audioTracks: AudioTrack[];
   hlsManifestUrl?: string | null;
   dashManifestUrl?: string | null;
+  sabr?: SabrStreamInfo | null;
+}
+
+/** SABR (Server Adaptive Bit Rate) availability + local manifest endpoint. */
+export interface SabrStreamInfo {
+  available: boolean;
+  manifestUrl?: string | null;
+  audioUrl?: string | null;
+  videoUrl?: string | null;
+  selectedAudioItag?: number | null;
+  selectedVideoItag?: number | null;
+  expiresInSeconds?: number | null;
+  requiresPoToken: boolean;
+  reasonUnavailable?: string | null;
 }
 
 export interface StreamVariant {
@@ -69,6 +83,12 @@ export interface StreamVariant {
   hasAudio: boolean;
   isVideoOnly: boolean;
   deliveryMethod: string;
+  // Range metadata serialized by the backend (used to build synthetic DASH).
+  initRangeStart?: number | null;
+  initRangeEnd?: number | null;
+  indexRangeStart?: number | null;
+  indexRangeEnd?: number | null;
+  approxDurationMs?: number | null;
 }
 
 export interface CaptionTrack {
@@ -88,6 +108,11 @@ export interface AudioTrack {
   mimeType?: string | null;
   bitrate?: number | null;
   isDefault: boolean;
+  initRangeStart?: number | null;
+  initRangeEnd?: number | null;
+  indexRangeStart?: number | null;
+  indexRangeEnd?: number | null;
+  approxDurationMs?: number | null;
 }
 
 export interface SearchVideosRequest {

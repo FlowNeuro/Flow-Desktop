@@ -18,7 +18,7 @@ import { Loader2, ThumbsUp, ThumbsDown, Share2, Bookmark, MoreHorizontal,WandSpa
 import Player from "../components/player/Player";
 import { Chapters } from "../components/player/chapters";
 import { SkeletonLoader } from "../components/ui/SkeletonLoader";
-import type { AudioTrack, CaptionTrack, RelatedContentItem, StreamVariant, VideoSummary } from "../types/video";
+import type { AudioTrack, CaptionTrack, RelatedContentItem, StreamInfo, StreamVariant, VideoSummary } from "../types/video";
 
 import { useSettingsStore } from "../store/useSettingsStore";
 import { formatCount } from "../lib/utils";
@@ -113,6 +113,42 @@ const selectVariantByBandwidth = (variants: StreamVariant[], canUseAdaptive: boo
     }
   }
   return best;
+};
+
+type SourceMode = "dash-native" | "sabr-dash" | "direct" | "unavailable";
+
+const browserSupportsVP9 = () =>
+  typeof MediaSource !== "undefined" &&
+  typeof MediaSource.isTypeSupported === "function" &&
+  MediaSource.isTypeSupported('video/webm; codecs="vp9"');
+
+const computeAvailableSourceModes = (info: StreamInfo): SourceMode[] => {
+  const modes: SourceMode[] = [];
+  if (info.dashManifestUrl && browserSupportsVP9()) modes.push("dash-native");
+  const canUseAdaptive = (info.audioTracks || []).some((track) => !!track.localUrl);
+  const hasDirect =
+    (info.variants || []).some((v) => v.isPlayable && (v.hasAudio || canUseAdaptive)) ||
+    !!info.localUrl;
+  if (hasDirect) modes.push("direct");
+  if (info.sabr?.available && info.sabr?.manifestUrl) modes.push("sabr-dash");
+  return modes;
+};
+
+const pickDirectVariantUrl = (info: StreamInfo, qualityId: string): string | null => {
+  const canUseAdaptive = (info.audioTracks || []).some((track) => !!track.localUrl);
+  let chosen: StreamVariant | null = null;
+  if (!qualityId || qualityId === "auto") {
+    chosen = selectVariantByBandwidth(info.variants || [], canUseAdaptive);
+  } else {
+    chosen = info.variants?.find((v) => v.id === qualityId) || null;
+  }
+  if (!chosen) {
+    chosen =
+      info.variants?.find((v) => v.isDefault && v.isPlayable && (v.hasAudio || canUseAdaptive)) ||
+      info.variants?.find((v) => v.isPlayable && (v.hasAudio || canUseAdaptive)) ||
+      null;
+  }
+  return chosen?.localUrl || info.localUrl || null;
 };
 
 const renderTextWithLinks = (text: string) => {
@@ -234,6 +270,9 @@ export function Watch() {
   const [captions, setCaptions] = useState<CaptionTrack[]>([]);
   const [audioTracks, setAudioTracks] = useState<AudioTrack[]>([]);
   const [dashManifestUrl, setDashManifestUrl] = useState<string | null>(null);
+  const [sourceMode, setSourceMode] = useState<SourceMode>("unavailable");
+  const streamInfoRef = useRef<StreamInfo | null>(null);
+  const attemptedModesRef = useRef<Set<SourceMode>>(new Set());
   const [selectedQualityId, setSelectedQualityId] = useState<string>("auto");
   const [resumeTime, setResumeTime] = useState(0);
   const [loadingStream, setLoadingStream] = useState(false);
@@ -298,45 +337,45 @@ export function Watch() {
       setStreamError(null);
       try {
         const info = await getStreamInfo(currentVideo.id);
+        streamInfoRef.current = info;
+        attemptedModesRef.current = new Set();
         setStreamVariants(info.variants || []);
         setCaptions(info.captions || []);
         setAudioTracks(info.audioTracks || []);
 
-        const supportsVP9 = typeof MediaSource !== "undefined" && typeof MediaSource.isTypeSupported === "function" && MediaSource.isTypeSupported('video/webm; codecs="vp9"');
-        const hasDashUrl = !!(info.dashManifestUrl && supportsVP9);
-        setDashManifestUrl(hasDashUrl ? (info.dashManifestUrl || null) : null);
-        
         let initialQualityId = selectedQualityId || "auto";
         if (initialQualityId === "null" || !initialQualityId) {
           initialQualityId = "auto";
         }
         setSelectedQualityId(initialQualityId);
-        setResumeTime(readSavedWatchProgress(currentVideo.id, currentVideo.durationSeconds ?? 0));
+        const resume = readSavedWatchProgress(currentVideo.id, currentVideo.durationSeconds ?? 0);
+        setResumeTime(resume);
 
-        if (hasDashUrl) {
+        const availableModes = computeAvailableSourceModes(info);
+        const initialMode: SourceMode = availableModes[0] || "unavailable";
+        attemptedModesRef.current.add(initialMode);
+        setSourceMode(initialMode);
+
+        if (initialMode === "dash-native") {
+          setDashManifestUrl(info.dashManifestUrl || null);
           setStreamUrl(info.dashManifestUrl || null);
+        } else if (initialMode === "sabr-dash") {
+          setDashManifestUrl(info.sabr?.manifestUrl || null);
+          setStreamUrl(info.sabr?.manifestUrl || null);
         } else {
-          const canUseAdaptive = (info.audioTracks || []).some((track) => !!track.localUrl);
-          let chosenVariant: StreamVariant | null = null;
-          if (initialQualityId === "auto") {
-            chosenVariant = selectVariantByBandwidth(info.variants || [], canUseAdaptive);
-          } else {
-            chosenVariant = info.variants?.find(v => v.id === initialQualityId) || null;
-          }
-          if (!chosenVariant) {
-            chosenVariant = info.variants?.find((variant) => variant.isDefault && variant.isPlayable && (variant.hasAudio || canUseAdaptive))
-              || info.variants?.find((variant) => variant.isPlayable && (variant.hasAudio || canUseAdaptive))
-              || null;
-          }
-          setStreamUrl(chosenVariant?.localUrl || info.localUrl || null);
+          setDashManifestUrl(null);
+          setStreamUrl(pickDirectVariantUrl(info, initialQualityId));
         }
 
         console.log("[Watch] Stream info loaded", {
           videoId: currentVideo.id,
           variantCount: info.variants?.length || 0,
           audioTrackCount: info.audioTracks?.length || 0,
-          hasDashManifest: !!hasDashUrl,
+          hasNativeDash: availableModes.includes("dash-native"),
           hasHlsManifest: !!info.hlsManifestUrl,
+          sabrAvailable: !!info.sabr?.available,
+          availableModes,
+          sourceMode: initialMode,
           selectedQualityId: initialQualityId,
         });
         setIsPlaying(true);
@@ -629,6 +668,40 @@ export function Watch() {
     setIsPlaying(true);
   }, [audioTracks, dashManifestUrl, setIsPlaying, streamVariants]);
 
+  const handleRetrySource = useCallback((reason: string) => {
+    const info = streamInfoRef.current;
+    if (!info) return;
+    const available = computeAvailableSourceModes(info);
+    const resumeAt = usePlayerStore.getState().currentTime || 0;
+
+    attemptedModesRef.current.add(sourceMode);
+    const next = available.find((mode) => !attemptedModesRef.current.has(mode));
+    console.warn("[Watch] source-mode fallback", { reason, from: sourceMode, next, available });
+
+    if (!next) {
+      if (!reason.startsWith("buffering-stall")) {
+        setStreamError("Playback failed on all available sources for this video.");
+      } else {
+        console.warn("[Watch] stall on last available source; continuing to buffer", { reason });
+      }
+      return;
+    }
+
+    attemptedModesRef.current.add(next);
+    setResumeTime(resumeAt);
+    setSourceMode(next);
+    if (next === "dash-native") {
+      setDashManifestUrl(info.dashManifestUrl || null);
+      setStreamUrl(info.dashManifestUrl || null);
+    } else if (next === "sabr-dash") {
+      setDashManifestUrl(info.sabr?.manifestUrl || null);
+      setStreamUrl(info.sabr?.manifestUrl || null);
+    } else {
+      setDashManifestUrl(null);
+      setStreamUrl(pickDirectVariantUrl(info, selectedQualityId || "auto"));
+    }
+  }, [sourceMode, selectedQualityId]);
+
   const playerLayoutVariant = useMemo(() => {
     const variantWithDimensions = (variant: StreamVariant | null | undefined) => {
       if (!variant) return null;
@@ -854,6 +927,8 @@ export function Watch() {
                 dashManifestUrl={dashManifestUrl}
                 selectedQualityId={selectedQualityId}
                 resumeTime={resumeTime}
+                sourceMode={sourceMode}
+                onRetrySource={handleRetrySource}
                 onSelectQuality={handleQualitySelect}
                 onTimeUpdate={handleTimeUpdate}
                 onEnded={() => {

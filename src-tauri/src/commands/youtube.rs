@@ -67,27 +67,66 @@ fn format_duration_xml(duration_ms: u64) -> String {
 }
 
 fn build_synthetic_dash_manifest(stream_info: &StreamInfo) -> Option<String> {
-    let audio_track = stream_info.audio_tracks.iter().find(|track| {
-        !track.local_url.is_empty()
-            && track.init_range_start.is_some()
-            && track.init_range_end.is_some()
-            && track.index_range_start.is_some()
-            && track.index_range_end.is_some()
-    })?;
+    let has_segment_ranges = |init_s: Option<u64>,
+                              init_e: Option<u64>,
+                              idx_s: Option<u64>,
+                              idx_e: Option<u64>| {
+        init_s.is_some() && init_e.is_some() && idx_s.is_some() && idx_e.is_some()
+    };
+    let is_mp4 = |mime: Option<&str>| mime.map(|m| m.contains("mp4")).unwrap_or(false);
 
-    let video_variants: Vec<_> = stream_info
+    let audio_track = stream_info
+        .audio_tracks
+        .iter()
+        .find(|track| {
+            !track.local_url.is_empty()
+                && is_mp4(track.mime_type.as_deref())
+                && has_segment_ranges(
+                    track.init_range_start,
+                    track.init_range_end,
+                    track.index_range_start,
+                    track.index_range_end,
+                )
+        })
+        .or_else(|| {
+            stream_info.audio_tracks.iter().find(|track| {
+                !track.local_url.is_empty()
+                    && has_segment_ranges(
+                        track.init_range_start,
+                        track.init_range_end,
+                        track.index_range_start,
+                        track.index_range_end,
+                    )
+            })
+        })?;
+
+    let all_video_variants: Vec<_> = stream_info
         .variants
         .iter()
         .filter(|variant| {
             variant.is_video_only
                 && variant.is_playable
                 && !variant.local_url.is_empty()
-                && variant.init_range_start.is_some()
-                && variant.init_range_end.is_some()
-                && variant.index_range_start.is_some()
-                && variant.index_range_end.is_some()
+                && has_segment_ranges(
+                    variant.init_range_start,
+                    variant.init_range_end,
+                    variant.index_range_start,
+                    variant.index_range_end,
+                )
         })
         .collect();
+
+    let mp4_video_variants: Vec<_> = all_video_variants
+        .iter()
+        .copied()
+        .filter(|variant| is_mp4(variant.mime_type.as_deref()))
+        .collect();
+
+    let video_variants = if mp4_video_variants.is_empty() {
+        all_video_variants
+    } else {
+        mp4_video_variants
+    };
 
     if video_variants.is_empty() {
         return None;
@@ -390,6 +429,24 @@ pub async fn get_stream_info(
         }
     }
 
+    if let Some(descriptor) = stream_info.sabr_descriptor.take() {
+        let session_id = streaming_manager
+            .sabr()
+            .prepare(descriptor, crate::streaming::sabr::CodecSupport::default());
+        let manifest_url = format!(
+            "http://127.0.0.1:{}/sabr/{}/manifest.mpd",
+            proxy_port, session_id
+        );
+        if let Some(sabr) = stream_info.sabr.as_mut() {
+            sabr.manifest_url = Some(manifest_url);
+        }
+        info!(
+            video_id = %video_id,
+            session = %session_id,
+            "Prepared lazy SABR session"
+        );
+    }
+
     // Rewrite to clean expires_at for frontend consumption
     stream_info.expires_at = clean_expires_at;
 
@@ -397,6 +454,17 @@ pub async fn get_stream_info(
     stream_info.local_url = format!("http://127.0.0.1:{}/stream/{}", proxy_port, token);
 
     Ok(stream_info)
+}
+
+#[tauri::command]
+pub async fn get_sabr_debug_state(
+    session_id: String,
+    streaming_manager: State<'_, StreamingManager>,
+) -> Result<Option<crate::streaming::sabr::engine::SabrDebugState>, ErrorResponse> {
+    match streaming_manager.sabr().get(&session_id) {
+        Some(handle) => Ok(Some(handle.engine.debug_state().await)),
+        None => Ok(None),
+    }
 }
 
 #[tauri::command]

@@ -39,6 +39,9 @@ tracing-subscriber = "0.3"
 # HTTP Client
 reqwest = { version = "0.13.3", features = ["stream", "json", "http3", "brotli", "rustls"] }
 
+# SABR streaming protocol (self-contained protobuf/UMP codec, no external toolchain)
+base64 = "0.22"
+
 # NLP Pipeline
 rust-stemmers = "1.2"
 stop-words = "0.8"

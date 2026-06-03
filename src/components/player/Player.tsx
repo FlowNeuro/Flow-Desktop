@@ -24,6 +24,8 @@ type PlayerProps = {
   onEnded?: () => void;
   onTimeUpdate?: (currentTime: number, duration: number) => void;
   onRetry?: () => void;
+  onRetrySource?: (reason: string) => void;
+  sourceMode?: string;
   className?: string;
   chapters?: VideoChapter[];
 };
@@ -117,6 +119,8 @@ export const Player: React.FC<PlayerProps> = ({
   onEnded,
   onTimeUpdate,
   onRetry,
+  onRetrySource,
+  sourceMode,
   className,
   chapters = [],
 }) => {
@@ -139,6 +143,13 @@ export const Player: React.FC<PlayerProps> = ({
   const qualitySwitchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mediaBufferingRef = useRef(false);
   const seekFeedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Stall watchdog / source-fallback bookkeeping.
+  const waitingSinceRef = useRef<number | null>(null);
+  const stallCountRef = useRef(0);
+  const retrySourceFiredRef = useRef(false);
+  const playbackStartAtRef = useRef<number | null>(null);
+  const lastSeekAtRef = useRef<number | null>(null);
+  const onRetrySourceRef = useRef(onRetrySource);
 
   const {
     isPlaying,
@@ -353,6 +364,64 @@ export const Player: React.FC<PlayerProps> = ({
   useEffect(() => {
     logPlayerEventRef.current = logPlayerEvent;
   }, [logPlayerEvent]);
+
+  useEffect(() => {
+    onRetrySourceRef.current = onRetrySource;
+  }, [onRetrySource]);
+
+  const fireRetrySource = useCallback((reason: string) => {
+    if (retrySourceFiredRef.current) return;
+    retrySourceFiredRef.current = true;
+    logPlayerEventRef.current("source-mode-fallback", { reason, sourceMode });
+    onRetrySourceRef.current?.(reason);
+  }, [sourceMode]);
+  const fireRetrySourceRef = useRef(fireRetrySource);
+  useEffect(() => {
+    fireRetrySourceRef.current = fireRetrySource;
+  }, [fireRetrySource]);
+
+  useEffect(() => {
+    retrySourceFiredRef.current = false;
+    stallCountRef.current = 0;
+    waitingSinceRef.current = null;
+    playbackStartAtRef.current = null;
+    logPlayerEventRef.current("source-mode-selected", { sourceMode, hasDash: isDashPlayback });
+  }, [src, dashManifestUrl, isDashPlayback, sourceMode]);
+
+  useEffect(() => {
+    if (!isPlaying || !!error) return;
+    if (isDashPlayback) return;
+
+    const interval = window.setInterval(() => {
+      const video = videoRef.current;
+      if (!video || isScrubbing) return;
+
+      const sinceSeek = lastSeekAtRef.current ? Date.now() - lastSeekAtRef.current : Infinity;
+      if (sinceSeek < 12000) return;
+
+      let bufferedAhead = 0;
+      const t = video.currentTime;
+      for (let i = 0; i < video.buffered.length; i += 1) {
+        if (video.buffered.start(i) <= t && t <= video.buffered.end(i) + 0.25) {
+          bufferedAhead = Math.max(0, video.buffered.end(i) - t);
+          break;
+        }
+      }
+
+      const waitingSince = waitingSinceRef.current;
+      const stalledLongEnough = waitingSince !== null && Date.now() - waitingSince > 12000;
+
+      if (stalledLongEnough && bufferedAhead < 0.5 && video.readyState < 3) {
+        logPlayerEventRef.current("source-watchdog-trip", {
+          bufferedAhead,
+          waitedMs: waitingSince ? Date.now() - waitingSince : 0,
+          stallCount: stallCountRef.current,
+        });
+        fireRetrySourceRef.current("buffering-stall");
+      }
+    }, 1000);
+    return () => window.clearInterval(interval);
+  }, [isPlaying, error, isDashPlayback, isScrubbing]);
 
   const revealControls = useCallback(() => {
     setControlsVisible(true);
@@ -589,14 +658,42 @@ export const Player: React.FC<PlayerProps> = ({
       }
       qualitySwitchSnapshotRef.current = null;
     };
+    const classifyDashError = (event: unknown): { label: string; fatal: boolean } => {
+      const err = (event as { error?: unknown })?.error ?? event;
+      const code = (err as { code?: number })?.code;
+      const rawMessage =
+        typeof err === "string" ? err : (err as { message?: string })?.message || "";
+      const message = rawMessage.toLowerCase();
+      if (message.includes("segmentbase") || message.includes("webm")) {
+        return { label: "webm-segmentbase-loader", fatal: true };
+      }
+      if (message.includes("manifest")) {
+        return { label: "manifest-parse", fatal: true };
+      }
+      if (message.includes("timeout") || message.includes("non-computable")) {
+        return { label: "fragment-load-timeout", fatal: true };
+      }
+      if (message.includes("decode") || code === 3) {
+        return { label: "media-decode", fatal: true };
+      }
+      if (message.includes("buffer")) {
+        return { label: "buffer-stalled", fatal: false };
+      }
+      return { label: "dash-unknown", fatal: false };
+    };
     const onPlaybackError = (event: unknown) => {
-      logPlayerEventRef.current("dash-playback-error", { event });
+      const { label, fatal } = classifyDashError(event);
+      logPlayerEventRef.current("dash-playback-error", { event, errorClass: label, fatal });
+      if (fatal) fireRetrySourceRef.current(`dash:${label}`);
     };
     const onDashError = (event: unknown) => {
-      logPlayerEventRef.current("dash-error", { event });
+      const { label, fatal } = classifyDashError(event);
+      logPlayerEventRef.current("dash-error", { event, errorClass: label, fatal });
+      if (fatal) fireRetrySourceRef.current(`dash:${label}`);
     };
     const onCapabilitiesDrop = (event: unknown) => {
       logPlayerEventRef.current("dash-capabilities-dropped", { event });
+      fireRetrySourceRef.current("dash:capabilities-dropped");
     };
     const onStreamInitialized = () => {
       logPlayerEventRef.current("dash-stream-initialized", {
@@ -661,6 +758,8 @@ export const Player: React.FC<PlayerProps> = ({
     const onVideoWaiting = () => {
       mediaBufferingRef.current = true;
       setIsBuffering(true);
+      if (waitingSinceRef.current === null) waitingSinceRef.current = Date.now();
+      stallCountRef.current += 1;
       if (usesExternalAudio) {
         audioRef.current?.pause();
       }
@@ -673,6 +772,8 @@ export const Player: React.FC<PlayerProps> = ({
     const onVideoStalled = () => {
       mediaBufferingRef.current = true;
       setIsBuffering(true);
+      if (waitingSinceRef.current === null) waitingSinceRef.current = Date.now();
+      stallCountRef.current += 1;
       if (usesExternalAudio) {
         audioRef.current?.pause();
       }
@@ -685,6 +786,8 @@ export const Player: React.FC<PlayerProps> = ({
     const resumeExternalAudio = (eventName: string) => {
       mediaBufferingRef.current = false;
       setIsBuffering(false);
+      waitingSinceRef.current = null;
+      if (playbackStartAtRef.current === null) playbackStartAtRef.current = Date.now();
       const audio = audioRef.current;
       if (!usesExternalAudio || !audio) {
         logPlayerEvent(eventName, {
@@ -713,6 +816,9 @@ export const Player: React.FC<PlayerProps> = ({
     const onVideoCanPlay = () => resumeExternalAudio("html-video-canplay");
     const onVideoPlaying = () => resumeExternalAudio("html-video-playing");
     const onVideoSeeking = () => {
+      lastSeekAtRef.current = Date.now();
+      waitingSinceRef.current = null;
+      stallCountRef.current = 0;
       const snapshot = qualitySwitchSnapshotRef.current;
       logPlayerEvent("html-video-seeking", {
         snapshotFromTime: snapshot?.fromTime,
@@ -735,12 +841,16 @@ export const Player: React.FC<PlayerProps> = ({
     const onVideoError = () => {
       mediaBufferingRef.current = false;
       setIsBuffering(false);
+      const code = video.error?.code;
       logPlayerEvent("html-video-error", {
         mediaError: video.error ? {
-          code: video.error.code,
+          code,
           message: video.error.message,
         } : null,
       });
+      if (code && code !== 1) {
+        fireRetrySourceRef.current(`media-error:${code}`);
+      }
     };
 
     video.addEventListener("waiting", onVideoWaiting);

@@ -30,9 +30,10 @@ use commands::youtube::{
     fetch_subtitles, get_channel_details, get_channel_tab, get_comments, get_dearrow_override,
     get_music_album, get_music_artist, get_music_charts, get_music_explore, get_music_home,
     get_music_lyrics, get_music_related, get_personalized_music_recommendations,
-    get_playlist_details, get_related_videos, get_search_suggestions, get_sponsorblock_segments,
-    get_stream_info, get_subscription_rotation_feed, get_trending_videos, get_video_details,
-    parse_subscription_export, refresh_music_home, search_music, search_videos,
+    get_playlist_details, get_related_videos, get_sabr_debug_state, get_search_suggestions,
+    get_sponsorblock_segments, get_stream_info, get_subscription_rotation_feed,
+    get_trending_videos, get_video_details, parse_subscription_export, refresh_music_home,
+    search_music, search_videos,
 };
 use services::recommendation_service::RecommendationService;
 use services::youtube_service::YoutubeService;
@@ -136,7 +137,8 @@ pub fn run() {
             get_music_artist,
             get_music_explore,
             get_music_charts,
-            fetch_subtitles
+            fetch_subtitles,
+            get_sabr_debug_state
         ])
         .run(tauri::generate_context!())
         .expect("error while running Flow Desktop");

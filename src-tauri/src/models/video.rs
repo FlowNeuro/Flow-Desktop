@@ -65,6 +65,45 @@ pub struct StreamInfo {
     pub audio_tracks: Vec<AudioTrack>,
     pub hls_manifest_url: Option<String>,
     pub dash_manifest_url: Option<String>,
+    // SABR availability + (once a session is prepared) a local manifest URL.
+    // `None` when extraction found no SABR metadata at all.
+    #[serde(default)]
+    pub sabr: Option<SabrStreamInfo>,
+    // Internal: everything needed to spin up a SABR session. Never serialized;
+    // consumed by the command layer to register a session with the proxy.
+    #[serde(skip)]
+    pub sabr_descriptor: Option<crate::streaming::sabr::SabrSessionDescriptor>,
+}
+
+// Frontend-facing SABR metadata. Mirrors `src/types/video.ts`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SabrStreamInfo {
+    pub available: bool,
+    pub manifest_url: Option<String>,
+    pub audio_url: Option<String>,
+    pub video_url: Option<String>,
+    pub selected_audio_itag: Option<i32>,
+    pub selected_video_itag: Option<i32>,
+    pub expires_in_seconds: Option<u64>,
+    pub requires_po_token: bool,
+    pub reason_unavailable: Option<String>,
+}
+
+impl Default for SabrStreamInfo {
+    fn default() -> Self {
+        Self {
+            available: false,
+            manifest_url: None,
+            audio_url: None,
+            video_url: None,
+            selected_audio_itag: None,
+            selected_video_itag: None,
+            expires_in_seconds: None,
+            requires_po_token: false,
+            reason_unavailable: None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -167,6 +167,31 @@ export async function getStreamInfo(videoId: string): Promise<StreamInfo> {
   return invokeBackend<StreamInfo>("get_stream_info", { videoId });
 }
 
+export interface SabrDebugState {
+  sessionId: string;
+  videoId: string;
+  effectiveUrl: string;
+  requestCount: number;
+  redirectCount: number;
+  bytesUsed: number;
+  done: boolean;
+  lastError?: string | null;
+  audioInitialized: boolean;
+  videoInitialized: boolean;
+  audioSegments: number;
+  videoSegments: number;
+  audioMaxSeq: number;
+  videoMaxSeq: number;
+  lastProtectionStatus: number;
+}
+
+export async function getSabrDebugState(
+  sessionId: string,
+): Promise<SabrDebugState | null> {
+  if (!(await isTauriEnv())) return null;
+  return invokeBackend<SabrDebugState | null>("get_sabr_debug_state", { sessionId });
+}
+
 export async function getChannelDetails(channelId: string): Promise<ChannelDetails> {
   if (!(await isTauriEnv())) {
     console.warn("Tauri not detected. Returning mock channel details.");
