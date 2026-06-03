@@ -7,6 +7,7 @@ export interface VideoSummary {
   durationSeconds?: number | null;
   publishedText?: string | null;
   viewCountText?: string | null;
+  channelAvatarUrl?: string | null;
 }
 
 export interface RelatedContentItem {

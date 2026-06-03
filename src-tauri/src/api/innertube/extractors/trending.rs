@@ -1,6 +1,7 @@
 use crate::api::innertube::InnertubeClient;
 use crate::api::innertube::core::utils::{
-    extract_channel_id_from_video_renderer, parse_duration_seconds, unique_video_summaries,
+    extract_channel_id_from_video_renderer, normalize_youtube_image_url, parse_duration_seconds,
+    unique_video_summaries,
 };
 use crate::errors::AppResult;
 use crate::models::search::SearchVideosRequest;
@@ -55,6 +56,12 @@ fn parse_trending_json(val: &Value) -> Vec<VideoSummary> {
 
                     let channel_id = extract_channel_id_from_video_renderer(video);
 
+                    let channel_avatar_url = video["channelThumbnailSupportedRenderers"]["channelThumbnailWithLinkRenderer"]["thumbnail"]["thumbnails"]
+                        .as_array()
+                        .and_then(|arr| arr.first())
+                        .and_then(|t| t["url"].as_str())
+                        .map(normalize_youtube_image_url);
+
                     items.push(VideoSummary {
                         id: video_id.to_string(),
                         title,
@@ -64,6 +71,7 @@ fn parse_trending_json(val: &Value) -> Vec<VideoSummary> {
                         duration_seconds,
                         published_text,
                         view_count_text,
+                        channel_avatar_url,
                     });
                 }
             }

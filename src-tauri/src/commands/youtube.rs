@@ -125,6 +125,7 @@ fn parse_rss_feed(channel_id: &str, xml: &str) -> (Option<String>, Vec<(i64, Vid
                     duration_seconds,
                     published_text,
                     view_count_text: None,
+                    channel_avatar_url: None,
                 },
             ))
         })
@@ -923,6 +924,7 @@ async fn populate_video_durations(
                     duration_seconds: details.duration_seconds,
                     published_text: None,
                     view_count_text: None,
+                    channel_avatar_url: None,
                 };
                 // Cache it for 7 days
                 let _ = crate::db::cache::cache_video_summary(&pool, &summary, 604800).await;

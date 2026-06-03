@@ -36,8 +36,7 @@ export function VideoGrid({
   onMarkNotInterested,
   hideChannelAvatar,
 }: VideoGridProps) {
-  // Fully responsive MD3 Grid structure
-  const gridClass = "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-x-4 gap-y-8 pb-8";
+  const gridClass = "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-8 pb-8";
 
   if (loading) {
     return (

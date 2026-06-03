@@ -181,6 +181,7 @@ fn extract_videos_from_browse(
                         duration_seconds,
                         published_text,
                         view_count_text,
+                        channel_avatar_url: None,
                     }));
                 }
             } else if let Some(shorts_lockup) = target.get("shortsLockupViewModel") {
@@ -503,6 +504,7 @@ fn extract_videos_from_browse(
                             duration_seconds,
                             published_text,
                             view_count_text,
+                            channel_avatar_url: None,
                         }));
                     }
                 }

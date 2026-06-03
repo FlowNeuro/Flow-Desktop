@@ -1,11 +1,12 @@
 import { useNavigate } from 'react-router-dom';
 import { useSubscriptionStore } from '../../store/useSubscriptionStore';
-import { Play, Plus, Ban, Check, MoreVertical } from 'lucide-react';
+import { Plus, Ban, Check, MoreVertical } from 'lucide-react';
 import type { VideoSummary } from '../../types/video';
 import { Button } from '../ui/Button';
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { getDeArrowOverride } from '../../lib/api/foss';
 import { useSettingsStore } from '../../store/useSettingsStore';
+import { useChannelAvatar } from '../../lib/useChannelAvatar';
 
 export interface VideoCardProps {
   video: VideoSummary;
@@ -27,6 +28,52 @@ function formatDuration(seconds?: number | null) {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
+// ─── Thumbnail Color Extraction ────────────────────────────────
+
+function extractDominantColor(img: HTMLImageElement): string | null {
+  try {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    if (!ctx) return null;
+
+    const sampleSize = 16;
+    canvas.width = sampleSize;
+    canvas.height = sampleSize;
+    ctx.drawImage(img, 0, 0, sampleSize, sampleSize);
+
+    const imageData = ctx.getImageData(0, 0, sampleSize, sampleSize).data;
+
+    let totalR = 0, totalG = 0, totalB = 0, count = 0;
+    for (let i = 0; i < imageData.length; i += 4) {
+      const r = imageData[i] ?? 0;
+      const g = imageData[i + 1] ?? 0;
+      const b = imageData[i + 2] ?? 0;
+
+      const brightness = (r + g + b) / 3;
+      if (brightness < 30 || brightness > 230) continue;
+
+      const max = Math.max(r, g, b);
+      const min = Math.min(r, g, b);
+      if (max - min < 20) continue;
+
+      totalR += r;
+      totalG += g;
+      totalB += b;
+      count++;
+    }
+
+    if (count === 0) return null;
+
+    const avgR = Math.round(totalR / count);
+    const avgG = Math.round(totalG / count);
+    const avgB = Math.round(totalB / count);
+
+    return `${avgR}, ${avgG}, ${avgB}`;
+  } catch {
+    return null;
+  }
+}
+
 export function VideoCard({
   video,
   onPlay,
@@ -35,15 +82,25 @@ export function VideoCard({
   hideChannelAvatar,
 }: VideoCardProps) {
   const navigate = useNavigate();
-  const { isSubscribed, subscribe, unsubscribe, subscriptions } = useSubscriptionStore();
+  const { isSubscribed, subscribe, unsubscribe } = useSubscriptionStore();
   const [overriddenTitle, setOverriddenTitle] = useState<string | null>(null);
   const [overriddenThumbnail, setOverriddenThumbnail] = useState<string | null>(null);
+  const [showMenu, setShowMenu] = useState(false);
+  const [menuPosition, setMenuPosition] = useState<{ x: number; y: number } | null>(null);
+  const [dominantColor, setDominantColor] = useState<string | null>(null);
+  const [isHovered, setIsHovered] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
+  const thumbnailRef = useRef<HTMLImageElement>(null);
 
   const isChannel = video.id.startsWith("channel:");
   const cleanId = isChannel ? video.id.replace("channel:", "") : video.id;
   const channelId = video.channelId || "";
 
   const { dearrowEnabled } = useSettingsStore();
+
+  const hookAvatarUrl = useChannelAvatar(isChannel ? null : channelId || null);
+  const resolvedAvatarUrl = video.channelAvatarUrl || hookAvatarUrl;
 
   useEffect(() => {
     const isValidVideoId = video.id && video.id.length === 11 && /^[a-zA-Z0-9_-]{11}$/.test(video.id);
@@ -63,16 +120,8 @@ export function VideoCard({
     getDeArrowOverride(video.id).then((override) => {
       if (!active) return;
       if (override) {
-        if (override.title) {
-          setOverriddenTitle(override.title);
-        } else {
-          setOverriddenTitle(null);
-        }
-        if (override.thumbnailUrl) {
-          setOverriddenThumbnail(override.thumbnailUrl);
-        } else {
-          setOverriddenThumbnail(null);
-        }
+        setOverriddenTitle(override.title || null);
+        setOverriddenThumbnail(override.thumbnailUrl || null);
       } else {
         setOverriddenTitle(null);
         setOverriddenThumbnail(null);
@@ -81,10 +130,65 @@ export function VideoCard({
       console.error("Failed to load DeArrow override for", video.id, err);
     });
 
-    return () => {
-      active = false;
-    };
+    return () => { active = false; };
   }, [video.id, isChannel, dearrowEnabled]);
+
+  const handleMouseEnter = useCallback(() => {
+    setIsHovered(true);
+    if (!dominantColor && thumbnailRef.current) {
+      if (thumbnailRef.current.complete) {
+        const color = extractDominantColor(thumbnailRef.current);
+        if (color) {
+          setDominantColor(color);
+        }
+      }
+    }
+  }, [dominantColor]);
+
+  const handleMouseLeave = useCallback(() => {
+    setIsHovered(false);
+  }, []);
+
+  const handleThumbnailLoad = useCallback(() => {
+    if (isHovered && !dominantColor && thumbnailRef.current) {
+      const color = extractDominantColor(thumbnailRef.current);
+      if (color) {
+        setDominantColor(color);
+      }
+    }
+  }, [isHovered, dominantColor]);
+
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    if (isChannel) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (cardRef.current) {
+      const rect = cardRef.current.getBoundingClientRect();
+      setMenuPosition({
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top,
+      });
+    }
+    setShowMenu(true);
+  }, [isChannel]);
+
+  const openMenuFromDots = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    setMenuPosition(null);
+    setShowMenu((prev) => !prev);
+  }, []);
+
+  useEffect(() => {
+    if (!showMenu) return;
+    const handleClick = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setShowMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [showMenu]);
 
   const subStatus = isSubscribed(isChannel ? cleanId : channelId);
 
@@ -97,6 +201,50 @@ export function VideoCard({
     } else {
       subscribe(idToToggle, isChannel ? video.title : video.channelName, video.thumbnailUrl || undefined);
     }
+  };
+
+  // ── Menu dropdown ───
+  const renderMenu = () => {
+    if (!showMenu) return null;
+
+    const positionStyle: React.CSSProperties = menuPosition
+      ? { position: 'absolute', left: menuPosition.x, top: menuPosition.y, right: 'auto' }
+      : { position: 'absolute', right: 0, top: 28 };
+
+    return (
+      <div
+        ref={menuRef}
+        style={positionStyle}
+        className="z-50 w-52 rounded-xl bg-zinc-900/95 border border-zinc-700/60 shadow-2xl shadow-black/40 py-1.5 backdrop-blur-md"
+      >
+        {onAddToQueue && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onAddToQueue(video);
+              setShowMenu(false);
+            }}
+            className="w-full flex items-center gap-3 px-3.5 py-2.5 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 transition-colors"
+          >
+            <Plus size={16} />
+            Add to queue
+          </button>
+        )}
+        {onMarkNotInterested && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onMarkNotInterested(video.id);
+              setShowMenu(false);
+            }}
+            className="w-full flex items-center gap-3 px-3.5 py-2.5 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 transition-colors"
+          >
+            <Ban size={16} />
+            Not interested
+          </button>
+        )}
+      </div>
+    );
   };
 
   if (isChannel) {
@@ -140,128 +288,121 @@ export function VideoCard({
     );
   }
 
-  const channelInitials = video.channelName?.substring(0, 2).toUpperCase() || '?';
-  const subscribedChannel = subscriptions.find((subscription) => (
-    video.channelId ? subscription.id === video.channelId : false
-  ));
-  const channelAvatarUrl = subscribedChannel?.avatarUrl?.startsWith("http")
-    && !/ytimg\.com\/vi\//i.test(subscribedChannel.avatarUrl)
-    ? subscribedChannel.avatarUrl
-    : null;
+  // ── Video Card ─────────────
+  const channelInitials = video.channelName?.substring(0, 1).toUpperCase() || '?';
+
+  const cardStyle: React.CSSProperties = isHovered
+    ? (dominantColor
+      ? {
+          background: `rgba(${dominantColor}, 0.2)`,
+        }
+      : {
+          background: 'rgba(39, 39, 42, 0.5)',
+        })
+    : {
+        background: 'transparent',
+      };
 
   return (
-    <div className="flex flex-col gap-3 cursor-pointer group relative" onClick={() => onPlay(video)}>
-      {/* Thumbnail Wrapper */}
-      <div className="relative w-full aspect-video rounded-xl overflow-hidden bg-surface border border-zinc-800">
+    <div
+      ref={cardRef}
+      className="video-card flex flex-col gap-3 group relative rounded-xl p-1.5 -m-1.5 transition-all duration-300"
+      style={cardStyle}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+      onContextMenu={handleContextMenu}
+    >
+
+      <div
+        className="relative w-full aspect-video rounded-xl overflow-hidden bg-zinc-900 cursor-pointer"
+        onClick={() => onPlay(video)}
+      >
         {(overriddenThumbnail || video.thumbnailUrl) ? (
           <img 
+            ref={thumbnailRef}
             src={overriddenThumbnail || video.thumbnailUrl || ""} 
             alt={overriddenTitle || video.title} 
-            className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-300"
+            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+            crossOrigin="anonymous"
             loading="lazy"
+            onLoad={handleThumbnailLoad}
           />
         ) : (
-          <div className="w-full h-full bg-zinc-900" />
+          <div className="w-full h-full bg-zinc-800" />
         )}
-        
-        {/* Play Overlay Icon (flat, no gradient) */}
-        <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity duration-200">
-          <div className="p-3 bg-primary rounded-full text-white shadow-none">
-            <Play size={18} fill="white" />
-          </div>
-        </div>
 
         {video.durationSeconds ? (
-          <div className="absolute bottom-1.5 right-1.5 bg-black/85 px-1.5 py-0.5 rounded text-[11px] font-semibold text-white tracking-wide">
+          <div className="absolute bottom-1 right-1 bg-black/80 px-1 py-px rounded text-[12px] font-medium text-white leading-tight tracking-wide">
             {formatDuration(video.durationSeconds)}
           </div>
         ) : null}
+
+        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-200" />
       </div>
 
-      {/* Metadata */}
-      <div className="flex items-start gap-3 px-1 relative">
+      <div className="flex gap-3 pr-1 relative z-10">
         {!hideChannelAvatar && (
           <div 
             onClick={(e) => {
-              if (video.channelId) {
-                e.stopPropagation();
-                navigate(`/channel/${video.channelId}`);
-              }
+              e.stopPropagation();
+              if (channelId) navigate(`/channel/${channelId}`);
             }}
-            className="w-9 h-9 rounded-full bg-zinc-900 shrink-0 overflow-hidden border border-zinc-800 flex items-center justify-center cursor-pointer hover:border-primary transition-colors"
+            className="w-9 h-9 rounded-full bg-zinc-800 shrink-0 overflow-hidden flex items-center justify-center cursor-pointer mt-0.5 hover:opacity-80 transition-opacity"
           >
-            {channelAvatarUrl ? (
+            {resolvedAvatarUrl ? (
               <img
-                src={channelAvatarUrl}
+                src={resolvedAvatarUrl}
                 alt={video.channelName}
                 className="h-full w-full object-cover"
                 loading="lazy"
               />
             ) : (
-              <span className="text-xs font-bold text-zinc-400">{channelInitials}</span>
+              <span className="text-xs font-semibold text-zinc-400">{channelInitials}</span>
             )}
           </div>
         )}
 
-        <div className="flex flex-col flex-1 overflow-hidden pr-6">
-          <div className="flex items-start justify-between">
-            <h3 className="text-zinc-100 font-semibold text-sm line-clamp-2 leading-tight group-hover:text-primary transition-colors pr-2">
-              {overriddenTitle || video.title}
-            </h3>
-            {hideChannelAvatar && (
-              <button className="text-zinc-400 hover:text-zinc-200 p-1 shrink-0 -mt-1 -mr-2">
-                <MoreVertical size={16} />
-              </button>
-            )}
+        <div className="flex flex-col flex-1 min-w-0">
+          <h3
+            onClick={() => onPlay(video)}
+            className="text-zinc-100 text-sm font-medium line-clamp-2 leading-snug cursor-pointer hover:text-white transition-colors"
+          >
+            {overriddenTitle || video.title}
+          </h3>
+          <div
+            onClick={(e) => {
+              e.stopPropagation();
+              if (channelId) navigate(`/channel/${channelId}`);
+            }}
+            className="text-zinc-400 text-[13px] mt-0.5 truncate cursor-pointer hover:text-zinc-300 transition-colors"
+          >
+            {video.channelName}
           </div>
-          {!hideChannelAvatar && (
-            <div 
-              onClick={(e) => {
-                if (video.channelId) {
-                  e.stopPropagation();
-                  navigate(`/channel/${video.channelId}`);
-                }
-              }}
-              className="text-zinc-400 text-xs mt-1 font-medium hover:text-primary transition-colors truncate cursor-pointer"
-            >
-              {video.channelName}
-            </div>
-          )}
-          <div className={`text-zinc-400 text-xs flex items-center gap-1 font-normal ${hideChannelAvatar ? "mt-1" : "mt-0.5"}`}>
-            {video.viewCountText ? <span>{video.viewCountText}</span> : null}
-            {(video.viewCountText && video.publishedText) && <span className="mx-0.5">•</span>}
-            {video.publishedText ? <span>{video.publishedText}</span> : null}
+
+          {/* View Count + Published */}
+          <div className="text-zinc-500 text-[13px] flex items-center gap-0 mt-0">
+            {video.viewCountText && <span>{video.viewCountText}</span>}
+            {video.viewCountText && video.publishedText && <span className="mx-1">•</span>}
+            {video.publishedText && <span>{video.publishedText}</span>}
           </div>
         </div>
 
-        {/* Hover Action Buttons */}
-        <div className="absolute right-0 top-0 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-surface/90 p-1 rounded-md border border-zinc-800 shadow-sm backdrop-blur-sm">
-          {onAddToQueue && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onAddToQueue(video);
-              }}
-              title="Add to queue"
-              className="p-1 rounded hover:bg-zinc-800 text-zinc-400 hover:text-primary transition-colors"
-            >
-              <Plus size={14} />
-            </button>
-          )}
-          {onMarkNotInterested && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onMarkNotInterested(video.id);
-              }}
-              title="Not interested"
-              className="p-1 rounded hover:bg-zinc-800 text-zinc-400 hover:text-primary transition-colors"
-            >
-              <Ban size={14} />
-            </button>
-          )}
+        {/* Three-dot menu button */}
+        <div className="relative shrink-0">
+          <button
+            onClick={openMenuFromDots}
+            className="p-1 rounded-full text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 opacity-0 group-hover:opacity-100 transition-all duration-150 mt-0.5"
+          >
+            <MoreVertical size={18} />
+          </button>
+
+          {/* Dropdown from dots (positioned relative to button) */}
+          {showMenu && !menuPosition && renderMenu()}
         </div>
       </div>
+
+      {/* Context menu (positioned at mouse coords) */}
+      {showMenu && menuPosition && renderMenu()}
     </div>
   );
 }

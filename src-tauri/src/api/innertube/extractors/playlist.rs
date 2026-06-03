@@ -45,6 +45,7 @@ fn extract_videos_from_playlist_browse(val: &Value) -> (Vec<VideoSummary>, Optio
                         duration_seconds,
                         published_text: None,
                         view_count_text: None,
+                        channel_avatar_url: None,
                     });
                 }
             } else if let Some(cont) = item.get("continuationItemRenderer") {

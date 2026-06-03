@@ -9,9 +9,10 @@ import { SearchInput } from "../components/ui/SearchInput";
 import { CategoryChips } from "../components/layout/CategoryChips";
 import { ChannelSwiper } from "../components/subscriptions/ChannelSwiper";
 import { VideoGrid } from "../components/video/VideoGrid";
+import { ShortsShelf } from "../components/shelf/ShortsShelf";
 import { useSubscriptionChannelDetails, useSubscriptionFeed } from "../lib/useSubscriptionFeed";
 import type { SubscribedChannel, SubscriptionGroup } from "../store/useSubscriptionStore";
-import type { VideoSummary } from "../types/video";
+import type { ShortVideoSummary, VideoSummary } from "../types/video";
 
 interface SubscriptionsProps {
   onPlay: (video: VideoSummary) => void;
@@ -181,6 +182,29 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ onPlay, onAddToQue
     });
   }, [query, selectedChannelId, selectedGroup, videos]);
 
+  const isShortVideo = (video: VideoSummary) => {
+    return video.durationSeconds != null && video.durationSeconds > 0 && video.durationSeconds <= 60;
+  };
+
+  const { shortsForShelf, regularVideos } = useMemo(() => {
+    const shorts: ShortVideoSummary[] = [];
+    const regular: VideoSummary[] = [];
+    for (const video of filteredVideos) {
+      if (isShortVideo(video)) {
+        shorts.push({
+          type: "short",
+          id: video.id,
+          title: video.title,
+          thumbnailUrl: video.thumbnailUrl ?? null,
+          viewCountText: video.viewCountText ?? null,
+        });
+      } else {
+        regular.push(video);
+      }
+    }
+    return { shortsForShelf: shorts, regularVideos: regular };
+  }, [filteredVideos]);
+
   const handleSelectChannel = (channel: SubscribedChannel) => {
     setSelectedChannelId((current) => current === channel.id ? null : channel.id);
     setViewMode("feed");
@@ -280,11 +304,20 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ onPlay, onAddToQue
                   ) : feedLoading ? (
                     <VideoGrid loading={true} skeletonCount={10} onPlay={onPlay} />
                   ) : filteredVideos.length > 0 ? (
-                    <VideoGrid
-                      videos={filteredVideos}
-                      onPlay={onPlay}
-                      onAddToQueue={onAddToQueue}
-                    />
+                    <>
+                      {shortsForShelf.length > 0 && (
+                        <ShortsShelf
+                          title="Shorts"
+                          shorts={shortsForShelf}
+                          onPlay={onPlay}
+                        />
+                      )}
+                      <VideoGrid
+                        videos={regularVideos}
+                        onPlay={onPlay}
+                        onAddToQueue={onAddToQueue}
+                      />
+                    </>
                   ) : (
                     <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-neutral-800 bg-surface-container-low p-10 text-center">
                       <User className="mb-3 text-neutral-600" size={36} />

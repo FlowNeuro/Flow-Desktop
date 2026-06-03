@@ -119,6 +119,7 @@ pub fn parse_music_search_json(val: &Value) -> Vec<VideoSummary> {
                         duration_seconds,
                         published_text: None,
                         view_count_text: Some("Song".to_string()),
+                        channel_avatar_url: None,
                     });
                 }
             }
@@ -217,6 +218,7 @@ pub fn parse_music_album_json(val: &Value) -> Vec<VideoSummary> {
                         duration_seconds,
                         published_text: None,
                         view_count_text: Some("Album Track".to_string()),
+                        channel_avatar_url: None,
                     });
                 }
             }

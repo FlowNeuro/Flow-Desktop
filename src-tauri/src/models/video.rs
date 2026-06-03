@@ -11,6 +11,8 @@ pub struct VideoSummary {
     pub duration_seconds: Option<u64>,
     pub published_text: Option<String>,
     pub view_count_text: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub channel_avatar_url: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

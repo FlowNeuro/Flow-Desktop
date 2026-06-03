@@ -1,6 +1,7 @@
 use crate::api::innertube::InnertubeClient;
 use crate::api::innertube::core::utils::{
-    extract_channel_id_from_video_renderer, extract_continuation_token, parse_duration_seconds,
+    extract_channel_id_from_video_renderer, extract_continuation_token, normalize_youtube_image_url,
+    parse_duration_seconds,
 };
 use crate::api::innertube::parsers::parse_music_search_json;
 use crate::errors::{AppError, AppResult};
@@ -82,6 +83,12 @@ fn parse_innertube_search(val: Value) -> (Vec<VideoSummary>, Option<String>) {
 
                 let channel_id = extract_channel_id_from_video_renderer(video);
 
+                let channel_avatar_url = video["channelThumbnailSupportedRenderers"]["channelThumbnailWithLinkRenderer"]["thumbnail"]["thumbnails"]
+                    .as_array()
+                    .and_then(|arr| arr.first())
+                    .and_then(|t| t["url"].as_str())
+                    .map(normalize_youtube_image_url);
+
                 items.push(VideoSummary {
                     id: video_id,
                     title,
@@ -91,6 +98,7 @@ fn parse_innertube_search(val: Value) -> (Vec<VideoSummary>, Option<String>) {
                     duration_seconds,
                     published_text,
                     view_count_text,
+                    channel_avatar_url,
                 });
             } else if let Some(channel) = item.get("channelRenderer") {
                 let channel_id = channel["channelId"]
@@ -118,10 +126,11 @@ fn parse_innertube_search(val: Value) -> (Vec<VideoSummary>, Option<String>) {
                         title,
                         channel_name: "Channel".to_string(),
                         channel_id: Some(channel_id),
-                        thumbnail_url,
+                        thumbnail_url: thumbnail_url.clone(),
                         duration_seconds: None,
                         published_text: subscriber_count_text,
                         view_count_text: Some("Channel".to_string()),
+                        channel_avatar_url: thumbnail_url,
                     });
                 }
             } else if next_page_token.is_none() {

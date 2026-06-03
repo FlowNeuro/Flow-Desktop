@@ -157,6 +157,7 @@ pub fn build_video_summary_from_compact_video(video: &Value) -> Option<VideoSumm
         duration_seconds,
         published_text,
         view_count_text,
+        channel_avatar_url: None,
     })
 }
 
@@ -467,6 +468,7 @@ pub fn map_related_content_to_video_summary(item: RelatedContentItem) -> VideoSu
         duration_seconds: item.duration_seconds,
         published_text: item.published_text,
         view_count_text: item.view_count_text,
+        channel_avatar_url: None,
     }
 }
 
