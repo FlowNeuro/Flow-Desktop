@@ -1,6 +1,7 @@
 use crate::api::innertube::InnertubeClient;
 use crate::api::innertube::core::utils::{
-    extract_channel_id_from_video_renderer, parse_mixed_number_word_to_long,
+    best_video_thumbnail_url, extract_channel_id_from_video_renderer,
+    parse_mixed_number_word_to_long,
 };
 use crate::errors::{AppError, AppResult};
 use crate::models::playlist::PlaylistDetailsResponse;
@@ -27,9 +28,10 @@ fn extract_videos_from_playlist_browse(val: &Value) -> (Vec<VideoSummary>, Optio
                         .unwrap_or_default()
                         .to_string();
 
-                    let thumbnail_url = video["thumbnail"]["thumbnails"][0]["url"]
-                        .as_str()
-                        .map(|s| s.to_string());
+                    let thumbnail_url = best_video_thumbnail_url(
+                        video_id,
+                        video.get("thumbnail").and_then(|t| t.get("thumbnails")),
+                    );
 
                     let duration_seconds = video["lengthSeconds"]
                         .as_str()
@@ -96,6 +98,190 @@ fn extract_videos_from_playlist_browse(val: &Value) -> (Vec<VideoSummary>, Optio
     (items, next_page_token)
 }
 
+fn extract_text_from_runs_or_simple(value: &Value) -> Option<String> {
+    value["runs"]
+        .as_array()
+        .and_then(|runs| runs.first())
+        .and_then(|run| run["text"].as_str())
+        .or_else(|| value["simpleText"].as_str())
+        .or_else(|| value["content"].as_str())
+        .map(str::trim)
+        .filter(|text| !text.is_empty())
+        .map(ToOwned::to_owned)
+}
+
+fn extract_playlist_title(res: &Value) -> String {
+    let header = &res["header"];
+
+    let title_candidates = [
+        header.get("playlistHeaderRenderer").and_then(|h| h.get("title")),
+        header
+            .get("pageHeaderRenderer")
+            .and_then(|h| h.get("pageTitle")),
+        header
+            .get("pageHeaderViewModel")
+            .and_then(|h| h.get("title"))
+            .and_then(|title| title.get("dynamicTextViewModel"))
+            .and_then(|vm| vm.get("text")),
+        res["metadata"]
+            .get("playlistMetadataRenderer")
+            .and_then(|m| m.get("title")),
+    ];
+
+    for candidate in title_candidates {
+        if let Some(title) = candidate.and_then(extract_text_from_runs_or_simple) {
+            if !title.eq_ignore_ascii_case("unknown playlist") {
+                return title;
+            }
+        }
+    }
+
+    "Unknown Playlist".to_string()
+}
+
+fn extract_playlist_description(header: &Value) -> Option<String> {
+    extract_text_from_runs_or_simple(&header["descriptionText"])
+}
+
+fn is_unknown_owner(name: &str) -> bool {
+    name.eq_ignore_ascii_case("unknown owner") || name.is_empty()
+}
+
+fn extract_playlist_owner_name(header: &Value) -> Option<String> {
+    extract_text_from_runs_or_simple(&header["ownerText"]).filter(|name| !is_unknown_owner(name))
+}
+
+fn extract_owner_from_page_header(res: &Value) -> Option<String> {
+    let rows = res["header"]["pageHeaderRenderer"]["content"]["pageHeaderViewModel"]["metadata"]
+        ["contentMetadataViewModel"]["metadataRows"]
+        .as_array()?;
+
+    for row in rows {
+        let parts = row["metadataParts"].as_array()?;
+        for part in parts {
+            let text = part["text"]["content"]
+                .as_str()
+                .map(str::trim)
+                .filter(|value| !value.is_empty())?;
+            let lower = text.to_lowercase();
+            if lower.contains("view") || lower.contains("subscriber") {
+                continue;
+            }
+            if lower.contains("video") && !lower.contains("by ") {
+                continue;
+            }
+            if !is_unknown_owner(text) {
+                return Some(text.to_string());
+            }
+        }
+    }
+
+    None
+}
+
+fn extract_owner_from_sidebar(res: &Value) -> Option<String> {
+    let items = res["sidebar"]["playlistSidebarRenderer"]["items"].as_array()?;
+    for item in items {
+        if let Some(name) = item
+            .get("playlistSidebarSecondaryInfoRenderer")
+            .and_then(|info| info.get("videoOwner"))
+            .and_then(|owner| owner.get("videoOwnerRenderer"))
+            .and_then(|renderer| renderer.get("title"))
+            .and_then(extract_text_from_runs_or_simple)
+            .filter(|value| !is_unknown_owner(value))
+        {
+            return Some(name);
+        }
+    }
+    None
+}
+
+fn extract_playlist_owner(res: &Value, header: Option<&Value>) -> String {
+    let candidates = [
+        header.and_then(extract_playlist_owner_name),
+        extract_owner_from_page_header(res),
+        extract_owner_from_sidebar(res),
+        res["metadata"]["playlistMetadataRenderer"]["ownerChannelName"]
+            .as_str()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(ToOwned::to_owned),
+        header.and_then(|h| {
+            extract_text_from_runs_or_simple(&h["ownerBadge"]["badgeRenderer"]["title"])
+        }),
+    ];
+
+    for candidate in candidates.into_iter().flatten() {
+        if !is_unknown_owner(&candidate) {
+            return candidate;
+        }
+    }
+
+    "Unknown Owner".to_string()
+}
+
+fn metadata_row_mentions_views(text: &str) -> bool {
+    let lower = text.to_lowercase();
+    lower.contains("view") || lower == "no views"
+}
+
+fn extract_view_count_from_page_header(res: &Value) -> Option<String> {
+    let rows = res["header"]["pageHeaderRenderer"]["content"]["pageHeaderViewModel"]["metadata"]
+        ["contentMetadataViewModel"]["metadataRows"]
+        .as_array()?;
+
+    for row in rows {
+        let parts = row["metadataParts"].as_array()?;
+        for part in parts {
+            if let Some(text) = part["text"]["content"]
+                .as_str()
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+            {
+                if metadata_row_mentions_views(text) {
+                    return Some(text.to_string());
+                }
+            }
+        }
+    }
+
+    None
+}
+
+fn extract_view_count_from_sidebar(res: &Value) -> Option<String> {
+    let items = res["sidebar"]["playlistSidebarRenderer"]["items"].as_array()?;
+    for item in items {
+        let stats = item["playlistSidebarPrimaryInfoRenderer"]["stats"].as_array()?;
+        for stat in stats {
+            if let Some(text) = extract_text_from_runs_or_simple(stat) {
+                if metadata_row_mentions_views(&text) {
+                    return Some(text);
+                }
+            }
+        }
+    }
+    None
+}
+
+fn extract_playlist_view_count_text(res: &Value, header: Option<&Value>) -> Option<String> {
+    header
+        .and_then(|h| extract_text_from_runs_or_simple(&h["viewCountText"]))
+        .or_else(|| extract_view_count_from_page_header(res))
+        .or_else(|| extract_view_count_from_sidebar(res))
+        .filter(|text| !text.is_empty())
+}
+
+fn extract_playlist_video_count(header: &Value) -> Option<u64> {
+    header["numVideosText"]["runs"][0]["text"]
+        .as_str()
+        .and_then(|s| s.parse::<u64>().ok())
+        .or_else(|| {
+            header["numVideosText"]["simpleText"]
+                .as_str()
+                .map(|s| parse_mixed_number_word_to_long(s))
+        })
+}
+
 impl InnertubeClient {
     pub async fn get_playlist_details(
         &self,
@@ -121,32 +307,12 @@ impl InnertubeClient {
             .post_innertube("browse", "WEB", "2.20260120.01.00", &mut payload)
             .await?;
 
-        let header = &res["header"]["playlistHeaderRenderer"];
-        let title = header["title"]["runs"][0]["text"]
-            .as_str()
-            .or_else(|| header["title"]["simpleText"].as_str())
-            .unwrap_or("Unknown Playlist")
-            .to_string();
-
-        let description = header["descriptionText"]["runs"][0]["text"]
-            .as_str()
-            .or_else(|| header["descriptionText"]["simpleText"].as_str())
-            .map(|s| s.to_string());
-
-        let channel_name = header["ownerText"]["runs"][0]["text"]
-            .as_str()
-            .or_else(|| header["ownerText"]["simpleText"].as_str())
-            .unwrap_or("Unknown Owner")
-            .to_string();
-
-        let video_count = header["numVideosText"]["runs"][0]["text"]
-            .as_str()
-            .and_then(|s| s.parse::<u64>().ok())
-            .or_else(|| {
-                header["numVideosText"]["simpleText"]
-                    .as_str()
-                    .map(|s| parse_mixed_number_word_to_long(s))
-            });
+        let title = extract_playlist_title(&res);
+        let playlist_header = res["header"].get("playlistHeaderRenderer");
+        let description = playlist_header.and_then(extract_playlist_description);
+        let channel_name = extract_playlist_owner(&res, playlist_header);
+        let video_count = playlist_header.and_then(extract_playlist_video_count);
+        let view_count_text = extract_playlist_view_count_text(&res, playlist_header);
 
         let (videos, next_page_token) = extract_videos_from_playlist_browse(&res);
 
@@ -156,6 +322,7 @@ impl InnertubeClient {
             description,
             channel_name,
             video_count,
+            view_count_text,
             videos,
             next_page_token,
         })

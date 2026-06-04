@@ -2,9 +2,10 @@ import React, { useState, useEffect } from "react";
 import { Search as SearchIcon } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { searchVideos, searchMusic } from "../lib/api/youtube";
-import type { VideoSummary } from "../types/video";
+import type { PlaylistSummary, VideoSummary } from "../types/video";
 import { VideoGrid } from "../components/video/VideoGrid";
 import TrackCard from "../components/common/TrackCard";
+import { PlaylistCard } from "../components/video/PlaylistCard";
 
 interface SearchProps {
   onPlay: (video: VideoSummary) => void;
@@ -16,7 +17,7 @@ export const Search: React.FC<SearchProps> = ({ onPlay, onAddToQueue }) => {
   const queryParam = searchParams.get("q") || "";
   const [query, setQuery] = useState(queryParam);
   const [filter, setFilter] = useState<"all" | "songs" | "videos" | "albums" | "playlists" | "artists" | "all">("all");
-  const [results, setResults] = useState<VideoSummary[]>([]);
+  const [results, setResults] = useState<Array<VideoSummary | PlaylistSummary>>([]);
   const [loading, setLoading] = useState(false);
 
   const executeSearch = async (searchQuery: string) => {
@@ -84,9 +85,15 @@ export const Search: React.FC<SearchProps> = ({ onPlay, onAddToQueue }) => {
               Search in the header for videos, channels, songs or albums to stream natively in pristine high quality
             </p>
           </div>
+        ) : filter === "playlists" ? (
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
+            {(results as PlaylistSummary[]).map((playlist) => (
+              <PlaylistCard key={playlist.id} playlist={playlist} />
+            ))}
+          </div>
         ) : filter === "songs" || filter === "albums" || filter === "artists" ? (
           <div className="flex flex-col gap-3 max-w-4xl">
-            {results.map((item) => (
+            {(results as VideoSummary[]).map((item) => (
               <TrackCard
                 key={item.id}
                 track={item}
@@ -97,7 +104,7 @@ export const Search: React.FC<SearchProps> = ({ onPlay, onAddToQueue }) => {
           </div>
         ) : (
           <VideoGrid
-            videos={results}
+            videos={results as VideoSummary[]}
             onPlay={onPlay}
             onAddToQueue={onAddToQueue}
           />

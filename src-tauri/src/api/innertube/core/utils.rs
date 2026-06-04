@@ -104,6 +104,16 @@ pub fn thumbnail_url_from_array(value: &Value) -> Option<String> {
         .map(normalize_youtube_image_url)
 }
 
+pub fn youtube_video_thumbnail_url(video_id: &str, quality: &str) -> String {
+    format!("https://i.ytimg.com/vi/{video_id}/{quality}.jpg")
+}
+
+pub fn best_video_thumbnail_url(video_id: &str, thumbnails: Option<&Value>) -> Option<String> {
+    thumbnails
+        .and_then(thumbnail_url_from_array)
+        .or_else(|| Some(youtube_video_thumbnail_url(video_id, "hqdefault")))
+}
+
 pub fn normalize_youtube_image_url(url: &str) -> String {
     if url.starts_with("//") {
         format!("https:{url}")

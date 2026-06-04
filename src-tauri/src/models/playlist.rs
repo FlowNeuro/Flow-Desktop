@@ -9,6 +9,7 @@ pub struct PlaylistDetailsResponse {
     pub description: Option<String>,
     pub channel_name: String,
     pub video_count: Option<u64>,
+    pub view_count_text: Option<String>,
     pub videos: Vec<VideoSummary>,
     pub next_page_token: Option<String>,
 }

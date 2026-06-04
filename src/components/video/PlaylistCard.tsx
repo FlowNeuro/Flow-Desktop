@@ -1,50 +1,309 @@
 
-import { ListVideo, Play } from 'lucide-react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Download, ListVideo, MoreVertical, Plus, Trash2 } from 'lucide-react';
 import type { PlaylistSummary } from '../../types/video';
+import { isPlaylistInLibrary, removePlaylistFromLibrary, savePlaylistToLibrary } from '../../lib/playlistLibrary';
+import { useUiStore } from '../../store/useUiStore';
 
 interface PlaylistCardProps {
-  playlist: PlaylistSummary;
+  playlist: PlaylistSummary & {
+    description?: string | null;
+    videoCount?: number;
+  };
+  isInLibrary?: boolean;
   onClick?: (playlist: PlaylistSummary) => void;
+  onSaveToLibrary?: (playlist: PlaylistSummary) => void | boolean | Promise<void | boolean>;
+  onRemoveFromLibrary?: (playlist: PlaylistSummary) => void | boolean | Promise<void | boolean>;
+  onDownload?: (playlist: PlaylistSummary) => void;
 }
 
-export function PlaylistCard({ playlist, onClick }: PlaylistCardProps) {
-  return (
-    <div className="flex flex-col gap-3 group cursor-pointer" onClick={() => onClick?.(playlist)}>
-      <div className="relative w-full aspect-video rounded-xl mt-3 bg-zinc-900 border border-zinc-800">
-        {/* Stacked effect backgrounds */}
-        <div className="absolute -top-1.5 left-2 right-2 h-2 bg-zinc-800 rounded-t-xl opacity-70 transition-all group-hover:-top-2" />
-        <div className="absolute -top-3 left-4 right-4 h-2 bg-zinc-800 rounded-t-xl opacity-40 transition-all group-hover:-top-4" />
-        
-        <div className="relative w-full h-full rounded-xl overflow-hidden z-10">
-          {playlist.thumbnailUrl && (
-            <img 
-              src={playlist.thumbnailUrl} 
-              alt={playlist.title} 
-              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-            />
-          )}
-          <div className="absolute inset-0 bg-black/40 group-hover:bg-black/20 transition-colors" />
-          
-          <div className="absolute bottom-1.5 right-1.5 flex items-center gap-1.5 bg-black/85 px-1.5 py-0.5 rounded text-[11px] font-semibold text-white tracking-wide backdrop-blur-sm">
-            <ListVideo size={14} />
-            {playlist.videoCountText || "Playlist"}
-          </div>
-
-          <div className="absolute inset-0 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-            <div className="flex items-center gap-2 bg-primary px-4 py-2 rounded-full text-white font-bold text-sm shadow-md">
-              <Play size={16} fill="white" /> Play All
-            </div>
-          </div>
+function StackedPlaylistThumbnail({
+  thumbnailUrl,
+  title,
+  videoCountText,
+}: {
+  thumbnailUrl?: string | null;
+  title: string;
+  videoCountText: string;
+}) {
+  if (!thumbnailUrl) {
+    return (
+      <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-zinc-800">
+        <div className="flex h-full w-full items-center justify-center text-neutral-500">
+          <ListVideo size={32} />
+        </div>
+        <div className="absolute bottom-1.5 right-1.5 flex items-center gap-1.5 rounded bg-neutral-950/90 px-1.5 py-0.5 text-[11px] font-semibold tracking-wide text-white">
+          <ListVideo size={14} />
+          {videoCountText}
         </div>
       </div>
-      <div className="flex flex-col">
-        <h3 className="text-zinc-100 text-sm font-semibold line-clamp-2 leading-tight group-hover:text-primary transition-colors">
-          {playlist.title}
-        </h3>
-        <span className="text-zinc-400 text-xs mt-1 font-medium hover:text-primary transition-colors">
-          View full playlist
-        </span>
+    );
+  }
+
+  return (
+    <div className="relative w-full pt-2.5">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute left-4 right-4 top-0 z-0 aspect-video overflow-hidden rounded-xl"
+      >
+        <img
+          src={thumbnailUrl}
+          alt=""
+          className="h-full w-full scale-110 object-cover blur-md brightness-[0.45] saturate-75"
+          loading="lazy"
+        />
       </div>
+
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute left-2 right-2 top-1 z-[1] aspect-video overflow-hidden rounded-xl"
+      >
+        <img
+          src={thumbnailUrl}
+          alt=""
+          className="h-full w-full scale-105 object-cover blur-sm brightness-[0.65] saturate-90"
+          loading="lazy"
+        />
+      </div>
+
+      <div className="relative z-10 aspect-video w-full overflow-hidden rounded-xl bg-zinc-900">
+        <img
+          src={thumbnailUrl}
+          alt={title}
+          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+          loading="lazy"
+        />
+        <div className="absolute bottom-1.5 right-1.5 flex items-center gap-1.5 rounded bg-neutral-950/90 px-1.5 py-0.5 text-[11px] font-semibold tracking-wide text-white">
+          <ListVideo size={14} />
+          {videoCountText}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function PlaylistCard({
+  playlist,
+  isInLibrary,
+  onClick,
+  onSaveToLibrary,
+  onRemoveFromLibrary,
+  onDownload,
+}: PlaylistCardProps) {
+  const navigate = useNavigate();
+  const [showMenu, setShowMenu] = useState(false);
+  const [menuPosition, setMenuPosition] = useState<{ x: number; y: number } | null>(null);
+  const [isSaved, setIsSaved] = useState(Boolean(isInLibrary));
+  const cardRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const showToast = useUiStore((state) => state.showToast);
+
+  const resolvedVideoCount = typeof playlist.videoCount === 'number' && playlist.videoCount > 0
+    ? playlist.videoCount
+    : null;
+
+  const videoCountText = playlist.videoCountText
+    ?? (resolvedVideoCount != null
+      ? `${resolvedVideoCount} ${resolvedVideoCount === 1 ? 'video' : 'videos'}`
+      : 'Playlist');
+
+  const handleContextMenu = useCallback((event: React.MouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (cardRef.current) {
+      const rect = cardRef.current.getBoundingClientRect();
+      setMenuPosition({
+        x: event.clientX - rect.left,
+        y: event.clientY - rect.top,
+      });
+    }
+
+    setShowMenu(true);
+  }, []);
+
+  const openMenuFromDots = useCallback((event: React.MouseEvent) => {
+    event.stopPropagation();
+    setMenuPosition(null);
+    setShowMenu((current) => !current);
+  }, []);
+
+  useEffect(() => {
+    if (!showMenu) return;
+
+    const handleClick = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setShowMenu(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [showMenu]);
+
+  useEffect(() => {
+    if (typeof isInLibrary === 'boolean') {
+      setIsSaved(isInLibrary);
+      return;
+    }
+
+    let active = true;
+    isPlaylistInLibrary(playlist.id)
+      .then((saved) => {
+        if (active) setIsSaved(saved);
+      })
+      .catch((error) => {
+        console.warn('Failed to read playlist library state', error);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [isInLibrary, playlist.id]);
+
+  const handleSaveToLibrary = async () => {
+    try {
+      const result = onSaveToLibrary
+        ? await onSaveToLibrary(playlist)
+        : await savePlaylistToLibrary(playlist);
+
+      if (result === false) return;
+
+      setIsSaved(true);
+      showToast({
+        variant: 'success',
+        message: `Saved "${playlist.title}" to library`,
+      });
+    } catch (error) {
+      console.error('Failed to save playlist to library', error);
+      showToast({
+        variant: 'error',
+        message: `Could not save "${playlist.title}"`,
+      });
+    }
+  };
+
+  const handleRemoveFromLibrary = async () => {
+    try {
+      const result = onRemoveFromLibrary
+        ? await onRemoveFromLibrary(playlist)
+        : await removePlaylistFromLibrary(playlist.id);
+
+      if (result === false) return;
+
+      setIsSaved(false);
+      showToast({
+        variant: 'success',
+        message: `Removed "${playlist.title}" from library`,
+      });
+    } catch (error) {
+      console.error('Failed to remove playlist from library', error);
+      showToast({
+        variant: 'error',
+        message: `Could not remove "${playlist.title}"`,
+      });
+    }
+  };
+
+  const runMenuAction = async (
+    event: React.MouseEvent,
+    action: () => void | Promise<void>,
+  ) => {
+    event.stopPropagation();
+    await action();
+    setShowMenu(false);
+  };
+
+  const renderMenu = () => {
+    if (!showMenu) return null;
+
+    const positionStyle: React.CSSProperties = menuPosition
+      ? { position: 'absolute', left: menuPosition.x, top: menuPosition.y, right: 'auto' }
+      : { position: 'absolute', right: 0, top: 32 };
+
+    return (
+      <div
+        ref={menuRef}
+        style={positionStyle}
+        className="z-50 w-52 rounded-xl border border-neutral-800 bg-surface-container-high py-1.5"
+        onClick={(event) => event.stopPropagation()}
+      >
+        {isSaved ? (
+          <button
+            type="button"
+            onClick={(event) => void runMenuAction(event, handleRemoveFromLibrary)}
+            className="flex w-full items-center gap-3 px-3.5 py-2.5 text-sm text-neutral-300 transition-colors hover:bg-surface-container-highest hover:text-neutral-100"
+          >
+            <Trash2 size={16} />
+            Remove from library
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={(event) => void runMenuAction(event, handleSaveToLibrary)}
+            className="flex w-full items-center gap-3 px-3.5 py-2.5 text-sm text-neutral-300 transition-colors hover:bg-surface-container-highest hover:text-neutral-100"
+          >
+            <Plus size={16} />
+            Save to library
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={(event) => void runMenuAction(event, () => onDownload?.(playlist))}
+          className="flex w-full items-center gap-3 px-3.5 py-2.5 text-sm text-neutral-300 transition-colors hover:bg-surface-container-highest hover:text-neutral-100"
+        >
+          <Download size={16} />
+          Download
+        </button>
+      </div>
+    );
+  };
+
+  return (
+    <div
+      ref={cardRef}
+      className="group relative flex cursor-pointer flex-col gap-3"
+      onClick={() => {
+        if (onClick) {
+          onClick(playlist);
+          return;
+        }
+        navigate(`/playlist/${playlist.id}`);
+      }}
+      onContextMenu={handleContextMenu}
+    >
+      <StackedPlaylistThumbnail
+        thumbnailUrl={playlist.thumbnailUrl}
+        title={playlist.title}
+        videoCountText={videoCountText}
+      />
+
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h3 className="line-clamp-2 text-sm font-semibold leading-tight text-zinc-100 transition-colors group-hover:text-primary">
+            {playlist.title}
+          </h3>
+          <p className="mt-1 line-clamp-1 text-xs font-medium text-zinc-400 transition-colors">
+            {playlist.description || 'View full playlist'}
+          </p>
+        </div>
+
+        <div className="relative shrink-0">
+          <button
+            type="button"
+            onClick={openMenuFromDots}
+            aria-label="Open playlist actions"
+            className="mt-0.5 rounded-full p-1 text-zinc-500 opacity-0 transition-all duration-150 hover:bg-zinc-800 hover:text-zinc-200 group-hover:opacity-100"
+          >
+            <MoreVertical size={18} />
+          </button>
+
+          {showMenu && !menuPosition && renderMenu()}
+        </div>
+      </div>
+
+      {showMenu && menuPosition && renderMenu()}
     </div>
   );
 }

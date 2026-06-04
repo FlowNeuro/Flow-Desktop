@@ -10,6 +10,7 @@ import type {
   CommentsResponse,
   VideoSummary,
   RelatedContentItem,
+  PlaylistSummary,
 } from "../../types/video";
 import { isTauriEnv } from "./env";
 import {
@@ -292,6 +293,7 @@ export async function getPlaylistDetails(
       description: "Mock playlist description.",
       channelName: "Mock Owner",
       videoCount: 1,
+      viewCountText: "12K views",
       videos: [
         {
           id: "dQw4w9WgXcQ",
@@ -373,9 +375,21 @@ export async function getSearchSuggestions(query: string): Promise<string[]> {
 export async function searchMusic(
   query: string,
   filter: string,
-): Promise<VideoSummary[]> {
+): Promise<Array<VideoSummary | PlaylistSummary>> {
   if (!(await isTauriEnv())) {
     console.warn("Tauri not detected. Returning mock music search results.");
+    if (filter === "playlists") {
+      return [
+        {
+          type: "playlist",
+          id: "mock-search-playlist-1",
+          title: `${query} Playlist`,
+          thumbnailUrl: "https://images.unsplash.com/photo-1607799279861-4dd421887fb3?q=80&w=300",
+          videoCountText: "18 videos",
+        },
+      ];
+    }
+
     return [
       {
         id: "dQw4w9WgXcQ",

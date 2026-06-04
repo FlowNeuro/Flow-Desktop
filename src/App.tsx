@@ -11,6 +11,7 @@ import Search from "./pages/Search";
 import Subscriptions from "./pages/Subscriptions";
 import History from "./pages/History";
 import Playlists from "./pages/Playlists";
+import PlaylistDetailsPage from "./pages/PlaylistDetailsPage";
 import Settings from "./pages/Settings";
 import ImportData from "./pages/ImportData";
 import ExtensionsPage from "./pages/ExtensionsPage";
@@ -18,6 +19,7 @@ import Channel from "./pages/Channel";
 import { Watch } from "./pages/Watch";
 import Onboarding from "./pages/Onboarding";
 import FlowNeuroPersona from "./pages/FlowNeuroPersona";
+import { ToastHost } from "./components/ui/ToastHost";
 
 import "./App.css";
 
@@ -86,6 +88,12 @@ function App() {
           <Route path="playlists" element={
             <Playlists onPlay={handlePlayVideo} />
           } />
+          <Route path="playlist/:playlistId" element={
+            <PlaylistDetailsPage
+              onPlay={handlePlayVideo}
+              onAddToQueue={handleAddToQueue}
+            />
+          } />
           <Route path="history" element={
             <History onPlay={handlePlayVideo} />
           } />
@@ -104,6 +112,7 @@ function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>
+      <ToastHost />
     </div>
   );
 }

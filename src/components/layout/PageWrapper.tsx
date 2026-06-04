@@ -7,13 +7,20 @@ export function PageWrapper() {
   const location = useLocation();
   const { isWatchSidebarOpen, setWatchSidebarOpen } = useUiStore();
   const isWatchPage = location.pathname.startsWith('/watch/');
+  const isPlaylistDetailsPage = location.pathname.startsWith('/playlist/');
 
   return (
     <div className="flex h-screen flex-col bg-background text-zinc-100 overflow-hidden font-sans">
       <Topbar />
       <div className="flex flex-1 overflow-hidden">
         <Sidebar />
-        <main className="flex-1 overflow-y-auto">
+        <main
+          className={
+            isPlaylistDetailsPage
+              ? "flex min-h-0 flex-1 flex-col overflow-hidden"
+              : "flex-1 overflow-y-auto"
+          }
+        >
           <Outlet />
         </main>
       </div>

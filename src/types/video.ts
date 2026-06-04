@@ -188,6 +188,7 @@ export interface PlaylistDetailsResponse {
   description?: string | null;
   channelName: string;
   videoCount?: number | null;
+  viewCountText?: string | null;
   videos: VideoSummary[];
   nextPageToken?: string | null;
 }

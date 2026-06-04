@@ -1,12 +1,13 @@
 import { useNavigate } from 'react-router-dom';
 import { useSubscriptionStore } from '../../store/useSubscriptionStore';
-import { Plus, Ban, Check, MoreVertical, Trash2 } from 'lucide-react';
+import { Plus, Ban, Check, MoreVertical, Trash2, GripHorizontal } from 'lucide-react';
 import type { VideoSummary } from '../../types/video';
 import { Button } from '../ui/Button';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { getDeArrowOverride } from '../../lib/api/foss';
 import { useSettingsStore } from '../../store/useSettingsStore';
 import { useChannelAvatar } from '../../lib/useChannelAvatar';
+import { resolveVideoThumbnailUrl } from '../../lib/thumbnails';
 
 export interface VideoCardProps {
   video: VideoSummary;
@@ -14,8 +15,13 @@ export interface VideoCardProps {
   onAddToQueue?: (video: VideoSummary) => void;
   onMarkNotInterested?: (videoId: string) => void;
   onRemoveFromHistory?: (videoId: string) => void;
-  variant?: 'default' | 'history';
+  variant?: 'default' | 'grid' | 'history' | 'list';
   hideChannelAvatar?: boolean;
+  showDragHandle?: boolean;
+  dragHandleProps?: React.ButtonHTMLAttributes<HTMLButtonElement> & {
+    ref?: React.Ref<HTMLButtonElement>;
+  };
+  isDragActive?: boolean;
 }
 
 function formatDuration(seconds?: number | null) {
@@ -84,6 +90,9 @@ export function VideoCard({
   onRemoveFromHistory,
   variant = 'default',
   hideChannelAvatar,
+  showDragHandle = true,
+  dragHandleProps,
+  isDragActive = false,
 }: VideoCardProps) {
   const navigate = useNavigate();
   const { isSubscribed, subscribe, unsubscribe } = useSubscriptionStore();
@@ -196,7 +205,12 @@ export function VideoCard({
 
   const subStatus = isSubscribed(isChannel ? cleanId : channelId);
   const isHistoryCard = variant === 'history';
+  const isListVariant = variant === 'list';
   const progressPercent = Math.min(100, Math.max(0, video.watchProgressPercent ?? 0));
+  const displayTitle = overriddenTitle || video.title;
+  const displayThumbnail = overriddenThumbnail
+    || resolveVideoThumbnailUrl(video.id, video.thumbnailUrl)
+    || video.thumbnailUrl;
 
   const handleSubscribeToggle = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -299,7 +313,102 @@ export function VideoCard({
     );
   }
 
-  // ── Video Card ─────────────
+  if (isListVariant) {
+    const {
+      className: dragHandleClassName,
+      style: dragHandleStyle,
+      ...dragHandleRest
+    } = dragHandleProps ?? {};
+
+    return (
+      <div
+        ref={cardRef}
+        className="group relative flex w-full flex-row items-center gap-4 rounded-xl px-1 py-2 transition-colors duration-200 ease-out hover:bg-neutral-800/40"
+        onContextMenu={handleContextMenu}
+      >
+        {showDragHandle ? (
+          <button
+            type="button"
+            aria-label="Reorder video"
+            className={[
+              'shrink-0 rounded-md p-1 text-neutral-500 transition-colors duration-200 ease-out',
+              'hover:text-neutral-300',
+              isDragActive ? 'cursor-grabbing' : 'cursor-grab',
+              dragHandleClassName,
+            ].filter(Boolean).join(' ')}
+            style={dragHandleStyle}
+            onClick={(e) => e.stopPropagation()}
+            {...dragHandleRest}
+          >
+            <GripHorizontal size={20} strokeWidth={2.5} />
+          </button>
+        ) : (
+          <div className="w-7 shrink-0" aria-hidden="true" />
+        )}
+
+        <div
+          className="relative aspect-video w-40 shrink-0 cursor-pointer overflow-hidden rounded-xl bg-zinc-900 sm:w-48"
+          onClick={() => onPlay(video)}
+        >
+          {displayThumbnail ? (
+            <img
+              src={displayThumbnail}
+              alt={displayTitle}
+              className="h-full w-full object-cover"
+              loading="lazy"
+              decoding="async"
+            />
+          ) : (
+            <div className="h-full w-full bg-zinc-800" />
+          )}
+
+          {video.durationSeconds ? (
+            <div className="absolute bottom-1 right-1 z-10 rounded bg-neutral-950/90 px-1 py-px text-[12px] font-medium leading-tight tracking-wide text-white">
+              {formatDuration(video.durationSeconds)}
+            </div>
+          ) : null}
+        </div>
+
+        <div className="flex min-w-0 flex-1 flex-col">
+          <h3
+            onClick={() => onPlay(video)}
+            className="line-clamp-2 cursor-pointer text-sm font-medium leading-snug text-neutral-100 transition-colors hover:text-white"
+          >
+            {displayTitle}
+          </h3>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (channelId) navigate(`/channel/${channelId}`);
+            }}
+            className="mt-0.5 truncate text-left text-[13px] text-neutral-400 transition-colors hover:text-neutral-300"
+          >
+            {video.channelName}
+          </button>
+          <div className="mt-0.5 text-[13px] text-neutral-500">
+            {video.viewCountText && <span>{video.viewCountText}</span>}
+            {video.viewCountText && video.publishedText && <span className="mx-1">•</span>}
+            {video.publishedText && <span>{video.publishedText}</span>}
+          </div>
+        </div>
+
+        <div className="relative shrink-0">
+          <button
+            type="button"
+            onClick={openMenuFromDots}
+            className="mt-0.5 rounded-full p-1 text-neutral-500 opacity-0 transition-all duration-150 hover:bg-neutral-800 hover:text-neutral-200 group-hover:opacity-100"
+          >
+            <MoreVertical size={18} />
+          </button>
+          {showMenu && !menuPosition && renderMenu()}
+        </div>
+
+        {showMenu && menuPosition && renderMenu()}
+      </div>
+    );
+  }
+
   const channelInitials = video.channelName?.substring(0, 1).toUpperCase() || '?';
 
   const cardStyle: React.CSSProperties = isHovered
@@ -328,11 +437,11 @@ export function VideoCard({
         className="relative w-full aspect-video rounded-xl overflow-hidden bg-zinc-900 cursor-pointer"
         onClick={() => onPlay(video)}
       >
-        {(overriddenThumbnail || video.thumbnailUrl) ? (
+        {displayThumbnail ? (
           <img 
             ref={thumbnailRef}
-            src={overriddenThumbnail || video.thumbnailUrl || ""} 
-            alt={overriddenTitle || video.title} 
+            src={displayThumbnail} 
+            alt={displayTitle} 
             className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
             crossOrigin="anonymous"
             loading="lazy"
@@ -401,7 +510,7 @@ export function VideoCard({
             onClick={() => onPlay(video)}
             className="text-zinc-100 text-sm font-medium line-clamp-2 leading-snug cursor-pointer hover:text-white transition-colors"
           >
-            {overriddenTitle || video.title}
+            {displayTitle}
           </h3>
           <div
             onClick={(e) => {

@@ -1,6 +1,22 @@
 import { create } from "zustand";
 
 export type ActiveTab = "home" | "search" | "subscriptions" | "history" | "playlists" | "settings";
+export type ToastVariant = "success" | "error" | "info";
+
+export interface ToastState {
+  id: number;
+  title?: string;
+  message: string;
+  variant: ToastVariant;
+  durationMs: number;
+}
+
+export interface ShowToastOptions {
+  title?: string;
+  message: string;
+  variant?: ToastVariant;
+  durationMs?: number;
+}
 
 const getSavedSidebarExpanded = () => {
   try {
@@ -26,10 +42,13 @@ interface UiState {
   isSearching: boolean;
   isSidebarExpanded: boolean;
   isWatchSidebarOpen: boolean;
+  toast: ToastState | null;
   setActiveTab: (tab: ActiveTab) => void;
   setSearchQuery: (query: string) => void;
   setIsSearching: (isSearching: boolean) => void;
   setWatchSidebarOpen: (open: boolean) => void;
+  showToast: (toast: ShowToastOptions) => void;
+  dismissToast: () => void;
   toggleSidebar: () => void;
   toggleWatchSidebar: () => void;
 }
@@ -40,11 +59,22 @@ export const useUiStore = create<UiState>((set) => ({
   isSearching: false,
   isSidebarExpanded: getSavedSidebarExpanded(),
   isWatchSidebarOpen: false,
+  toast: null,
 
   setActiveTab: (activeTab) => set({ activeTab }),
   setSearchQuery: (searchQuery) => set({ searchQuery }),
   setIsSearching: (isSearching) => set({ isSearching }),
   setWatchSidebarOpen: (isWatchSidebarOpen) => set({ isWatchSidebarOpen }),
+  showToast: ({ title, message, variant = "info", durationMs = 2400 }) => set({
+    toast: {
+      id: Date.now(),
+      title,
+      message,
+      variant,
+      durationMs,
+    },
+  }),
+  dismissToast: () => set({ toast: null }),
   toggleSidebar: () => set((state) => {
     const isSidebarExpanded = !state.isSidebarExpanded;
     saveSidebarExpanded(isSidebarExpanded);

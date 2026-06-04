@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
-import { X, Repeat, Share2, Play, Check, ChevronDown, Loader2 } from "lucide-react";
+import { X, Repeat, Share2, Play, ChevronDown, Loader2 } from "lucide-react";
 import { usePlayerStore } from "../../store/usePlayerStore";
+import { useUiStore } from "../../store/useUiStore";
 import type { VideoChapter, CaptionTrack } from "../../types/video";
 import { invokeBackend } from "../../lib/api/errors";
 import { parseCaptionCues, type CaptionCue } from "./SubtitleOverlay";
@@ -38,8 +39,8 @@ export const Chapters: React.FC<ChaptersProps> = ({
   seekTo,
 }) => {
   const currentTime = usePlayerStore((state) => state.currentTime);
+  const showToast = useUiStore((state) => state.showToast);
   const containerRef = useRef<HTMLDivElement>(null);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // Tabs state
   const [activeTab, setActiveTab] = useState<"chapters" | "transcript">("chapters");
@@ -132,30 +133,30 @@ export const Chapters: React.FC<ChaptersProps> = ({
       const shareUrl = new URL(window.location.href);
       shareUrl.searchParams.set("t", Math.floor(chapter.startSeconds).toString());
       void navigator.clipboard.writeText(shareUrl.toString());
-      setToastMessage(`Copied link at ${formatTime(chapter.startSeconds)}!`);
-      setTimeout(() => setToastMessage(null), 2000);
+      showToast({
+        variant: "success",
+        message: `Copied link at ${formatTime(chapter.startSeconds)}.`,
+      });
     } catch (err) {
       console.error("Failed to copy link", err);
+      showToast({
+        variant: "error",
+        message: "Could not copy chapter link.",
+      });
     }
   };
 
   const handleLoop = (event: React.MouseEvent, chapter: VideoChapter) => {
     event.stopPropagation();
     seekTo(chapter.startSeconds);
-    setToastMessage(`Looping chapter: ${chapter.title}`);
-    setTimeout(() => setToastMessage(null), 1800);
+    showToast({
+      variant: "info",
+      message: `Looping chapter: ${chapter.title}`,
+    });
   };
 
   return (
     <div className="flex h-full w-full flex-col bg-surface border border-white/15 rounded-xl text-white shadow-2xl relative overflow-hidden">
-      {/* Toast Alert */}
-      {toastMessage && (
-        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-50 bg-primary/95 text-white text-xs font-bold px-4 py-2 rounded-full shadow-lg border border-white/10 animate-fade-in flex items-center gap-1.5 backdrop-blur-md">
-          <Check size={13} />
-          <span>{toastMessage}</span>
-        </div>
-      )}
-
       {/* Header */}
       <div className="flex items-center justify-between border-b border-white/5 px-4 py-3.5 shrink-0">
         <h2 className="text-base font-bold tracking-tight text-zinc-100 flex items-center gap-2">
