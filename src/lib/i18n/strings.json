@@ -364,5 +364,12 @@
   "import_format_takeout": "Google Takeout",
   "import_format_newpipe": "NewPipe / LibreTube",
   "import_format_freetube": "FreeTube",
-  "import_format_opml": "OPML Subscriptions"
+  "import_format_opml": "OPML Subscriptions",
+
+  "sidebar_flowneuron": "FlowNeuro",
+  "sidebar_subscriptions": "Subscriptions",
+  "sidebar_you": "You",
+  "sidebar_extensions": "Extensions",
+  "sidebar_show_more": "Show more",
+  "sidebar_show_less": "Show less"
 }

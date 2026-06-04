@@ -1,163 +1,198 @@
-import { cloneElement, ReactElement } from 'react';
+import { useState, cloneElement, ReactElement } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import {
   Blocks,
+  ChevronDown,
+  ChevronRight,
+  ChevronUp,
+  Clock,
   Compass,
-  FolderHeart,
+  Download,
   History,
   Home,
+  ListVideo,
   Settings,
-  UserCircle,
+  ThumbsUp,
   Users,
+  UserCircle,
 } from 'lucide-react';
 import { useUiStore } from '../../store/useUiStore';
+import { useSubscriptionStore } from '../../store/useSubscriptionStore';
+import { SidebarItem } from '../ui/SidebarItem';
+import { getString } from '../../lib/i18n/index';
+
+const SUBS_DEFAULT_LIMIT = 7;
 
 type SidebarProps = {
-  mode?: "normal" | "overlay";
+  mode?: 'normal' | 'overlay';
 };
 
-type NavItem = {
+function CompactRailItem({
+  path,
+  icon,
+  label,
+  end,
+}: {
   path: string;
-  label: string;
   icon: ReactElement;
+  label: string;
   end?: boolean;
-};
-
-const primaryItems: NavItem[] = [
-  { path: '/', label: 'Home', icon: <Home />, end: true },
-  { path: '/feed', label: 'FlowNeuro', icon: <Compass /> },
-  { path: '/subscriptions', label: 'Subscriptions', icon: <Users /> },
-  { path: '/history', label: 'You', icon: <UserCircle /> },
-];
-
-const libraryItems: NavItem[] = [
-  { path: '/history', label: 'History', icon: <History /> },
-  { path: '/playlists', label: 'Playlists', icon: <FolderHeart /> },
-];
-
-const systemItems: NavItem[] = [
-  { path: '/settings', label: 'Settings', icon: <Settings /> },
-  { path: '/sponsorblock', label: 'Extensions', icon: <Blocks /> },
-];
-
-function NavIcon({ icon, className }: { icon: ReactElement; className: string }) {
-  return cloneElement(icon as ReactElement<any>, { className });
-}
-
-function CompactRailItem({ item }: { item: NavItem }) {
+}) {
   return (
     <NavLink
-      to={item.path}
-      end={item.end}
+      to={path}
+      end={end}
       className={({ isActive }) =>
         `flex h-[74px] w-full flex-col items-center justify-center gap-1 rounded-xl text-[11px] font-medium transition-colors ${
           isActive
-            ? 'bg-zinc-800 text-white'
-            : 'text-zinc-300 hover:bg-zinc-900 hover:text-white'
+            ? 'bg-surface-container text-white'
+            : 'text-neutral-300 hover:bg-surface-container-low hover:text-white'
         }`
       }
     >
-      <NavIcon icon={item.icon} className="h-6 w-6" />
-      <span className="max-w-full truncate px-1">{item.label}</span>
+      {cloneElement(icon as ReactElement<any>, { className: 'h-6 w-6' })}
+      <span className="max-w-full truncate px-1">{label}</span>
     </NavLink>
   );
 }
 
-function DrawerItem({ item, onNavigate }: { item: NavItem; onNavigate?: () => void }) {
+function SectionHeader({
+  label,
+  to,
+  onClick,
+}: {
+  label: string;
+  to?: string;
+  onClick?: () => void;
+}) {
+  const inner = (
+    <>
+      <span>{label}</span>
+      <ChevronRight className="w-4 h-4 text-neutral-400 transition-transform group-hover:translate-x-0.5" />
+    </>
+  );
+
+  if (to) {
+    return (
+      <NavLink
+        to={to}
+        onClick={onClick}
+        className="group flex items-center gap-2 px-5 py-2 mt-2 text-base font-semibold text-neutral-100 cursor-pointer hover:bg-surface-container-low mx-2 rounded-lg"
+      >
+        {inner}
+      </NavLink>
+    );
+  }
+
   return (
-    <NavLink
-      to={item.path}
-      end={item.end}
-      onClick={onNavigate}
-      className={({ isActive }) =>
-        `flex h-12 items-center gap-6 rounded-xl px-4 text-[15px] font-medium transition-colors ${
-          isActive
-            ? 'bg-zinc-800 text-white'
-            : 'text-zinc-100 hover:bg-zinc-900'
-        }`
-      }
+    <button
+      type="button"
+      onClick={onClick}
+      className="group flex w-full items-center gap-2 px-5 py-2 mt-2 text-base font-semibold text-neutral-100 cursor-pointer hover:bg-surface-container-low mx-2 rounded-lg"
     >
-      <span className="grid h-6 w-6 shrink-0 place-items-center">
-        <NavIcon icon={item.icon} className="h-6 w-6" />
-      </span>
-      <span className="min-w-0 truncate">{item.label}</span>
-    </NavLink>
+      {inner}
+    </button>
   );
 }
 
-export function Sidebar({ mode = "normal" }: SidebarProps) {
+export function Sidebar({ mode = 'normal' }: SidebarProps) {
   const { isSidebarExpanded, setWatchSidebarOpen } = useUiStore();
+  const { subscriptions } = useSubscriptionStore();
   const location = useLocation();
-  const isOverlay = mode === "overlay";
+  const [subsExpanded, setSubsExpanded] = useState(false);
+
+  const isOverlay = mode === 'overlay';
   const isExpanded = isOverlay || isSidebarExpanded;
 
-  if (!isOverlay && (location.pathname.startsWith('/watch/') || location.pathname.startsWith('/settings'))) {
+  if (
+    !isOverlay &&
+    (location.pathname.startsWith('/watch/') ||
+      location.pathname.startsWith('/settings'))
+  ) {
     return null;
   }
 
   if (!isExpanded) {
     return (
-      <aside className="hidden w-20 shrink-0 overflow-y-auto border-r border-zinc-900 bg-background px-1.5 py-2 sm:flex">
+      <aside className="hidden w-20 shrink-0 overflow-y-auto bg-background px-1.5 py-2 sm:flex">
         <nav className="flex w-full flex-col items-center gap-1">
-          {primaryItems.map((item) => (
-            <CompactRailItem key={item.path} item={item} />
-          ))}
+          <CompactRailItem path="/" icon={<Home />} label={getString('home')} end />
+          <CompactRailItem path="/feed" icon={<Compass />} label={getString('sidebar_flowneuron')} />
+          <CompactRailItem path="/subscriptions" icon={<Users />} label={getString('sidebar_subscriptions')} />
+          <CompactRailItem path="/history" icon={<UserCircle />} label={getString('sidebar_you')} />
         </nav>
       </aside>
     );
   }
 
   const closeOverlay = isOverlay ? () => setWatchSidebarOpen(false) : undefined;
+  const visibleSubs = subsExpanded
+    ? subscriptions
+    : subscriptions.slice(0, SUBS_DEFAULT_LIMIT);
 
   return (
     <aside
-      className={`flex h-full w-60 shrink-0 flex-col overflow-y-auto border-r border-zinc-900 bg-background px-3 py-3 ${
+      className={`flex h-full w-64 shrink-0 flex-col overflow-y-auto hide-scrollbar bg-background py-3 ${
         isOverlay ? '' : 'hidden sm:flex'
       }`}
     >
-      <nav className="flex flex-col gap-1">
-        {primaryItems.slice(0, 2).map((item) => (
-          <DrawerItem key={item.path} item={item} onNavigate={closeOverlay} />
-        ))}
+      {/* Core */}
+      <nav className="flex flex-col">
+        <SidebarItem to="/" end icon={<Home />} label={getString('home')} onClick={closeOverlay} />
+        <SidebarItem to="/feed" icon={<Compass />} label={getString('sidebar_flowneuron')} onClick={closeOverlay} />
       </nav>
 
-      <div className="my-3 border-t border-zinc-900" />
+      <hr className="border-neutral-800/50 my-3 mx-4" />
 
+      {/* Subscriptions */}
       <section>
-        <NavLink
-          to="/subscriptions"
-          onClick={closeOverlay}
-          className={({ isActive }) =>
-            `mb-1 flex h-12 items-center justify-between rounded-xl px-4 text-[15px] font-semibold transition-colors ${
-              isActive ? 'bg-zinc-800 text-white' : 'text-zinc-100 hover:bg-zinc-900'
-            }`
-          }
-        >
-          <span>Subscriptions</span>
-          <span className="text-xl leading-none text-zinc-400">›</span>
-        </NavLink>
-      </section>
-
-      <div className="my-3 border-t border-zinc-900" />
-
-      <section>
-        <div className="mb-1 flex h-10 items-center gap-2 px-4 text-[16px] font-bold text-white">
-          <span>You</span>
-          <span className="text-xl leading-none text-zinc-400">›</span>
-        </div>
-        <nav className="flex flex-col gap-1">
-          {libraryItems.map((item) => (
-            <DrawerItem key={item.path} item={item} onNavigate={closeOverlay} />
+        <SectionHeader label={getString('sidebar_subscriptions')} to="/subscriptions" onClick={closeOverlay} />
+        <nav className="mt-1 flex flex-col">
+          {visibleSubs.map((channel) => (
+            <SidebarItem
+              key={channel.id}
+              to={`/channel/${channel.id}`}
+              icon={
+                channel.avatarUrl ? (
+                  <img src={channel.avatarUrl} alt="" className="w-6 h-6 rounded-full object-cover" />
+                ) : (
+                  <div className="w-6 h-6 rounded-full bg-surface-container-high" />
+                )
+              }
+              label={channel.name}
+              onClick={closeOverlay}
+            />
           ))}
+          {subscriptions.length > SUBS_DEFAULT_LIMIT && (
+            <SidebarItem
+              icon={subsExpanded ? <ChevronUp /> : <ChevronDown />}
+              label={subsExpanded ? getString('sidebar_show_less') : getString('sidebar_show_more')}
+              onClick={() => setSubsExpanded(!subsExpanded)}
+            />
+          )}
         </nav>
       </section>
 
-      <div className="my-3 border-t border-zinc-900" />
+      <hr className="border-neutral-800/50 my-3 mx-4" />
 
-      <nav className="flex flex-col gap-1">
-        {systemItems.map((item) => (
-          <DrawerItem key={item.path} item={item} onNavigate={closeOverlay} />
-        ))}
+      {/* You */}
+      <section>
+        <SectionHeader label={getString('sidebar_you')} to="/history" onClick={closeOverlay} />
+        <nav className="mt-1 flex flex-col">
+          <SidebarItem to="/history" icon={<History />} label={getString('library_history_label')} onClick={closeOverlay} />
+          <SidebarItem to="/playlists" icon={<ListVideo />} label={getString('library_playlists_label')} onClick={closeOverlay} />
+          <SidebarItem to="/watch-later" icon={<Clock />} label={getString('library_watch_later_label')} onClick={closeOverlay} />
+          <SidebarItem to="/liked" icon={<ThumbsUp />} label={getString('library_liked_videos_label')} onClick={closeOverlay} />
+          <SidebarItem to="/downloads" icon={<Download />} label={getString('library_downloads_label')} onClick={closeOverlay} />
+        </nav>
+      </section>
+
+      <hr className="border-neutral-800/50 my-3 mx-4" />
+
+      {/* System */}
+      <nav className="flex flex-col">
+        <SidebarItem to="/settings" icon={<Settings />} label={getString('settings_title')} onClick={closeOverlay} />
+        <SidebarItem to="/sponsorblock" icon={<Blocks />} label={getString('sidebar_extensions')} onClick={closeOverlay} />
       </nav>
     </aside>
   );
