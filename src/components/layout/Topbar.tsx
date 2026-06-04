@@ -71,7 +71,7 @@ export function Topbar() {
     <header className="sticky top-0 z-40 flex h-14 items-center justify-between border-b border-transparent bg-background px-3">
       {/* Left */}
       <div className="flex min-w-0 items-center gap-2">
-        <IconButton onClick={location.pathname.startsWith('/watch/') ? toggleWatchSidebar : toggleSidebar}>
+        <IconButton onClick={(location.pathname.startsWith('/watch/') || location.pathname.startsWith('/settings')) ? toggleWatchSidebar : toggleSidebar}>
           <Menu />
         </IconButton>
         <div className="hidden items-center sm:flex">

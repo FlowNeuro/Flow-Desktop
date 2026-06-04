@@ -7,6 +7,7 @@ export function PageWrapper() {
   const location = useLocation();
   const { isWatchSidebarOpen, setWatchSidebarOpen } = useUiStore();
   const isWatchPage = location.pathname.startsWith('/watch/');
+  const isSettingsPage = location.pathname.startsWith('/settings');
   const isPlaylistDetailsPage = location.pathname.startsWith('/playlist/');
 
   return (
@@ -24,7 +25,7 @@ export function PageWrapper() {
           <Outlet />
         </main>
       </div>
-      {isWatchPage && isWatchSidebarOpen && (
+      {(isWatchPage || isSettingsPage) && isWatchSidebarOpen && (
         <div className="fixed inset-x-0 bottom-0 top-14 z-50 flex">
           <button
             type="button"

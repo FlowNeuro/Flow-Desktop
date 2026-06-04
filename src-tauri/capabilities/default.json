@@ -4,6 +4,10 @@
   "description": "Main window permissions for Flow Desktop",
   "windows": ["main"],
   "permissions": [
-    "core:default"
+    "core:default",
+    "dialog:default",
+    "dialog:allow-open",
+    "dialog:allow-save",
+    "opener:default"
   ]
 }

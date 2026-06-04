@@ -91,7 +91,7 @@ export function Sidebar({ mode = "normal" }: SidebarProps) {
   const isOverlay = mode === "overlay";
   const isExpanded = isOverlay || isSidebarExpanded;
 
-  if (!isOverlay && location.pathname.startsWith('/watch/')) {
+  if (!isOverlay && (location.pathname.startsWith('/watch/') || location.pathname.startsWith('/settings'))) {
     return null;
   }
 

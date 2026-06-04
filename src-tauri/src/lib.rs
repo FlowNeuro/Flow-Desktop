@@ -43,6 +43,8 @@ pub fn run() {
     tracing_subscriber::fmt::init();
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             // Resolve app data directory
             let app_data_dir = app.path().app_data_dir().map_err(|error| {
