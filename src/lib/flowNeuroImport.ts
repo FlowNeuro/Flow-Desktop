@@ -79,6 +79,7 @@ const mapTopicEvidence = (value: unknown): UserBrain["topic_evidence"] => {
     const evidence = asObject(input[key]);
     output[key] = {
       positive_signals: toNumber(evidence.positiveSignals ?? evidence.positive_signals, 0),
+      negative_signals: toNumber(evidence.negativeSignals ?? evidence.negative_signals, 0),
       watch_signals: toNumber(evidence.watchSignals ?? evidence.watch_signals, 0),
       explicit_signals: toNumber(evidence.explicitSignals ?? evidence.explicit_signals, 0),
       positive_score: toNumber(evidence.positiveScore ?? evidence.positive_score, 0.0),

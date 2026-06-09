@@ -49,6 +49,23 @@ export async function getFeedQuotas(): Promise<FeedQuotas> {
   return invokeBackend<FeedQuotas>("get_feed_quotas");
 }
 
+export interface RecommendationEvent {
+  id: number | null;
+  eventType: string;
+  videoId: string | null;
+  channelName: string | null;
+  query: string | null;
+  value: number | null;
+  createdAt: string;
+}
+
+export async function getRecommendationEvents(limit = 50): Promise<RecommendationEvent[]> {
+  if (!(await isTauriEnv())) {
+    return [];
+  }
+  return invokeBackend<RecommendationEvent[]>("get_recommendation_events", { limit });
+}
+
 export async function logInteraction(
   videoId: string,
   title: string,
@@ -190,6 +207,7 @@ export interface FeedEntry {
 
 export interface TopicEvidence {
   positive_signals: number;
+  negative_signals: number;
   watch_signals: number;
   explicit_signals: number;
   positive_score: number;
@@ -310,6 +328,7 @@ const MOCK_BRAIN: UserBrain = {
   topic_evidence: {
     "Coding": {
       positive_signals: 45,
+      negative_signals: 1,
       watch_signals: 38,
       explicit_signals: 4,
       positive_score: 18.5,
@@ -320,6 +339,7 @@ const MOCK_BRAIN: UserBrain = {
     },
     "Rust Language": {
       positive_signals: 28,
+      negative_signals: 0,
       watch_signals: 24,
       explicit_signals: 2,
       positive_score: 12.2,
@@ -330,6 +350,7 @@ const MOCK_BRAIN: UserBrain = {
     },
     "Astrophysics": {
       positive_signals: 15,
+      negative_signals: 3,
       watch_signals: 12,
       explicit_signals: 1,
       positive_score: 6.4,

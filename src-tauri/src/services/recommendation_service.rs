@@ -9,25 +9,15 @@ use tracing::info;
 use crate::db::recommendations;
 use crate::errors::AppResult;
 use crate::flow_neuro::brain_store::BrainStore;
+use crate::flow_neuro::ranker;
 use crate::flow_neuro::scoring::{
-    AFFINITY_BOOST_PER_PAIR, AFFINITY_MAX_BOOST_PER_VIDEO, BINGE_NOVELTY_FACTOR, BINGE_THRESHOLD,
-    CHANNEL_PROFILE_BLEND_WEIGHT, CHANNEL_PROFILE_MAX_TOPICS, CHANNEL_SUPPRESSION_DAYS,
-    CLASSIC_VIEW_THRESHOLD, COLD_START_THRESHOLD, CURIOSITY_GAP_BONUS, FEED_HISTORY_EXPIRY_DAYS,
-    FEED_HISTORY_MAX, FeedEntry, FlowPersona, IMPRESSION_CACHE_MAX, IMPRESSION_DECAY_RATE,
-    IMPRESSION_PENALTY_HEAVY, IMPRESSION_PENALTY_LIGHT, IMPRESSION_PENALTY_MEDIUM,
-    IMPRESSION_THRESHOLD_DROP, IMPRESSION_THRESHOLD_HEAVY, IMPRESSION_THRESHOLD_LIGHT, IdfSnapshot,
-    JITTER_COLD_START, JITTER_NORMAL, MUSIC_REWATCH_MAX_DURATION, NOT_INTERESTED_CHANNEL_FLOOR,
-    ONBOARDING_MAX_BOOST, ONBOARDING_WARMUP_INTERACTIONS, QUERY_OVERLAP_THRESHOLD,
-    RECENT_QUERY_TOKENS_MAX, SERENDIPITY_BONUS, SESSION_AFFINITY_MILD_BOOST,
-    SESSION_AFFINITY_MILD_THRESHOLD, SESSION_AFFINITY_STRONG_BOOST,
-    SESSION_AFFINITY_STRONG_THRESHOLD, SESSION_TOPIC_HISTORY_MAX, SUBSCRIPTION_BOOST, ScoredVideo,
-    TimeBucket, TimeDecay, TopicEvidence, UserBrain, VIDEO_SUPPRESSION_DAYS, WATCHED_PENALTY_FULL,
-    WATCHED_PENALTY_HALF, WATCHED_PENALTY_SAMPLED, WATCHED_THRESHOLD_FULL, WATCHED_THRESHOLD_HALF,
-    WATCHED_THRESHOLD_SAMPLED, apply_smart_diversity, calculate_anti_recommendation_penalty,
-    calculate_cosine_similarity, calculate_feed_history_penalty,
-    calculate_implicit_disinterest_penalty, calculate_rejection_pattern_penalty,
-    calculate_relevance_floor, channel_inferred_blocked, classify_persona, extract_features,
-    get_topic_categories, is_generic_word, normalize_lemma, strip_domain_tag, tokenize,
+    CHANNEL_SUPPRESSION_DAYS, FEED_HISTORY_EXPIRY_DAYS, FEED_HISTORY_MAX, FeedEntry, FlowPersona,
+    IMPRESSION_CACHE_MAX, IdfSnapshot, JITTER_COLD_START, JITTER_NORMAL,
+    ONBOARDING_WARMUP_INTERACTIONS, QUERY_OVERLAP_THRESHOLD, RECENT_QUERY_TOKENS_MAX,
+    SESSION_TOPIC_HISTORY_MAX, ScoredVideo, TimeBucket, TopicEvidence, UserBrain,
+    VIDEO_SUPPRESSION_DAYS, apply_smart_diversity, channel_inferred_blocked, classify_persona,
+    extract_features, get_topic_categories, is_generic_word, is_music_track, normalize_lemma,
+    strip_domain_tag, tokenize,
 };
 use crate::flow_neuro::signals::{InteractionType, apply_interaction};
 use crate::models::video::{MusicHomeChip, MusicHomeSection, VideoSummary};
@@ -99,7 +89,9 @@ impl RecommendationService {
             } else if total_interactions <= 100 {
                 ("maturing", 0.40, 0.50, 0.10)
             } else {
-                ("mature", 10.0 / 35.0, 15.0 / 35.0, 10.0 / 35.0)
+                // Viral stays a small serendipity floor; personalization (subs + discovery) leads
+                // for mature profiles instead of trending growing to ~29% of the feed.
+                ("mature", 0.45, 0.45, 0.10)
             };
 
         let subscription_limit = ((target_size as f64) * subscription_percent).round() as usize;
@@ -345,28 +337,6 @@ impl RecommendationService {
         } else {
             num as u64
         }
-    }
-
-    fn is_music_track(title: &str, channel: &str, duration_sec: Option<u64>) -> bool {
-        let dur = duration_sec.unwrap_or(0);
-        if dur > MUSIC_REWATCH_MAX_DURATION {
-            return false;
-        }
-        let title_lower = title.to_lowercase();
-        let channel_lower = channel.to_lowercase();
-        let music_keywords = [
-            "music",
-            "song",
-            "lyrics",
-            "remix",
-            "lofi",
-            "playlist",
-            "official video",
-            "official audio",
-        ];
-        music_keywords
-            .iter()
-            .any(|&kw| title_lower.contains(kw) || channel_lower.contains(kw))
     }
 
     fn has_confirmed_topic_evidence(brain: &UserBrain, topic: &str) -> bool {
@@ -950,52 +920,6 @@ impl RecommendationService {
         balanced.into_iter().map(|query| query.query).collect()
     }
 
-    fn calculate_channel_profile_boost(
-        brain: &UserBrain,
-        channel_id: &str,
-        video_vector: &crate::flow_neuro::scoring::ContentVector,
-    ) -> f64 {
-        let Some(profile) = brain.channel_topic_profiles.get(channel_id) else {
-            return 0.0;
-        };
-        if profile.len() < 3 {
-            return 0.0;
-        }
-
-        let profile_vector = crate::flow_neuro::scoring::ContentVector {
-            topics: {
-                let mut entries: Vec<(String, f64)> = profile
-                    .iter()
-                    .map(|(topic, weight)| (topic.clone(), *weight))
-                    .collect();
-                entries.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
-                entries
-                    .into_iter()
-                    .take(CHANNEL_PROFILE_MAX_TOPICS)
-                    .collect()
-            },
-            topic_confidence: HashMap::new(),
-            anchor_topics: HashSet::new(),
-            duration: 0.5,
-            pacing: 0.5,
-            complexity: 0.5,
-            is_live: 0.0,
-        };
-
-        calculate_cosine_similarity(&profile_vector, video_vector) * CHANNEL_PROFILE_BLEND_WEIGHT
-    }
-
-    fn calculate_channel_score_multiplier(brain: &UserBrain, channel_id: &str) -> f64 {
-        let Some(score) = brain.channel_scores.get(channel_id) else {
-            return 1.0;
-        };
-        if *score >= NOT_INTERESTED_CHANNEL_FLOOR {
-            return 1.0;
-        }
-        let normalized = 1.0 / (1.0 + (-8.0 * (score - 0.35)).exp());
-        0.05 + 0.95 * normalized
-    }
-
     fn calculate_adaptive_jitter(total_interactions: i32, feed_overlap_ratio: f64) -> f64 {
         if total_interactions < ONBOARDING_WARMUP_INTERACTIONS {
             JITTER_COLD_START
@@ -1273,13 +1197,8 @@ impl RecommendationService {
             });
         }
 
-        let exploration_budget = if brain.total_interactions > 200 {
-            0
-        } else if brain.total_interactions > 80 {
-            1
-        } else {
-            2
-        };
+        // Always reserve at least one exploration slot — never freeze discovery into a bubble.
+        let exploration_budget = if brain.total_interactions > 80 { 1 } else { 2 };
         if exploration_budget > 0 {
             let mut underexplored: Vec<String> = get_topic_categories()
                 .iter()
@@ -1553,273 +1472,86 @@ impl RecommendationService {
             (seed as f64) / (u64::MAX as f64)
         };
 
-        // Score all candidate videos
-        let mut scored_candidates = Vec::new();
+        // Score every candidate through the normalized ranking pipeline (ranker module).
         let mut rng = next_random();
         let jitter_amount =
             Self::calculate_adaptive_jitter(brain.total_interactions, feed_overlap_ratio);
 
+        let exploration_scale = match classify_persona(&brain) {
+            FlowPersona::Specialist => 0.3,
+            FlowPersona::Explorer => 1.0,
+            _ => 0.6,
+        };
+
+        let rank_inputs = ranker::RankInputs {
+            brain: &brain,
+            time_context: &time_context_vec,
+            weights: ranker::ScoringWeights {
+                personality: w_personality,
+                context: w_context,
+                novelty: w_novelty,
+            },
+            now_ms,
+            is_onboarding,
+            onboarding_warmup,
+            session_topics: &session_topics,
+            session_video_count: session_vid_count,
+            candidate_pool_size: candidate_count,
+            exploration_scale,
+        };
+
+        let mut candidates_map: HashMap<String, VideoSummary> =
+            HashMap::with_capacity(filtered.len());
+        let mut scored: Vec<ScoredVideo> = Vec::with_capacity(filtered.len());
+
         for video in filtered {
             let channel_id = video.channel_id.clone().unwrap_or_else(|| video.id.clone());
-            let view_count = Self::parse_view_count(video.view_count_text.as_deref());
             let is_short = video.duration_seconds.unwrap_or(0) <= 60;
-            let is_subscription = user_subs.contains(&channel_id);
-
-            // Extract feature content vector for the candidate
             let video_vector = extract_features(
                 &video.title,
                 &video.channel_name,
-                None, // Feeds don't have descriptions
+                None, // Feeds don't carry descriptions
                 video.duration_seconds,
-                false, // Feeds don't specify livestream status directly
+                false,
                 is_short,
                 &idf_snapshot,
             );
 
-            let personality_score =
-                calculate_cosine_similarity(&brain.global_vector, &video_vector);
-            let context_score = calculate_cosine_similarity(&time_context_vec, &video_vector);
-            let novelty_score = 1.0 - personality_score;
-
-            let mut total_score = (personality_score * w_personality)
-                + (context_score * w_context)
-                + (novelty_score * w_novelty);
-
-            total_score +=
-                Self::calculate_channel_profile_boost(&brain, &channel_id, &video_vector);
-
-            // Topic affinity boost
-            let video_topics: Vec<String> = video_vector.topics.keys().cloned().collect();
-            let mut affinity_boost = 0.0;
-            for i in 0..video_topics.len() {
-                for j in i + 1..video_topics.len() {
-                    let key = if video_topics[i] < video_topics[j] {
-                        format!("{}:{}", video_topics[i], video_topics[j])
-                    } else {
-                        format!("{}:{}", video_topics[j], video_topics[i])
-                    };
-                    if let Some(&affinity) = brain.topic_affinities.get(&key) {
-                        affinity_boost += affinity * AFFINITY_BOOST_PER_PAIR;
-                    }
-                }
-            }
-            total_score += affinity_boost.min(AFFINITY_MAX_BOOST_PER_VIDEO);
-
-            // Subscription boost
-            if is_subscription {
-                total_score += SUBSCRIPTION_BOOST;
-            }
-
-            // Serendipity bonus (graduated sigmoid-like ramp)
-            let novelty_ramp = ((novelty_score - 0.4) / 0.4).clamp(0.0, 1.0);
-            let context_ramp = ((context_score - 0.3) / 0.4).clamp(0.0, 1.0);
-            total_score += SERENDIPITY_BONUS * novelty_ramp * context_ramp;
-
-            // Cold start popularity
-            if brain.total_interactions < COLD_START_THRESHOLD && view_count > 0 {
-                let popularity_boost = (1.0 + view_count as f64).log10() / 10.0 * 0.05;
-                total_score += popularity_boost;
-            }
-
-            // Clickbait filter & engagement rate floor
-            // (Feeds usually don't have like counts directly, so we assume normal clickbait filtering is skipped if count is absent)
-
-            // Time decay
-            let age_multiplier = TimeDecay::calculate_multiplier(
-                video.published_text.as_deref().unwrap_or(""),
-                false,
-            );
-            let is_classic = view_count > CLASSIC_VIEW_THRESHOLD;
-            let final_age_factor = if is_classic || is_subscription {
-                (age_multiplier + 1.0) / 2.0
-            } else {
-                age_multiplier
+            let candidate = ranker::Candidate {
+                video_vector: &video_vector,
+                video_id: &video.id,
+                title: &video.title,
+                channel_name: &video.channel_name,
+                channel_id: &channel_id,
+                duration_seconds: video.duration_seconds,
+                published_text: video.published_text.as_deref().unwrap_or(""),
+                view_count: Self::parse_view_count(video.view_count_text.as_deref()),
+                is_subscription: user_subs.contains(&channel_id),
+                impression: impression_snap.get(&video.id).copied(),
             };
-            total_score *= final_age_factor;
 
-            total_score *= Self::calculate_channel_score_multiplier(&brain, &channel_id);
-            total_score *= calculate_rejection_pattern_penalty(
-                &video_vector,
-                &brain.rejection_patterns,
-                now_ms,
-            );
-            total_score *= calculate_feed_history_penalty(
-                &video.id,
-                &brain.feed_history,
-                now_ms,
-                candidate_count,
-            );
-            total_score *= calculate_implicit_disinterest_penalty(
-                &video.id,
-                &brain.feed_history,
-                &brain.watch_history_map,
-                now_ms,
-            );
-            total_score *= calculate_relevance_floor(
-                personality_score,
-                brain.total_interactions,
-                is_subscription,
-            );
-            total_score *= calculate_anti_recommendation_penalty(&video_vector, &brain);
-
-            // Curiosity gap (graduated ramp)
-            if personality_score > 0.5 {
-                let complexity_diff =
-                    (brain.global_vector.complexity - video_vector.complexity).abs();
-                let curiosity_ramp = ((complexity_diff - 0.2) / 0.3).clamp(0.0, 1.0);
-                let topic_safety = ((personality_score - 0.5) / 0.3).clamp(0.0, 1.0);
-                total_score += CURIOSITY_GAP_BONUS * curiosity_ramp * topic_safety;
-            }
-
-            // Channel boredom penalty
-            // (We skip if no channel score recorded)
-
-            // Session fatigue
-            let video_primary_topic = video_vector
-                .topics
-                .iter()
-                .max_by(|a, b| a.1.partial_cmp(b.1).unwrap())
-                .map(|(k, _)| k.clone())
-                .unwrap_or_default();
-
-            let topic_session_count = session_topics
-                .iter()
-                .filter(|&t| t == &video_primary_topic)
-                .count();
-            let fatigue_multiplier = if video_primary_topic.is_empty() {
-                1.0
-            } else if topic_session_count >= 5 {
-                0.3
-            } else if topic_session_count >= 3 {
-                0.5
-            } else if topic_session_count >= 1 {
-                0.8
-            } else {
-                1.0
-            };
-            total_score *= fatigue_multiplier;
-
-            // Onboarding warm-up boost
-            if is_onboarding {
-                let has_preferred = brain
-                    .preferred_topics
-                    .iter()
-                    .any(|pref| video_vector.topics.contains_key(&normalize_lemma(pref)));
-                if has_preferred {
-                    total_score += onboarding_warmup * ONBOARDING_MAX_BOOST;
-                }
-            }
-
-            // Session affinity
-            if !session_topics.is_empty() && !video_primary_topic.is_empty() {
-                let recent_topics: Vec<String> =
-                    session_topics.iter().rev().take(5).cloned().collect();
-                let recent_count = recent_topics
-                    .iter()
-                    .filter(|&t| t == &video_primary_topic)
-                    .count();
-                let session_affinity_boost = if recent_count >= SESSION_AFFINITY_STRONG_THRESHOLD {
-                    SESSION_AFFINITY_STRONG_BOOST
-                } else if recent_count >= SESSION_AFFINITY_MILD_THRESHOLD {
-                    SESSION_AFFINITY_MILD_BOOST
-                } else {
-                    0.0
-                };
-                total_score += session_affinity_boost;
-            }
-
-            // Binge detection
-            if session_vid_count > BINGE_THRESHOLD {
-                let binge_novelty_boost = novelty_score * BINGE_NOVELTY_FACTOR;
-                total_score += binge_novelty_boost;
-            }
-
-            // Impression fatigue
-            if let Some(&(seen_count, last_seen)) = impression_snap.get(&video.id) {
-                let hours_since_seen = (now_ms - last_seen) as f64 / 3_600_000.0;
-                let decayed_count =
-                    (seen_count as f64 * (-IMPRESSION_DECAY_RATE * hours_since_seen).exp()) as i32;
-
-                let impression_penalty = if decayed_count >= IMPRESSION_THRESHOLD_DROP {
-                    IMPRESSION_PENALTY_HEAVY
-                } else if decayed_count >= IMPRESSION_THRESHOLD_HEAVY {
-                    IMPRESSION_PENALTY_MEDIUM
-                } else if decayed_count >= IMPRESSION_THRESHOLD_LIGHT {
-                    IMPRESSION_PENALTY_LIGHT
-                } else {
-                    1.0
-                };
-                total_score *= impression_penalty;
-            }
-
-            // Already-watched penalty
-            if let Some(&percent) = brain.watch_history_map.get(&video.id) {
-                let is_music =
-                    Self::is_music_track(&video.title, &video.channel_name, video.duration_seconds);
-                let watched_penalty = if is_music && percent > WATCHED_THRESHOLD_HALF {
-                    1.0
-                } else if percent > WATCHED_THRESHOLD_FULL {
-                    WATCHED_PENALTY_FULL
-                } else if percent > WATCHED_THRESHOLD_HALF {
-                    WATCHED_PENALTY_HALF
-                } else if percent > WATCHED_THRESHOLD_SAMPLED {
-                    WATCHED_PENALTY_SAMPLED
-                } else {
-                    1.0
-                };
-                total_score *= watched_penalty;
-            }
-
-            // Jitter
-            let jitter = rng * jitter_amount;
-            // Shift rng for next video
+            let score = ranker::score_candidate(&rank_inputs, &candidate) + rng * jitter_amount;
             rng = next_random();
 
-            scored_candidates.push((
-                video,
-                ScoredVideo {
-                    id: video_vector
-                        .topics
-                        .keys()
-                        .next()
-                        .cloned()
-                        .unwrap_or_default(), // Dummy ID to satisfy signature
-                    title: "".to_string(),
-                    channel_id: "".to_string(),
-                    score: total_score + jitter,
-                    vector: video_vector,
-                },
-            ));
+            scored.push(ScoredVideo {
+                id: video.id.clone(),
+                title: video.title.clone(),
+                channel_id,
+                score,
+                vector: video_vector,
+            });
+            candidates_map.insert(video.id.clone(), video);
         }
 
-        // Apply diversity re-ranking
-        let scored_wrapper: Vec<ScoredVideo> = scored_candidates
-            .iter()
-            .map(|(v, sv)| ScoredVideo {
-                id: v.id.clone(),
-                title: v.title.clone(),
-                channel_id: v.channel_id.clone().unwrap_or_else(|| v.id.clone()),
-                score: sv.score,
-                vector: sv.vector.clone(),
-            })
-            .collect();
+        let reranked_ids = apply_smart_diversity(scored);
 
-        let reranked_ids = apply_smart_diversity(scored_wrapper);
-
-        // Map reranked IDs back to their corresponding VideoSummary records
-        let mut final_results = Vec::new();
-        let mut candidates_map: HashMap<String, VideoSummary> = scored_candidates
-            .into_iter()
-            .map(|(v, _)| (v.id.clone(), v))
-            .collect();
-
+        // Reassemble VideoSummary records in reranked order, then append any diversity drop-outs.
+        let mut final_results = Vec::with_capacity(candidates_map.len());
         for id in reranked_ids {
             if let Some(video) = candidates_map.remove(&id) {
                 final_results.push(video);
             }
         }
-
-        // Append any leftovers that smart diversity dropped to maintain full list
         for (_, video) in candidates_map {
             final_results.push(video);
         }
@@ -2134,7 +1866,7 @@ impl RecommendationService {
 
             let ch_name = channel_name.as_deref().unwrap_or("");
             let duration = total_duration_seconds.map(|d| d as u64);
-            if Self::is_music_track(&title, ch_name, duration) {
+            if is_music_track(&title, ch_name, duration) {
                 if !music_seeds.contains(&video_id) {
                     music_seeds.push(video_id);
                     if music_seeds.len() >= 10 {
@@ -2194,7 +1926,7 @@ impl RecommendationService {
             } else if let Ok(trending_fallback) = youtube_service.get_trending_videos().await {
                 candidates = trending_fallback
                     .into_iter()
-                    .filter(|v| Self::is_music_track(&v.title, &v.channel_name, v.duration_seconds))
+                    .filter(|v| is_music_track(&v.title, &v.channel_name, v.duration_seconds))
                     .collect();
             }
         }
@@ -2331,6 +2063,13 @@ impl RecommendationService {
         Ok(self.brain_store.read().await.clone())
     }
 
+    pub async fn get_recommendation_log(
+        &self,
+        limit: i64,
+    ) -> AppResult<Vec<recommendations::RecommendationEvent>> {
+        recommendations::get_recommendation_events(&self.pool, limit).await
+    }
+
     pub async fn get_feed_quotas(&self) -> AppResult<FeedQuotas> {
         let brain = self.brain_store.read().await;
         Ok(Self::calculate_feed_quotas(
@@ -2357,9 +2096,11 @@ impl RecommendationService {
     }
 
     pub async fn reset_brain(&self) -> AppResult<()> {
-        let mut brain = self.brain_store.write().await;
-        *brain = UserBrain::default();
-        Ok(())
+        {
+            let mut brain = self.brain_store.write().await;
+            *brain = UserBrain::default();
+        }
+        recommendations::clear_recommendation_events(&self.pool).await
     }
 }
 
@@ -2500,8 +2241,9 @@ mod tests {
         let quotas = RecommendationService::calculate_feed_quotas(150, 35);
 
         assert_eq!(quotas.maturity, "mature");
-        assert_eq!(quotas.subscription_limit, 10);
-        assert_eq!(quotas.discovery_limit, 15);
-        assert_eq!(quotas.viral_limit, 10);
+        assert_eq!(quotas.subscription_limit, 16);
+        assert_eq!(quotas.discovery_limit, 16);
+        assert_eq!(quotas.viral_limit, 3);
+        assert!(quotas.viral_limit < quotas.discovery_limit);
     }
 }

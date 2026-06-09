@@ -18,6 +18,7 @@ import { InterestWeights } from "../components/persona/InterestWeights";
 import { TimePatterns } from "../components/persona/TimePatterns";
 import { ChannelMemory } from "../components/persona/ChannelMemory";
 import { BlockedContent } from "../components/persona/BlockedContent";
+import { LearningActivity } from "../components/persona/LearningActivity";
 import { ProfileData } from "../components/persona/ProfileData";
 
 import { RefreshCw, Compass } from "lucide-react";
@@ -168,6 +169,10 @@ export function FlowNeuroPersona() {
             />
           </div>
         )}
+
+        <div className="col-span-12">
+          <LearningActivity />
+        </div>
 
         <div className="col-span-12">
           <ProfileData

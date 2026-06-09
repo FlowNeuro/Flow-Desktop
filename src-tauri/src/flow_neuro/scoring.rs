@@ -94,6 +94,9 @@ pub const TOPIC_SIMILARITY_WEIGHT: f64 = 0.70;
 pub const DURATION_SIMILARITY_WEIGHT: f64 = 0.10;
 pub const PACING_SIMILARITY_WEIGHT: f64 = 0.10;
 pub const COMPLEXITY_SIMILARITY_WEIGHT: f64 = 0.10;
+// When two vectors share no topic, similarity comes only from duration/pacing/complexity. Damp it
+// hard so off-topic content cannot float above the relevance floor on scalar coincidence alone.
+pub const SCALAR_ONLY_DAMP: f64 = 0.3;
 
 pub const NEGATIVE_PROPORTIONAL_EXPONENT: f64 = 1.5;
 pub const NEGATIVE_FLOOR_FACTOR: f64 = 0.3;
@@ -349,8 +352,10 @@ pub fn channel_inferred_blocked(strike: &ChannelStrike, now_ms: u64) -> bool {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(default)] // tolerate brains written before `negative_signals` existed
 pub struct TopicEvidence {
     pub positive_signals: i32,
+    pub negative_signals: i32,
     pub watch_signals: i32,
     pub explicit_signals: i32,
     pub positive_score: f64,
@@ -1272,7 +1277,7 @@ pub fn calculate_cosine_similarity(user: &ContentVector, content: &ContentVector
         + (complexity_sim * COMPLEXITY_SIMILARITY_WEIGHT);
 
     if small_map.is_empty() {
-        return scalar_score;
+        return scalar_score * SCALAR_ONLY_DAMP;
     }
 
     // Build O(1) reverse-lookup maps for migration-compatibility matches
@@ -1317,7 +1322,7 @@ pub fn calculate_cosine_similarity(user: &ContentVector, content: &ContentVector
     }
 
     if !has_intersection {
-        return scalar_score;
+        return scalar_score * SCALAR_ONLY_DAMP;
     }
 
     let mut mag_a = 0.0;
@@ -1490,6 +1495,61 @@ pub fn calculate_anti_recommendation_penalty(
     } else {
         1.0
     }
+}
+
+/// Additive boost when a candidate matches the learned topic profile of its channel.
+pub fn calculate_channel_profile_boost(
+    brain: &UserBrain,
+    channel_id: &str,
+    video_vector: &ContentVector,
+) -> f64 {
+    let Some(profile) = brain.channel_topic_profiles.get(channel_id) else {
+        return 0.0;
+    };
+    if profile.len() < 3 {
+        return 0.0;
+    }
+
+    let mut entries: Vec<(String, f64)> = profile.iter().map(|(k, v)| (k.clone(), *v)).collect();
+    entries.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+    let profile_vector = ContentVector {
+        topics: entries.into_iter().take(CHANNEL_PROFILE_MAX_TOPICS).collect(),
+        ..ContentVector::default()
+    };
+
+    calculate_cosine_similarity(&profile_vector, video_vector) * CHANNEL_PROFILE_BLEND_WEIGHT
+}
+
+/// Multiplicative penalty that suppresses channels the user has scored below the disinterest floor.
+pub fn calculate_channel_score_multiplier(brain: &UserBrain, channel_id: &str) -> f64 {
+    let Some(score) = brain.channel_scores.get(channel_id) else {
+        return 1.0;
+    };
+    if *score >= NOT_INTERESTED_CHANNEL_FLOOR {
+        return 1.0;
+    }
+    let normalized = 1.0 / (1.0 + (-8.0 * (score - 0.35)).exp());
+    0.05 + 0.95 * normalized
+}
+
+pub fn is_music_track(title: &str, channel: &str, duration_sec: Option<u64>) -> bool {
+    if duration_sec.unwrap_or(0) > MUSIC_REWATCH_MAX_DURATION {
+        return false;
+    }
+    let title_lower = title.to_lowercase();
+    let channel_lower = channel.to_lowercase();
+    [
+        "music",
+        "song",
+        "lyrics",
+        "remix",
+        "lofi",
+        "playlist",
+        "official video",
+        "official audio",
+    ]
+    .iter()
+    .any(|kw| title_lower.contains(kw) || channel_lower.contains(kw))
 }
 
 // --- Smart Title Similarity ---
@@ -1801,6 +1861,65 @@ pub fn classify_persona(brain: &UserBrain) -> FlowPersona {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn disjoint_topics_are_damped_below_relevance_floor() {
+        let mut user = ContentVector::default();
+        user.topics.insert("guitar".to_string(), 1.0);
+        let mut content = ContentVector::default();
+        content.topics.insert("welding".to_string(), 1.0);
+        // Identical scalar features, zero topic overlap → must not clear the relevance floor.
+        let sim = calculate_cosine_similarity(&user, &content);
+        assert!(sim < RELEVANCE_FLOOR_MODERATE_THRESHOLD, "similarity was {sim}");
+    }
+
+    #[test]
+    fn shared_topic_outscores_disjoint_topic() {
+        let mut user = ContentVector::default();
+        user.topics.insert("guitar".to_string(), 1.0);
+        let mut same = ContentVector::default();
+        same.topics.insert("guitar".to_string(), 1.0);
+        let mut diff = ContentVector::default();
+        diff.topics.insert("welding".to_string(), 1.0);
+        assert!(
+            calculate_cosine_similarity(&user, &same)
+                > calculate_cosine_similarity(&user, &diff)
+        );
+    }
+
+    #[test]
+    fn established_topic_decays_slower_than_emerging() {
+        let mut current = ContentVector::default();
+        current.topics.insert("established".to_string(), 0.5);
+        current.topics.insert("emerging".to_string(), 0.05);
+        let mut target = ContentVector::default();
+        target.topics.insert("other".to_string(), 1.0);
+
+        // Positive update that reinforces neither existing topic → both decay by their tier.
+        let out = adjust_vector(&current, &target, 0.1);
+        let established_ratio = out.topics["established"] / 0.5;
+        let emerging_ratio = out.topics["emerging"] / 0.05;
+        assert!(established_ratio > emerging_ratio);
+    }
+
+    #[test]
+    fn diversity_caps_a_single_dominant_channel() {
+        let mut candidates = Vec::new();
+        for i in 0..6 {
+            let mut vector = ContentVector::default();
+            vector.topics.insert("guitar".to_string(), 1.0);
+            candidates.push(ScoredVideo {
+                id: format!("v{i}"),
+                title: format!("Distinct title number {i}"),
+                channel_id: "same".to_string(),
+                score: 1.0 - i as f64 * 0.01,
+                vector,
+            });
+        }
+        let ordered = apply_smart_diversity(candidates);
+        assert_eq!(ordered.first(), Some(&"v0".to_string()));
+        assert!(ordered.len() < 6, "one channel should not fill the whole window");
+    }
 
     #[test]
     fn anchor_decay_waits_until_after_warmup_threshold() {

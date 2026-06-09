@@ -2,7 +2,6 @@ use crate::errors::{AppError, AppResult};
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 
-#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 #[serde(rename_all = "camelCase")]
 pub struct RecommendationEvent {
@@ -39,7 +38,6 @@ pub async fn log_recommendation_event(
     Ok(())
 }
 
-#[allow(dead_code)]
 pub async fn get_recommendation_events(
     pool: &SqlitePool,
     limit: i64,
@@ -58,7 +56,6 @@ pub async fn get_recommendation_events(
     Ok(records)
 }
 
-#[allow(dead_code)]
 pub async fn clear_recommendation_events(pool: &SqlitePool) -> AppResult<()> {
     sqlx::query("DELETE FROM recommendation_events")
         .execute(pool)

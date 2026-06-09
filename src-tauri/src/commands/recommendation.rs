@@ -182,6 +182,17 @@ pub async fn get_feed_quotas(
 }
 
 #[tauri::command]
+pub async fn get_recommendation_events(
+    limit: i64,
+    recommendation_service: State<'_, RecommendationService>,
+) -> Result<Vec<crate::db::recommendations::RecommendationEvent>, ErrorResponse> {
+    recommendation_service
+        .get_recommendation_log(limit)
+        .await
+        .map_err(ErrorResponse::from)
+}
+
+#[tauri::command]
 pub async fn unblock_topic(
     topic: String,
     recommendation_service: State<'_, RecommendationService>,

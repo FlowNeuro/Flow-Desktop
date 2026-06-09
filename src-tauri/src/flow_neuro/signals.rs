@@ -149,6 +149,7 @@ fn update_topic_evidence(
             topic,
             TopicEvidence {
                 positive_signals: existing.positive_signals + 1,
+                negative_signals: existing.negative_signals,
                 watch_signals: existing.watch_signals + if is_watch_signal { 1 } else { 0 },
                 explicit_signals: existing.explicit_signals
                     + if is_explicit_signal { 1 } else { 0 },
@@ -237,6 +238,28 @@ fn prune_channel_strikes(brain: &mut UserBrain, now_ms: u64) {
             .collect();
         for id in removable {
             brain.channel_strikes.remove(&id);
+        }
+    }
+}
+
+/// Records an explicit dislike as negative evidence on already-tracked topics, so exploration
+/// stops boosting interests the user has now pushed back on. Never creates new entries.
+fn record_negative_topic_evidence(
+    topic_evidence: &mut HashMap<String, TopicEvidence>,
+    video_vector: &ContentVector,
+    now_ms: u64,
+) {
+    let mut top: Vec<(String, f64)> = video_vector
+        .topics
+        .iter()
+        .map(|(topic, score)| (strip_domain_tag(topic), *score))
+        .filter(|(topic, _)| topic.len() >= 3)
+        .collect();
+    top.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+    for (topic, _) in top.into_iter().take(5) {
+        if let Some(entry) = topic_evidence.get_mut(&topic) {
+            entry.negative_signals += 1;
+            entry.last_seen_at = now_ms;
         }
     }
 }
@@ -541,6 +564,8 @@ pub fn apply_interaction(
     }
 
     if interaction_type == InteractionType::Disliked {
+        record_negative_topic_evidence(&mut brain.topic_evidence, &video_vector, now_ms);
+
         if !channel_id.is_empty() {
             brain
                 .suppressed_channels
