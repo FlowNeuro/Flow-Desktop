@@ -6,18 +6,19 @@ import {
   getPersonalizedMusicRecommendations,
   getRelatedVideos,
   getSubscriptionRotationFeed,
+  getSubscriptionRssFeed,
   searchVideos,
 } from "../lib/api/youtube";
 import {
   generateDiscoveryQueries,
   getFeedQuotas,
-  markNotInterested,
   recordFeedImpressions,
   rankVideos,
   logInteraction,
 } from "../lib/api/recommendation";
 import type { FeedQuotas } from "../lib/api/recommendation";
-import { getSetting, getWatchHistory } from "../lib/api/db";
+import { useFeedActionsStore, useFeedHiddenFilter } from "../store/useFeedActionsStore";
+import { getSetting, setSetting, getWatchHistory } from "../lib/api/db";
 import type { VideoSummary } from "../types/video";
 import type { WatchHistoryRecord } from "../types/db";
 import { VideoGrid } from "../components/video/VideoGrid";
@@ -58,6 +59,43 @@ const logHomeFeed = (stage: string, details: Record<string, unknown>) => {
   console.info(`[home-feed] ${stage}`, details);
 };
 
+// Persistent discover feed: survives process restart for an instant cold-start paint and an
+// offline floor, unlike the in-memory `homeFeedCache`. Reconciled by the background refresh.
+const PERSISTED_FEED_KEY = "home_discover_cache_v1";
+const PERSISTED_FEED_TTL_MS = 24 * 60 * 60 * 1000;
+
+const persistDiscoverFeed = async (videos: VideoSummary[]) => {
+  if (videos.length === 0) return;
+  try {
+    const payload = JSON.stringify({ videos: videos.slice(0, 60), timestamp: Date.now() });
+    await setSetting(PERSISTED_FEED_KEY, payload);
+  } catch (error) {
+    console.warn("Failed to persist discover feed", error);
+  }
+};
+
+const loadPersistedDiscoverFeed = async (): Promise<VideoSummary[] | null> => {
+  try {
+    const raw = await getSetting(PERSISTED_FEED_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { videos?: VideoSummary[]; timestamp?: number };
+    if (!parsed.videos?.length) return null;
+    if (Date.now() - (parsed.timestamp ?? 0) > PERSISTED_FEED_TTL_MS) return null;
+    const { dismissedVideoIds, blockedChannelIds, watchedVideoIds } = useFeedActionsStore.getState();
+    return parsed.videos.filter(
+      (video) =>
+        video &&
+        typeof video.id === "string" &&
+        !dismissedVideoIds.has(video.id) &&
+        !watchedVideoIds.has(video.id) &&
+        !(video.channelId != null && blockedChannelIds.has(video.channelId)),
+    );
+  } catch (error) {
+    console.warn("Failed to load persisted discover feed", error);
+    return null;
+  }
+};
+
   const summarizeVideosForLog = (items: VideoSummary[]) => (
     items.slice(0, 5).map((video) => ({
       id: video.id,
@@ -69,6 +107,7 @@ const logHomeFeed = (stage: string, details: Record<string, unknown>) => {
 export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
   const [activeTab] = useState<"discover" | "trending">("discover");
   const [videos, setVideos] = useState<VideoSummary[]>([]);
+  const isHidden = useFeedHiddenFilter();
   const [loading, setLoading] = useState(true);
   const [, setRefreshing] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -92,6 +131,17 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
   const sessionSeenOrderRef = useRef<string[]>([]);
   const sessionSeenIdsRef = useRef<Set<string>>(new Set());
 
+  const capPerChannel = (items: VideoSummary[], maxPerChannel = 3) => {
+    const counts = new Map<string, number>();
+    return items.filter((video) => {
+      const key = video.channelId ?? video.id;
+      const count = counts.get(key) ?? 0;
+      if (count >= maxPerChannel) return false;
+      counts.set(key, count + 1);
+      return true;
+    });
+  };
+
   const uniqueByVideoId = (items: VideoSummary[]) => {
     const seen = new Set<string>();
     return items.filter((video) => {
@@ -108,6 +158,9 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
       videos: nextVideos,
       timestamp: Date.now(),
     };
+    if (tab === "discover") {
+      void persistDiscoverFeed(nextVideos);
+    }
   };
 
   const rememberSeenVideos = (items: VideoSummary[]) => {
@@ -272,7 +325,7 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
     });
 
     const fallback = fallbackCandidates.filter((video) => !currentIds.has(video.id));
-    return [...currentVideos, ...(preferred.length > 0 ? preferred : fallback)];
+    return capPerChannel([...currentVideos, ...(preferred.length > 0 ? preferred : fallback)], 3);
   };
 
   const mixRankedLanes = (
@@ -280,24 +333,30 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
     subscriptionLane: VideoSummary[],
     viralLane: VideoSummary[],
     quotas: FeedQuotas = STANDARD_DISCOVER_QUOTAS,
+    relatedLane: VideoSummary[] = [],
   ) => {
     const finalMix: VideoSummary[] = [];
     const usedVideos = new Set<string>();
     const recentChannels = new Set<string>();
-    type LaneName = "subscriptions" | "discovery" | "viral";
+    type LaneName = "subscriptions" | "discovery" | "related" | "viral";
+    const relatedTarget = relatedLane.length > 0 ? Math.round(quotas.discoveryLimit * 0.4) : 0;
+    const discoveryTarget = Math.max(0, quotas.discoveryLimit - relatedTarget);
     const queues = {
       discovery: [...discoveryLane],
       subscriptions: [...subscriptionLane],
+      related: [...relatedLane],
       viral: [...viralLane],
     };
     const targets: Record<LaneName, number> = {
       subscriptions: quotas.subscriptionLimit,
-      discovery: quotas.discoveryLimit,
+      discovery: discoveryTarget,
+      related: relatedTarget,
       viral: quotas.viralLimit,
     };
     const counts: Record<LaneName, number> = {
       subscriptions: 0,
       discovery: 0,
+      related: 0,
       viral: 0,
     };
     const targetTotal = Math.max(
@@ -358,10 +417,10 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
     };
 
     while (finalMix.length < targetTotal) {
-      const underTarget = (["subscriptions", "discovery", "viral"] as LaneName[])
+      const underTarget = (["subscriptions", "discovery", "related", "viral"] as LaneName[])
         .filter((lane) => queues[lane].length > 0)
         .filter((lane) => targets[lane] > 0 && counts[lane] < targets[lane]);
-      const backfill = (["subscriptions", "discovery"] as LaneName[])
+      const backfill = (["subscriptions", "discovery", "related"] as LaneName[])
         .filter((lane) => queues[lane].length > 0);
       const candidates = underTarget.length > 0 ? underTarget : backfill;
 
@@ -378,7 +437,8 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
         const priority: Record<LaneName, number> = {
           subscriptions: 0,
           discovery: 1,
-          viral: 2,
+          related: 2,
+          viral: 3,
         };
         return priority[a] - priority[b];
       });
@@ -397,7 +457,7 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
 
     return finalMix.length > 0
       ? finalMix
-      : interleaveByChannel([discoveryLane, subscriptionLane, viralLane]);
+      : interleaveByChannel([discoveryLane, subscriptionLane, relatedLane, viralLane]);
   };
 
   const interleaveByChannel = (lanes: VideoSummary[][]) => {
@@ -517,21 +577,29 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
   };
 
   const fetchWatchHistoryRelatedPool = async (history: WatchHistoryRecord[], seedLimit = 4) => {
-    const seedVideoIds = uniqueByVideoId(
-      history
-        .filter((record) => {
-          const total = record.totalDurationSeconds ?? 0;
-          const ratio = total > 0 ? record.watchDurationSeconds / total : 0;
-          return ratio >= 0.35 || record.watchDurationSeconds >= 180;
-        })
-        .map((record) => ({
-          id: record.videoId,
-          title: record.title,
-          channelName: record.channelName ?? "",
-        }) as VideoSummary),
-    )
-      .slice(0, seedLimit)
-      .map((record) => record.id);
+    const eligible = history.filter((record) => {
+      const total = record.totalDurationSeconds ?? 0;
+      const ratio = total > 0 ? record.watchDurationSeconds / total : 0;
+      return ratio >= 0.35 || record.watchDurationSeconds >= 180;
+    });
+
+    const seedVideoIds: string[] = [];
+    const usedChannels = new Set<string>();
+    const seenIds = new Set<string>();
+    for (const record of eligible) {
+      if (seedVideoIds.length >= seedLimit) break;
+      const channelKey = record.channelName || record.videoId;
+      if (usedChannels.has(channelKey) || seenIds.has(record.videoId)) continue;
+      usedChannels.add(channelKey);
+      seenIds.add(record.videoId);
+      seedVideoIds.push(record.videoId);
+    }
+    for (const record of eligible) {
+      if (seedVideoIds.length >= seedLimit) break;
+      if (seenIds.has(record.videoId)) continue;
+      seenIds.add(record.videoId);
+      seedVideoIds.push(record.videoId);
+    }
 
     if (seedVideoIds.length === 0) {
       return [];
@@ -602,6 +670,36 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
         result.status === "fulfilled" ? result.value.videos : [],
       ),
     );
+  };
+
+  const fetchFreshSubscriptionUploads = async (subscriptionIds: string[], limit = 8) => {
+    if (subscriptionIds.length === 0) {
+      return [];
+    }
+    try {
+      const feed = await getSubscriptionRssFeed(subscriptionIds);
+      return uniqueByVideoId(feed.videos).slice(0, limit);
+    } catch (error) {
+      console.warn("Failed to load fresh subscription uploads", error);
+      return [];
+    }
+  };
+
+  const composeWithFreshSubs = (
+    fresh: VideoSummary[],
+    feed: VideoSummary[],
+    maxFresh = 6,
+  ) => {
+    const watched = watchedIdsRef.current;
+    const freshValid = uniqueByVideoId(fresh)
+      .filter((video) => {
+        if (watched.has(video.id) || isHidden(video)) return false;
+        const duration = video.durationSeconds;
+        return duration == null || duration > 60;
+      })
+      .slice(0, maxFresh);
+    const freshIds = new Set(freshValid.map((video) => video.id));
+    return [...freshValid, ...feed.filter((video) => !freshIds.has(video.id))];
   };
 
   const fetchSubscriptionRotationPool = async () => {
@@ -871,8 +969,12 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
     );
     const filteredDiscovery = filterDiscoveryLane(
       preferSessionFreshVideos(
-        filterFeedVideos([...pools.personalizedMusicPool, ...pools.relatedPool, ...pools.discoveryPool], watchedIds),
+        filterFeedVideos([...pools.personalizedMusicPool, ...pools.discoveryPool], watchedIds),
       ),
+    );
+    // Related (co-view graph) is its own first-class lane, not merged into discovery search.
+    const filteredRelated = filterDiscoveryLane(
+      preferSessionFreshVideos(filterFeedVideos(pools.relatedPool, watchedIds)),
     );
 
     const rankLane = async (
@@ -892,13 +994,16 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
     };
 
     let rankedLanes: [VideoSummary[], VideoSummary[], VideoSummary[]];
+    let rankedRelated: VideoSummary[] = [];
     try {
-      const [bestSubscriptions, bestDiscovery, bestViral] = await Promise.all([
+      const [bestSubscriptions, bestDiscovery, bestRelated, bestViral] = await Promise.all([
         rankLane(filteredSubscriptions, feedQuotas.subscriptionLimit, "subscriptions"),
         rankLane(filteredDiscovery, feedQuotas.discoveryLimit, "discovery"),
+        rankLane(filteredRelated, feedQuotas.discoveryLimit, "related"),
         rankLane(pools.viralPool, feedQuotas.viralLimit, "viral"),
       ]);
       rankedLanes = [bestSubscriptions, bestDiscovery, bestViral];
+      rankedRelated = bestRelated;
     } catch (rankErr: any) {
       console.warn("Ranking engine failed, displaying baseline feed. Error:", rankErr?.message || rankErr);
       rankedLanes = [
@@ -906,13 +1011,14 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
         filteredDiscovery.slice(0, feedQuotas.discoveryLimit),
         pools.viralPool.slice(0, feedQuotas.viralLimit),
       ];
+      rankedRelated = filteredRelated.slice(0, feedQuotas.discoveryLimit);
     }
 
     return {
       filteredSubscriptions,
       filteredDiscovery,
       rankedLanes,
-      mixedFeed: mixRankedLanes(rankedLanes[1], rankedLanes[0], rankedLanes[2], feedQuotas),
+      mixedFeed: mixRankedLanes(rankedLanes[1], rankedLanes[0], rankedLanes[2], feedQuotas, rankedRelated),
     };
   };
 
@@ -988,6 +1094,19 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
         setVideos(cached);
         videosRef.current = cached;
         rememberSeenVideos(cached);
+        renderedInitialFeed = true;
+        setLoading(false);
+      }
+    }
+
+    // Cold start (in-memory cache empty): paint the last persisted feed instantly while the
+    // network refresh runs in the background and reconciles it.
+    if (!isRefresh && !renderedInitialFeed && activeTab === "discover") {
+      const persisted = await loadPersistedDiscoverFeed();
+      if (persisted && persisted.length > 0 && requestSequenceRef.current === requestId) {
+        setVideos(persisted);
+        videosRef.current = persisted;
+        rememberSeenVideos(persisted);
         renderedInitialFeed = true;
         setLoading(false);
       }
@@ -1137,13 +1256,15 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
         const discoveryPoolPromise = fetchDiscoveryPool(queryCandidates, "discovery-pool", 4);
         const relatedPoolPromise = fetchWatchHistoryRelatedPool(watchedHistory, 2);
         const personalizedMusicPoolPromise = fetchPersonalizedMusicPool();
+        const freshSubsPromise = fetchFreshSubscriptionUploads(subscriptionIds, 8);
 
-        const [subscriptionPool, subscriptionRotationPool, discoveryPool, relatedPool, personalizedMusicPool] = await Promise.all([
+        const [subscriptionPool, subscriptionRotationPool, discoveryPool, relatedPool, personalizedMusicPool, freshSubs] = await Promise.all([
           withTimeout(subscriptionPoolPromise, FULL_DISCOVER_SOURCE_TIMEOUT_MS, [] as VideoSummary[], "subscriptions"),
           withTimeout(subscriptionRotationPoolPromise, FULL_DISCOVER_SOURCE_TIMEOUT_MS, [] as VideoSummary[], "subscription-rotation"),
           withTimeout(discoveryPoolPromise, FULL_DISCOVER_SOURCE_TIMEOUT_MS, [] as VideoSummary[], "discovery"),
           withTimeout(relatedPoolPromise, FULL_DISCOVER_SOURCE_TIMEOUT_MS, [] as VideoSummary[], "related"),
           withTimeout(personalizedMusicPoolPromise, FULL_DISCOVER_SOURCE_TIMEOUT_MS, [] as VideoSummary[], "personalized-music"),
+          withTimeout(freshSubsPromise, VIRAL_FALLBACK_TIMEOUT_MS, [] as VideoSummary[], "fresh-subscriptions"),
         ]);
 
         const viralPool = feedQuotas.viralLimit > 0
@@ -1198,10 +1319,11 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
           return;
         }
         if (discoverFeed.mixedFeed.length > 0) {
-          setVideos(discoverFeed.mixedFeed);
-          videosRef.current = discoverFeed.mixedFeed;
-          rememberSeenVideos(discoverFeed.mixedFeed);
-          updateCache("discover", discoverFeed.mixedFeed);
+          const finalFeed = composeWithFreshSubs(freshSubs, discoverFeed.mixedFeed);
+          setVideos(finalFeed);
+          videosRef.current = finalFeed;
+          rememberSeenVideos(finalFeed);
+          updateCache("discover", finalFeed);
           setHasMoreDiscover(true);
         } else {
           logHomeFeed("discover-ranked-empty-keep-current", {
@@ -1314,8 +1436,8 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
       return;
     }
 
-    const visibleVideos = videos.slice(0, 24);
-    const signature = `${activeTab}:${visibleVideos.map((video) => video.id).join("|")}`;
+    const impressionBatch = videos.filter((video) => !isHidden(video)).slice(0, 24);
+    const signature = `${activeTab}:${impressionBatch.map((video) => video.id).join("|")}`;
     if (signature === lastImpressionSignatureRef.current) {
       return;
     }
@@ -1323,14 +1445,14 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
 
     logHomeFeed("record-impressions", {
       activeTab,
-      count: visibleVideos.length,
-      sample: summarizeVideosForLog(visibleVideos),
+      count: impressionBatch.length,
+      sample: summarizeVideosForLog(impressionBatch),
     });
 
-    void recordFeedImpressions(visibleVideos).catch((error) => {
+    void recordFeedImpressions(impressionBatch).catch((error) => {
       console.warn("Failed to record feed impressions", error);
     });
-  }, [activeTab, loading, videos]);
+  }, [activeTab, loading, videos, isHidden]);
 
   useEffect(() => {
     if (
@@ -1399,31 +1521,14 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
     }
   };
 
-  const handleMarkNotInterested = async (videoId: string) => {
-    const dismissed = videos.find((video) => video.id === videoId);
-    setVideos((prev) => prev.filter((v) => v.id !== videoId));
-    try {
-      await markNotInterested(
-        videoId,
-        dismissed?.title ?? "Dismiss Item",
-        dismissed?.channelName ?? "Dismissed Channel",
-        dismissed?.channelId ?? videoId,
-        null,
-        dismissed?.durationSeconds ?? null,
-        false,
-        false,
-      );
-    } catch (err) {
-      console.warn("Failed to log dismissal", err);
-    }
-  };
+  const visibleVideos = capPerChannel(videos.filter((video) => !isHidden(video)), 3);
 
   return (
     <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-8 py-6 space-y-6">
       {/* Grid List layout */}
       {loading ? (
         <VideoGrid loading={true} onPlay={handlePlayVideo} />
-      ) : videos.length === 0 ? (
+      ) : visibleVideos.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-24 text-center border border-dashed border-zinc-800 rounded-3xl p-8 bg-zinc-900/10">
           <h3 className="font-bold text-zinc-300">No content found</h3>
           <p className="text-zinc-500 text-xs mt-1 max-w-sm">
@@ -1433,10 +1538,9 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
       ) : (
         <>
           <VideoGrid
-            videos={videos}
+            videos={visibleVideos}
             onPlay={handlePlayVideo}
             onAddToQueue={onAddToQueue}
-            onMarkNotInterested={handleMarkNotInterested}
           />
 
           {activeTab === "discover" && (

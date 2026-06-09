@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { useSubscriptionStore } from '../../store/useSubscriptionStore';
-import { Plus, Ban, Check, MoreVertical, Trash2, GripHorizontal } from 'lucide-react';
+import { useFeedActionsStore } from '../../store/useFeedActionsStore';
+import { Plus, Ban, Check, MoreVertical, Trash2, GripHorizontal, Sparkles, Eye, EyeOff } from 'lucide-react';
 import type { VideoSummary } from '../../types/video';
 import { Button } from '../ui/Button';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
@@ -13,7 +14,6 @@ export interface VideoCardProps {
   video: VideoSummary;
   onPlay: (video: VideoSummary) => void;
   onAddToQueue?: (video: VideoSummary) => void;
-  onMarkNotInterested?: (videoId: string) => void;
   onRemoveFromHistory?: (videoId: string) => void;
   variant?: 'default' | 'grid' | 'history' | 'list';
   hideChannelAvatar?: boolean;
@@ -86,7 +86,6 @@ export function VideoCard({
   video,
   onPlay,
   onAddToQueue,
-  onMarkNotInterested,
   onRemoveFromHistory,
   variant = 'default',
   hideChannelAvatar,
@@ -96,6 +95,10 @@ export function VideoCard({
 }: VideoCardProps) {
   const navigate = useNavigate();
   const { isSubscribed, subscribe, unsubscribe } = useSubscriptionStore();
+  const notInterested = useFeedActionsStore((s) => s.notInterested);
+  const blockChannelAction = useFeedActionsStore((s) => s.blockChannel);
+  const markWatched = useFeedActionsStore((s) => s.markWatched);
+  const moreLikeThis = useFeedActionsStore((s) => s.moreLikeThis);
   const [overriddenTitle, setOverriddenTitle] = useState<string | null>(null);
   const [overriddenThumbnail, setOverriddenThumbnail] = useState<string | null>(null);
   const [showMenu, setShowMenu] = useState(false);
@@ -255,17 +258,50 @@ export function VideoCard({
             Add to queue
           </button>
         )}
-        {onMarkNotInterested && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            void moreLikeThis(video);
+            setShowMenu(false);
+          }}
+          className="w-full flex items-center gap-3 px-3.5 py-2.5 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 transition-colors"
+        >
+          <Sparkles size={16} />
+          More like this
+        </button>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            void markWatched(video);
+            setShowMenu(false);
+          }}
+          className="w-full flex items-center gap-3 px-3.5 py-2.5 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 transition-colors"
+        >
+          <Eye size={16} />
+          Mark as watched
+        </button>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            void notInterested(video);
+            setShowMenu(false);
+          }}
+          className="w-full flex items-center gap-3 px-3.5 py-2.5 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 transition-colors"
+        >
+          <Ban size={16} />
+          Not interested
+        </button>
+        {video.channelId && (
           <button
             onClick={(e) => {
               e.stopPropagation();
-              onMarkNotInterested(video.id);
+              void blockChannelAction(video);
               setShowMenu(false);
             }}
             className="w-full flex items-center gap-3 px-3.5 py-2.5 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 transition-colors"
           >
-            <Ban size={16} />
-            Not interested
+            <EyeOff size={16} />
+            Don't show this channel
           </button>
         )}
       </div>

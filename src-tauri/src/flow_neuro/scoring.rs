@@ -74,6 +74,10 @@ pub const TITLE_SIMILARITY_RELAXED: f64 = 0.60;
 #[allow(dead_code)]
 pub const FEATURE_CACHE_MAX: usize = 150;
 pub const IDF_MIN_WEIGHT: f64 = 0.15;
+// Hard cap on distinct IDF vocabulary (the one otherwise-unbounded brain structure); when
+// exceeded, keep the highest-frequency (most informative) terms.
+pub const IDF_MAX_KEYS: usize = 20_000;
+pub const IDF_KEEP_KEYS: usize = 15_000;
 
 pub const SESSION_TOPIC_HISTORY_MAX: usize = 50;
 

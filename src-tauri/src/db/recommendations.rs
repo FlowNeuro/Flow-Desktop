@@ -64,3 +64,19 @@ pub async fn clear_recommendation_events(pool: &SqlitePool) -> AppResult<()> {
 
     Ok(())
 }
+
+/// Bounds the (otherwise unbounded) event log to the most recent `keep` rows.
+pub async fn prune_recommendation_events(pool: &SqlitePool, keep: i64) -> AppResult<()> {
+    sqlx::query(
+        "DELETE FROM recommendation_events
+         WHERE id NOT IN (
+            SELECT id FROM recommendation_events ORDER BY created_at DESC, id DESC LIMIT ?
+         )",
+    )
+    .bind(keep)
+    .execute(pool)
+    .await
+    .map_err(|e| AppError::Database(e.to_string()))?;
+
+    Ok(())
+}

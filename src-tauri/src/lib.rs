@@ -23,9 +23,9 @@ use commands::db::{
 };
 use commands::recommendation::{
     complete_onboarding, generate_discovery_queries, get_brain_snapshot, get_feed_quotas,
-    get_flow_persona, get_onboarding_status, get_recommendation_events, log_interaction,
-    mark_not_interested, rank_videos, record_feed_impressions, reset_brain, unblock_channel,
-    unblock_topic,
+    block_channel, get_flow_persona, get_onboarding_status, get_recommendation_events,
+    log_interaction, mark_not_interested, rank_videos, record_feed_impressions, reset_brain,
+    unblock_channel, unblock_topic,
 };
 use commands::youtube::{
     fetch_subtitles, get_channel_details, get_channel_tab, get_comments, get_dearrow_override,
@@ -142,6 +142,7 @@ pub fn run() {
             get_recommendation_events,
             unblock_topic,
             unblock_channel,
+            block_channel,
             reset_brain,
             get_sponsorblock_segments,
             get_dearrow_override,

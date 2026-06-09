@@ -424,6 +424,15 @@ export async function unblockChannel(channelId: string): Promise<void> {
   brainCache = null;
 }
 
+export async function blockChannel(channelId: string): Promise<void> {
+  if (!(await isTauriEnv())) {
+    console.log(`[FlowNeuro Mock] Blocking channel: ${channelId}`);
+    return;
+  }
+  await invokeBackend<void>("block_channel", { channelId });
+  brainCache = null;
+}
+
 export async function resetBrain(): Promise<void> {
   if (!(await isTauriEnv())) {
     console.log(`[FlowNeuro Mock] Resetting brain`);

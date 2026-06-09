@@ -2095,6 +2095,18 @@ impl RecommendationService {
         Ok(())
     }
 
+    /// Explicit user "don't show this channel": permanent block plus a scrubbed channel score so
+    /// the ranker also down-weights anything already learned about it.
+    pub async fn block_channel(&self, channel_id: String) -> AppResult<()> {
+        if channel_id.trim().is_empty() {
+            return Ok(());
+        }
+        let mut brain = self.brain_store.write().await;
+        brain.blocked_channels.insert(channel_id.clone());
+        brain.channel_scores.insert(channel_id, 0.0);
+        Ok(())
+    }
+
     pub async fn reset_brain(&self) -> AppResult<()> {
         {
             let mut brain = self.brain_store.write().await;

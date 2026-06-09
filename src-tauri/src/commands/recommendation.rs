@@ -215,6 +215,17 @@ pub async fn unblock_channel(
 }
 
 #[tauri::command]
+pub async fn block_channel(
+    channel_id: String,
+    recommendation_service: State<'_, RecommendationService>,
+) -> Result<(), ErrorResponse> {
+    recommendation_service
+        .block_channel(channel_id)
+        .await
+        .map_err(ErrorResponse::from)
+}
+
+#[tauri::command]
 pub async fn reset_brain(
     recommendation_service: State<'_, RecommendationService>,
 ) -> Result<(), ErrorResponse> {

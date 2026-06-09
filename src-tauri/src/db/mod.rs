@@ -62,5 +62,10 @@ pub async fn initialize_database(app_data_dir: PathBuf) -> AppResult<SqlitePool>
         .await
         .map_err(|error| AppError::Database(error.to_string()))?;
 
+    // Bound the recommendation event log so it cannot grow without limit across sessions.
+    if let Err(error) = recommendations::prune_recommendation_events(&pool, 2000).await {
+        tracing::warn!(%error, "Failed to prune recommendation events");
+    }
+
     Ok(pool)
 }

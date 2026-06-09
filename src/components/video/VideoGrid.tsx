@@ -8,7 +8,6 @@ interface VideoGridProps {
   skeletonCount?: number;
   onPlay: (video: VideoSummary) => void;
   onAddToQueue?: (video: VideoSummary) => void;
-  onMarkNotInterested?: (videoId: string) => void;
   onRemoveFromHistory?: (videoId: string) => void;
   getVideoKey?: (video: VideoSummary, index: number) => string;
   variant?: "default" | "history";
@@ -36,7 +35,6 @@ export function VideoGrid({
   skeletonCount = 12,
   onPlay,
   onAddToQueue,
-  onMarkNotInterested,
   onRemoveFromHistory,
   getVideoKey,
   variant = "default",
@@ -60,9 +58,8 @@ export function VideoGrid({
         <VideoCard 
           key={getVideoKey ? getVideoKey(video, index) : `${video.id}-${index}`} 
           video={video} 
-          onPlay={onPlay} 
+          onPlay={onPlay}
           onAddToQueue={onAddToQueue}
-          onMarkNotInterested={onMarkNotInterested}
           onRemoveFromHistory={onRemoveFromHistory}
           variant={variant}
           hideChannelAvatar={hideChannelAvatar}

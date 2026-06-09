@@ -10,7 +10,8 @@ use crate::flow_neuro::scoring::{
     AFFINITY_PRUNE_THRESHOLD, CHANNEL_EMA_ALPHA, CHANNEL_EMA_DECAY, CHANNEL_INFERRED_BLOCK_DAYS,
     CHANNEL_KEEP_HIGH, CHANNEL_KEEP_LOW, CHANNEL_PROFILE_LEARNING_RATE,
     CHANNEL_PROFILE_MAX_CHANNELS, CHANNEL_PROFILE_MAX_TOPICS, CHANNEL_PROFILE_PRUNE_THRESHOLD,
-    CHANNEL_SUPPRESSION_DAYS, ChannelStrike, ContentVector, IdfSnapshot, MAX_CHANNEL_SCORES,
+    CHANNEL_SUPPRESSION_DAYS, ChannelStrike, ContentVector, IDF_KEEP_KEYS, IDF_MAX_KEYS,
+    IdfSnapshot, MAX_CHANNEL_SCORES,
     MAX_CHANNEL_STRIKES, MAX_CONSECUTIVE_SKIPS, MAX_SUPPRESSED_CHANNELS, MAX_SUPPRESSED_VIDEOS,
     NOT_INTERESTED_SKIP_INCREMENT, PERSONA_MAX_STABILITY, REJECTION_EXPIRY_DAYS,
     REJECTION_MEMORY_MAX, RejectionSignal, TOPIC_EVIDENCE_MAX_ENTRIES, TOPIC_EVIDENCE_MAX_IDS,
@@ -443,6 +444,13 @@ pub fn apply_interaction(
             }
             brain.idf_word_frequency.retain(|_, &mut v| v > 0);
             brain.idf_total_documents /= 2;
+        }
+
+        if brain.idf_word_frequency.len() > IDF_MAX_KEYS {
+            let mut entries: Vec<(String, i32)> = brain.idf_word_frequency.drain().collect();
+            entries.sort_by(|a, b| b.1.cmp(&a.1));
+            entries.truncate(IDF_KEEP_KEYS);
+            brain.idf_word_frequency = entries.into_iter().collect();
         }
     }
 

@@ -470,6 +470,30 @@ fn is_year_token(word: &str) -> bool {
     word.len() == 4 && word.starts_with("20") && word.chars().all(|c| c.is_ascii_digit())
 }
 
+fn is_segmentable_cjk(c: char) -> bool {
+    matches!(c as u32,
+        0x3040..=0x30FF   // Hiragana + Katakana
+        | 0x3400..=0x4DBF // CJK Extension A
+        | 0x4E00..=0x9FFF // CJK Unified Ideographs (Han)
+        | 0x0E00..=0x0E7F // Thai
+    )
+}
+
+fn contains_segmentable_cjk(word: &str) -> bool {
+    word.chars().any(is_segmentable_cjk)
+}
+
+/// Overlapping character bigrams: the standard dependency-free segmentation for no-space scripts
+/// (Chinese/Japanese/Thai), where whitespace splitting yields one useless mega-token. A lone
+/// character degrades to a unigram. Korean is space-delimited, so it keeps the normal word path.
+fn cjk_character_bigrams(word: &str) -> Vec<String> {
+    let chars: Vec<char> = word.chars().collect();
+    if chars.len() <= 1 {
+        return chars.iter().map(|c| c.to_string()).collect();
+    }
+    chars.windows(2).map(|pair| pair.iter().collect()).collect()
+}
+
 pub fn is_generic_word(token: &str) -> bool {
     !token.contains('_') && !token.contains(' ') && get_generic_words().contains(token)
 }
@@ -487,19 +511,29 @@ fn tokenize_unigrams_with_lang(text: &str, lang: Lang) -> Vec<String> {
 
     normalize_text_to_words(&normalize_compounds(text))
         .into_iter()
-        .filter_map(|word| {
+        .flat_map(|word| {
+            // No-space scripts arrive as one run; index them as overlapping character bigrams
+            // instead of a single useless mega-token.
+            if contains_segmentable_cjk(&word) {
+                return cjk_character_bigrams(&word);
+            }
+            // Allowlisted short topics are authoritative: kept verbatim, never stemmed or filtered.
             if short_topic_allowlist().contains(word.as_str()) {
-                return Some(word);
+                return vec![word];
             }
             if word.chars().count() <= 2
                 || is_year_token(&word)
                 || grammatical_stop_words.contains(word.as_str())
                 || get_youtube_stop_words().contains(word.as_str())
             {
-                return None;
+                return Vec::new();
             }
             let stemmed = stem_token(&word, lang);
-            (!stemmed.is_empty()).then_some(stemmed)
+            if stemmed.is_empty() {
+                Vec::new()
+            } else {
+                vec![stemmed]
+            }
         })
         .collect()
 }
@@ -583,6 +617,14 @@ mod tests {
     #[test]
     fn forms_priority_bigram_with_short_topic() {
         assert!(tokenize("train ai").contains(&"train_ai".to_string()));
+    }
+
+    #[test]
+    fn segments_no_space_cjk_into_character_bigrams() {
+        let tokens = tokenize_unigrams("机器学习");
+        assert!(tokens.contains(&"机器".to_string()));
+        assert!(tokens.contains(&"学习".to_string()));
+        assert!(tokens.len() >= 3);
     }
 
     #[test]
