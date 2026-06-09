@@ -153,6 +153,13 @@ pub const VIDEO_SUPPRESSION_DAYS: u64 = 30;
 pub const CHANNEL_SUPPRESSION_DAYS: u64 = 14;
 pub const MAX_SUPPRESSED_VIDEOS: usize = 500;
 pub const MAX_SUPPRESSED_CHANNELS: usize = 100;
+
+// Channel strike escalation: an inferred (reversible, expiring) block requires sustained,
+// time-spread explicit dislikes — never two mis-taps in one session.
+pub const CHANNEL_STRIKE_BLOCK_THRESHOLD: i32 = 3;
+pub const CHANNEL_STRIKE_MIN_SPREAD_MS: u64 = 86_400_000;
+pub const CHANNEL_INFERRED_BLOCK_DAYS: u64 = 60;
+pub const MAX_CHANNEL_STRIKES: usize = 200;
 pub const REJECTION_EXPIRY_DAYS: u64 = 14;
 pub const REJECTION_MEMORY_MAX: usize = 200;
 pub const REJECTION_PENALTY_1: f64 = 0.50;
@@ -276,6 +283,7 @@ pub struct UserBrain {
     pub channel_topic_profiles: HashMap<String, HashMap<String, f64>>,
     pub suppressed_video_ids: HashMap<String, u64>,
     pub suppressed_channels: HashMap<String, u64>,
+    pub channel_strikes: HashMap<String, ChannelStrike>,
     pub rejection_patterns: HashMap<String, RejectionSignal>,
     pub feed_history: HashMap<String, FeedEntry>,
     pub recent_query_tokens: Vec<HashSet<String>>,
@@ -309,6 +317,7 @@ impl Default for UserBrain {
             channel_topic_profiles: HashMap::new(),
             suppressed_video_ids: HashMap::new(),
             suppressed_channels: HashMap::new(),
+            channel_strikes: HashMap::new(),
             rejection_patterns: HashMap::new(),
             feed_history: HashMap::new(),
             recent_query_tokens: Vec::new(),
@@ -322,6 +331,21 @@ impl Default for UserBrain {
 pub struct RejectionSignal {
     pub count: i32,
     pub last_rejected_at: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ChannelStrike {
+    pub count: i32,
+    pub first_at: u64,
+    pub last_at: u64,
+}
+
+/// A channel is inferred-blocked only when explicit dislikes are sustained, spread across
+/// time, and recent — so accidental taps lapse instead of hiding a channel forever.
+pub fn channel_inferred_blocked(strike: &ChannelStrike, now_ms: u64) -> bool {
+    let recent = now_ms.saturating_sub(strike.last_at) < CHANNEL_INFERRED_BLOCK_DAYS * 86_400_000;
+    let spread = strike.last_at.saturating_sub(strike.first_at) >= CHANNEL_STRIKE_MIN_SPREAD_MS;
+    recent && spread && strike.count >= CHANNEL_STRIKE_BLOCK_THRESHOLD
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

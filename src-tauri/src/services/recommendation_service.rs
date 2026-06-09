@@ -2,11 +2,13 @@ use chrono::Datelike;
 use serde::Serialize;
 use sqlx::SqlitePool;
 use std::collections::{HashMap, HashSet};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tracing::info;
 
+use crate::db::recommendations;
 use crate::errors::AppResult;
+use crate::flow_neuro::brain_store::BrainStore;
 use crate::flow_neuro::scoring::{
     AFFINITY_BOOST_PER_PAIR, AFFINITY_MAX_BOOST_PER_VIDEO, BINGE_NOVELTY_FACTOR, BINGE_THRESHOLD,
     CHANNEL_PROFILE_BLEND_WEIGHT, CHANNEL_PROFILE_MAX_TOPICS, CHANNEL_SUPPRESSION_DAYS,
@@ -24,12 +26,10 @@ use crate::flow_neuro::scoring::{
     WATCHED_THRESHOLD_SAMPLED, apply_smart_diversity, calculate_anti_recommendation_penalty,
     calculate_cosine_similarity, calculate_feed_history_penalty,
     calculate_implicit_disinterest_penalty, calculate_rejection_pattern_penalty,
-    calculate_relevance_floor, classify_persona, extract_features, get_topic_categories,
-    is_generic_word, normalize_lemma, strip_domain_tag, tokenize,
+    calculate_relevance_floor, channel_inferred_blocked, classify_persona, extract_features,
+    get_topic_categories, is_generic_word, normalize_lemma, strip_domain_tag, tokenize,
 };
-use crate::flow_neuro::signals::{
-    InteractionType, get_or_create_brain, on_video_interaction, save_brain,
-};
+use crate::flow_neuro::signals::{InteractionType, apply_interaction};
 use crate::models::video::{MusicHomeChip, MusicHomeSection, VideoSummary};
 use crate::services::youtube_service::YoutubeService;
 
@@ -44,6 +44,7 @@ const EMERGING_TOKEN_MAX_WEIGHT: f64 = 0.18;
 
 pub struct RecommendationService {
     pool: SqlitePool,
+    brain_store: Arc<BrainStore>,
     impression_cache: Mutex<HashMap<String, (i32, u64)>>, // video_id -> (seen_count, last_seen_timestamp)
     session_topic_history: Mutex<Vec<String>>,
     session_video_count: Mutex<i32>,
@@ -295,18 +296,24 @@ impl RecommendationService {
         }
     }
 
-    pub fn new(pool: SqlitePool) -> Self {
+    pub fn new(pool: SqlitePool, brain_store: Arc<BrainStore>) -> Self {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_millis() as u64;
         Self {
             pool,
+            brain_store,
             impression_cache: Mutex::new(HashMap::new()),
             session_topic_history: Mutex::new(Vec::new()),
             session_video_count: Mutex::new(0),
             session_start_time: now,
         }
+    }
+
+    /// Best-effort persistence of the resident brain; called on the debounce timer and on exit.
+    pub async fn flush_brain(&self) -> AppResult<()> {
+        self.brain_store.flush().await
     }
 
     fn get_current_time_ms(&self) -> u64 {
@@ -1002,7 +1009,7 @@ impl RecommendationService {
     }
 
     pub async fn generate_discovery_queries(&self) -> AppResult<Vec<String>> {
-        let mut brain = get_or_create_brain(&self.pool).await?;
+        let mut brain = self.brain_store.write().await;
         let persona = classify_persona(&brain);
         let current_bucket = TimeBucket::current();
         let current_year = chrono::Local::now().year();
@@ -1420,10 +1427,11 @@ impl RecommendationService {
 
         let persisted_token_sets: Vec<Vec<String>> =
             deduped.iter().map(|query| tokenize(query)).collect();
+        let previous_query_tokens = std::mem::take(&mut brain.recent_query_tokens);
         brain.recent_query_tokens = deduped
             .iter()
             .map(|query| tokenize(query).into_iter().collect::<HashSet<String>>())
-            .chain(brain.recent_query_tokens.into_iter())
+            .chain(previous_query_tokens)
             .take(RECENT_QUERY_TOKENS_MAX)
             .collect();
         info!(
@@ -1432,7 +1440,6 @@ impl RecommendationService {
             stored_recent_query_sets = brain.recent_query_tokens.len(),
             "[discovery] finalized query generation"
         );
-        save_brain(&self.pool, &brain).await?;
 
         Ok(deduped)
     }
@@ -1447,7 +1454,7 @@ impl RecommendationService {
         }
         let candidate_count = candidates.len();
 
-        let brain = get_or_create_brain(&self.pool).await?;
+        let brain = self.brain_store.read().await;
         let now_ms = self.get_current_time_ms();
         let video_cutoff = now_ms.saturating_sub(VIDEO_SUPPRESSION_DAYS * 86_400_000);
         let channel_cutoff = now_ms.saturating_sub(CHANNEL_SUPPRESSION_DAYS * 86_400_000);
@@ -1475,6 +1482,11 @@ impl RecommendationService {
                 }
                 if brain.blocked_channels.contains(channel_id) {
                     return false;
+                }
+                if let Some(strike) = brain.channel_strikes.get(channel_id) {
+                    if channel_inferred_blocked(strike, now_ms) {
+                        return false;
+                    }
                 }
                 let title_lower = video.title.to_lowercase();
                 let channel_lower = video.channel_name.to_lowercase();
@@ -1812,8 +1824,6 @@ impl RecommendationService {
             final_results.push(video);
         }
 
-        save_brain(&self.pool, &brain).await?;
-
         Ok(final_results)
     }
 
@@ -1830,54 +1840,51 @@ impl RecommendationService {
         interaction_type: InteractionType,
         percent_watched: f32,
     ) -> AppResult<()> {
-        on_video_interaction(
-            &self.pool,
-            video_id,
-            title,
-            channel_name,
-            channel_id,
-            description,
-            duration_sec,
-            is_live,
-            is_short,
-            interaction_type,
-            percent_watched,
-        )
-        .await?;
-
-        // Adjust session counts/topics on positive interaction
-        if interaction_type == InteractionType::Click
-            || interaction_type == InteractionType::Watched
-        {
-            let idf_snapshot = {
-                let brain = get_or_create_brain(&self.pool).await?;
-                IdfSnapshot {
-                    word_frequencies: brain.idf_word_frequency.clone(),
-                    total_documents: brain.idf_total_documents,
-                }
-            };
-            let video_vector = extract_features(
+        let outcome = {
+            let mut brain = self.brain_store.write().await;
+            apply_interaction(
+                &mut brain,
+                video_id,
                 title,
                 channel_name,
+                channel_id,
                 description,
                 duration_sec,
                 is_live,
                 is_short,
-                &idf_snapshot,
-            );
-            if let Some((primary_topic, _)) = video_vector
-                .topics
-                .iter()
-                .max_by(|a, b| a.1.partial_cmp(b.1).unwrap())
-            {
+                interaction_type,
+                percent_watched,
+            )
+        };
+
+        let Some(learning_rate) = outcome.learning_rate else {
+            return Ok(());
+        };
+
+        recommendations::log_recommendation_event(
+            &self.pool,
+            interaction_type.as_str(),
+            Some(video_id),
+            Some(channel_name),
+            None,
+            Some(learning_rate),
+        )
+        .await?;
+
+
+        if matches!(
+            interaction_type,
+            InteractionType::Click | InteractionType::Watched
+        ) {
+            if let Some(primary_topic) = outcome.primary_topic {
                 let mut history = self.session_topic_history.lock().unwrap();
-                history.push(primary_topic.clone());
+                history.push(primary_topic);
                 if history.len() > SESSION_TOPIC_HISTORY_MAX {
                     history.remove(0);
                 }
+                let mut count = self.session_video_count.lock().unwrap();
+                *count += 1;
             }
-            let mut count = self.session_video_count.lock().unwrap();
-            *count += 1;
         }
 
         Ok(())
@@ -1912,7 +1919,7 @@ impl RecommendationService {
             }
         }
 
-        let mut brain = get_or_create_brain(&self.pool).await?;
+        let mut brain = self.brain_store.write().await;
         for video in &unique_videos {
             let entry = brain
                 .feed_history
@@ -1946,18 +1953,16 @@ impl RecommendationService {
                 .retain(|video_id, _| retained.contains(video_id));
         }
 
-        save_brain(&self.pool, &brain).await?;
-
         Ok(())
     }
 
     pub async fn get_personality(&self) -> AppResult<FlowPersona> {
-        let brain = get_or_create_brain(&self.pool).await?;
+        let brain = self.brain_store.read().await;
         Ok(classify_persona(&brain))
     }
 
     pub async fn complete_onboarding(&self, topics: Vec<String>) -> AppResult<()> {
-        let mut brain = get_or_create_brain(&self.pool).await?;
+        let mut brain = self.brain_store.write().await;
 
         let mut preferred = HashSet::new();
         for topic in topics {
@@ -1979,16 +1984,17 @@ impl RecommendationService {
 
         brain.preferred_topics = preferred;
         brain.has_completed_onboarding = true;
-        save_brain(&self.pool, &brain).await?;
         Ok(())
     }
 
     pub async fn get_onboarding_status(&self) -> AppResult<bool> {
-        let mut brain = get_or_create_brain(&self.pool).await?;
-        let completed = Self::has_meaningful_brain_data(&brain);
-        if completed && !brain.has_completed_onboarding {
-            brain.has_completed_onboarding = true;
-            save_brain(&self.pool, &brain).await?;
+        let (completed, needs_flag) = {
+            let brain = self.brain_store.read().await;
+            let completed = Self::has_meaningful_brain_data(&brain);
+            (completed, completed && !brain.has_completed_onboarding)
+        };
+        if needs_flag {
+            self.brain_store.write().await.has_completed_onboarding = true;
         }
         Ok(completed)
     }
@@ -2322,11 +2328,11 @@ impl RecommendationService {
     }
 
     pub async fn get_brain_snapshot(&self) -> AppResult<UserBrain> {
-        get_or_create_brain(&self.pool).await
+        Ok(self.brain_store.read().await.clone())
     }
 
     pub async fn get_feed_quotas(&self) -> AppResult<FeedQuotas> {
-        let brain = get_or_create_brain(&self.pool).await?;
+        let brain = self.brain_store.read().await;
         Ok(Self::calculate_feed_quotas(
             brain.total_interactions,
             DISCOVER_FEED_TARGET_SIZE,
@@ -2334,23 +2340,26 @@ impl RecommendationService {
     }
 
     pub async fn unblock_topic(&self, topic: String) -> AppResult<()> {
-        let mut brain = get_or_create_brain(&self.pool).await?;
+        let mut brain = self.brain_store.write().await;
         let topic_lower = topic.trim().to_lowercase();
         brain
             .blocked_topics
             .retain(|t| t.to_lowercase() != topic_lower);
-        save_brain(&self.pool, &brain).await
+        Ok(())
     }
 
     pub async fn unblock_channel(&self, channel_id: String) -> AppResult<()> {
-        let mut brain = get_or_create_brain(&self.pool).await?;
+        let mut brain = self.brain_store.write().await;
         brain.blocked_channels.remove(&channel_id);
-        save_brain(&self.pool, &brain).await
+        brain.channel_strikes.remove(&channel_id);
+        brain.suppressed_channels.remove(&channel_id);
+        Ok(())
     }
 
     pub async fn reset_brain(&self) -> AppResult<()> {
-        let brain = UserBrain::default();
-        save_brain(&self.pool, &brain).await
+        let mut brain = self.brain_store.write().await;
+        *brain = UserBrain::default();
+        Ok(())
     }
 }
 

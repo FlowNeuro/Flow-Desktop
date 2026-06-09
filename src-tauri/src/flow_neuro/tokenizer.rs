@@ -430,6 +430,42 @@ pub fn get_polysemous_words() -> &'static HashSet<&'static str> {
     })
 }
 
+/// High-value short topic tokens that survive the minimum-length filter.
+/// These are real interests (acronyms, formats) the default `len > 2` rule would drop.
+fn short_topic_allowlist() -> &'static HashSet<&'static str> {
+    static INSTANCE: OnceLock<HashSet<&'static str>> = OnceLock::new();
+    INSTANCE.get_or_init(|| {
+        ["ai", "ml", "ar", "vr", "ui", "ux", "dj", "f1", "3d", "4k", "8k", "dc", "ev", "nft"]
+            .into_iter()
+            .collect()
+    })
+}
+
+/// Hyphen/symbol compounds collapsed into single tokens before whitespace splitting,
+/// so genre/brand terms ("lo-fi", "k-pop", "r&b") are not shredded into sub-2-char fragments.
+const COMPOUND_REPLACEMENTS: &[(&str, &str)] = &[
+    ("lo-fi", "lofi"),
+    ("lo fi", "lofi"),
+    ("hip-hop", "hiphop"),
+    ("hip hop", "hiphop"),
+    ("k-pop", "kpop"),
+    ("k pop", "kpop"),
+    ("j-pop", "jpop"),
+    ("sci-fi", "scifi"),
+    ("sci fi", "scifi"),
+    ("r&b", "rnb"),
+];
+
+fn normalize_compounds(text: &str) -> String {
+    let mut lowered = text.to_lowercase();
+    for (pattern, replacement) in COMPOUND_REPLACEMENTS {
+        if lowered.contains(pattern) {
+            lowered = lowered.replace(pattern, replacement);
+        }
+    }
+    lowered
+}
+
 fn is_year_token(word: &str) -> bool {
     word.len() == 4 && word.starts_with("20") && word.chars().all(|c| c.is_ascii_digit())
 }
@@ -449,14 +485,22 @@ pub fn unigram_weight_multiplier(token: &str) -> f64 {
 fn tokenize_unigrams_with_lang(text: &str, lang: Lang) -> Vec<String> {
     let grammatical_stop_words = language_stop_words(lang);
 
-    normalize_text_to_words(text)
+    normalize_text_to_words(&normalize_compounds(text))
         .into_iter()
-        .filter(|word| word.chars().count() > 2)
-        .filter(|word| !is_year_token(word))
-        .filter(|word| !grammatical_stop_words.contains(word.as_str()))
-        .filter(|word| !get_youtube_stop_words().contains(word.as_str()))
-        .map(|word| stem_token(&word, lang))
-        .filter(|word| !word.is_empty())
+        .filter_map(|word| {
+            if short_topic_allowlist().contains(word.as_str()) {
+                return Some(word);
+            }
+            if word.chars().count() <= 2
+                || is_year_token(&word)
+                || grammatical_stop_words.contains(word.as_str())
+                || get_youtube_stop_words().contains(word.as_str())
+            {
+                return None;
+            }
+            let stemmed = stem_token(&word, lang);
+            (!stemmed.is_empty()).then_some(stemmed)
+        })
         .collect()
 }
 
@@ -518,6 +562,27 @@ mod tests {
         assert!(!tokens.contains(&"corriendo".to_string()));
         assert!(!tokens.contains(&"comidas".to_string()));
         assert!(tokens.len() >= 2);
+    }
+
+    #[test]
+    fn keeps_high_value_short_tokens() {
+        let tokens = tokenize_unigrams("AI and ML for 3D art");
+        assert!(tokens.contains(&"ai".to_string()));
+        assert!(tokens.contains(&"ml".to_string()));
+        assert!(tokens.contains(&"3d".to_string()));
+    }
+
+    #[test]
+    fn collapses_genre_compounds_into_single_tokens() {
+        let tokens = tokenize_unigrams("Lo-Fi and K-Pop and R&B mix");
+        assert!(tokens.contains(&"lofi".to_string()));
+        assert!(tokens.contains(&"kpop".to_string()));
+        assert!(tokens.contains(&"rnb".to_string()));
+    }
+
+    #[test]
+    fn forms_priority_bigram_with_short_topic() {
+        assert!(tokenize("train ai").contains(&"train_ai".to_string()));
     }
 
     #[test]

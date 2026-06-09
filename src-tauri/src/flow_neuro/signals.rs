@@ -3,21 +3,20 @@ use sqlx::SqlitePool;
 use std::collections::{HashMap, HashSet};
 use tracing::warn;
 
-use crate::db::recommendations;
 use crate::db::settings;
 use crate::errors::AppResult;
 use crate::flow_neuro::scoring::{
     AFFINITY_INCREMENT, AFFINITY_KEEP_TOP, AFFINITY_MAX, AFFINITY_MAX_ENTRIES,
-    AFFINITY_PRUNE_THRESHOLD, CHANNEL_EMA_ALPHA, CHANNEL_EMA_DECAY, CHANNEL_KEEP_HIGH,
-    CHANNEL_KEEP_LOW, CHANNEL_PROFILE_LEARNING_RATE, CHANNEL_PROFILE_MAX_CHANNELS,
-    CHANNEL_PROFILE_MAX_TOPICS, CHANNEL_PROFILE_PRUNE_THRESHOLD, CHANNEL_SUPPRESSION_DAYS,
-    ContentVector, IdfSnapshot, MAX_CHANNEL_SCORES, MAX_CONSECUTIVE_SKIPS, MAX_SUPPRESSED_CHANNELS,
-    MAX_SUPPRESSED_VIDEOS, NOT_INTERESTED_SKIP_INCREMENT, PERSONA_MAX_STABILITY,
-    REJECTION_EXPIRY_DAYS, REJECTION_MEMORY_MAX, RejectionSignal, TOPIC_EVIDENCE_MAX_ENTRIES,
-    TOPIC_EVIDENCE_MAX_IDS, TimeBucket, TopicEvidence, UserBrain, VIDEO_SUPPRESSION_DAYS,
-    WATCH_HISTORY_MAX, WATCHED_THRESHOLD_FULL, WATCHED_THRESHOLD_SAMPLED, adjust_vector,
-    apply_anchor_decay, classify_persona, extract_features, extract_rejection_keys,
-    strip_domain_tag,
+    AFFINITY_PRUNE_THRESHOLD, CHANNEL_EMA_ALPHA, CHANNEL_EMA_DECAY, CHANNEL_INFERRED_BLOCK_DAYS,
+    CHANNEL_KEEP_HIGH, CHANNEL_KEEP_LOW, CHANNEL_PROFILE_LEARNING_RATE,
+    CHANNEL_PROFILE_MAX_CHANNELS, CHANNEL_PROFILE_MAX_TOPICS, CHANNEL_PROFILE_PRUNE_THRESHOLD,
+    CHANNEL_SUPPRESSION_DAYS, ChannelStrike, ContentVector, IdfSnapshot, MAX_CHANNEL_SCORES,
+    MAX_CHANNEL_STRIKES, MAX_CONSECUTIVE_SKIPS, MAX_SUPPRESSED_CHANNELS, MAX_SUPPRESSED_VIDEOS,
+    NOT_INTERESTED_SKIP_INCREMENT, PERSONA_MAX_STABILITY, REJECTION_EXPIRY_DAYS,
+    REJECTION_MEMORY_MAX, RejectionSignal, TOPIC_EVIDENCE_MAX_ENTRIES, TOPIC_EVIDENCE_MAX_IDS,
+    TimeBucket, TopicEvidence, UserBrain, VIDEO_SUPPRESSION_DAYS, WATCH_HISTORY_MAX,
+    WATCHED_THRESHOLD_FULL, WATCHED_THRESHOLD_SAMPLED, adjust_vector, apply_anchor_decay,
+    classify_persona, extract_features, extract_rejection_keys, strip_domain_tag,
 };
 
 pub const SHORTS_LEARNING_PENALTY: f64 = 0.40;
@@ -214,8 +213,38 @@ pub async fn save_brain(pool: &SqlitePool, brain: &UserBrain) -> AppResult<()> {
     Ok(())
 }
 
-pub async fn on_video_interaction(
-    pool: &SqlitePool,
+/// Result of applying one interaction to the brain. `learning_rate` is `None` when a
+/// watch progress update was deduped (no learning); `primary_topic` feeds session state.
+pub struct InteractionOutcome {
+    pub learning_rate: Option<f64>,
+    pub primary_topic: Option<String>,
+}
+
+fn prune_channel_strikes(brain: &mut UserBrain, now_ms: u64) {
+    let cutoff = now_ms.saturating_sub(CHANNEL_INFERRED_BLOCK_DAYS * 86_400_000);
+    brain.channel_strikes.retain(|_, strike| strike.last_at >= cutoff);
+    if brain.channel_strikes.len() > MAX_CHANNEL_STRIKES {
+        let mut entries: Vec<(String, u64)> = brain
+            .channel_strikes
+            .iter()
+            .map(|(id, strike)| (id.clone(), strike.last_at))
+            .collect();
+        entries.sort_by(|a, b| a.1.cmp(&b.1));
+        let removable: Vec<String> = entries
+            .into_iter()
+            .take(brain.channel_strikes.len() - MAX_CHANNEL_STRIKES)
+            .map(|(id, _)| id)
+            .collect();
+        for id in removable {
+            brain.channel_strikes.remove(&id);
+        }
+    }
+}
+
+/// Applies one interaction to the in-memory brain (pure mutation, no I/O); persistence and
+/// event logging are handled by the caller against the resident `BrainStore`.
+pub fn apply_interaction(
+    brain: &mut UserBrain,
     video_id: &str,
     title: &str,
     channel_name: &str,
@@ -226,8 +255,7 @@ pub async fn on_video_interaction(
     is_short: bool,
     interaction_type: InteractionType,
     percent_watched: f32,
-) -> AppResult<()> {
-    let mut brain = get_or_create_brain(pool).await?;
+) -> InteractionOutcome {
     let now_ms = chrono::Utc::now().timestamp_millis() as u64;
     let clamped_percent = percent_watched.clamp(0.0, 1.0);
     let existing_watch_progress = brain
@@ -250,8 +278,10 @@ pub async fn on_video_interaction(
     }
 
     if interaction_type == InteractionType::Watched && !should_apply_watch_learning {
-        save_brain(pool, &brain).await?;
-        return Ok(());
+        return InteractionOutcome {
+            learning_rate: None,
+            primary_topic: None,
+        };
     }
 
     let idf_snapshot = IdfSnapshot {
@@ -268,6 +298,12 @@ pub async fn on_video_interaction(
         is_short,
         &idf_snapshot,
     );
+
+    let primary_topic = video_vector
+        .topics
+        .iter()
+        .max_by(|a, b| a.1.partial_cmp(b.1).unwrap_or(std::cmp::Ordering::Equal))
+        .map(|(topic, _)| topic.clone());
 
     let mut learning_rate = match interaction_type {
         InteractionType::Click => 0.10,
@@ -334,11 +370,12 @@ pub async fn on_video_interaction(
         brain.channel_scores = new_channel_scores;
     }
 
-    // 4. Consecutive skips
+    // 4. Consecutive skips (explicit dislikes weigh heavier toward boredom than implicit skips)
     let new_skips = match interaction_type {
         InteractionType::Click | InteractionType::Liked | InteractionType::Watched => 0,
-        InteractionType::Skipped | InteractionType::Disliked => {
-            (brain.consecutive_skips + 1).min(MAX_CONSECUTIVE_SKIPS)
+        InteractionType::Skipped => (brain.consecutive_skips + 1).min(MAX_CONSECUTIVE_SKIPS),
+        InteractionType::Disliked => {
+            (brain.consecutive_skips + NOT_INTERESTED_SKIP_INCREMENT).min(MAX_CONSECUTIVE_SKIPS)
         }
     };
     brain.consecutive_skips = new_skips;
@@ -501,21 +538,34 @@ pub async fn on_video_interaction(
             let cutoff = now_ms.saturating_sub(VIDEO_SUPPRESSION_DAYS * 86_400_000);
             brain.suppressed_video_ids.retain(|_, ts| *ts >= cutoff);
         }
+    }
 
+    if interaction_type == InteractionType::Disliked {
         if !channel_id.is_empty() {
-            if brain.suppressed_channels.contains_key(channel_id) {
-                brain.blocked_channels.insert(channel_id.to_string());
-                brain.suppressed_channels.remove(channel_id);
-            } else {
-                brain
-                    .suppressed_channels
-                    .insert(channel_id.to_string(), now_ms);
-            }
-
+            brain
+                .suppressed_channels
+                .insert(channel_id.to_string(), now_ms);
             if brain.suppressed_channels.len() > MAX_SUPPRESSED_CHANNELS {
                 let cutoff = now_ms.saturating_sub(CHANNEL_SUPPRESSION_DAYS * 86_400_000);
                 brain.suppressed_channels.retain(|_, ts| *ts >= cutoff);
             }
+
+            let strike = brain
+                .channel_strikes
+                .entry(channel_id.to_string())
+                .or_insert(ChannelStrike {
+                    count: 0,
+                    first_at: now_ms,
+                    last_at: now_ms,
+                });
+            strike.count += 1;
+            strike.last_at = now_ms;
+            prune_channel_strikes(brain, now_ms);
+
+            let current = *brain.channel_scores.get(channel_id).unwrap_or(&0.5);
+            brain
+                .channel_scores
+                .insert(channel_id.to_string(), (current * 0.10).max(0.01));
         }
 
         for key in extract_rejection_keys(&video_vector) {
@@ -553,38 +603,13 @@ pub async fn on_video_interaction(
                 brain.rejection_patterns.remove(&key);
             }
         }
-
-        if !channel_id.is_empty() {
-            let current = *brain.channel_scores.get(channel_id).unwrap_or(&0.5);
-            let penalty = if matches!(interaction_type, InteractionType::Disliked) {
-                0.10
-            } else {
-                0.25
-            };
-            brain
-                .channel_scores
-                .insert(channel_id.to_string(), (current * penalty).max(0.01));
-        }
-
-        brain.consecutive_skips =
-            (brain.consecutive_skips + NOT_INTERESTED_SKIP_INCREMENT).min(MAX_CONSECUTIVE_SKIPS);
     }
 
     brain.total_interactions += 1;
     brain.global_vector = new_global;
 
-    save_brain(pool, &brain).await?;
-
-    // Log to recommendation database logs for visual transparency and settings tracking
-    recommendations::log_recommendation_event(
-        pool,
-        interaction_type.as_str(),
-        Some(video_id),
-        Some(channel_name),
-        None,
-        Some(learning_rate),
-    )
-    .await?;
-
-    Ok(())
+    InteractionOutcome {
+        learning_rate: Some(learning_rate),
+        primary_topic,
+    }
 }

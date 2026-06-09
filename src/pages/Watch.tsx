@@ -13,7 +13,7 @@ import {
 } from "../lib/api/youtube";
 import { getSponsorBlockSegments, getReturnYouTubeDislike, getDeArrowOverride } from "../lib/api/foss";
 import { addWatchRecord } from "../lib/api/db";
-import { logInteraction } from "../lib/api/recommendation";
+import { logInteraction, markNotInterested } from "../lib/api/recommendation";
 import { Loader2, ThumbsUp, ThumbsDown, Share2, Bookmark, MoreHorizontal,WandSparkles } from "lucide-react";
 import Player from "../components/player/Player";
 import { Chapters } from "../components/player/chapters";
@@ -602,6 +602,7 @@ export function Watch() {
 
       const duration = latestProgress.duration || currentVideo.durationSeconds || 1;
       const percentWatched = duration > 0 ? Math.min(1.0, Math.max(0.0, latestProgress.time / duration)) : 0.0;
+      const finalType = latestProgress.time < 15 && percentWatched < 0.15 ? "SKIPPED" : "WATCHED";
       void logInteraction(
         currentVideo.id,
         currentVideo.title,
@@ -611,7 +612,7 @@ export function Watch() {
         Math.floor(duration) || null,
         false,
         duration <= 60,
-        "WATCHED",
+        finalType,
         percentWatched
       ).catch(err => console.warn("Failed to log final watch interaction on unload", err));
 
@@ -631,6 +632,43 @@ export function Watch() {
       persistLatestProgress();
     };
   }, [currentVideo, resolvedChannelId, videoDetails]);
+
+  useEffect(() => {
+    setInteractionState("none");
+  }, [currentVideo?.id]);
+
+  const logExplicitFeedback = (next: "none" | "liked" | "disliked") => {
+    if (!currentVideo) {
+      return;
+    }
+    const channelId = resolvedChannelId || currentVideo.channelId || currentVideo.id;
+    const isShort = (currentVideo.durationSeconds ?? 0) <= 60;
+    if (next === "liked") {
+      void logInteraction(
+        currentVideo.id,
+        currentVideo.title,
+        currentVideo.channelName,
+        channelId,
+        videoDetails?.description ?? null,
+        currentVideo.durationSeconds ?? null,
+        false,
+        isShort,
+        "LIKED",
+        1.0,
+      ).catch((err) => console.warn("Failed to log like", err));
+    } else if (next === "disliked") {
+      void markNotInterested(
+        currentVideo.id,
+        currentVideo.title,
+        currentVideo.channelName,
+        channelId,
+        videoDetails?.description ?? null,
+        currentVideo.durationSeconds ?? null,
+        false,
+        isShort,
+      ).catch((err) => console.warn("Failed to log dislike", err));
+    }
+  };
 
   const handleQualitySelect = useCallback((variant: StreamVariant | "auto") => {
     if (variant === "auto") {
@@ -1047,15 +1085,23 @@ export function Watch() {
               {/* Action Buttons */}
               <div className="flex flex-wrap items-center gap-2">
                 <div className="flex items-center bg-[#272727] rounded-full h-9 overflow-hidden transition-colors divide-x divide-[#3f3f3f]">
-                  <button 
-                    onClick={() => setInteractionState(prev => prev === "liked" ? "none" : "liked")}
+                  <button
+                    onClick={() => {
+                      const next = interactionState === "liked" ? "none" : "liked";
+                      setInteractionState(next);
+                      logExplicitFeedback(next);
+                    }}
                     className={`px-4 h-full flex items-center gap-2 text-sm hover:bg-[#3f3f3f] font-semibold cursor-pointer transition-colors ${interactionState === "liked" ? "text-white bg-[#3f3f3f]" : ""}`}
                   >
                     <ThumbsUp size={18} fill={interactionState === "liked" ? "white" : "none"} />
                     <span>{rytdEnabled && rydData ? formatCount(rydData.likes) : (videoDetails?.likeCountText ? formatCount(videoDetails.likeCountText) : "Like")}</span>
                   </button>
-                  <button 
-                    onClick={() => setInteractionState(prev => prev === "disliked" ? "none" : "disliked")}
+                  <button
+                    onClick={() => {
+                      const next = interactionState === "disliked" ? "none" : "disliked";
+                      setInteractionState(next);
+                      logExplicitFeedback(next);
+                    }}
                     className={`px-4 h-full flex items-center gap-2 justify-center hover:bg-[#3f3f3f] cursor-pointer transition-colors ${interactionState === "disliked" ? "text-white bg-[#3f3f3f]" : ""}`}
                   >
                     <ThumbsDown size={18} fill={interactionState === "disliked" ? "white" : "none"} />

@@ -198,7 +198,11 @@ export const ImportData: React.FC = () => {
             const seedLimit = Math.min(ph.length, 50);
             for (let i = 0; i < ph.length; i++) {
               const r = ph[i]; if (r) { await addWatchRecord(r); timelineCount++;
-                if (i < seedLimit) { try { await logInteraction(r.videoId, r.title, r.channelName || "Unknown", "imported_channel_id", "Seeded from backup", r.totalDurationSeconds || 300, false, false, "WATCH_PROGRESS", 1.0); } catch {} }
+                if (i < seedLimit) {
+                  const total = r.totalDurationSeconds ?? 0;
+                  const frac = total > 0 ? Math.min(1, Math.max(0, (r.watchDurationSeconds ?? 0) / total)) : 0.8;
+                  try { await logInteraction(r.videoId, r.title, r.channelName || "Unknown", r.channelName || r.videoId, "Seeded from backup", r.totalDurationSeconds || 300, false, false, "WATCHED", frac); } catch {}
+                }
               } setProgress(75 + Math.round((timelineCount / ph.length) * 20));
             }
             setHistoryCount(timelineCount);

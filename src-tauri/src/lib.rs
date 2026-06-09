@@ -81,8 +81,19 @@ pub fn run() {
                 }
             });
 
+            // Load the single resident recommendation brain (in-memory, debounced writes)
+            let brain_store = tauri::async_runtime::block_on(async {
+                flow_neuro::brain_store::BrainStore::load(pool.clone()).await
+            })
+            .map_err(|error| {
+                Box::new(std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    error.to_string(),
+                ))
+            })?;
+
             // Initialize and manage recommendation service
-            let rec_service = RecommendationService::new(pool);
+            let rec_service = RecommendationService::new(pool, brain_store);
             app.manage(rec_service);
 
             // Initialize and manage streaming proxy
@@ -143,6 +154,14 @@ pub fn run() {
             fetch_subtitles,
             get_sabr_debug_state
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running Flow Desktop");
+        .build(tauri::generate_context!())
+        .expect("error while building Flow Desktop")
+        .run(|app_handle, event| {
+            // Flush the resident brain to disk on shutdown so the debounce window is never lost.
+            if let tauri::RunEvent::ExitRequested { .. } = event {
+                if let Some(service) = app_handle.try_state::<RecommendationService>() {
+                    let _ = tauri::async_runtime::block_on(service.flush_brain());
+                }
+            }
+        });
 }
