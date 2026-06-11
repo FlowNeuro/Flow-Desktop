@@ -27,6 +27,15 @@ use commands::recommendation::{
     log_interaction, mark_not_interested, rank_videos, record_feed_impressions, reset_brain,
     unblock_channel, unblock_topic,
 };
+use commands::music::{
+    get_music_album_continuation, get_music_album_page, get_music_artist_items,
+    get_music_artist_page, get_music_charts_page, get_music_explore_page, get_music_home_page,
+    get_music_lyrics_typed, get_music_mood_genre, get_music_moods, get_music_new_releases,
+    get_music_playlist_continuation, get_music_playlist_page, get_music_queue,
+    get_music_queue_continuation, get_music_related_typed, get_music_search_suggestions,
+    get_music_search_summary, get_music_stream, get_music_watch_queue, search_music_continuation,
+    search_music_typed,
+};
 use commands::youtube::{
     fetch_subtitles, get_channel_details, get_channel_tab, get_comments, get_dearrow_override,
     get_music_album, get_music_artist, get_music_charts, get_music_explore, get_music_home,
@@ -36,6 +45,7 @@ use commands::youtube::{
     get_subscription_rss_feed, get_trending_videos, get_video_details, parse_subscription_export,
     refresh_music_home, search_music, search_videos,
 };
+use services::music_service::MusicService;
 use services::recommendation_service::RecommendationService;
 use services::youtube_service::YoutubeService;
 
@@ -55,10 +65,13 @@ pub fn run() {
                 ))
             })?;
 
-            // Initialize native Innertube extractor
+            // Initialize native Innertube extractor (shared by the video path and
+            // the additive YouTube Music subsystem).
             let extractor = Arc::new(InnertubeClient::new(app.handle()));
+            let music_service = MusicService::new(extractor.clone());
             let youtube_service = YoutubeService::new(extractor);
             app.manage(youtube_service);
+            app.manage(music_service);
 
             // Initialize SQLite database
             let pool = tauri::async_runtime::block_on(async {
@@ -155,7 +168,30 @@ pub fn run() {
             get_music_explore,
             get_music_charts,
             fetch_subtitles,
-            get_sabr_debug_state
+            get_sabr_debug_state,
+            // --- YouTube Music subsystem (additive) ---
+            get_music_home_page,
+            get_music_explore_page,
+            get_music_charts_page,
+            get_music_moods,
+            get_music_new_releases,
+            get_music_mood_genre,
+            get_music_artist_items,
+            search_music_typed,
+            search_music_continuation,
+            get_music_search_summary,
+            get_music_search_suggestions,
+            get_music_album_page,
+            get_music_album_continuation,
+            get_music_artist_page,
+            get_music_playlist_page,
+            get_music_playlist_continuation,
+            get_music_watch_queue,
+            get_music_queue_continuation,
+            get_music_queue,
+            get_music_related_typed,
+            get_music_lyrics_typed,
+            get_music_stream
         ])
         .build(tauri::generate_context!())
         .expect("error while building Flow Desktop")

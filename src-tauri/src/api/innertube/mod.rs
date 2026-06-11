@@ -12,6 +12,7 @@ use async_trait::async_trait;
 
 pub mod core;
 pub mod extractors;
+pub mod music;
 pub mod parsers;
 
 pub struct InnertubeClient {

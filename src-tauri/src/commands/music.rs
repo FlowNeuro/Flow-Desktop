@@ -1,0 +1,245 @@
+//! Tauri commands for the YouTube Music subsystem.
+//!
+//! These are additive and independent of `commands::youtube`. The playback
+//! command reuses the shared streaming proxy exactly like `get_stream_info`.
+
+use tauri::State;
+
+use crate::errors::ErrorResponse;
+use crate::models::music::{AlbumItem, ArtistPage, ChartsPage, ExplorePage, MoodAndGenreItem, SongItem};
+use crate::models::music_pages::{
+    AlbumPage, MoodGenrePage, MusicHomePage, MusicPlaylistPage, MusicSearchResponse,
+    MusicSearchSuggestions, QueuePage, RelatedPage, SearchSummaryPage,
+};
+use crate::models::music_stream::MusicStreamInfo;
+use crate::security::validation::{validate_search_query, validate_video_id};
+use crate::services::music_service::MusicService;
+use crate::streaming::proxy::StreamingManager;
+
+type CmdResult<T> = Result<T, ErrorResponse>;
+
+// --- Browse ---------------------------------------------------------------
+
+#[tauri::command]
+pub async fn get_music_home_page(
+    continuation: Option<String>,
+    music: State<'_, MusicService>,
+) -> CmdResult<MusicHomePage> {
+    music.home(continuation.as_deref()).await.map_err(ErrorResponse::from)
+}
+
+#[tauri::command]
+pub async fn get_music_explore_page(music: State<'_, MusicService>) -> CmdResult<ExplorePage> {
+    music.explore().await.map_err(ErrorResponse::from)
+}
+
+#[tauri::command]
+pub async fn get_music_charts_page(
+    continuation: Option<String>,
+    music: State<'_, MusicService>,
+) -> CmdResult<ChartsPage> {
+    music.charts(continuation.as_deref()).await.map_err(ErrorResponse::from)
+}
+
+#[tauri::command]
+pub async fn get_music_moods(music: State<'_, MusicService>) -> CmdResult<Vec<MoodAndGenreItem>> {
+    music.moods().await.map_err(ErrorResponse::from)
+}
+
+#[tauri::command]
+pub async fn get_music_new_releases(music: State<'_, MusicService>) -> CmdResult<Vec<AlbumItem>> {
+    music.new_releases().await.map_err(ErrorResponse::from)
+}
+
+#[tauri::command]
+pub async fn get_music_mood_genre(
+    browse_id: String,
+    params: Option<String>,
+    continuation: Option<String>,
+    music: State<'_, MusicService>,
+) -> CmdResult<MoodGenrePage> {
+    music
+        .mood_genre(&browse_id, params.as_deref(), continuation.as_deref())
+        .await
+        .map_err(ErrorResponse::from)
+}
+
+/// Artist "see all" — same browse shape as a mood/genre detail.
+#[tauri::command]
+pub async fn get_music_artist_items(
+    browse_id: String,
+    params: Option<String>,
+    continuation: Option<String>,
+    music: State<'_, MusicService>,
+) -> CmdResult<MoodGenrePage> {
+    music
+        .mood_genre(&browse_id, params.as_deref(), continuation.as_deref())
+        .await
+        .map_err(ErrorResponse::from)
+}
+
+// --- Search ---------------------------------------------------------------
+
+#[tauri::command]
+pub async fn search_music_typed(
+    query: String,
+    filter: String,
+    music: State<'_, MusicService>,
+) -> CmdResult<MusicSearchResponse> {
+    validate_search_query(&query).map_err(ErrorResponse::from)?;
+    music.search(&query, &filter).await.map_err(ErrorResponse::from)
+}
+
+#[tauri::command]
+pub async fn search_music_continuation(
+    continuation: String,
+    music: State<'_, MusicService>,
+) -> CmdResult<MusicSearchResponse> {
+    music.search_continuation(&continuation).await.map_err(ErrorResponse::from)
+}
+
+#[tauri::command]
+pub async fn get_music_search_summary(
+    query: String,
+    music: State<'_, MusicService>,
+) -> CmdResult<SearchSummaryPage> {
+    validate_search_query(&query).map_err(ErrorResponse::from)?;
+    music.search_summary(&query).await.map_err(ErrorResponse::from)
+}
+
+#[tauri::command]
+pub async fn get_music_search_suggestions(
+    query: String,
+    music: State<'_, MusicService>,
+) -> CmdResult<MusicSearchSuggestions> {
+    music.search_suggestions(&query).await.map_err(ErrorResponse::from)
+}
+
+// --- Album / Artist / Playlist -------------------------------------------
+
+#[tauri::command]
+pub async fn get_music_album_page(
+    browse_id: String,
+    music: State<'_, MusicService>,
+) -> CmdResult<AlbumPage> {
+    music.album(&browse_id).await.map_err(ErrorResponse::from)
+}
+
+#[tauri::command]
+pub async fn get_music_album_continuation(
+    continuation: String,
+    music: State<'_, MusicService>,
+) -> CmdResult<(Vec<SongItem>, Option<String>)> {
+    music.album_continuation(&continuation).await.map_err(ErrorResponse::from)
+}
+
+#[tauri::command]
+pub async fn get_music_artist_page(
+    browse_id: String,
+    music: State<'_, MusicService>,
+) -> CmdResult<ArtistPage> {
+    music.artist(&browse_id).await.map_err(ErrorResponse::from)
+}
+
+#[tauri::command]
+pub async fn get_music_playlist_page(
+    playlist_id: String,
+    music: State<'_, MusicService>,
+) -> CmdResult<MusicPlaylistPage> {
+    music.playlist(&playlist_id).await.map_err(ErrorResponse::from)
+}
+
+#[tauri::command]
+pub async fn get_music_playlist_continuation(
+    continuation: String,
+    music: State<'_, MusicService>,
+) -> CmdResult<(Vec<SongItem>, Option<String>)> {
+    music.playlist_continuation(&continuation).await.map_err(ErrorResponse::from)
+}
+
+// --- Watch / queue / lyrics ----------------------------------------------
+
+#[tauri::command]
+pub async fn get_music_watch_queue(
+    video_id: Option<String>,
+    playlist_id: Option<String>,
+    params: Option<String>,
+    music: State<'_, MusicService>,
+) -> CmdResult<QueuePage> {
+    music
+        .watch_queue(video_id.as_deref(), playlist_id.as_deref(), params.as_deref())
+        .await
+        .map_err(ErrorResponse::from)
+}
+
+#[tauri::command]
+pub async fn get_music_queue_continuation(
+    continuation: String,
+    music: State<'_, MusicService>,
+) -> CmdResult<QueuePage> {
+    music.queue_continuation(&continuation).await.map_err(ErrorResponse::from)
+}
+
+#[tauri::command]
+pub async fn get_music_queue(
+    video_ids: Vec<String>,
+    playlist_id: Option<String>,
+    music: State<'_, MusicService>,
+) -> CmdResult<QueuePage> {
+    music
+        .get_queue(&video_ids, playlist_id.as_deref())
+        .await
+        .map_err(ErrorResponse::from)
+}
+
+#[tauri::command]
+pub async fn get_music_related_typed(
+    video_id: String,
+    music: State<'_, MusicService>,
+) -> CmdResult<RelatedPage> {
+    validate_video_id(&video_id).map_err(ErrorResponse::from)?;
+    music.related(&video_id).await.map_err(ErrorResponse::from)
+}
+
+#[tauri::command]
+pub async fn get_music_lyrics_typed(
+    video_id: String,
+    music: State<'_, MusicService>,
+) -> CmdResult<Option<String>> {
+    validate_video_id(&video_id).map_err(ErrorResponse::from)?;
+    music.lyrics(&video_id).await.map_err(ErrorResponse::from)
+}
+
+// --- Playback (reuses the shared streaming proxy) -------------------------
+
+#[tauri::command]
+pub async fn get_music_stream(
+    video_id: String,
+    music: State<'_, MusicService>,
+    streaming_manager: State<'_, StreamingManager>,
+) -> CmdResult<MusicStreamInfo> {
+    validate_video_id(&video_id).map_err(ErrorResponse::from)?;
+
+    let mut info = music.resolve_stream(&video_id).await.map_err(ErrorResponse::from)?;
+
+    // Register the upstream audio URL with the shared proxy and rewrite to a
+    // loopback URL — identical mechanism to the video `get_stream_info`.
+    let token = uuid::Uuid::new_v4().to_string();
+    let content_type = info
+        .mime_type
+        .split(';')
+        .next()
+        .unwrap_or("audio/webm")
+        .to_string();
+    streaming_manager.register_session(
+        token.clone(),
+        info.audio_url.clone(),
+        content_type,
+        info.user_agent.clone(),
+    );
+    let port = streaming_manager.get_port();
+    info.audio_url = format!("http://127.0.0.1:{port}/stream/{token}");
+    info.user_agent = String::new();
+
+    Ok(info)
+}
