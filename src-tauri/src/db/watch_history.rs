@@ -12,6 +12,8 @@ pub struct WatchHistoryRecord {
     pub watch_date: String,
     pub watch_duration_seconds: i64,
     pub total_duration_seconds: Option<i64>,
+    #[serde(default)]
+    pub is_music: bool,
 }
 
 pub async fn upsert_watch_record(pool: &SqlitePool, record: &WatchHistoryRecord) -> AppResult<()> {
@@ -25,12 +27,13 @@ pub async fn upsert_watch_record(pool: &SqlitePool, record: &WatchHistoryRecord)
     if let Some(row) = existing {
         let id: i64 = sqlx::Row::get(&row, 0);
         sqlx::query(
-            "UPDATE watch_history SET 
-                title = ?, 
-                channel_name = ?, 
-                watch_date = ?, 
-                watch_duration_seconds = ?, 
-                total_duration_seconds = ?
+            "UPDATE watch_history SET
+                title = ?,
+                channel_name = ?,
+                watch_date = ?,
+                watch_duration_seconds = ?,
+                total_duration_seconds = ?,
+                is_music = ?
              WHERE id = ?",
         )
         .bind(&record.title)
@@ -38,14 +41,15 @@ pub async fn upsert_watch_record(pool: &SqlitePool, record: &WatchHistoryRecord)
         .bind(&record.watch_date)
         .bind(record.watch_duration_seconds)
         .bind(record.total_duration_seconds)
+        .bind(record.is_music)
         .bind(id)
         .execute(pool)
         .await
         .map_err(|e| AppError::Database(e.to_string()))?;
     } else {
         sqlx::query(
-            "INSERT INTO watch_history (video_id, title, channel_name, watch_date, watch_duration_seconds, total_duration_seconds)
-             VALUES (?, ?, ?, ?, ?, ?)"
+            "INSERT INTO watch_history (video_id, title, channel_name, watch_date, watch_duration_seconds, total_duration_seconds, is_music)
+             VALUES (?, ?, ?, ?, ?, ?, ?)"
         )
         .bind(&record.video_id)
         .bind(&record.title)
@@ -53,6 +57,7 @@ pub async fn upsert_watch_record(pool: &SqlitePool, record: &WatchHistoryRecord)
         .bind(&record.watch_date)
         .bind(record.watch_duration_seconds)
         .bind(record.total_duration_seconds)
+        .bind(record.is_music)
         .execute(pool)
         .await
         .map_err(|e| AppError::Database(e.to_string()))?;
@@ -67,9 +72,30 @@ pub async fn get_watch_history(
     offset: i64,
 ) -> AppResult<Vec<WatchHistoryRecord>> {
     let records = sqlx::query_as::<_, WatchHistoryRecord>(
-        "SELECT id, video_id, title, channel_name, watch_date, watch_duration_seconds, total_duration_seconds
-         FROM watch_history 
-         ORDER BY datetime(watch_date) DESC, created_at DESC 
+        "SELECT id, video_id, title, channel_name, watch_date, watch_duration_seconds, total_duration_seconds, is_music
+         FROM watch_history
+         ORDER BY datetime(watch_date) DESC, created_at DESC
+         LIMIT ? OFFSET ?"
+    )
+    .bind(limit)
+    .bind(offset)
+    .fetch_all(pool)
+    .await
+    .map_err(|e| AppError::Database(e.to_string()))?;
+
+    Ok(records)
+}
+
+pub async fn get_music_history(
+    pool: &SqlitePool,
+    limit: i64,
+    offset: i64,
+) -> AppResult<Vec<WatchHistoryRecord>> {
+    let records = sqlx::query_as::<_, WatchHistoryRecord>(
+        "SELECT id, video_id, title, channel_name, watch_date, watch_duration_seconds, total_duration_seconds, is_music
+         FROM watch_history
+         WHERE is_music = 1
+         ORDER BY datetime(watch_date) DESC, created_at DESC
          LIMIT ? OFFSET ?"
     )
     .bind(limit)
@@ -87,9 +113,9 @@ pub async fn get_watch_record(
     video_id: &str,
 ) -> AppResult<Option<WatchHistoryRecord>> {
     let record = sqlx::query_as::<_, WatchHistoryRecord>(
-        "SELECT id, video_id, title, channel_name, watch_date, watch_duration_seconds, total_duration_seconds 
-         FROM watch_history 
-         WHERE video_id = ? 
+        "SELECT id, video_id, title, channel_name, watch_date, watch_duration_seconds, total_duration_seconds, is_music
+         FROM watch_history
+         WHERE video_id = ?
          LIMIT 1"
     )
     .bind(video_id)

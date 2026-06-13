@@ -16,6 +16,17 @@ pub async fn get_watch_history(
 }
 
 #[tauri::command]
+pub async fn get_music_history(
+    limit: i64,
+    offset: i64,
+    pool: State<'_, SqlitePool>,
+) -> Result<Vec<WatchHistoryRecord>, ErrorResponse> {
+    watch_history::get_music_history(&pool, limit, offset)
+        .await
+        .map_err(ErrorResponse::from)
+}
+
+#[tauri::command]
 pub async fn add_watch_record(
     record: WatchHistoryRecord,
     pool: State<'_, SqlitePool>,

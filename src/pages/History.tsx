@@ -5,7 +5,10 @@ import { getString } from "../lib/i18n/index";
 import { HistoryDateGroup } from "../components/history/HistoryDateGroup";
 import { Button } from "../components/ui/Button";
 import { SearchInput } from "../components/ui/SearchInput";
-import { useHistory } from "../lib/useHistory";
+import { CategoryChips } from "../components/layout/CategoryChips";
+import { useHistory, groupHistoryByDate } from "../lib/useHistory";
+
+type HistoryFilter = "all" | "videos" | "music";
 
 interface HistoryProps {
   onPlay: (video: VideoSummary) => void;
@@ -14,30 +17,37 @@ interface HistoryProps {
 export const History: React.FC<HistoryProps> = ({ onPlay }) => {
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [filter, setFilter] = useState<HistoryFilter>("all");
   const {
     history,
-    groupedHistory,
     loading,
     removeHistoryItem,
     clearHistory,
   } = useHistory();
 
+  const filters = useMemo(
+    () => [
+      { key: "all" as const, label: getString("history_filter_all") },
+      { key: "videos" as const, label: getString("history_filter_videos") },
+      { key: "music" as const, label: getString("history_filter_music") },
+    ],
+    [],
+  );
+  const activeLabel = filters.find((f) => f.key === filter)?.label ?? filters[0]?.label ?? "";
+
   const visibleGroups = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
-    if (!query) return groupedHistory;
-
-    return groupedHistory
-      .map((group) => ({
-        ...group,
-        videos: group.videos.filter((video) => {
-          return (
-            video.title.toLowerCase().includes(query) ||
-            video.channelName.toLowerCase().includes(query)
-          );
-        }),
-      }))
-      .filter((group) => group.videos.length > 0);
-  }, [groupedHistory, searchQuery]);
+    const filtered = history.filter((record) => {
+      if (filter === "music" && !record.isMusic) return false;
+      if (filter === "videos" && record.isMusic) return false;
+      if (query) {
+        const haystack = `${record.title ?? ""} ${record.channelName ?? ""}`.toLowerCase();
+        if (!haystack.includes(query)) return false;
+      }
+      return true;
+    });
+    return groupHistoryByDate(filtered);
+  }, [history, filter, searchQuery]);
 
   const handleClearAll = async () => {
     try {
@@ -90,6 +100,16 @@ export const History: React.FC<HistoryProps> = ({ onPlay }) => {
             </Button>
           </div>
         </header>
+
+        <CategoryChips
+          categories={filters.map((f) => f.label)}
+          activeCategory={activeLabel}
+          onCategoryChange={(label) =>
+            setFilter(filters.find((f) => f.label === label)?.key ?? "all")
+          }
+          sticky={false}
+          className="mt-2"
+        />
 
         {loading ? (
           <div className="flex flex-col items-center justify-center py-32">

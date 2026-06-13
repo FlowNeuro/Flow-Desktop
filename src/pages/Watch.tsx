@@ -13,6 +13,7 @@ import {
 } from "../lib/api/youtube";
 import { getSponsorBlockSegments, getReturnYouTubeDislike, getDeArrowOverride } from "../lib/api/foss";
 import { addWatchRecord } from "../lib/api/db";
+import { isMusicVideo } from "../lib/utils";
 import { logInteraction, markNotInterested } from "../lib/api/recommendation";
 import { Loader2, ThumbsUp, ThumbsDown, Share2, Bookmark, MoreHorizontal,WandSparkles } from "lucide-react";
 import Player from "../components/player/Player";
@@ -387,6 +388,7 @@ export function Watch() {
           watchDate: new Date().toISOString(),
           watchDurationSeconds: Math.floor(readSavedWatchProgress(currentVideo.id, currentVideo.durationSeconds ?? 0)),
           totalDurationSeconds: currentVideo.durationSeconds ?? 0,
+          isMusic: isMusicVideo(currentVideo),
         });
       } catch (err) {
         setStreamUrl(null);
@@ -589,6 +591,7 @@ export function Watch() {
       watchDate: new Date().toISOString(),
       watchDurationSeconds: Math.floor(time),
       totalDurationSeconds: Math.floor(nextDuration || 0),
+      isMusic: isMusicVideo(currentVideo),
     });
   }, [setCurrentTime, setDuration, currentVideo, resolvedChannelId, videoDetails]);
 
@@ -623,6 +626,7 @@ export function Watch() {
         watchDate: new Date().toISOString(),
         watchDurationSeconds: Math.floor(latestProgress.time),
         totalDurationSeconds: Math.floor(latestProgress.duration || currentVideo.durationSeconds || 0),
+        isMusic: isMusicVideo(currentVideo),
       });
     };
 

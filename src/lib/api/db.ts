@@ -15,6 +15,17 @@ export async function getWatchHistory(
   return invokeBackend<WatchHistoryRecord[]>("get_watch_history", { limit, offset });
 }
 
+export async function getMusicHistory(
+  limit: number,
+  offset: number,
+): Promise<WatchHistoryRecord[]> {
+  if (!(await isTauriEnv())) {
+    const all = await getWatchHistory(limit + offset, 0);
+    return all.filter((r) => r.isMusic).slice(offset, offset + limit);
+  }
+  return invokeBackend<WatchHistoryRecord[]>("get_music_history", { limit, offset });
+}
+
 export async function addWatchRecord(
   record: WatchHistoryRecord,
 ): Promise<void> {

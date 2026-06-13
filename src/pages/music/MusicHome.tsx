@@ -6,6 +6,7 @@ import { CategoryChips } from '../../components/layout/CategoryChips';
 import { MusicItemCard } from '../../components/music/MusicItemCard';
 import { MusicShelf } from '../../components/music/MusicShelf';
 import { useMusicChipFilter, useMusicHome } from '../../lib/useMusicHome';
+import { useMusicPersonalization } from '../../lib/useMusicPersonalization';
 import { usePlayerStore } from '../../store/usePlayerStore';
 import { getString } from '../../lib/i18n/index';
 import type { AlbumItem, ArtistItem, PlaylistItem, SongItem, YTItem } from '../../types/music';
@@ -46,6 +47,7 @@ export default function MusicHome() {
   const setQueue = usePlayerStore((s) => s.setQueue);
   const addToQueue = usePlayerStore((s) => s.addToQueue);
   const { data, loading, error, reload, loadMore, hasMore, loadingMore } = useMusicHome();
+  const personalization = useMusicPersonalization();
 
   const fallbackMoods = useMemo(
     () => [
@@ -165,8 +167,30 @@ export default function MusicHome() {
       );
     }
 
-    const quickPicks = data?.quickPicks ?? [];
-    const sections = data?.sections ?? [];
+    const quickPicks = personalization.quickPicks.length
+      ? personalization.quickPicks
+      : data?.quickPicks ?? [];
+    const personalSections = personalization.sections;
+    const seenTitles = new Set(personalSections.map((s) => s.title.trim().toLowerCase()));
+    const homeSections = (data?.sections ?? []).filter(
+      (s) => !seenTitles.has(s.title.trim().toLowerCase()),
+    );
+
+    const renderShelf = (key: string, title: string, rawItems: YTItem[]) => {
+      const items = rawItems.filter(renderable).slice(0, 20);
+      if (items.length === 0) return null;
+      const songContext = songsOf(items);
+      const shape = items[0]?.type === 'artist' ? 'circle' : 'square';
+      return (
+        <MusicShelf
+          key={key}
+          title={title}
+          items={items}
+          skeletonShape={shape}
+          renderItem={(item) => renderCard(item, songContext)}
+        />
+      );
+    };
 
     return (
       <>
@@ -191,21 +215,16 @@ export default function MusicHome() {
         )}
 
         <div className="flex flex-col gap-10">
-          {sections.map((section, idx) => {
-            const items = section.items.filter(renderable).slice(0, 20);
-            if (items.length === 0) return null;
-            const songContext = songsOf(items);
-            const shape = items[0]?.type === 'artist' ? 'circle' : 'square';
-            return (
-              <MusicShelf
-                key={`${section.title}-${idx}`}
-                title={section.title}
-                items={items}
-                skeletonShape={shape}
-                renderItem={(item) => renderCard(item, songContext)}
-              />
-            );
-          })}
+          {personalSections.map((section) =>
+            renderShelf(
+              section.id,
+              section.subtitle ? `${section.subtitle} ${section.title}` : section.title,
+              section.items,
+            ),
+          )}
+          {homeSections.map((section, idx) =>
+            renderShelf(`${section.title}-${idx}`, section.title, section.items),
+          )}
         </div>
       </>
     );

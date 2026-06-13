@@ -1,3 +1,12 @@
+export function isMusicVideo(v: {
+  viewCountText?: string | null;
+  channelName?: string | null;
+}): boolean {
+  const views = (v.viewCountText ?? "").toLowerCase();
+  const channel = (v.channelName ?? "").toLowerCase();
+  return views === "song" || views === "album track" || channel.includes("- topic");
+}
+
 export function formatCount(count: number | string | undefined | null): string {
   if (count === undefined || count === null) return "";
 

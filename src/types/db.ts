@@ -6,4 +6,5 @@ export interface WatchHistoryRecord {
   watchDate: string;
   watchDurationSeconds: number;
   totalDurationSeconds?: number | null;
+  isMusic?: boolean;
 }
