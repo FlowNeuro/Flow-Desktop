@@ -11,6 +11,7 @@ import {
   History,
   Home,
   ListVideo,
+  Music2,
   Settings,
   ThumbsUp,
   Users,
@@ -118,6 +119,7 @@ export function Sidebar({ mode = 'normal' }: SidebarProps) {
         <nav className="flex w-full flex-col items-center gap-1">
           <CompactRailItem path="/" icon={<Home />} label={getString('home')} end />
           <CompactRailItem path="/feed" icon={<Compass />} label={getString('sidebar_flowneuron')} />
+          <CompactRailItem path="/music" icon={<Music2 />} label={getString('sidebar_music')} />
           <CompactRailItem path="/subscriptions" icon={<Users />} label={getString('sidebar_subscriptions')} />
           <CompactRailItem path="/history" icon={<UserCircle />} label={getString('sidebar_you')} />
         </nav>
@@ -140,6 +142,7 @@ export function Sidebar({ mode = 'normal' }: SidebarProps) {
       <nav className="flex flex-col">
         <SidebarItem to="/" end icon={<Home />} label={getString('home')} onClick={closeOverlay} />
         <SidebarItem to="/feed" icon={<Compass />} label={getString('sidebar_flowneuron')} onClick={closeOverlay} />
+        <SidebarItem to="/music" icon={<Music2 />} label={getString('sidebar_music')} onClick={closeOverlay} />
       </nav>
 
       <hr className="border-neutral-800/50 my-3 mx-4" />

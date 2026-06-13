@@ -8,6 +8,7 @@ import type { VideoSummary } from "./types/video";
 import { PageWrapper } from "./components/layout/PageWrapper";
 
 import Home from "./pages/Home";
+import MusicHome from "./pages/music/MusicHome";
 import Search from "./pages/Search";
 import Subscriptions from "./pages/Subscriptions";
 import History from "./pages/History";
@@ -80,6 +81,9 @@ function App() {
           } />
           <Route path="feed" element={
             <FlowNeuroPersona />
+          } />
+          <Route path="music" element={
+            <MusicHome />
           } />
           <Route path="search" element={
             <Search onPlay={handlePlayVideo} onAddToQueue={handleAddToQueue} />

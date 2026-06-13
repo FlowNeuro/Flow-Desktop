@@ -90,7 +90,7 @@ export function FlowNeuroPersona() {
   if (loading && !brain) {
     return (
       <div className="flex-grow h-full overflow-y-auto bg-[var(--color-background)]">
-        <div className="grid grid-cols-12 gap-6 max-w-7xl mx-auto p-8">
+        <div className="grid grid-cols-12 gap-6 mx-auto p-8">
           <div className="col-span-12 flex items-center justify-between">
             <h1 className="text-3xl font-semibold tracking-tight text-[var(--color-on-surface)] flex items-center gap-3">
               <Compass className="h-7 w-7 text-[var(--color-primary)] animate-pulse" />
@@ -109,7 +109,7 @@ export function FlowNeuroPersona() {
 
   return (
     <div className="flex-grow h-full overflow-y-auto">
-      <div className="grid grid-cols-12 gap-6 max-w-7xl mx-auto p-8 animate-pane-in">
+      <div className="grid grid-cols-12 gap-6 mx-auto p-8 animate-pane-in">
         {/* Page Header */}
         <div className="col-span-12 flex items-center justify-between gap-4 border-b border-[var(--color-outline-variant)] pb-4">
           <div>

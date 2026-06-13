@@ -32,7 +32,7 @@ export const ChannelHero: React.FC<ChannelHeroProps> = ({
       </div>
 
       {/* Profile Block (Overlapping) */}
-      <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8">
+      <div className=" mx-auto w-full px-4 sm:px-6 lg:px-8">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-6 relative z-10">
           
           <div className="flex flex-col md:flex-row items-center md:items-end gap-6">

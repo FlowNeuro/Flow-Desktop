@@ -50,7 +50,7 @@ function ChannelPageSkeleton() {
       <div className="relative w-full h-48 md:h-64 bg-zinc-900" />
       
       {/* Profile Block Skeleton */}
-      <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8">
+      <div className=" mx-auto w-full px-4 sm:px-6 lg:px-8">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-6 relative z-10">
           <div className="flex flex-col md:flex-row items-center md:items-end gap-6">
             {/* Overlapping Avatar Skeleton */}
@@ -72,7 +72,7 @@ function ChannelPageSkeleton() {
       <div className="w-full bg-zinc-900/50 border-b border-zinc-800 h-14" />
 
       {/* Grid Content Skeleton */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className=" mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4 gap-x-4 gap-y-8 pb-8">
           {Array.from({ length: 8 }).map((_, i) => (
             <div key={i} className="flex flex-col gap-3">
@@ -419,7 +419,7 @@ export const Channel: React.FC<ChannelProps> = ({ onPlay, onAddToQueue }) => {
         onSearchClear={handleClearSearch}
       />
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className=" mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {activeTab === "videos" && !activeSearchQuery && (
           <div className="flex items-center gap-2.5 mb-6">
             <button

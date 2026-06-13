@@ -367,9 +367,28 @@
   "import_format_opml": "OPML Subscriptions",
 
   "sidebar_flowneuron": "FlowNeuro",
+  "sidebar_music": "Music",
   "sidebar_subscriptions": "Subscriptions",
   "sidebar_you": "You",
   "sidebar_extensions": "Extensions",
   "sidebar_show_more": "Show more",
-  "sidebar_show_less": "Show less"
+  "sidebar_show_less": "Show less",
+
+  "music_play": "Play",
+  "music_more_options": "More options",
+  "music_explicit": "Explicit",
+  "music_role_artist": "Artist",
+  "music_show_all": "Show all",
+  "music_quick_picks": "Quick Picks",
+  "music_new_releases": "New Releases",
+  "music_recommended_artists": "Recommended Artists",
+  "music_top_charts": "Charts & Top Hits",
+  "music_error_generic": "Couldn't load music right now.",
+  "music_retry": "Retry",
+  "music_load_more": "Load more",
+  "music_mood_all": "All",
+  "music_mood_workout": "Workout",
+  "music_mood_focus": "Focus",
+  "music_mood_relax": "Relax",
+  "music_mood_podcasts": "Podcasts"
 }

@@ -58,7 +58,7 @@ export const History: React.FC<HistoryProps> = ({ onPlay }) => {
 
   return (
     <div className="flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-8">
-      <div className="mx-auto w-full max-w-7xl pb-20">
+      <div className="mx-auto w-full pb-20">
         <header className="flex flex-col gap-5 border-b border-neutral-800 pb-6 lg:flex-row lg:items-end lg:justify-between">
           <div className="min-w-0">
             <h1 className="text-3xl font-bold tracking-tight text-neutral-100 lg:text-4xl">

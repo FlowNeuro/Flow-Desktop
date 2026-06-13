@@ -32,31 +32,44 @@ impl InnertubeClient {
         let chips = shelves::parse_chips(&res);
         let mut sections: Vec<MusicShelf> = Vec::new();
 
-        for section in shelves::section_list_contents(&res) {
-            if let Some(shelf) = shelves::parse_section(&section) {
-                sections.push(shelf);
-            }
-        }
-        if let Some(arr) = res["continuationContents"]["sectionListContinuation"]["contents"]
-            .as_array()
+        let mut content_arrays: Vec<Value> = shelves::section_list_contents(&res);
+        if let Some(arr) =
+            res["continuationContents"]["sectionListContinuation"]["contents"].as_array()
         {
-            for section in arr {
-                if let Some(shelf) = shelves::parse_section(section) {
-                    sections.push(shelf);
+            content_arrays.extend(arr.iter().cloned());
+        }
+        if let Some(actions) = res["onResponseReceivedActions"].as_array() {
+            for action in actions {
+                if let Some(arr) =
+                    action["appendContinuationItemsAction"]["continuationItems"].as_array()
+                {
+                    content_arrays.extend(arr.iter().cloned());
                 }
             }
         }
+        for section in &content_arrays {
+            if let Some(shelf) = shelves::parse_section(section) {
+                sections.push(shelf);
+            }
+        }
 
-        let next = continuation::from_continuations(
-            &res["contents"]["singleColumnBrowseResultsRenderer"]["tabs"][0]["tabRenderer"]
-                ["content"]["sectionListRenderer"],
-        )
-        .or_else(|| {
-            continuation::from_continuations(
-                &res["continuationContents"]["sectionListContinuation"],
-            )
-        })
-        .or_else(|| continuation::from_continuations(&res["contents"]["sectionListRenderer"]));
+        let section_list = &res["contents"]["singleColumnBrowseResultsRenderer"]["tabs"][0]
+            ["tabRenderer"]["content"]["sectionListRenderer"];
+        let cont_node = &res["continuationContents"]["sectionListContinuation"];
+        let next = continuation::from_continuations(section_list)
+            .or_else(|| continuation::from_continuations(cont_node))
+            .or_else(|| continuation::from_continuations(&res["contents"]["sectionListRenderer"]))
+            .or_else(|| continuation::from_items(&section_list["contents"]))
+            .or_else(|| continuation::from_items(&cont_node["contents"]))
+            .or_else(|| {
+                res["onResponseReceivedActions"].as_array().and_then(|actions| {
+                    actions.iter().find_map(|a| {
+                        continuation::from_items(
+                            &a["appendContinuationItemsAction"]["continuationItems"],
+                        )
+                    })
+                })
+            });
 
         Ok(MusicHomePage {
             chips,

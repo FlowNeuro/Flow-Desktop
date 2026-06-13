@@ -74,7 +74,10 @@ export function Topbar() {
         <IconButton onClick={(location.pathname.startsWith('/watch/') || location.pathname.startsWith('/settings')) ? toggleWatchSidebar : toggleSidebar}>
           <Menu />
         </IconButton>
-        <div className="hidden items-center sm:flex">
+        <div className="cursor-pointer" onClick={() => navigate('/')}>
+          <Logo size={36} showText={true} />
+        </div>
+        <div className="hidden ml-1 items-center sm:flex">
           <IconButton
             title="Back"
             onClick={() => navigate(-1)}
@@ -89,9 +92,6 @@ export function Topbar() {
           >
             <ArrowRight />
           </IconButton>
-        </div>
-        <div className="cursor-pointer" onClick={() => navigate('/')}>
-          <Logo size={36} showText={true} />
         </div>
       </div>
 

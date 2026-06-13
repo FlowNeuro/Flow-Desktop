@@ -56,7 +56,7 @@ export const ChannelTabs: React.FC<ChannelTabsProps> = ({
 
   return (
     <div className="w-full bg-background/95 backdrop-blur-md sticky top-0 z-40 border-b border-surface">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className=" mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-14 gap-4 overflow-x-auto scrollbar-none hide-scrollbar">
           <div className="flex space-x-8 h-full items-center">
             {tabs.map((tab) => {
