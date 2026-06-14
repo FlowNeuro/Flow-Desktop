@@ -2,11 +2,20 @@ import { useEffect, useRef } from "react";
 
 import { useMusicPlayerStore } from "../../store/useMusicPlayerStore";
 import { musicAudioEngine } from "../../lib/audio/musicAudioEngine";
+import { recordSongHistory } from "../../lib/musicHistory";
+import type { SongItem } from "../../types/music";
+
+const HISTORY_PERSIST_MS = 5000;
 
 export function GlobalMusicAudio() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const currentTrack = useMusicPlayerStore((s) => s.currentTrack);
   const isPlaying = useMusicPlayerStore((s) => s.isPlaying);
+
+  // --- watch-history persistence ---
+  const historyTrackRef = useRef<SongItem | null>(null);
+  const lastProgressRef = useRef({ time: 0, duration: 0 });
+  const lastPersistAtRef = useRef(0);
 
   useEffect(() => {
     const el = audioRef.current;
@@ -20,12 +29,50 @@ export function GlobalMusicAudio() {
   }, []);
 
   useEffect(() => {
+    if (currentTrack) {
+      historyTrackRef.current = currentTrack;
+      lastProgressRef.current = { time: 0, duration: currentTrack.duration ?? 0 };
+      lastPersistAtRef.current = Date.now();
+      void recordSongHistory(currentTrack, 0, currentTrack.duration ?? 0);
+    }
+    return () => {
+      const prev = historyTrackRef.current;
+      if (prev) {
+        const { time, duration } = lastProgressRef.current;
+        void recordSongHistory(prev, time, duration);
+      }
+    };
+  }, [currentTrack?.id]);
+
+  useEffect(() => {
+    const handler = () => {
+      const t = historyTrackRef.current;
+      if (!t) return;
+      const { time, duration } = lastProgressRef.current;
+      void recordSongHistory(t, time, duration);
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, []);
+
+  useEffect(() => {
     if (!isPlaying) return;
     let raf = 0;
     const tick = () => {
       const el = audioRef.current;
       if (el) {
         useMusicPlayerStore.getState()._syncTime(el.currentTime, el.duration);
+        const duration = Number.isFinite(el.duration)
+          ? el.duration
+          : lastProgressRef.current.duration;
+        lastProgressRef.current = { time: el.currentTime, duration };
+
+        const now = Date.now();
+        if (now - lastPersistAtRef.current > HISTORY_PERSIST_MS) {
+          lastPersistAtRef.current = now;
+          const t = historyTrackRef.current;
+          if (t) void recordSongHistory(t, el.currentTime, duration);
+        }
       }
       raf = requestAnimationFrame(tick);
     };

@@ -5,11 +5,17 @@ import {
   Pause,
   SkipBack,
   SkipForward,
+  Shuffle,
+  Repeat,
+  Repeat1,
+  Volume2,
+  VolumeX,
   ListMusic,
   Mic2,
   SlidersHorizontal,
   Maximize2,
   Loader2,
+  X,
 } from "lucide-react";
 
 import { useMusicPlayerStore } from "../../store/useMusicPlayerStore";
@@ -17,137 +23,159 @@ import { getString } from "../../lib/i18n/index";
 import { artistsText } from "../../lib/musicFormat";
 import { HapticButton } from "./HapticButton";
 import { MusicArtwork } from "./MusicArtwork";
+import { MusicScrubber } from "./MusicScrubber";
 import { EqPanel } from "./EqPanel";
+import { VolumePopover } from "./VolumePopover";
 
-const ICON_BTN =
-  "grid h-9 w-9 place-items-center rounded-full text-neutral-400 transition-colors duration-200 ease-out hover:bg-surface-container-highest hover:text-neutral-100";
-
-function DockProgress() {
-  const progress = useMusicPlayerStore((s) => s.progress);
-  const duration = useMusicPlayerStore((s) => s.duration);
-  const seek = useMusicPlayerStore((s) => s.seek);
-
-  const pct = duration > 0 ? Math.min(100, Math.max(0, (progress / duration) * 100)) : 0;
-
-  const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (duration <= 0) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const ratio = (e.clientX - rect.left) / rect.width;
-    seek(Math.max(0, Math.min(1, ratio)) * duration);
-  };
-
-  return (
-    <div
-      onClick={handleSeek}
-      role="slider"
-      tabIndex={-1}
-      aria-label={getString("music_now_playing")}
-      aria-valuemin={0}
-      aria-valuemax={100}
-      aria-valuenow={Math.round(pct)}
-      className="group/prog absolute inset-x-4 bottom-1 flex h-2.5 cursor-pointer items-center"
-    >
-      <div className="relative h-1 w-full overflow-hidden rounded-full bg-neutral-700/70 transition-[height] duration-150 ease-out group-hover/prog:h-1.5">
-        <div
-          className="absolute inset-y-0 left-0 rounded-full bg-[var(--color-primary)]"
-          style={{ width: `${pct}%` }}
-        />
-      </div>
-    </div>
-  );
-}
+const GHOST = "grid h-9 w-9 place-items-center rounded-full transition-colors duration-200 ease-out";
+const GHOST_IDLE = `${GHOST} text-neutral-400 hover:text-white`;
+const GHOST_ACTIVE = `${GHOST} text-[var(--color-primary)]`;
 
 export function GlobalMusicDock() {
   const currentTrack = useMusicPlayerStore((s) => s.currentTrack);
+  const viewState = useMusicPlayerStore((s) => s.viewState);
   const isPlaying = useMusicPlayerStore((s) => s.isPlaying);
   const isBuffering = useMusicPlayerStore((s) => s.isBuffering);
   const loadingStreamId = useMusicPlayerStore((s) => s.loadingStreamId);
   const eqEnabled = useMusicPlayerStore((s) => s.eqEnabled);
+  const isShuffle = useMusicPlayerStore((s) => s.isShuffle);
+  const repeatMode = useMusicPlayerStore((s) => s.repeatMode);
+  const isMuted = useMusicPlayerStore((s) => s.isMuted);
+  const volume = useMusicPlayerStore((s) => s.volume);
 
   const togglePlay = useMusicPlayerStore((s) => s.togglePlay);
   const next = useMusicPlayerStore((s) => s.next);
   const previous = useMusicPlayerStore((s) => s.previous);
+  const toggleShuffle = useMusicPlayerStore((s) => s.toggleShuffle);
+  const cycleRepeat = useMusicPlayerStore((s) => s.cycleRepeat);
   const openOverlay = useMusicPlayerStore((s) => s.openOverlay);
+  const dismiss = useMusicPlayerStore((s) => s.dismiss);
 
-  const [eqOpen, setEqOpen] = useState(false);
+  const [popover, setPopover] = useState<null | "eq" | "vol">(null);
 
   const loading = isBuffering || loadingStreamId !== null;
+  const muted = isMuted || volume === 0;
 
   return (
     <AnimatePresence>
-      {currentTrack && (
+      {currentTrack && viewState === "dock" && (
         <motion.div
           key="music-dock"
           initial={{ y: 96, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: 96, opacity: 0 }}
           transition={{ type: "spring", stiffness: 420, damping: 38, mass: 0.9 }}
-          className="fixed bottom-3 left-1/2 z-50 w-[min(960px,calc(100vw-2rem))] -translate-x-1/2"
+          className="group fixed bottom-6 left-1/2 z-50 h-16 w-[90%] max-w-5xl -translate-x-1/2"
         >
-          <div className="relative flex items-center gap-3 rounded-3xl border border-neutral-800 bg-surface-container-high px-3 pb-3.5 pt-2">
+          {/* Dismiss — appears on hover at the corner. */}
+          <HapticButton
+            onClick={dismiss}
+            aria-label={getString("music_dismiss")}
+            className="absolute -right-2.5 -top-2.5 z-20 grid h-6 w-6 place-items-center rounded-full border border-neutral-700 bg-surface-container-highest text-neutral-300 opacity-0 transition-opacity duration-200 ease-out hover:text-white group-hover:opacity-100"
+          >
+            <X className="h-3.5 w-3.5" />
+          </HapticButton>
+
+          {/* The pill (clips the edge progress bar to the rounded corners). */}
+          <div className="relative flex h-full items-center overflow-hidden rounded-2xl border border-neutral-800 bg-surface-container-high/95 px-4 shadow-2xl backdrop-blur-md">
             {/* LEFT — artwork + meta (click to expand) */}
-            <button
-              type="button"
-              onClick={() => openOverlay("full")}
-              aria-label={getString("music_expand")}
-              className="group flex min-w-0 flex-1 items-center gap-3 rounded-full text-left outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]"
-            >
-              <MusicArtwork
-                src={currentTrack.thumbnail}
-                alt={currentTrack.title}
-                layoutId="music-player-art"
-                loading={loading}
-                className="h-12 w-12 shrink-0 rounded-full ring-1 ring-neutral-800/60 md:rounded-md"
-              />
-              <div className="flex min-w-0 flex-col">
-                <span className="line-clamp-1 text-sm font-medium text-neutral-100">
-                  {currentTrack.title}
-                </span>
-                <span className="line-clamp-1 text-xs text-neutral-400">
-                  {artistsText(currentTrack.artists)}
-                </span>
-              </div>
-            </button>
+            <div className="flex w-1/3 min-w-0 items-center gap-3">
+              <button
+                type="button"
+                onClick={() => openOverlay("full")}
+                aria-label={getString("music_expand")}
+                className="group/art flex min-w-0 items-center gap-3 rounded-md text-left outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]"
+              >
+                <MusicArtwork
+                  src={currentTrack.thumbnail}
+                  alt={currentTrack.title}
+                  layoutId="album-art"
+                  loading={loading}
+                  className="h-10 w-10 shrink-0 rounded-md ring-1 ring-neutral-800/60 transition-transform duration-200 ease-out group-hover/art:scale-[1.04]"
+                />
+                <div className="min-w-0">
+                  <div className="line-clamp-1 text-sm font-medium text-white">
+                    {currentTrack.title}
+                  </div>
+                  <div className="line-clamp-1 text-xs text-neutral-400">
+                    {artistsText(currentTrack.artists)}
+                  </div>
+                </div>
+              </button>
+            </div>
 
             {/* CENTER — transport */}
-            <div className="flex shrink-0 items-center gap-1">
+            <div className="flex w-1/3 items-center justify-center gap-5">
+              <HapticButton
+                onClick={toggleShuffle}
+                aria-label={getString("music_shuffle")}
+                aria-pressed={isShuffle}
+                className={isShuffle ? GHOST_ACTIVE : GHOST_IDLE}
+              >
+                <Shuffle className="h-[18px] w-[18px]" />
+              </HapticButton>
+
               <HapticButton
                 onClick={previous}
                 aria-label={getString("music_previous")}
-                className={ICON_BTN}
+                className="grid h-9 w-9 place-items-center rounded-full text-neutral-200 transition-colors duration-200 ease-out hover:text-white"
               >
-                <SkipBack className="h-4 w-4" fill="currentColor" />
+                <SkipBack className="h-5 w-5" fill="currentColor" />
               </HapticButton>
 
               <HapticButton
                 onClick={togglePlay}
                 aria-label={getString(isPlaying ? "music_pause" : "music_play")}
-                className="grid h-10 w-10 place-items-center rounded-full bg-[var(--color-primary)] text-[var(--color-on-primary)] transition-[filter] duration-200 ease-out hover:brightness-110"
+                className="grid place-items-center text-white transition-transform duration-200 ease-out hover:scale-110"
               >
                 {loading ? (
-                  <Loader2 className="h-5 w-5 animate-spin" />
+                  <Loader2 className="h-7 w-7 animate-spin" />
                 ) : isPlaying ? (
-                  <Pause className="h-5 w-5" fill="currentColor" />
+                  <Pause className="h-7 w-7" fill="currentColor" />
                 ) : (
-                  <Play className="h-5 w-5" fill="currentColor" />
+                  <Play className="h-7 w-7 translate-x-px" fill="currentColor" />
                 )}
               </HapticButton>
 
               <HapticButton
                 onClick={next}
                 aria-label={getString("music_next")}
-                className={ICON_BTN}
+                className="grid h-9 w-9 place-items-center rounded-full text-neutral-200 transition-colors duration-200 ease-out hover:text-white"
               >
-                <SkipForward className="h-4 w-4" fill="currentColor" />
+                <SkipForward className="h-5 w-5" fill="currentColor" />
+              </HapticButton>
+
+              <HapticButton
+                onClick={cycleRepeat}
+                aria-label={
+                  repeatMode === "one" ? getString("music_repeat_one") : getString("music_repeat")
+                }
+                aria-pressed={repeatMode !== "none"}
+                className={repeatMode !== "none" ? GHOST_ACTIVE : GHOST_IDLE}
+              >
+                {repeatMode === "one" ? (
+                  <Repeat1 className="h-[18px] w-[18px]" />
+                ) : (
+                  <Repeat className="h-[18px] w-[18px]" />
+                )}
               </HapticButton>
             </div>
 
             {/* RIGHT — secondary actions */}
-            <div className="relative hidden shrink-0 items-center gap-0.5 sm:flex">
+            <div className="flex w-1/3 items-center justify-end gap-4">
+              <HapticButton
+                onClick={() => setPopover((p) => (p === "vol" ? null : "vol"))}
+                aria-label={getString("music_volume")}
+                aria-pressed={popover === "vol"}
+                className={popover === "vol" ? `${GHOST} text-white` : GHOST_IDLE}
+              >
+                {muted ? <VolumeX className="h-[18px] w-[18px]" /> : <Volume2 className="h-[18px] w-[18px]" />}
+              </HapticButton>
+
               <HapticButton
                 onClick={() => openOverlay("queue")}
                 aria-label={getString("music_queue")}
-                className={ICON_BTN}
+                className={GHOST_IDLE}
               >
                 <ListMusic className="h-[18px] w-[18px]" />
               </HapticButton>
@@ -155,20 +183,16 @@ export function GlobalMusicDock() {
               <HapticButton
                 onClick={() => openOverlay("lyrics")}
                 aria-label={getString("music_lyrics")}
-                className={ICON_BTN}
+                className={GHOST_IDLE}
               >
                 <Mic2 className="h-[18px] w-[18px]" />
               </HapticButton>
 
               <HapticButton
-                onClick={() => setEqOpen((v) => !v)}
+                onClick={() => setPopover((p) => (p === "eq" ? null : "eq"))}
                 aria-label={getString("music_equalizer")}
-                aria-pressed={eqOpen}
-                className={
-                  eqOpen || eqEnabled
-                    ? "grid h-9 w-9 place-items-center rounded-full bg-surface-container-highest text-[var(--color-primary)] transition-colors duration-200 ease-out"
-                    : ICON_BTN
-                }
+                aria-pressed={popover === "eq"}
+                className={popover === "eq" || eqEnabled ? GHOST_ACTIVE : GHOST_IDLE}
               >
                 <SlidersHorizontal className="h-[18px] w-[18px]" />
               </HapticButton>
@@ -176,15 +200,26 @@ export function GlobalMusicDock() {
               <HapticButton
                 onClick={() => openOverlay("full")}
                 aria-label={getString("music_expand")}
-                className={ICON_BTN}
+                className={GHOST_IDLE}
               >
                 <Maximize2 className="h-[18px] w-[18px]" />
               </HapticButton>
-
-              <EqPanel open={eqOpen} onClose={() => setEqOpen(false)} />
             </div>
 
-            <DockProgress />
+            {/* EDGE PROGRESS — pinned to the bottom of the pill */}
+            <MusicScrubber variant="edge" className="absolute inset-x-0 bottom-0" />
+          </div>
+
+          {/* Popovers — rendered outside the clipped pill so they aren't cut off. */}
+          <div className="absolute bottom-full right-2 mb-3">
+            <EqPanel
+              open={popover === "eq"}
+              onClose={() => setPopover(null)}
+              placement="top"
+            />
+          </div>
+          <div className="absolute bottom-full right-2 mb-3">
+            <VolumePopover open={popover === "vol"} />
           </div>
         </motion.div>
       )}

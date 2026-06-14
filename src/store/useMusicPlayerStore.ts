@@ -126,6 +126,7 @@ interface MusicPlayerState {
   next: () => void;
   previous: () => void;
   seek: (seconds: number) => void;
+  dismiss: () => void;
 
   setVolume: (volume: number) => void;
   toggleMute: () => void;
@@ -241,6 +242,25 @@ export const useMusicPlayerStore = create<MusicPlayerState>((set, get) => ({
   pause: () => {
     musicAudioEngine.pause();
     set({ isPlaying: false });
+  },
+
+  // Tear down the player entirely — stops audio, clears the queue, hides the
+  // dock/overlay. (The controller flushes a final history record on track clear.)
+  dismiss: () => {
+    musicAudioEngine.stop();
+    set({
+      currentTrack: null,
+      queue: [],
+      currentIndex: -1,
+      isPlaying: false,
+      isBuffering: false,
+      progress: 0,
+      duration: 0,
+      loudnessDb: null,
+      loadingStreamId: null,
+      streamError: null,
+      viewState: "dock",
+    });
   },
 
   next: () => {

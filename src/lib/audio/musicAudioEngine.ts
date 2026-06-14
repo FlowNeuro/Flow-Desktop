@@ -125,6 +125,16 @@ class MusicAudioEngine {
     this.el?.pause();
   }
 
+  stop(): void {
+    if (!this.el) return;
+    this.el.pause();
+    this.el.removeAttribute("src");
+    try {
+      this.el.load();
+    } catch {
+    }
+  }
+
   seek(seconds: number): void {
     if (this.el && Number.isFinite(seconds)) {
       this.el.currentTime = Math.max(0, seconds);

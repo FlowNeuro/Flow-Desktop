@@ -23,24 +23,35 @@ function formatGain(db: number | undefined): string {
   return v > 0 ? `+${v}` : `${v}`;
 }
 
-export function EqPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
+
+export function EqPanel({
+  open,
+  onClose,
+  placement = "top",
+}: {
+  open: boolean;
+  onClose: () => void;
+  placement?: "top" | "bottom";
+}) {
   const eqEnabled = useMusicPlayerStore((s) => s.eqEnabled);
   const eqGains = useMusicPlayerStore((s) => s.eqGains);
   const setEqEnabled = useMusicPlayerStore((s) => s.setEqEnabled);
   const setEqBand = useMusicPlayerStore((s) => s.setEqBand);
   const applyEqPreset = useMusicPlayerStore((s) => s.applyEqPreset);
 
+  const fromY = placement === "top" ? 10 : -10;
+
   return (
     <AnimatePresence>
       {open && (
         <motion.div
           key="eq-panel"
-          initial={{ opacity: 0, y: 10, scale: 0.97 }}
+          initial={{ opacity: 0, y: fromY, scale: 0.97 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: 10, scale: 0.97 }}
+          exit={{ opacity: 0, y: fromY, scale: 0.97 }}
           transition={{ type: "spring", stiffness: 420, damping: 34, mass: 0.8 }}
-          style={{ transformOrigin: "bottom right" }}
-          className="absolute bottom-full right-0 mb-3 w-80 rounded-2xl border border-neutral-800 bg-surface-container p-4"
+          style={{ transformOrigin: placement === "top" ? "bottom right" : "top right" }}
+          className="w-80 rounded-2xl border border-neutral-800 bg-surface-container p-4"
         >
           {/* header */}
           <div className="mb-4 flex items-center justify-between">

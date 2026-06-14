@@ -414,5 +414,9 @@
   "music_mute": "Mute",
   "music_unmute": "Unmute",
   "music_volume": "Volume",
-  "music_buffering": "Buffering"
+  "music_buffering": "Buffering",
+  "music_seek": "Seek",
+  "music_dismiss": "Close player",
+  "music_like": "Like",
+  "music_more_actions": "More"
 }
