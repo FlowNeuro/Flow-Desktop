@@ -7,30 +7,14 @@ import { MusicItemCard } from '../../components/music/MusicItemCard';
 import { MusicShelf } from '../../components/music/MusicShelf';
 import { useMusicChipFilter, useMusicHome } from '../../lib/useMusicHome';
 import { useMusicPersonalization } from '../../lib/useMusicPersonalization';
-import { usePlayerStore } from '../../store/usePlayerStore';
+import { useMusicPlayerStore } from '../../store/useMusicPlayerStore';
 import { getString } from '../../lib/i18n/index';
 import type { AlbumItem, ArtistItem, PlaylistItem, SongItem, YTItem } from '../../types/music';
-import type { VideoSummary } from '../../types/video';
 
 const songsOf = (items: YTItem[]): SongItem[] =>
   items.filter((i): i is Extract<YTItem, { type: 'song' }> => i.type === 'song');
 
 const renderable = (item: YTItem) => item.type !== 'episode' && item.type !== 'podcast';
-
-// SongItem → VideoSummary so tracks play through the shared player store.
-function songToVideoSummary(s: SongItem): VideoSummary {
-  return {
-    id: s.videoId ?? s.id,
-    title: s.title,
-    channelName: s.artists.map((a) => a.name).join(', ') || getString('music_role_artist'),
-    channelId: s.artists[0]?.id ?? null,
-    thumbnailUrl: s.thumbnail || null,
-    durationSeconds: s.duration ?? null,
-    publishedText: null,
-    viewCountText: 'Song',
-    channelAvatarUrl: null,
-  };
-}
 
 function SquareSkeleton({ fill }: { fill?: boolean }) {
   return (
@@ -44,8 +28,8 @@ function SquareSkeleton({ fill }: { fill?: boolean }) {
 
 export default function MusicHome() {
   const navigate = useNavigate();
-  const setQueue = usePlayerStore((s) => s.setQueue);
-  const addToQueue = usePlayerStore((s) => s.addToQueue);
+  const playQueue = useMusicPlayerStore((s) => s.playQueue);
+  const addToQueue = useMusicPlayerStore((s) => s.addToQueue);
   const { data, loading, error, reload, loadMore, hasMore, loadingMore } = useMusicHome();
   const personalization = useMusicPersonalization();
 
@@ -92,11 +76,10 @@ export default function MusicHome() {
   }, [pageHasMore, pageLoadingMore, pageLoadMore]);
 
   const playTrack = (track: SongItem, context: SongItem[]) => {
-    const queue = (context.length ? context : [track]).map(songToVideoSummary);
+    const queue = context.length ? context : [track];
     const id = track.videoId ?? track.id;
-    const startIndex = Math.max(0, queue.findIndex((v) => v.id === id));
-    setQueue(queue, startIndex);
-    navigate(`/watch/${id}`);
+    const startIndex = Math.max(0, queue.findIndex((t) => (t.videoId ?? t.id) === id));
+    void playQueue(queue, startIndex);
   };
 
   const openAlbum = (a: AlbumItem) => navigate(`/music/album/${a.browseId}`);
@@ -207,7 +190,7 @@ export default function MusicHome() {
                   item={track}
                   className="snap-start bg-surface-container-low pr-3"
                   onPlay={() => playTrack(track, quickPicks)}
-                  onMenu={() => addToQueue(songToVideoSummary(track))}
+                  onMenu={() => addToQueue(track)}
                 />
               ))}
             </div>

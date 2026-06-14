@@ -397,5 +397,22 @@
   "music_mood_workout": "Workout",
   "music_mood_focus": "Focus",
   "music_mood_relax": "Relax",
-  "music_mood_podcasts": "Podcasts"
+  "music_mood_podcasts": "Podcasts",
+
+  "music_pause": "Pause",
+  "music_next": "Next",
+  "music_previous": "Previous",
+  "music_queue": "Queue",
+  "music_lyrics": "Lyrics",
+  "music_equalizer": "Equalizer",
+  "music_expand": "Expand",
+  "music_collapse": "Collapse",
+  "music_now_playing": "Now playing",
+  "music_shuffle": "Shuffle",
+  "music_repeat": "Repeat",
+  "music_repeat_one": "Repeat one",
+  "music_mute": "Mute",
+  "music_unmute": "Unmute",
+  "music_volume": "Volume",
+  "music_buffering": "Buffering"
 }

@@ -23,6 +23,7 @@ import Onboarding from "./pages/Onboarding";
 import FlowNeuroPersona from "./pages/FlowNeuroPersona";
 import { ToastHost } from "./components/ui/ToastHost";
 import { GlobalMusicAudio } from "./components/music/GlobalMusicAudio";
+import { GlobalMusicDock } from "./components/music/GlobalMusicDock";
 
 import "./App.css";
 
@@ -123,6 +124,7 @@ function App() {
         </Route>
       </Routes>
       <GlobalMusicAudio />
+      <GlobalMusicDock />
       <ToastHost />
     </div>
   );

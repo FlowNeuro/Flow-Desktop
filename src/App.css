@@ -217,3 +217,19 @@ div:-webkit-full-screen video {
   max-height: 100% !important;
   object-fit: contain !important;
 }
+
+.eq-range {
+  writing-mode: vertical-lr;
+  direction: rtl;
+  width: 1.25rem;
+  height: 6.5rem;
+  accent-color: var(--color-primary);
+  cursor: pointer;
+  background: transparent;
+}
+
+.eq-range:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+  border-radius: 9999px;
+}
