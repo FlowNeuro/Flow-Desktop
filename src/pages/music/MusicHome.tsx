@@ -199,13 +199,13 @@ export default function MusicHome() {
             <h2 className="mb-3 px-1 text-xl font-bold tracking-tight text-neutral-100">
               {getString('music_quick_picks')}
             </h2>
-            <div className="grid grid-cols-2 gap-x-4 gap-y-1 lg:grid-cols-3 xl:grid-cols-4">
+            <div className="grid auto-cols-[88%] grid-flow-col grid-rows-3 gap-x-4 gap-y-1 overflow-x-auto hide-scrollbar snap-x pb-4 sm:auto-cols-[46%] lg:auto-cols-[31%] xl:auto-cols-[23.5%]">
               {quickPicks.map((track) => (
                 <MusicItemCard
                   key={track.videoId ?? track.id}
                   variant="track-list"
                   item={track}
-                  className="bg-surface-container-low pr-3"
+                  className="snap-start bg-surface-container-low pr-3"
                   onPlay={() => playTrack(track, quickPicks)}
                   onMenu={() => addToQueue(songToVideoSummary(track))}
                 />

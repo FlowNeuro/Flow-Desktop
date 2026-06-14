@@ -3,6 +3,7 @@ import { Clock, Loader2, Trash2 } from "lucide-react";
 import type { VideoSummary } from "../types/video";
 import { getString } from "../lib/i18n/index";
 import { HistoryDateGroup } from "../components/history/HistoryDateGroup";
+import { MusicHistoryGroup } from "../components/history/MusicHistoryGroup";
 import { Button } from "../components/ui/Button";
 import { SearchInput } from "../components/ui/SearchInput";
 import { CategoryChips } from "../components/layout/CategoryChips";
@@ -134,14 +135,23 @@ export const History: React.FC<HistoryProps> = ({ onPlay }) => {
           </div>
         ) : (
           <div className="mt-8 flex flex-col gap-10">
-            {visibleGroups.map((group) => (
-              <HistoryDateGroup
-                key={group.dateLabel}
-                group={group}
-                onPlay={onPlay}
-                onRemoveFromHistory={handleDeleteItem}
-              />
-            ))}
+            {visibleGroups.map((group) =>
+              filter === "music" ? (
+                <MusicHistoryGroup
+                  key={group.dateLabel}
+                  group={group}
+                  onPlay={onPlay}
+                  onRemoveFromHistory={handleDeleteItem}
+                />
+              ) : (
+                <HistoryDateGroup
+                  key={group.dateLabel}
+                  group={group}
+                  onPlay={onPlay}
+                  onRemoveFromHistory={handleDeleteItem}
+                />
+              ),
+            )}
           </div>
         )}
       </div>
