@@ -22,6 +22,7 @@ import { Watch } from "./pages/Watch";
 import Onboarding from "./pages/Onboarding";
 import FlowNeuroPersona from "./pages/FlowNeuroPersona";
 import { ToastHost } from "./components/ui/ToastHost";
+import { GlobalMusicAudio } from "./components/music/GlobalMusicAudio";
 
 import "./App.css";
 
@@ -121,6 +122,7 @@ function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>
+      <GlobalMusicAudio />
       <ToastHost />
     </div>
   );
