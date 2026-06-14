@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { getMusicHistory } from './api/db';
-import { getMusicRelatedTyped, searchMusicTyped } from './api/music';
+import { getMusicChartsPage, getMusicRelatedTyped, searchMusicTyped } from './api/music';
 import { getString } from './i18n/index';
 import { isMusicVideo } from './utils';
 import { usePlayerStore } from '../store/usePlayerStore';
@@ -59,6 +59,18 @@ async function relatedSongs(videoId: string): Promise<SongItem[]> {
   }
 }
 
+async function chartsSongs(): Promise<SongItem[]> {
+  try {
+    const charts = await getMusicChartsPage();
+    const songs = charts.sections
+      .flatMap((s) => s.items)
+      .filter((i): i is Extract<YTItem, { type: 'song' }> => i.type === 'song');
+    return audioMusicOnly(songs);
+  } catch {
+    return [];
+  }
+}
+
 async function buildQuickPicks(
   history: WatchHistoryRecord[],
   nowPlayingId: string | null,
@@ -69,7 +81,9 @@ async function buildQuickPicks(
   }
   const seeds = history.slice(0, 2).map((h) => h.videoId).filter(Boolean);
   const results = await Promise.all(seeds.map(relatedSongs));
-  return audioMusicOnly(results.flat()).slice(0, 24);
+  const seeded = audioMusicOnly(results.flat());
+  if (seeded.length) return seeded.slice(0, 24);
+  return (await chartsSongs()).slice(0, 24);
 }
 
 async function buildSimilarTo(history: WatchHistoryRecord[]): Promise<PersonalSection[]> {
