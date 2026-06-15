@@ -33,6 +33,7 @@ pub fn thumbnail_url(renderer: &Value) -> Option<String> {
             ["musicThumbnailRenderer"]["thumbnail"]["thumbnails"],
         &renderer["thumbnail"]["thumbnails"],
         &renderer["background"]["musicThumbnailRenderer"]["thumbnail"]["thumbnails"],
+        &renderer["foregroundThumbnail"]["musicThumbnailRenderer"]["thumbnail"]["thumbnails"],
     ];
     probes.into_iter().find_map(largest)
 }

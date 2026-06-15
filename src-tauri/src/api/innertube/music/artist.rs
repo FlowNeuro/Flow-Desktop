@@ -25,8 +25,20 @@ impl InnertubeClient {
         )
         .or_else(|| runs_text(&header["description"]));
         let subscriber_count_text = runs_text(
-            &header["subscriptionButton"]["subscribeButtonRenderer"]["subscriberCountText"],
-        );
+            &header["subscriptionButton2"]["subscribeButtonRenderer"]
+                ["subscriberCountWithSubscribeText"],
+        )
+        .or_else(|| {
+            runs_text(
+                &header["subscriptionButton"]["subscribeButtonRenderer"]["longSubscriberCountText"],
+            )
+        })
+        .or_else(|| {
+            runs_text(
+                &header["subscriptionButton"]["subscribeButtonRenderer"]
+                    ["shortSubscriberCountText"],
+            )
+        });
         let monthly_listener_count = runs_text(&header["monthlyListenerCount"]);
 
         let mut sections: Vec<ArtistSection> = Vec::new();
