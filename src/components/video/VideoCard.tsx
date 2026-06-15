@@ -15,7 +15,7 @@ export interface VideoCardProps {
   onPlay: (video: VideoSummary) => void;
   onAddToQueue?: (video: VideoSummary) => void;
   onRemoveFromHistory?: (videoId: string) => void;
-  variant?: 'default' | 'grid' | 'history' | 'list';
+  variant?: 'default' | 'grid' | 'history' | 'list' | 'compact';
   hideChannelAvatar?: boolean;
   showDragHandle?: boolean;
   dragHandleProps?: React.ButtonHTMLAttributes<HTMLButtonElement> & {
@@ -215,6 +215,12 @@ export function VideoCard({
     || resolveVideoThumbnailUrl(video.id, video.thumbnailUrl)
     || video.thumbnailUrl;
 
+  const cardStyle: React.CSSProperties = isHovered
+    ? (dominantColor
+      ? { background: `rgba(${dominantColor}, 0.2)` }
+      : { background: 'rgba(39, 39, 42, 0.5)' })
+    : { background: 'transparent' };
+
   const handleSubscribeToggle = (e: React.MouseEvent) => {
     e.stopPropagation();
     const idToToggle = isChannel ? cleanId : channelId;
@@ -349,6 +355,80 @@ export function VideoCard({
     );
   }
 
+  if (variant === 'compact') {
+    return (
+      <div
+        ref={cardRef}
+        className="group relative flex w-full gap-2 rounded-xl p-1.5 -m-1.5 transition-all duration-300"
+        style={cardStyle}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
+        onContextMenu={handleContextMenu}
+      >
+        <div
+          className="relative aspect-video w-40 shrink-0 cursor-pointer overflow-hidden rounded-xl bg-surface-container"
+          onClick={() => onPlay(video)}
+        >
+          {displayThumbnail ? (
+            <img
+              ref={thumbnailRef}
+              src={displayThumbnail}
+              alt={displayTitle}
+              className="h-full w-full object-cover"
+              crossOrigin="anonymous"
+              loading="lazy"
+              decoding="async"
+              onLoad={handleThumbnailLoad}
+            />
+          ) : (
+            <div className="h-full w-full bg-zinc-800" />
+          )}
+          {video.durationSeconds ? (
+            <div className="absolute bottom-1 right-1 z-10 rounded bg-neutral-950/90 px-1 py-px text-[11px] font-medium leading-tight text-white">
+              {formatDuration(video.durationSeconds)}
+            </div>
+          ) : null}
+        </div>
+
+        <div className="flex min-w-0 flex-1 flex-col">
+          <h3
+            onClick={() => onPlay(video)}
+            className="line-clamp-2 cursor-pointer text-sm font-medium leading-snug text-neutral-100 transition-colors group-hover:text-primary"
+          >
+            {displayTitle}
+          </h3>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (channelId) navigate(`/channel/${channelId}`);
+            }}
+            className="mt-1 truncate text-left text-[13px] text-neutral-400 transition-colors hover:text-neutral-300"
+          >
+            {video.channelName}
+          </button>
+          <div className="text-[13px] text-neutral-500">
+            {video.viewCountText && <span>{video.viewCountText}</span>}
+            {video.viewCountText && video.publishedText && <span className="mx-1">•</span>}
+            {video.publishedText && <span>{video.publishedText}</span>}
+          </div>
+        </div>
+
+        <div className="relative shrink-0">
+          <button
+            onClick={openMenuFromDots}
+            className="rounded-full p-1 text-neutral-500 opacity-0 transition-all duration-150 hover:bg-neutral-800 hover:text-neutral-200 group-hover:opacity-100"
+          >
+            <MoreVertical size={18} />
+          </button>
+          {showMenu && !menuPosition && renderMenu()}
+        </div>
+
+        {showMenu && menuPosition && renderMenu()}
+      </div>
+    );
+  }
+
   if (isListVariant) {
     const {
       className: dragHandleClassName,
@@ -446,18 +526,6 @@ export function VideoCard({
   }
 
   const channelInitials = video.channelName?.substring(0, 1).toUpperCase() || '?';
-
-  const cardStyle: React.CSSProperties = isHovered
-    ? (dominantColor
-      ? {
-          background: `rgba(${dominantColor}, 0.2)`,
-        }
-      : {
-          background: 'rgba(39, 39, 42, 0.5)',
-        })
-    : {
-        background: 'transparent',
-      };
 
   return (
     <div

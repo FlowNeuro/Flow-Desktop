@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { VideoSummary } from "../types/video";
+import type { CaptionTrack, VideoSummary } from "../types/video";
 import { getMusicLyrics, getMusicRelated } from "../lib/api/youtube";
 
 import type { SponsorBlockSegment, DeArrowOverride, RydData } from "../lib/api/foss";
@@ -68,7 +68,8 @@ interface PlayerState {
   sponsorBlockSegments: SponsorBlockSegment[];
   dearrowData: DeArrowOverride | null;
   rydData: RydData | null;
-  
+  captions: CaptionTrack[];
+
   setCurrentVideo: (video: VideoSummary | null) => void;
   setIsPlaying: (isPlaying: boolean) => void;
   setVolume: (volume: number) => void;
@@ -90,6 +91,7 @@ interface PlayerState {
   setSponsorBlockSegments: (segments: SponsorBlockSegment[]) => void;
   setDearrowData: (data: DeArrowOverride | null) => void;
   setRydData: (data: RydData | null) => void;
+  setCaptions: (captions: CaptionTrack[]) => void;
   subtitleStyle: SubtitleStyle;
   setSubtitleStyle: (style: SubtitleStyle) => void;
   isChaptersPanelOpen: boolean;
@@ -117,6 +119,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   sponsorBlockSegments: [],
   dearrowData: null,
   rydData: null,
+  captions: [],
   isChaptersPanelOpen: false,
 
   setCurrentVideo: (video) => {
@@ -270,6 +273,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   setSponsorBlockSegments: (sponsorBlockSegments) => set({ sponsorBlockSegments }),
   setDearrowData: (dearrowData) => set({ dearrowData }),
   setRydData: (rydData) => set({ rydData }),
+  setCaptions: (captions) => set({ captions }),
   setIsChaptersPanelOpen: (isChaptersPanelOpen) => set({ isChaptersPanelOpen }),
   subtitleStyle: getSavedSubtitleStyle(),
   setSubtitleStyle: (style) => {

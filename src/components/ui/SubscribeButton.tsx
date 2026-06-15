@@ -41,7 +41,7 @@ export function SubscribeButton({
       variant={active ? "secondary" : "primary"}
       size={size}
       onClick={handleToggle}
-      className={`font-semibold px-6 shadow-sm transition-all ${
+      className={`font-semibold px-6 transition-all ${
         active 
           ? "bg-zinc-800 hover:bg-zinc-700 text-neutral-200" 
           : "bg-primary text-white"
