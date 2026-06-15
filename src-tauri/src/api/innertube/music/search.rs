@@ -159,6 +159,15 @@ fn parse_search_sections(res: &Value) -> (Vec<MusicSearchSection>, Option<String
             if !items.is_empty() {
                 sections.push(MusicSearchSection { title, items });
             }
+        } else if let Some(isr) = section.get("itemSectionRenderer") {
+           let items = shelves::collect_items(&isr["contents"]);
+            if !items.is_empty() {
+                sections.push(MusicSearchSection {
+                    title: runs_text(&isr["header"]["itemSectionTabbedHeaderRenderer"]["title"])
+                        .unwrap_or_default(),
+                    items,
+                });
+            }
         }
     }
 

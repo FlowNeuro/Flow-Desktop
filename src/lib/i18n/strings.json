@@ -421,5 +421,65 @@
   "music_more_actions": "More",
   "music_lyrics_unavailable": "Lyrics not available",
   "music_resync": "Resync",
-  "music_refresh_lyrics": "Refresh lyrics"
+  "music_refresh_lyrics": "Refresh lyrics",
+
+  "search_cat_all": "All",
+  "search_cat_videos": "Videos",
+  "search_cat_songs": "Songs",
+  "search_cat_albums": "Albums",
+  "search_cat_playlists": "Playlists",
+  "search_cat_artists": "Artists/Channels",
+  "search_cat_live": "Live",
+  "search_cat_podcasts": "Podcasts",
+  "search_cat_episodes": "Episodes",
+
+  "search_sort_label": "Sort",
+  "search_sort_relevance": "Relevance",
+  "search_sort_date": "Upload date",
+  "search_sort_views": "View count",
+
+  "search_uploaded_label": "Uploaded",
+  "search_uploaded_any": "Any time",
+  "search_uploaded_today": "Today",
+  "search_uploaded_week": "This week",
+  "search_uploaded_month": "This month",
+
+  "search_length_label": "Length",
+  "search_length_any": "Any",
+  "search_length_short": "Under 4 min",
+  "search_length_long": "Over 20 min",
+
+  "search_top_result": "Top result",
+  "search_section_songs": "Songs",
+  "search_section_videos": "Videos",
+  "search_section_live": "Live",
+  "search_section_albums_playlists": "Albums & Playlists",
+  "search_section_artists_channels": "Artists & Channels",
+  "search_section_podcasts": "Podcasts",
+  "search_section_episodes": "Episodes",
+
+  "search_see_all_songs": "See all songs",
+  "search_see_all_videos": "See all videos",
+  "search_see_all_live": "See all live",
+  "search_see_all_albums": "See all albums",
+  "search_see_all_playlists": "See all playlists",
+  "search_see_all_podcasts": "See all podcasts",
+  "search_see_all_episodes": "See all episodes",
+
+  "search_action_play": "Play",
+  "search_action_open": "Open",
+  "search_action_view_channel": "View channel",
+
+  "search_empty_title": "Start exploring",
+  "search_empty_body": "Search for videos, songs, albums, artists or channels to stream natively in pristine quality.",
+  "search_error_title": "Something went wrong",
+  "search_no_results_title": "No results for \"%s\"",
+  "search_no_results_body": "Try a different search term or category.",
+
+  "search_role_channel": "Channel",
+  "search_role_artist": "Artist",
+  "search_subscribe": "Subscribe",
+  "search_subscribed": "Subscribed",
+  "search_follow": "Follow",
+  "search_following": "Following"
 }

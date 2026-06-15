@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Check, Plus } from 'lucide-react';
 import { useSubscriptionStore } from '../../store/useSubscriptionStore';
 import { Button } from '../ui/Button';
+import { getString } from '../../lib/i18n/index';
 
 export interface ChannelCardProps {
   channelId: string;
@@ -91,7 +92,7 @@ export function ChannelCard({
 
       <div className="flex w-full flex-col items-center gap-0.5">
         <span className="line-clamp-1 font-semibold text-neutral-100">{name}</span>
-        <span className="line-clamp-1 text-sm text-neutral-400">{subtitle || 'Channel'}</span>
+        <span className="line-clamp-1 text-sm text-neutral-400">{subtitle || getString('search_role_channel')}</span>
       </div>
 
       <Button
@@ -103,11 +104,11 @@ export function ChannelCard({
       >
         {subscribed ? (
           <>
-            <Check className="h-4 w-4" /> Subscribed
+            <Check className="h-4 w-4" /> {getString('search_subscribed')}
           </>
         ) : (
           <>
-            <Plus className="h-4 w-4" /> Subscribe
+            <Plus className="h-4 w-4" /> {getString('search_subscribe')}
           </>
         )}
       </Button>

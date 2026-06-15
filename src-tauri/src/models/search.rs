@@ -16,6 +16,10 @@ pub struct SearchVideosRequest {
     /// Duration bucket: `any` | `short` (<4m) | `medium` (4–20m) | `long` (>20m).
     #[serde(default)]
     pub duration: Option<String>,
+    /// Boolean feature filter: `live` | `4k` | `hd` | `subtitles` | `creative_commons`
+    /// | `360` | `hdr` | `vr180` | `location`.
+    #[serde(default)]
+    pub feature: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]

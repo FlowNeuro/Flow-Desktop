@@ -51,6 +51,7 @@ fn build_search_params(
     sort_by: Option<&str>,
     upload_date: Option<&str>,
     duration: Option<&str>,
+    feature: Option<&str>,
 ) -> Option<String> {
     let sort = match sort_by.map(str::trim) {
         Some("rating") => Some(1u64),
@@ -75,12 +76,28 @@ fn build_search_params(
         _ => None,
     };
 
+    let feature_field = match feature.map(str::trim) {
+        Some("live") => Some(8u64),
+        Some("hd") => Some(4u64),
+        Some("subtitles") | Some("cc") => Some(5u64),
+        Some("creative_commons") => Some(6u64),
+        Some("4k") => Some(14u64),
+        Some("360") => Some(15u64),
+        Some("location") => Some(23u64),
+        Some("hdr") => Some(25u64),
+        Some("vr180") => Some(26u64),
+        _ => None,
+    };
+
     let mut filters = Vec::new();
     if let Some(u) = upload {
         put_varint_field(&mut filters, 1, u);
     }
     if let Some(d) = dur {
         put_varint_field(&mut filters, 3, d);
+    }
+    if let Some(f) = feature_field {
+        put_varint_field(&mut filters, f, 1);
     }
 
     if sort.is_none() && filters.is_empty() {
@@ -101,12 +118,17 @@ fn build_search_params(
     Some(custom_url_encode(&b64))
 }
 
-fn parse_innertube_search(val: Value) -> (Vec<VideoSummary>, Option<String>) {
-    let mut items = Vec::new();
-    let mut next_page_token = None;
-
-    let mut process_search_items = |items_arr: &[Value]| {
-        for item in items_arr {
+fn process_search_items(
+    items_arr: &[Value],
+    items: &mut Vec<VideoSummary>,
+    next_page_token: &mut Option<String>,
+) {
+    for item in items_arr {
+        {
+            if let Some(inner) = item["itemSectionRenderer"]["contents"].as_array() {
+                process_search_items(inner, items, next_page_token);
+                continue;
+            }
             if let Some(video) = item.get("videoRenderer") {
                 let video_id = video["videoId"].as_str().unwrap_or_default().to_string();
                 if video_id.is_empty() {
@@ -208,10 +230,15 @@ fn parse_innertube_search(val: Value) -> (Vec<VideoSummary>, Option<String>) {
                     });
                 }
             } else if next_page_token.is_none() {
-                next_page_token = extract_continuation_token(item);
+                *next_page_token = extract_continuation_token(item);
             }
         }
-    };
+    }
+}
+
+fn parse_innertube_search(val: Value) -> (Vec<VideoSummary>, Option<String>) {
+    let mut items = Vec::new();
+    let mut next_page_token = None;
 
     if let Some(contents_arr) = val["contents"]["twoColumnSearchResultsRenderer"]["primaryContents"]
         ["sectionListRenderer"]["contents"]
@@ -219,7 +246,10 @@ fn parse_innertube_search(val: Value) -> (Vec<VideoSummary>, Option<String>) {
     {
         for section in contents_arr {
             if let Some(items_arr) = section["itemSectionRenderer"]["contents"].as_array() {
-                process_search_items(items_arr);
+                process_search_items(items_arr, &mut items, &mut next_page_token);
+            }
+            if next_page_token.is_none() {
+                next_page_token = extract_continuation_token(section);
             }
         }
     }
@@ -229,11 +259,11 @@ fn parse_innertube_search(val: Value) -> (Vec<VideoSummary>, Option<String>) {
             if let Some(items_arr) =
                 command["appendContinuationItemsAction"]["continuationItems"].as_array()
             {
-                process_search_items(items_arr);
+                process_search_items(items_arr, &mut items, &mut next_page_token);
             } else if let Some(items_arr) =
                 command["reloadContinuationItemsCommand"]["continuationItems"].as_array()
             {
-                process_search_items(items_arr);
+                process_search_items(items_arr, &mut items, &mut next_page_token);
             }
         }
     }
@@ -243,11 +273,11 @@ fn parse_innertube_search(val: Value) -> (Vec<VideoSummary>, Option<String>) {
             if let Some(items_arr) =
                 action["appendContinuationItemsAction"]["continuationItems"].as_array()
             {
-                process_search_items(items_arr);
+                process_search_items(items_arr, &mut items, &mut next_page_token);
             } else if let Some(items_arr) =
                 action["reloadContinuationItemsCommand"]["continuationItems"].as_array()
             {
-                process_search_items(items_arr);
+                process_search_items(items_arr, &mut items, &mut next_page_token);
             }
         }
     }
@@ -277,6 +307,7 @@ impl InnertubeClient {
                 request.sort_by.as_deref(),
                 request.upload_date.as_deref(),
                 request.duration.as_deref(),
+                request.feature.as_deref(),
             ) {
                 payload["params"] = Value::String(params);
             }
@@ -358,14 +389,55 @@ impl InnertubeClient {
 
 #[cfg(test)]
 mod tests {
-    use super::build_search_params;
+    use super::{build_search_params, parse_innertube_search};
+
+    #[test]
+    fn continuation_unwraps_item_section_renderer() {
+        let val = serde_json::json!({
+            "onResponseReceivedCommands": [{
+                "appendContinuationItemsAction": {
+                    "continuationItems": [
+                        { "itemSectionRenderer": { "contents": [
+                            { "videoRenderer": { "videoId": "abc12345678",
+                                "title": { "runs": [{ "text": "Title" }] } } }
+                        ]}},
+                        { "continuationItemRenderer": { "continuationEndpoint": {
+                            "continuationCommand": { "token": "NEXT_TOKEN" } } } }
+                    ]
+                }
+            }]
+        });
+        let (items, token) = parse_innertube_search(val);
+        assert_eq!(items.len(), 1, "video inside itemSectionRenderer must be parsed");
+        assert_eq!(items[0].id, "abc12345678");
+        assert_eq!(token.as_deref(), Some("NEXT_TOKEN"));
+    }
+
+    #[test]
+    fn first_page_extracts_sibling_continuation() {
+        let val = serde_json::json!({
+            "contents": { "twoColumnSearchResultsRenderer": { "primaryContents": {
+                "sectionListRenderer": { "contents": [
+                    { "itemSectionRenderer": { "contents": [
+                        { "videoRenderer": { "videoId": "vid00000001",
+                            "title": { "runs": [{ "text": "X" }] } } }
+                    ]}},
+                    { "continuationItemRenderer": { "continuationEndpoint": {
+                        "continuationCommand": { "token": "PAGE2" } } } }
+                ]}
+            }}}
+        });
+        let (items, token) = parse_innertube_search(val);
+        assert_eq!(items.len(), 1);
+        assert_eq!(token.as_deref(), Some("PAGE2"));
+    }
 
     #[test]
     fn no_filters_returns_none() {
-        assert_eq!(build_search_params(None, None, None), None);
+        assert_eq!(build_search_params(None, None, None, None), None);
         // "relevance"/"any" are the defaults and must also produce a bare query.
         assert_eq!(
-            build_search_params(Some("relevance"), Some("any"), Some("any")),
+            build_search_params(Some("relevance"), Some("any"), Some("any"), None),
             None
         );
     }
@@ -375,7 +447,7 @@ mod tests {
     #[test]
     fn duration_short_matches_youtube() {
         assert_eq!(
-            build_search_params(None, None, Some("short")).as_deref(),
+            build_search_params(None, None, Some("short"), None).as_deref(),
             Some("EgIYAQ%3D%3D")
         );
     }
@@ -383,7 +455,7 @@ mod tests {
     #[test]
     fn upload_today_matches_youtube() {
         assert_eq!(
-            build_search_params(None, Some("today"), None).as_deref(),
+            build_search_params(None, Some("today"), None, None).as_deref(),
             Some("EgIIAg%3D%3D")
         );
     }
@@ -391,8 +463,16 @@ mod tests {
     #[test]
     fn sort_by_date_matches_youtube() {
         assert_eq!(
-            build_search_params(Some("date"), None, None).as_deref(),
+            build_search_params(Some("date"), None, None, None).as_deref(),
             Some("CAI%3D")
+        );
+    }
+
+    #[test]
+    fn feature_live_matches_youtube() {
+        assert_eq!(
+            build_search_params(None, None, None, Some("live")).as_deref(),
+            Some("EgJAAQ%3D%3D")
         );
     }
 
@@ -400,7 +480,7 @@ mod tests {
     fn combined_sort_and_filters() {
         // sort=view count, upload=this month, duration=long.
         assert_eq!(
-            build_search_params(Some("views"), Some("month"), Some("long")).as_deref(),
+            build_search_params(Some("views"), Some("month"), Some("long"), None).as_deref(),
             Some("CAMSBAgEGAI%3D")
         );
     }

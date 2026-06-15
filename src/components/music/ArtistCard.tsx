@@ -4,6 +4,7 @@ import { Check, Music2, Plus } from 'lucide-react';
 import type { ArtistItem } from '../../types/music';
 import { useSubscriptionStore } from '../../store/useSubscriptionStore';
 import { Button } from '../ui/Button';
+import { getString } from '../../lib/i18n/index';
 
 export interface ArtistCardProps {
   artist: ArtistItem;
@@ -87,7 +88,7 @@ export function ArtistCard({ artist, fill, className, onOpen }: ArtistCardProps)
 
       <div className="flex w-full flex-col items-center gap-0.5">
         <span className="line-clamp-1 font-semibold text-neutral-100">{artist.title}</span>
-        <span className="line-clamp-1 text-sm text-neutral-400">Artist</span>
+        <span className="line-clamp-1 text-sm text-neutral-400">{getString('search_role_artist')}</span>
       </div>
 
       <Button
@@ -100,11 +101,11 @@ export function ArtistCard({ artist, fill, className, onOpen }: ArtistCardProps)
       >
         {following ? (
           <>
-            <Check className="h-4 w-4" /> Following
+            <Check className="h-4 w-4" /> {getString('search_following')}
           </>
         ) : (
           <>
-            <Plus className="h-4 w-4" /> Follow
+            <Plus className="h-4 w-4" /> {getString('search_follow')}
           </>
         )}
       </Button>

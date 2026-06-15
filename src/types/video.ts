@@ -126,6 +126,18 @@ export interface SearchVideosRequest {
   uploadDate?: "any" | "hour" | "today" | "week" | "month" | "year" | null;
   /** Server-side duration bucket. Omit/`any` for no filter. */
   duration?: "any" | "short" | "medium" | "long" | null;
+  /** Server-side boolean feature filter (e.g. `live`, `4k`, `hd`). */
+  feature?:
+    | "live"
+    | "4k"
+    | "hd"
+    | "subtitles"
+    | "creative_commons"
+    | "360"
+    | "hdr"
+    | "vr180"
+    | "location"
+    | null;
 }
 
 export interface SearchVideosResponse {

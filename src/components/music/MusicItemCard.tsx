@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { MoreVertical, Music2, Play } from 'lucide-react';
-import type { AlbumItem, ArtistItem, PlaylistItem, SongItem } from '../../types/music';
+import type { AlbumItem, ArtistItem, EpisodeItem, PlaylistItem, PodcastItem, SongItem } from '../../types/music';
 import { getString } from '../../lib/i18n/index';
 
 type BaseProps = {
@@ -16,6 +16,8 @@ export type MusicItemCardProps = BaseProps &
     | { variant: 'playlist'; item: PlaylistItem }
     | { variant: 'song'; item: SongItem }
     | { variant: 'artist'; item: ArtistItem }
+    | { variant: 'podcast'; item: PodcastItem }
+    | { variant: 'episode'; item: EpisodeItem }
     | {
         variant: 'track-list';
         item: SongItem;
@@ -49,6 +51,16 @@ function albumSubtitle(item: AlbumItem): string {
 
 function playlistSubtitle(item: PlaylistItem): string {
   return item.author?.name || item.songCountText || '';
+}
+
+function podcastSubtitle(item: PodcastItem): string {
+  return item.author?.name || item.episodeCountText || '';
+}
+
+function episodeSubtitle(item: EpisodeItem): string {
+  const author = item.author?.name;
+  if (author && item.publishDateText) return `${author} • ${item.publishDateText}`;
+  return author || item.publishDateText || '';
 }
 
 function onKey(handler?: () => void) {
@@ -342,6 +354,30 @@ export function MusicItemCard(props: MusicItemCardProps) {
           title={props.item.title}
           thumbnail={props.item.thumbnail}
           onOpen={onOpen}
+          className={className}
+          fill={fill}
+        />
+      );
+    case 'podcast':
+      return (
+        <SquareCard
+          title={props.item.title}
+          subtitle={podcastSubtitle(props.item)}
+          thumbnail={props.item.thumbnail}
+          onPlay={onPlay}
+          onOpen={onOpen}
+          className={className}
+          fill={fill}
+        />
+      );
+    case 'episode':
+      return (
+        <SquareCard
+          title={props.item.title}
+          subtitle={episodeSubtitle(props.item)}
+          thumbnail={props.item.thumbnail}
+          onPlay={onPlay}
+          onOpen={onOpen ?? onPlay}
           className={className}
           fill={fill}
         />

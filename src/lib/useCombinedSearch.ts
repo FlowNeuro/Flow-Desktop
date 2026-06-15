@@ -11,8 +11,10 @@ import type { PlaylistSummary, VideoSummary } from '../types/video';
 import type {
   AlbumItem,
   ArtistItem,
+  EpisodeItem,
   MusicSearchSection,
   PlaylistItem,
+  PodcastItem,
   SongItem,
 } from '../types/music';
 
@@ -25,7 +27,10 @@ export type SearchCategory =
   | 'songs'
   | 'albums'
   | 'playlists'
-  | 'artists'; // "Artists / Channels"
+  | 'artists' // "Artists / Channels"
+  | 'live'
+  | 'podcasts'
+  | 'episodes';
 
 export type SearchSortBy = 'relevance' | 'date' | 'views';
 
@@ -45,10 +50,13 @@ export interface CombinedSearchResults {
   topResult: TopResult | null;
   songs: SongItem[];
   videos: VideoSummary[];
+  live: VideoSummary[];
   channels: VideoSummary[];
   albums: AlbumItem[];
   playlists: PlaylistItem[];
   artists: ArtistItem[];
+  podcasts: PodcastItem[];
+  episodes: EpisodeItem[];
 }
 
 export interface UseCombinedSearchOptions {
@@ -81,10 +89,13 @@ function emptyResults(): CombinedSearchResults {
     topResult: null,
     songs: [],
     videos: [],
+    live: [],
     channels: [],
     albums: [],
     playlists: [],
     artists: [],
+    podcasts: [],
+    episodes: [],
   };
 }
 
@@ -93,10 +104,12 @@ type MusicBucket = {
   albums: AlbumItem[];
   playlists: PlaylistItem[];
   artists: ArtistItem[];
+  podcasts: PodcastItem[];
+  episodes: EpisodeItem[];
 };
 
 function emptyBucket(): MusicBucket {
-  return { songs: [], albums: [], playlists: [], artists: [] };
+  return { songs: [], albums: [], playlists: [], artists: [], podcasts: [], episodes: [] };
 }
 
 function bucketMusicSections(sections: MusicSearchSection[]): MusicBucket {
@@ -115,6 +128,12 @@ function bucketMusicSections(sections: MusicSearchSection[]): MusicBucket {
           break;
         case 'artist':
           out.artists.push(item);
+          break;
+        case 'podcast':
+          out.podcasts.push(item);
+          break;
+        case 'episode':
+          out.episodes.push(item);
           break;
       }
     }
@@ -161,6 +180,10 @@ function mergeMusicBucket(
       return { ...base, playlists: dedupe([...base.playlists, ...b.playlists], (p) => p.id) };
     case 'artists':
       return { ...base, artists: dedupe([...base.artists, ...b.artists], (a) => a.id) };
+    case 'podcasts':
+      return { ...base, podcasts: dedupe([...base.podcasts, ...b.podcasts], (p) => p.id) };
+    case 'episodes':
+      return { ...base, episodes: dedupe([...base.episodes, ...b.episodes], (e) => e.id) };
     default:
       return base;
   }
@@ -177,6 +200,10 @@ function categoryToMusicFilter(category: SearchCategory): string {
       return 'community_playlists';
     case 'artists':
       return 'artists';
+    case 'podcasts':
+      return 'podcasts';
+    case 'episodes':
+      return 'episodes';
     default:
       return '';
   }
@@ -284,6 +311,7 @@ export function useCombinedSearch(
       if (mode === 'reset') {
         setIsLoading(true);
         setError(null);
+        setResults(emptyResults());
         ytTokenRef.current = null;
         musicContRef.current = null;
         fetchingRef.current = false;
@@ -294,9 +322,9 @@ export function useCombinedSearch(
 
       try {
         if (category === 'all') {
-          // --- "All": fetch both backends concurrently, degrade gracefully.
-          const [ytRes, musicRes] = await Promise.allSettled([
+          const [ytRes, liveRes, musicRes] = await Promise.allSettled([
             searchVideos({ query: q }),
+            searchVideos({ query: q, feature: 'live' }),
             getMusicSearchSummary(q),
           ]);
           if (!alive()) return;
@@ -305,6 +333,10 @@ export function useCombinedSearch(
             ytRes.status === 'fulfilled'
               ? splitYoutubeResults(ytRes.value.items)
               : { videos: [], channels: [] };
+          const live =
+            liveRes.status === 'fulfilled'
+              ? splitYoutubeResults(liveRes.value.items).videos
+              : [];
           const summaries =
             musicRes.status === 'fulfilled' ? musicRes.value.summaries : [];
           const bucket = bucketMusicSections(summaries);
@@ -315,11 +347,14 @@ export function useCombinedSearch(
             dedupeTopFromBuckets({
               topResult: pickTopResult(summaries, split.channels, bucket.artists),
               videos: split.videos,
+              live,
               channels: split.channels,
               songs: bucket.songs,
               albums: bucket.albums,
               playlists: bucket.playlists,
               artists: bucket.artists,
+              podcasts: bucket.podcasts,
+              episodes: bucket.episodes,
             }),
           );
 
@@ -329,9 +364,8 @@ export function useCombinedSearch(
           return;
         }
 
-        if (category === 'videos') {
-          // --- YouTube-only, paginated by nextPageToken. Sort + upload-date +
-          // duration are encoded server-side by the Innertube `params` field
+        if (category === 'videos' || category === 'live') {
+          const isLive = category === 'live';
           const pageToken = mode === 'next' ? ytTokenRef.current : null;
           const adv = filtersRef.current;
           const res = await searchVideos({
@@ -340,17 +374,23 @@ export function useCombinedSearch(
             sortBy: sortRef.current,
             uploadDate: adv.uploadDate,
             duration: adv.duration,
+            feature: isLive ? 'live' : undefined,
           });
           if (!alive()) return;
 
           const { videos, channels } = splitYoutubeResults(res.items);
           ytTokenRef.current = res.nextPageToken ?? null;
           setNext(Boolean(res.nextPageToken));
-          setResults((prev) =>
-            mode === 'next'
+          setResults((prev) => {
+            if (isLive) {
+              return mode === 'next'
+                ? { ...prev, live: dedupe([...prev.live, ...videos], (v) => v.id) }
+                : { ...emptyResults(), live: videos };
+            }
+            return mode === 'next'
               ? { ...prev, videos: dedupe([...prev.videos, ...videos], (v) => v.id) }
-              : { ...emptyResults(), videos, channels },
-          );
+              : { ...emptyResults(), videos, channels };
+          });
           return;
         }
 
