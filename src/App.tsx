@@ -10,6 +10,7 @@ import { PageWrapper } from "./components/layout/PageWrapper";
 import Home from "./pages/Home";
 import MusicHome from "./pages/music/MusicHome";
 import ArtistPage from "./pages/music/ArtistPage";
+import ArtistItemsPage from "./pages/music/ArtistItemsPage";
 import Search from "./pages/Search";
 import Subscriptions from "./pages/Subscriptions";
 import History from "./pages/History";
@@ -92,6 +93,9 @@ function App() {
           } />
           <Route path="music/artist/:artistId" element={
             <ArtistPage />
+          } />
+          <Route path="music/artist/:artistId/items" element={
+            <ArtistItemsPage />
           } />
           <Route path="search" element={
             <Search onPlay={handlePlayVideo} onAddToQueue={handleAddToQueue} />

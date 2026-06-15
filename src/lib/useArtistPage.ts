@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { getMusicArtistPage } from './api/music';
+import { getMusicArtistItems, getMusicArtistPage } from './api/music';
 import { getBackendErrorMessage } from './api/errors';
 import type {
   AlbumItem,
@@ -133,4 +133,61 @@ export function useArtistPage(browseId: string | undefined) {
   }, [load]);
 
   return { data, loading, error, reload: load };
+}
+
+export function useArtistItems(browseId: string | undefined, params: string | undefined) {
+  const [items, setItems] = useState<YTItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const reqRef = useRef(0);
+  const contRef = useRef<string | null>(null);
+  const loadingMoreRef = useRef(false);
+
+  useEffect(() => {
+    const req = ++reqRef.current;
+    contRef.current = null;
+    if (!browseId) {
+      setItems([]);
+      setError(getBackendErrorMessage(new Error('missing browse id')));
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    setItems([]);
+    getMusicArtistItems(browseId, params ?? undefined)
+      .then((res) => {
+        if (reqRef.current !== req) return;
+        setItems(res.items);
+        contRef.current = res.continuation ?? null;
+      })
+      .catch((e) => {
+        if (reqRef.current === req) setError(getBackendErrorMessage(e));
+      })
+      .finally(() => {
+        if (reqRef.current === req) setLoading(false);
+      });
+  }, [browseId, params]);
+
+  const loadMore = useCallback(async () => {
+    if (loadingMoreRef.current || !contRef.current || !browseId) return;
+    loadingMoreRef.current = true;
+    setLoadingMore(true);
+    const req = reqRef.current;
+    try {
+      const res = await getMusicArtistItems(browseId, params ?? undefined, contRef.current);
+      if (reqRef.current !== req) return;
+      contRef.current = res.continuation ?? null;
+      setItems((prev) => [...prev, ...res.items]);
+    } catch {
+      contRef.current = null;
+    } finally {
+      loadingMoreRef.current = false;
+      setLoadingMore(false);
+    }
+  }, [browseId, params]);
+
+  return { items, loading, loadingMore, error, loadMore, hasMore: !!contRef.current };
 }

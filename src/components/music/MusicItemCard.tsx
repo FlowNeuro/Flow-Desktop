@@ -15,6 +15,7 @@ export type MusicItemCardProps = BaseProps &
     | { variant: 'album'; item: AlbumItem }
     | { variant: 'playlist'; item: PlaylistItem }
     | { variant: 'song'; item: SongItem }
+    | { variant: 'video'; item: SongItem }
     | { variant: 'artist'; item: ArtistItem }
     | { variant: 'podcast'; item: PodcastItem }
     | { variant: 'episode'; item: EpisodeItem }
@@ -187,6 +188,65 @@ function SquareCard({
   );
 }
 
+/** Variant D — 16:9 card for music videos (distinct from square album art). */
+function VideoCard16x9({
+  title,
+  subtitle,
+  thumbnail,
+  onPlay,
+  onOpen,
+  className,
+  fill,
+}: {
+  title: string;
+  subtitle: string;
+  thumbnail?: string | null;
+  onPlay?: () => void;
+  onOpen?: () => void;
+  className?: string;
+  fill?: boolean;
+}) {
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onOpen ?? onPlay}
+      onKeyDown={onKey(onOpen ?? onPlay)}
+      className={cx(
+        'group flex cursor-pointer flex-col gap-3',
+        fill ? 'w-full' : 'w-[260px] md:w-[300px]',
+        'rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]',
+        className,
+      )}
+    >
+      <div className="relative aspect-video w-full">
+        <Artwork
+          src={thumbnail}
+          alt={title}
+          rounded="rounded-xl"
+          className="h-full w-full ring-1 ring-neutral-800/50"
+          iconSize="w-10 h-10"
+        />
+        <button
+          type="button"
+          aria-label={getString('music_play')}
+          onClick={(e) => {
+            e.stopPropagation();
+            onPlay?.();
+          }}
+          className="absolute bottom-2 right-2 grid translate-y-1 place-items-center rounded-full bg-[var(--color-primary)] p-3 text-[var(--color-on-primary)] opacity-0 transition-all duration-200 ease-out group-hover:translate-y-0 group-hover:opacity-100 hover:scale-105"
+        >
+          <Play className="h-5 w-5" fill="currentColor" />
+        </button>
+      </div>
+      <div className="flex flex-col gap-0.5">
+        <span className="line-clamp-2 font-medium text-neutral-100">{title}</span>
+        {subtitle && <span className="line-clamp-1 text-sm text-neutral-400">{subtitle}</span>}
+      </div>
+    </div>
+  );
+}
+
 /** Variant B — circular card for artists. */
 function CircleCard({
   title,
@@ -344,6 +404,18 @@ export function MusicItemCard(props: MusicItemCardProps) {
           thumbnail={props.item.thumbnail}
           onPlay={onPlay}
           onOpen={onOpen ?? onPlay}
+          className={className}
+          fill={fill}
+        />
+      );
+    case 'video':
+      return (
+        <VideoCard16x9
+          title={props.item.title}
+          subtitle={artistsText(props.item.artists)}
+          thumbnail={props.item.thumbnail}
+          onPlay={onPlay}
+          onOpen={onOpen}
           className={className}
           fill={fill}
         />

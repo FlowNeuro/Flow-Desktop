@@ -146,17 +146,47 @@ impl InnertubeClient {
 
         let title = runs_text(&res["header"]["musicHeaderRenderer"]["title"]).unwrap_or_default();
         let mut items: Vec<YTItem> = Vec::new();
+        let mut next: Option<String> = None;
+
         for section in shelves::section_list_contents(&res) {
             if let Some(shelf) = shelves::parse_section(&section) {
                 items.extend(shelf.items);
             }
+            if next.is_none() {
+                next = section_shelf_continuation(&section);
+            }
         }
-        let next = continuation::from_continuations(&res["contents"]["sectionListRenderer"])
-            .or_else(|| {
-                continuation::from_continuations(
-                    &res["continuationContents"]["sectionListContinuation"],
-                )
-            });
+
+        let cont = &res["continuationContents"];
+        for node in [
+            &cont["musicPlaylistShelfContinuation"],
+            &cont["musicShelfContinuation"],
+        ] {
+            items.extend(shelves::collect_items(&node["contents"]));
+            if next.is_none() {
+                next = continuation::any(node, &node["contents"]);
+            }
+        }
+        let grid = &cont["gridContinuation"];
+        items.extend(shelves::collect_items(&grid["items"]));
+        if next.is_none() {
+            next = continuation::any(grid, &grid["items"]);
+        }
+        let append = &res["onResponseReceivedActions"][0]["appendContinuationItemsAction"]
+            ["continuationItems"];
+        items.extend(shelves::collect_items(append));
+        if next.is_none() {
+            next = continuation::from_items(append);
+        }
+
+        if next.is_none() {
+            next = continuation::from_continuations(&res["contents"]["sectionListRenderer"])
+                .or_else(|| {
+                    continuation::from_continuations(
+                        &res["continuationContents"]["sectionListContinuation"],
+                    )
+                });
+        }
 
         Ok(MoodGenrePage {
             title,
@@ -209,6 +239,24 @@ impl InnertubeClient {
             continuation: next,
         })
     }
+}
+
+fn section_shelf_continuation(section: &Value) -> Option<String> {
+    for key in ["gridRenderer", "musicPlaylistShelfRenderer", "musicShelfRenderer"] {
+        let node = &section[key];
+        if node.is_null() {
+            continue;
+        }
+        let items = if node["items"].is_array() {
+            &node["items"]
+        } else {
+            &node["contents"]
+        };
+        if let Some(token) = continuation::any(node, items) {
+            return Some(token);
+        }
+    }
+    None
 }
 
 fn parse_mood_button(btn: &Value) -> Option<MoodAndGenreItem> {

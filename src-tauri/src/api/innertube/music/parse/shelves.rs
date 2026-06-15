@@ -57,6 +57,9 @@ pub fn parse_section(section: &Value) -> Option<MusicShelf> {
     if let Some(shelf) = section.get("musicShelfRenderer") {
         return parse_music_shelf(shelf);
     }
+    if let Some(shelf) = section.get("musicPlaylistShelfRenderer") {
+        return parse_music_shelf(shelf);
+    }
     if let Some(grid) = section.get("gridRenderer") {
         return parse_grid(grid);
     }
