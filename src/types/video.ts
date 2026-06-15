@@ -120,6 +120,12 @@ export interface AudioTrack {
 export interface SearchVideosRequest {
   query: string;
   pageToken?: string | null;
+  /** Server-side Innertube sort order. Omit/`relevance` for default. */
+  sortBy?: "relevance" | "date" | "views" | "rating" | null;
+  /** Server-side upload-date window. Omit/`any` for no filter. */
+  uploadDate?: "any" | "hour" | "today" | "week" | "month" | "year" | null;
+  /** Server-side duration bucket. Omit/`any` for no filter. */
+  duration?: "any" | "short" | "medium" | "long" | null;
 }
 
 export interface SearchVideosResponse {

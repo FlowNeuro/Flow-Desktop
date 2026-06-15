@@ -127,6 +127,7 @@ impl InnertubeClient {
                         .search_videos(SearchVideosRequest {
                             query: query.to_string(),
                             page_token: None,
+                            ..Default::default()
                         })
                         .await
                     {

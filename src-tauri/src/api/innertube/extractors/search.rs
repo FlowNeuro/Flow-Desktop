@@ -7,6 +7,7 @@ use crate::api::innertube::parsers::parse_music_search_json;
 use crate::errors::{AppError, AppResult};
 use crate::models::search::{SearchVideosRequest, SearchVideosResponse};
 use crate::models::video::VideoSummary;
+use base64::Engine;
 use serde_json::Value;
 
 fn custom_url_encode(s: &str) -> String {
@@ -25,6 +26,79 @@ fn custom_url_encode(s: &str) -> String {
         }
     }
     encoded
+}
+
+fn put_varint(buf: &mut Vec<u8>, mut v: u64) {
+    loop {
+        let mut byte = (v & 0x7f) as u8;
+        v >>= 7;
+        if v != 0 {
+            byte |= 0x80;
+        }
+        buf.push(byte);
+        if v == 0 {
+            break;
+        }
+    }
+}
+
+fn put_varint_field(buf: &mut Vec<u8>, field: u64, value: u64) {
+    put_varint(buf, field << 3);
+    put_varint(buf, value);
+}
+
+fn build_search_params(
+    sort_by: Option<&str>,
+    upload_date: Option<&str>,
+    duration: Option<&str>,
+) -> Option<String> {
+    let sort = match sort_by.map(str::trim) {
+        Some("rating") => Some(1u64),
+        Some("date") | Some("upload_date") => Some(2u64),
+        Some("views") | Some("view_count") => Some(3u64),
+        _ => None, // relevance / unset
+    };
+
+    let upload = match upload_date.map(str::trim) {
+        Some("hour") => Some(1u64),
+        Some("today") => Some(2u64),
+        Some("week") => Some(3u64),
+        Some("month") => Some(4u64),
+        Some("year") => Some(5u64),
+        _ => None,
+    };
+
+    let dur = match duration.map(str::trim) {
+        Some("short") => Some(1u64),
+        Some("long") => Some(2u64),
+        Some("medium") => Some(3u64),
+        _ => None,
+    };
+
+    let mut filters = Vec::new();
+    if let Some(u) = upload {
+        put_varint_field(&mut filters, 1, u);
+    }
+    if let Some(d) = dur {
+        put_varint_field(&mut filters, 3, d);
+    }
+
+    if sort.is_none() && filters.is_empty() {
+        return None;
+    }
+
+    let mut buf = Vec::new();
+    if let Some(s) = sort {
+        put_varint_field(&mut buf, 1, s);
+    }
+    if !filters.is_empty() {
+        put_varint(&mut buf, (2 << 3) | 2); // field 2, wire type 2 (length-delimited)
+        put_varint(&mut buf, filters.len() as u64);
+        buf.extend_from_slice(&filters);
+    }
+
+    let b64 = base64::engine::general_purpose::URL_SAFE.encode(&buf);
+    Some(custom_url_encode(&b64))
 }
 
 fn parse_innertube_search(val: Value) -> (Vec<VideoSummary>, Option<String>) {
@@ -196,9 +270,17 @@ impl InnertubeClient {
                 "continuation": page_token
             })
         } else {
-            serde_json::json!({
+            let mut payload = serde_json::json!({
                 "query": query
-            })
+            });
+            if let Some(params) = build_search_params(
+                request.sort_by.as_deref(),
+                request.upload_date.as_deref(),
+                request.duration.as_deref(),
+            ) {
+                payload["params"] = Value::String(params);
+            }
+            payload
         };
 
         let res = self
@@ -271,5 +353,55 @@ impl InnertubeClient {
         let items = parse_music_search_json(&res);
 
         Ok(items)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::build_search_params;
+
+    #[test]
+    fn no_filters_returns_none() {
+        assert_eq!(build_search_params(None, None, None), None);
+        // "relevance"/"any" are the defaults and must also produce a bare query.
+        assert_eq!(
+            build_search_params(Some("relevance"), Some("any"), Some("any")),
+            None
+        );
+    }
+
+    // The expected strings below are YouTube's own documented filter params
+    // (URL-safe base64 + percent-encoded `=`), so these tests double as a spec.
+    #[test]
+    fn duration_short_matches_youtube() {
+        assert_eq!(
+            build_search_params(None, None, Some("short")).as_deref(),
+            Some("EgIYAQ%3D%3D")
+        );
+    }
+
+    #[test]
+    fn upload_today_matches_youtube() {
+        assert_eq!(
+            build_search_params(None, Some("today"), None).as_deref(),
+            Some("EgIIAg%3D%3D")
+        );
+    }
+
+    #[test]
+    fn sort_by_date_matches_youtube() {
+        assert_eq!(
+            build_search_params(Some("date"), None, None).as_deref(),
+            Some("CAI%3D")
+        );
+    }
+
+    #[test]
+    fn combined_sort_and_filters() {
+        // sort=view count, upload=this month, duration=long.
+        assert_eq!(
+            build_search_params(Some("views"), Some("month"), Some("long")).as_deref(),
+            Some("CAMSBAgEGAI%3D")
+        );
     }
 }
