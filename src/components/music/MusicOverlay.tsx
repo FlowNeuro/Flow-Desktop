@@ -15,6 +15,7 @@ import {
   Heart,
   MoreHorizontal,
   Loader2,
+  RefreshCw,
 } from "lucide-react";
 
 import { useMusicPlayerStore } from "../../store/useMusicPlayerStore";
@@ -24,8 +25,11 @@ import { HapticButton } from "./HapticButton";
 import { MusicArtwork } from "./MusicArtwork";
 import { MusicScrubber } from "./MusicScrubber";
 import { MusicQueuePane } from "./MusicQueuePane";
+import { MusicLyrics } from "./MusicLyrics";
 import { AmbientBackdrop } from "./AmbientBackdrop";
 import { EqPanel } from "./EqPanel";
+import { useLyrics } from "../../lib/lyrics/useLyrics";
+import { useDominantColor } from "../../lib/useDominantColor";
 
 const TOP_BTN =
   "grid h-10 w-10 place-items-center rounded-full text-neutral-300 transition-colors duration-200 ease-out hover:bg-white/10 hover:text-white";
@@ -58,12 +62,16 @@ export function MusicOverlay() {
   const toggleShuffle = useMusicPlayerStore((s) => s.toggleShuffle);
   const setViewState = useMusicPlayerStore((s) => s.setViewState);
   const closeOverlay = useMusicPlayerStore((s) => s.closeOverlay);
+  const seek = useMusicPlayerStore((s) => s.seek);
 
   const [eqOpen, setEqOpen] = useState(false);
   const [liked, setLiked] = useState(false); // visual only — pending music-library backend
+  const lyrics = useLyrics(currentTrack);
+  const accent = useDominantColor(currentTrack?.thumbnail ?? null);
 
   const open = currentTrack !== null && viewState !== "dock";
   const isQueue = viewState === "queue";
+  const isLyrics = viewState === "lyrics";
   const loading = isBuffering || loadingStreamId !== null;
 
   useEffect(() => {
@@ -86,7 +94,7 @@ export function MusicOverlay() {
           transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
           className="fixed inset-0 z-[60] flex flex-col overflow-hidden bg-neutral-950"
         >
-          <AmbientBackdrop src={currentTrack.thumbnail} />
+          <AmbientBackdrop src={currentTrack.thumbnail} accent={accent} />
 
           {/* TOP BAR */}
           <div className="absolute top-0 z-20 flex w-full items-center justify-between p-6">
@@ -99,6 +107,16 @@ export function MusicOverlay() {
             </HapticButton>
 
             <div className="relative flex items-center gap-1">
+              {isLyrics && (
+                <HapticButton
+                  onClick={() => lyrics.refresh()}
+                  aria-label={getString("music_refresh_lyrics")}
+                  className={TOP_BTN}
+                >
+                  <RefreshCw className="h-5 w-5" />
+                </HapticButton>
+              )}
+
               <HapticButton
                 onClick={() => setViewState(isQueue ? "full" : "queue")}
                 aria-label={getString("music_queue")}
@@ -109,10 +127,10 @@ export function MusicOverlay() {
               </HapticButton>
 
               <HapticButton
-                onClick={() => setViewState("lyrics")}
+                onClick={() => setViewState(isLyrics ? "full" : "lyrics")}
                 aria-label={getString("music_lyrics")}
-                aria-pressed={viewState === "lyrics"}
-                className={viewState === "lyrics" ? TOP_BTN_ACTIVE : TOP_BTN}
+                aria-pressed={isLyrics}
+                className={isLyrics ? TOP_BTN_ACTIVE : TOP_BTN}
               >
                 <Mic2 className="h-5 w-5" />
               </HapticButton>
@@ -134,11 +152,59 @@ export function MusicOverlay() {
           </div>
 
           {/* MAIN */}
-          <motion.div
-            layout
-            transition={LAYOUT_SPRING}
-            className="relative z-10 flex min-h-0 flex-1 items-stretch justify-center gap-8 px-6 pb-14 pt-20"
-          >
+          {isLyrics ? (
+            <>
+              <MusicLyrics
+                entries={lyrics.entries}
+                plain={lyrics.plain}
+                isSynced={lyrics.isSynced}
+                loading={lyrics.loading}
+                providerName={lyrics.providerName}
+                accent={accent}
+                onSeek={seek}
+                className="absolute inset-0 z-10"
+              />
+              <div className="absolute inset-x-0 bottom-0 z-20 flex flex-col items-center gap-4 bg-linear-to-t from-neutral-950/90 via-neutral-950/50 to-transparent px-6 pb-10 pt-24">
+                <div className="w-full max-w-2xl">
+                  <MusicScrubber size="lg" showTimes countdown />
+                </div>
+                <div className="flex items-center justify-center gap-8">
+                  <HapticButton
+                    onClick={previous}
+                    aria-label={getString("music_previous")}
+                    className="grid h-11 w-11 place-items-center rounded-full text-white transition-transform duration-200 ease-out hover:scale-110"
+                  >
+                    <SkipBack className="h-6 w-6" fill="currentColor" />
+                  </HapticButton>
+                  <HapticButton
+                    onClick={togglePlay}
+                    aria-label={getString(isPlaying ? "music_pause" : "music_play")}
+                    className="grid h-14 w-14 place-items-center rounded-full bg-white text-black transition-transform duration-200 ease-out hover:scale-105"
+                  >
+                    {loading ? (
+                      <Loader2 className="h-6 w-6 animate-spin" />
+                    ) : isPlaying ? (
+                      <Pause className="h-6 w-6" fill="currentColor" />
+                    ) : (
+                      <Play className="h-6 w-6 translate-x-px" fill="currentColor" />
+                    )}
+                  </HapticButton>
+                  <HapticButton
+                    onClick={next}
+                    aria-label={getString("music_next")}
+                    className="grid h-11 w-11 place-items-center rounded-full text-white transition-transform duration-200 ease-out hover:scale-110"
+                  >
+                    <SkipForward className="h-6 w-6" fill="currentColor" />
+                  </HapticButton>
+                </div>
+              </div>
+            </>
+          ) : (
+            <motion.div
+              layout
+              transition={LAYOUT_SPRING}
+              className="relative z-10 flex min-h-0 flex-1 items-stretch justify-center gap-8 px-6 pb-14 pt-20"
+            >
             {/* NOW-PLAYING COLUMN */}
             <motion.div
               layout
@@ -268,7 +334,8 @@ export function MusicOverlay() {
                 </motion.div>
               )}
             </AnimatePresence>
-          </motion.div>
+            </motion.div>
+          )}
         </motion.div>
       )}
     </AnimatePresence>

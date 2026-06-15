@@ -33,8 +33,8 @@ use commands::music::{
     get_music_lyrics_typed, get_music_mood_genre, get_music_moods, get_music_new_releases,
     get_music_playlist_continuation, get_music_playlist_page, get_music_queue,
     get_music_queue_continuation, get_music_related_typed, get_music_search_suggestions,
-    get_music_search_summary, get_music_stream, get_music_watch_queue, search_music_continuation,
-    search_music_typed,
+    get_music_search_summary, get_music_stream, get_music_watch_queue, lyrics_http_get,
+    search_music_continuation, search_music_typed,
 };
 use commands::youtube::{
     fetch_subtitles, get_channel_details, get_channel_tab, get_comments, get_dearrow_override,
@@ -192,6 +192,7 @@ pub fn run() {
             get_music_queue,
             get_music_related_typed,
             get_music_lyrics_typed,
+            lyrics_http_get,
             get_music_stream
         ])
         .build(tauri::generate_context!())

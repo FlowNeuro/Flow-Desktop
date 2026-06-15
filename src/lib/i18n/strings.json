@@ -418,5 +418,8 @@
   "music_seek": "Seek",
   "music_dismiss": "Close player",
   "music_like": "Like",
-  "music_more_actions": "More"
+  "music_more_actions": "More",
+  "music_lyrics_unavailable": "Lyrics not available",
+  "music_resync": "Resync",
+  "music_refresh_lyrics": "Refresh lyrics"
 }

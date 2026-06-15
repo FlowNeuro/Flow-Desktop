@@ -3,9 +3,11 @@
 //! These are additive and independent of `commands::youtube`. The playback
 //! command reuses the shared streaming proxy exactly like `get_stream_info`.
 
+use std::collections::HashMap;
+
 use tauri::State;
 
-use crate::errors::ErrorResponse;
+use crate::errors::{AppError, ErrorResponse};
 use crate::models::music::{AlbumItem, ArtistPage, ChartsPage, ExplorePage, MoodAndGenreItem, SongItem};
 use crate::models::music_pages::{
     AlbumPage, MoodGenrePage, MusicHomePage, MusicPlaylistPage, MusicSearchResponse,
@@ -208,6 +210,44 @@ pub async fn get_music_lyrics_typed(
 ) -> CmdResult<Option<String>> {
     validate_video_id(&video_id).map_err(ErrorResponse::from)?;
     music.lyrics(&video_id).await.map_err(ErrorResponse::from)
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LyricsHttpResponse {
+    pub status: u16,
+    pub body: String,
+}
+
+/// Generic HTTPS GET passthrough for the client-side lyrics engine — the lyric
+/// providers are external services that the webview can't reach due to CORS.
+#[tauri::command]
+pub async fn lyrics_http_get(
+    url: String,
+    headers: Option<HashMap<String, String>>,
+) -> CmdResult<LyricsHttpResponse> {
+    if !url.starts_with("https://") {
+        return Err(ErrorResponse::from(AppError::Validation(
+            "Only https URLs are allowed".into(),
+        )));
+    }
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(15))
+        .build()
+        .map_err(|e| ErrorResponse::from(AppError::Extractor(e.to_string())))?;
+    let mut req = client.get(&url);
+    if let Some(h) = headers {
+        for (k, v) in h {
+            req = req.header(k, v);
+        }
+    }
+    let resp = req
+        .send()
+        .await
+        .map_err(|e| ErrorResponse::from(AppError::Extractor(e.to_string())))?;
+    let status = resp.status().as_u16();
+    let body = resp.text().await.unwrap_or_default();
+    Ok(LyricsHttpResponse { status, body })
 }
 
 // --- Playback (reuses the shared streaming proxy) -------------------------
