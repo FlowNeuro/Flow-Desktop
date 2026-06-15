@@ -11,6 +11,7 @@ import Home from "./pages/Home";
 import MusicHome from "./pages/music/MusicHome";
 import ArtistPage from "./pages/music/ArtistPage";
 import ArtistItemsPage from "./pages/music/ArtistItemsPage";
+import MusicCollectionPage from "./pages/music/MusicCollectionPage";
 import Search from "./pages/Search";
 import Subscriptions from "./pages/Subscriptions";
 import History from "./pages/History";
@@ -96,6 +97,12 @@ function App() {
           } />
           <Route path="music/artist/:artistId/items" element={
             <ArtistItemsPage />
+          } />
+          <Route path="music/album/:id" element={
+            <MusicCollectionPage kind="album" />
+          } />
+          <Route path="music/playlist/:id" element={
+            <MusicCollectionPage kind="playlist" />
           } />
           <Route path="search" element={
             <Search onPlay={handlePlayVideo} onAddToQueue={handleAddToQueue} />

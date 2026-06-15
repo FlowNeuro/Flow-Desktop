@@ -436,6 +436,10 @@
   "music_artist_read_less": "Show less",
   "music_artist_back": "Back",
   "music_artist_unavailable": "Couldn't load this artist.",
+  "music_album_label": "Album",
+  "music_playlist_label": "Playlist",
+  "music_songs_count": "%s songs",
+  "music_collection_unavailable": "Couldn't load this.",
 
   "search_cat_all": "All",
   "search_cat_videos": "Videos",

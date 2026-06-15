@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { Topbar } from './Topbar';
 import { Sidebar } from './Sidebar';
 import { Outlet, useLocation } from 'react-router-dom';
@@ -10,12 +11,18 @@ export function PageWrapper() {
   const isSettingsPage = location.pathname.startsWith('/settings');
   const isPlaylistDetailsPage = location.pathname.startsWith('/playlist/');
 
+  const mainRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    mainRef.current?.scrollTo({ top: 0, left: 0 });
+  }, [location.pathname, location.search]);
+
   return (
     <div className="flex h-screen flex-col bg-background text-zinc-100 overflow-hidden font-sans">
       <Topbar />
       <div className="flex flex-1 overflow-hidden">
         <Sidebar />
         <main
+          ref={mainRef}
           className={
             isPlaylistDetailsPage
               ? "flex min-h-0 flex-1 flex-col overflow-hidden"
