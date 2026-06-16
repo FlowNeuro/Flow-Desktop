@@ -1,7 +1,7 @@
 use crate::api::innertube::InnertubeClient;
 use crate::api::innertube::core::utils::{
-    extract_channel_id_from_video_renderer, extract_continuation_token, normalize_youtube_image_url,
-    parse_duration_seconds,
+    detect_video_is_live, extract_channel_id_from_video_renderer, extract_continuation_token,
+    normalize_youtube_image_url, parse_duration_seconds,
 };
 use crate::api::innertube::parsers::parse_music_search_json;
 use crate::errors::{AppError, AppResult};
@@ -195,6 +195,7 @@ fn process_search_items(
                     published_text,
                     view_count_text,
                     channel_avatar_url,
+                    is_live: detect_video_is_live(video),
                 });
             } else if let Some(channel) = item.get("channelRenderer") {
                 let channel_id = channel["channelId"]
@@ -227,6 +228,7 @@ fn process_search_items(
                         published_text: subscriber_count_text,
                         view_count_text: Some("Channel".to_string()),
                         channel_avatar_url: thumbnail_url,
+                        is_live: false,
                     });
                 }
             } else if next_page_token.is_none() {

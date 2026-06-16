@@ -152,6 +152,8 @@ export function FlowPlayerCore({ videoId, videoDetails, onEnded }: FlowPlayerCor
       captions={stream.captions}
       audioTracks={stream.audioTracks}
       dashManifestUrl={stream.dashManifestUrl}
+      hlsManifestUrl={stream.hlsManifestUrl}
+      isLive={stream.isLive}
       selectedQualityId={stream.selectedQualityId}
       resumeTime={stream.resumeTime}
       sourceMode={stream.sourceMode}

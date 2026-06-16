@@ -5,7 +5,7 @@ import { addWatchRecord } from "./api/db";
 import { isMusicVideo } from "./utils";
 import type { AudioTrack, CaptionTrack, StreamInfo, StreamVariant } from "../types/video";
 
-export type SourceMode = "dash-native" | "sabr-dash" | "direct" | "unavailable";
+export type SourceMode = "hls" | "dash-native" | "sabr-dash" | "direct" | "unavailable";
 
 const PROGRESS_PREFIX = "flow_watch_progress:";
 const getProgressKey = (videoId: string) => `${PROGRESS_PREFIX}${videoId}`;
@@ -89,12 +89,18 @@ const browserSupportsVP9 = () =>
 
 const computeAvailableSourceModes = (info: StreamInfo): SourceMode[] => {
   const modes: SourceMode[] = [];
+  const isLive = !!info.isLive;
+
+  if (isLive && info.hlsManifestUrl) modes.push("hls");
   if (info.dashManifestUrl && browserSupportsVP9()) modes.push("dash-native");
-  const canUseAdaptive = (info.audioTracks || []).some((track) => !!track.localUrl);
-  const hasDirect =
-    (info.variants || []).some((v) => v.isPlayable && (v.hasAudio || canUseAdaptive)) || !!info.localUrl;
-  if (hasDirect) modes.push("direct");
-  if (info.sabr?.available && info.sabr?.manifestUrl) modes.push("sabr-dash");
+  if (!isLive) {
+    const canUseAdaptive = (info.audioTracks || []).some((track) => !!track.localUrl);
+    const hasDirect =
+      (info.variants || []).some((v) => v.isPlayable && (v.hasAudio || canUseAdaptive)) || !!info.localUrl;
+    if (hasDirect) modes.push("direct");
+    if (info.sabr?.available && info.sabr?.manifestUrl) modes.push("sabr-dash");
+  }
+  if (info.hlsManifestUrl && !modes.includes("hls")) modes.push("hls");
   return modes;
 };
 
@@ -121,6 +127,8 @@ export interface VideoStream {
   captions: CaptionTrack[];
   audioTracks: AudioTrack[];
   dashManifestUrl: string | null;
+  hlsManifestUrl: string | null;
+  isLive: boolean;
   sourceMode: SourceMode;
   selectedQualityId: string;
   resumeTime: number;
@@ -147,6 +155,8 @@ export function useVideoStream(videoId: string | undefined): VideoStream {
   const [captions, setCaptions] = useState<CaptionTrack[]>([]);
   const [audioTracks, setAudioTracks] = useState<AudioTrack[]>([]);
   const [dashManifestUrl, setDashManifestUrl] = useState<string | null>(null);
+  const [hlsManifestUrl, setHlsManifestUrl] = useState<string | null>(null);
+  const [isLive, setIsLive] = useState(false);
   const [sourceMode, setSourceMode] = useState<SourceMode>("unavailable");
   const [selectedQualityId, setSelectedQualityId] = useState<string>("auto");
   const [resumeTime, setResumeTime] = useState(0);
@@ -178,25 +188,36 @@ export function useVideoStream(videoId: string | undefined): VideoStream {
         setStreamVariants(info.variants || []);
         publishCaptions(info.captions || []);
         setAudioTracks(info.audioTracks || []);
+        setIsLive(!!info.isLive);
 
         let initialQualityId = selectedQualityId || "auto";
         if (initialQualityId === "null" || !initialQualityId) initialQualityId = "auto";
         setSelectedQualityId(initialQualityId);
 
-        setResumeTime(readSavedWatchProgress(currentVideo.id, currentVideo.durationSeconds ?? 0));
+        // A live broadcast has no meaningful resume point.
+        setResumeTime(
+          info.isLive ? 0 : readSavedWatchProgress(currentVideo.id, currentVideo.durationSeconds ?? 0),
+        );
 
         const availableModes = computeAvailableSourceModes(info);
         const initialMode: SourceMode = availableModes[0] || "unavailable";
         attemptedModesRef.current.add(initialMode);
         setSourceMode(initialMode);
 
-        if (initialMode === "dash-native") {
+        if (initialMode === "hls") {
+          setHlsManifestUrl(info.hlsManifestUrl || null);
+          setDashManifestUrl(null);
+          setStreamUrl(null);
+        } else if (initialMode === "dash-native") {
+          setHlsManifestUrl(null);
           setDashManifestUrl(info.dashManifestUrl || null);
           setStreamUrl(info.dashManifestUrl || null);
         } else if (initialMode === "sabr-dash") {
+          setHlsManifestUrl(null);
           setDashManifestUrl(info.sabr?.manifestUrl || null);
           setStreamUrl(info.sabr?.manifestUrl || null);
         } else {
+          setHlsManifestUrl(null);
           setDashManifestUrl(null);
           setStreamUrl(pickDirectVariantUrl(info, initialQualityId));
         }
@@ -220,6 +241,8 @@ export function useVideoStream(videoId: string | undefined): VideoStream {
         publishCaptions([]);
         setAudioTracks([]);
         setDashManifestUrl(null);
+        setHlsManifestUrl(null);
+        setIsLive(false);
         setSelectedQualityId("auto");
         setStreamError(getYoutubeErrorMessage(err));
         console.error("Failed to load stream URL", err);
@@ -283,15 +306,22 @@ export function useVideoStream(videoId: string | undefined): VideoStream {
       }
 
       attemptedModesRef.current.add(next);
-      setResumeTime(resumeAt);
+      setResumeTime(info.isLive ? 0 : resumeAt);
       setSourceMode(next);
-      if (next === "dash-native") {
+      if (next === "hls") {
+        setHlsManifestUrl(info.hlsManifestUrl || null);
+        setDashManifestUrl(null);
+        setStreamUrl(null);
+      } else if (next === "dash-native") {
+        setHlsManifestUrl(null);
         setDashManifestUrl(info.dashManifestUrl || null);
         setStreamUrl(info.dashManifestUrl || null);
       } else if (next === "sabr-dash") {
+        setHlsManifestUrl(null);
         setDashManifestUrl(info.sabr?.manifestUrl || null);
         setStreamUrl(info.sabr?.manifestUrl || null);
       } else {
+        setHlsManifestUrl(null);
         setDashManifestUrl(null);
         setStreamUrl(pickDirectVariantUrl(info, selectedQualityId || "auto"));
       }
@@ -308,20 +338,35 @@ export function useVideoStream(videoId: string | undefined): VideoStream {
     setSelectedQualityId("auto");
     void getStreamInfo(currentVideo.id)
       .then((info) => {
-        const canUseAdaptive = (info.audioTracks || []).some((track) => !!track.localUrl);
-        const hasDashUrl = !!(info.dashManifestUrl && browserSupportsVP9());
-        const defaultVariant =
-          info.variants?.find((v) => v.isDefault && v.isPlayable && (v.hasAudio || canUseAdaptive)) ||
-          info.variants?.find((v) => v.isPlayable && (v.hasAudio || canUseAdaptive)) ||
-          null;
         streamInfoRef.current = info;
+        attemptedModesRef.current = new Set();
         setStreamVariants(info.variants || []);
         publishCaptions(info.captions || []);
         setAudioTracks(info.audioTracks || []);
-        setDashManifestUrl(hasDashUrl ? info.dashManifestUrl || null : null);
+        setIsLive(!!info.isLive);
         setSelectedQualityId("auto");
-        setStreamUrl(hasDashUrl ? info.dashManifestUrl || null : defaultVariant?.localUrl || info.localUrl || null);
         setStreamError(null);
+
+        const mode = computeAvailableSourceModes(info)[0] || "unavailable";
+        attemptedModesRef.current.add(mode);
+        setSourceMode(mode);
+        if (mode === "hls") {
+          setHlsManifestUrl(info.hlsManifestUrl || null);
+          setDashManifestUrl(null);
+          setStreamUrl(null);
+        } else if (mode === "dash-native") {
+          setHlsManifestUrl(null);
+          setDashManifestUrl(info.dashManifestUrl || null);
+          setStreamUrl(info.dashManifestUrl || null);
+        } else if (mode === "sabr-dash") {
+          setHlsManifestUrl(null);
+          setDashManifestUrl(info.sabr?.manifestUrl || null);
+          setStreamUrl(info.sabr?.manifestUrl || null);
+        } else {
+          setHlsManifestUrl(null);
+          setDashManifestUrl(null);
+          setStreamUrl(pickDirectVariantUrl(info, "auto"));
+        }
       })
       .catch((err) => setStreamError(getYoutubeErrorMessage(err)));
   }, [currentVideo, publishCaptions]);
@@ -332,6 +377,8 @@ export function useVideoStream(videoId: string | undefined): VideoStream {
     captions,
     audioTracks,
     dashManifestUrl,
+    hlsManifestUrl,
+    isLive,
     sourceMode,
     selectedQualityId,
     resumeTime,

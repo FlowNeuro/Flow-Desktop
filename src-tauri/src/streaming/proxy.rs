@@ -534,11 +534,16 @@ async fn relay_remote(
                 .and_then(|h| h.to_str().ok())
                 .unwrap_or(session.content_type.as_str())
                 .to_string();
-            let content_length = headers
+            // Live HLS playlists/segments arrive chunked (no Content-Length); reqwest decodes
+            // the framing, so the length is unknown to us here.
+            let content_length_header = headers
                 .get("Content-Length")
                 .and_then(|h| h.to_str().ok())
-                .unwrap_or("0");
-            content_length_value = content_length.parse::<usize>().unwrap_or(0);
+                .map(ToOwned::to_owned);
+            content_length_value = content_length_header
+                .as_deref()
+                .and_then(|value| value.parse::<usize>().ok())
+                .unwrap_or(0);
             content_range_value = headers
                 .get("Content-Range")
                 .and_then(|h| h.to_str().ok())
@@ -550,24 +555,33 @@ async fn relay_remote(
                 .to_string();
 
             should_cache = status.is_success()
+                && content_length_header.is_some()
                 && content_length_value > 0
                 && content_length_value <= MAX_CACHED_RESPONSE_BYTES
                 && (client_range.is_some() || path.starts_with("/proxy/"));
 
             let mut response_headers = format!(
-                "HTTP/1.1 {} {}\r\nContent-Type: {}\r\nContent-Length: {}\r\n",
+                "HTTP/1.1 {} {}\r\nContent-Type: {}\r\n",
                 status.as_u16(),
                 status.canonical_reason().unwrap_or(""),
                 content_type_value,
-                content_length
             );
+            if let Some(ref content_length) = content_length_header {
+                response_headers.push_str(&format!("Content-Length: {content_length}\r\n"));
+            }
             if let Some(range_val) = content_range_value.as_deref() {
                 response_headers.push_str(&format!("Content-Range: {range_val}\r\n"));
             }
             response_headers.push_str(&format!("Accept-Ranges: {accept_ranges_value}\r\n"));
             response_headers.push_str(CORS_HEADERS);
-            response_headers
-                .push_str("Cache-Control: private, max-age=1800\r\nConnection: keep-alive\r\n\r\n");
+            response_headers.push_str("Cache-Control: private, max-age=1800\r\n");
+            // With no Content-Length the body is delimited by connection close, so the client
+            // reads until EOF instead of mis-framing a keep-alive response.
+            if content_length_header.is_some() {
+                response_headers.push_str("Connection: keep-alive\r\n\r\n");
+            } else {
+                response_headers.push_str("Connection: close\r\n\r\n");
+            }
 
             socket.write_all(response_headers.as_bytes()).await?;
             headers_written = true;

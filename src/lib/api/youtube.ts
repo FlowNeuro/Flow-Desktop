@@ -8,6 +8,7 @@ import type {
   ChannelItem,
   PlaylistDetailsResponse,
   CommentsResponse,
+  LiveChatResponse,
   VideoSummary,
   RelatedContentItem,
   PlaylistSummary,
@@ -339,6 +340,17 @@ export async function getComments(
     videoId,
     pageToken,
   });
+}
+
+export async function getLiveChat(
+  videoId: string,
+  continuation?: string | null,
+): Promise<LiveChatResponse> {
+  if (!(await isTauriEnv())) {
+    console.warn("Tauri not detected. Returning mock live chat.");
+    return { messages: [], continuation: null, pollingIntervalMs: 0, isReplay: false };
+  }
+  return invokeBackend<LiveChatResponse>("get_live_chat", { videoId, continuation });
 }
 
 export async function getTrendingVideos(): Promise<VideoSummary[]> {

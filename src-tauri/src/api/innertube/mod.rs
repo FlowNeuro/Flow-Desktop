@@ -2,6 +2,7 @@ use crate::api::extractor::YoutubeExtractor;
 use crate::errors::AppResult;
 use crate::models::channel::{ChannelDetails, ChannelTabResponse};
 use crate::models::comment::CommentsResponse;
+use crate::models::live_chat::LiveChatResponse;
 use crate::models::music::{ArtistPage, ChartsPage, ExplorePage};
 use crate::models::playlist::PlaylistDetailsResponse;
 use crate::models::search::{SearchVideosRequest, SearchVideosResponse};
@@ -92,6 +93,14 @@ impl YoutubeExtractor for InnertubeClient {
         page_token: Option<String>,
     ) -> AppResult<CommentsResponse> {
         self.get_comments(video_id, page_token).await
+    }
+
+    async fn get_live_chat(
+        &self,
+        video_id: &str,
+        continuation: Option<String>,
+    ) -> AppResult<LiveChatResponse> {
+        self.get_live_chat(video_id, continuation).await
     }
 
     async fn get_trending_videos(&self) -> AppResult<Vec<VideoSummary>> {

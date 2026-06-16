@@ -1,6 +1,59 @@
 use crate::models::video::{RelatedContentItem, VideoSummary};
 use serde_json::Value;
 
+pub fn detect_video_is_live(video: &Value) -> bool {
+    if let Some(badges) = video["badges"].as_array() {
+        for badge in badges {
+            let style = badge["metadataBadgeRenderer"]["style"].as_str().unwrap_or_default();
+            if style == "BADGE_STYLE_TYPE_LIVE_NOW" {
+                return true;
+            }
+        }
+    }
+
+    if let Some(overlays) = video["thumbnailOverlays"].as_array() {
+        for overlay in overlays {
+            let style = overlay["thumbnailOverlayTimeStatusRenderer"]["style"]
+                .as_str()
+                .unwrap_or_default();
+            if style.eq_ignore_ascii_case("LIVE") {
+                return true;
+            }
+        }
+    }
+
+    video["viewCountText"]["runs"]
+        .as_array()
+        .map(|runs| runs.iter().any(|run| run["text"].as_str().is_some_and(|t| t.contains("watching"))))
+        .unwrap_or(false)
+}
+
+// Detects a live broadcast from the newer lockupViewModel layout, where the LIVE state is a
+// thumbnail overlay badge whose text reads "LIVE".
+pub fn detect_lockup_is_live(lockup: &Value) -> bool {
+    let overlays = lockup["contentImage"]["thumbnailViewModel"]["overlays"].as_array();
+    if let Some(overlays) = overlays {
+        for overlay in overlays {
+            let badges = overlay["thumbnailOverlayBadgeViewModel"]["thumbnailBadges"]
+                .as_array()
+                .or_else(|| overlay["thumbnailBottomOverlayViewModel"]["badges"].as_array());
+            if let Some(badges) = badges {
+                for badge in badges {
+                    let text = badge["thumbnailBadgeViewModel"]["text"].as_str().unwrap_or_default();
+                    let icon = badge["thumbnailBadgeViewModel"]["icon"]["sources"][0]["clientResource"]
+                        ["imageName"]
+                        .as_str()
+                        .unwrap_or_default();
+                    if text.eq_ignore_ascii_case("LIVE") || icon.contains("LIVE") {
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+    false
+}
+
 pub fn parse_duration_seconds(simple_text: &str) -> u64 {
     let parts: Vec<&str> = simple_text.split(':').collect();
     let mut total = 0u64;
@@ -168,6 +221,7 @@ pub fn build_video_summary_from_compact_video(video: &Value) -> Option<VideoSumm
         published_text,
         view_count_text,
         channel_avatar_url: None,
+        is_live: detect_video_is_live(video),
     })
 }
 
@@ -187,6 +241,7 @@ pub fn build_related_content_from_compact_video(video: &Value) -> Option<Related
         video_id: Some(summary.id),
         playlist_id: None,
         is_mix: false,
+        is_live: summary.is_live,
     })
 }
 
@@ -252,6 +307,7 @@ pub fn build_related_content_from_compact_playlist(
         video_id,
         playlist_id: Some(playlist_id),
         is_mix,
+        is_live: false,
     })
 }
 
@@ -387,6 +443,7 @@ pub fn build_related_content_from_lockup(lockup: &Value) -> Option<RelatedConten
         video_id,
         playlist_id,
         is_mix,
+        is_live: detect_lockup_is_live(lockup),
     })
 }
 
@@ -479,6 +536,7 @@ pub fn map_related_content_to_video_summary(item: RelatedContentItem) -> VideoSu
         published_text: item.published_text,
         view_count_text: item.view_count_text,
         channel_avatar_url: None,
+        is_live: item.is_live,
     }
 }
 

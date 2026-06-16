@@ -1,7 +1,7 @@
 use crate::api::innertube::InnertubeClient;
 use crate::api::innertube::core::utils::{
-    extract_channel_id_from_video_renderer, normalize_youtube_image_url, parse_duration_seconds,
-    unique_video_summaries,
+    detect_video_is_live, extract_channel_id_from_video_renderer, normalize_youtube_image_url,
+    parse_duration_seconds, unique_video_summaries,
 };
 use crate::errors::AppResult;
 use crate::models::search::SearchVideosRequest;
@@ -72,6 +72,7 @@ fn parse_trending_json(val: &Value) -> Vec<VideoSummary> {
                         published_text,
                         view_count_text,
                         channel_avatar_url,
+                        is_live: detect_video_is_live(video),
                     });
                 }
             }

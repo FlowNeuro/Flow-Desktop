@@ -20,6 +20,7 @@ import {
   WatchMetadata,
   DescriptionCard,
   RelatedVideos,
+  LiveChat,
   WatchPageSkeleton,
   WatchErrorState,
 } from "../components/watch";
@@ -235,6 +236,8 @@ export function Watch() {
       }
       sidebar={
         <>
+          {videoDetails?.isLive && <LiveChat videoId={videoId} />}
+
           {isChaptersPanelOpen && (
             <div className="h-[min(720px,calc(100vh-140px))] min-h-[450px] w-full shrink-0">
               <Chapters

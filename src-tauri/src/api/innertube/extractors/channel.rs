@@ -1,7 +1,7 @@
 use crate::api::innertube::InnertubeClient;
 use crate::api::innertube::core::utils::{
-    extract_channel_id_from_video_renderer, normalize_youtube_image_url, parse_duration_seconds,
-    parse_mixed_number_word_to_long,
+    detect_lockup_is_live, detect_video_is_live, extract_channel_id_from_video_renderer,
+    normalize_youtube_image_url, parse_duration_seconds, parse_mixed_number_word_to_long,
 };
 use crate::errors::{AppError, AppResult};
 use crate::models::channel::{
@@ -182,6 +182,7 @@ fn extract_videos_from_browse(
                         published_text,
                         view_count_text,
                         channel_avatar_url: None,
+                        is_live: detect_video_is_live(video),
                     }));
                 }
             } else if let Some(shorts_lockup) = target.get("shortsLockupViewModel") {
@@ -505,6 +506,7 @@ fn extract_videos_from_browse(
                             published_text,
                             view_count_text,
                             channel_avatar_url: None,
+                            is_live: detect_lockup_is_live(lockup),
                         }));
                     }
                 }

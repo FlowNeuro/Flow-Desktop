@@ -126,6 +126,7 @@ fn parse_rss_feed(channel_id: &str, xml: &str) -> (Option<String>, Vec<(i64, Vid
                     published_text,
                     view_count_text: None,
                     channel_avatar_url: None,
+                    is_live: false,
                 },
             ))
         })
@@ -685,6 +686,20 @@ pub async fn get_comments(
 }
 
 #[tauri::command]
+pub async fn get_live_chat(
+    video_id: String,
+    continuation: Option<String>,
+    youtube_service: State<'_, YoutubeService>,
+) -> Result<crate::models::live_chat::LiveChatResponse, ErrorResponse> {
+    validate_video_id(&video_id).map_err(ErrorResponse::from)?;
+
+    youtube_service
+        .get_live_chat(&video_id, continuation)
+        .await
+        .map_err(ErrorResponse::from)
+}
+
+#[tauri::command]
 pub async fn get_trending_videos(
     youtube_service: State<'_, YoutubeService>,
 ) -> Result<Vec<VideoSummary>, ErrorResponse> {
@@ -925,6 +940,7 @@ async fn populate_video_durations(
                     published_text: None,
                     view_count_text: None,
                     channel_avatar_url: None,
+                    is_live: false,
                 };
                 // Cache it for 7 days
                 let _ = crate::db::cache::cache_video_summary(&pool, &summary, 604800).await;

@@ -13,6 +13,8 @@ pub struct VideoSummary {
     pub view_count_text: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub channel_avatar_url: Option<String>,
+    #[serde(default)]
+    pub is_live: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -30,6 +32,8 @@ pub struct RelatedContentItem {
     pub video_id: Option<String>,
     pub playlist_id: Option<String>,
     pub is_mix: bool,
+    #[serde(default)]
+    pub is_live: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -54,6 +58,8 @@ pub struct VideoDetails {
     pub view_count_text: Option<String>,
     pub published_text: Option<String>,
     pub chapters: Vec<VideoChapter>,
+    #[serde(default)]
+    pub is_live: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -67,6 +73,8 @@ pub struct StreamInfo {
     pub audio_tracks: Vec<AudioTrack>,
     pub hls_manifest_url: Option<String>,
     pub dash_manifest_url: Option<String>,
+    #[serde(default)]
+    pub is_live: bool,
     // SABR availability + (once a session is prepared) a local manifest URL.
     // `None` when extraction found no SABR metadata at all.
     #[serde(default)]

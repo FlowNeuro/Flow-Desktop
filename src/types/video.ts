@@ -9,6 +9,7 @@ export interface VideoSummary {
   viewCountText?: string | null;
   channelAvatarUrl?: string | null;
   watchProgressPercent?: number | null;
+  isLive?: boolean | null;
 }
 
 export interface RelatedContentItem {
@@ -24,6 +25,7 @@ export interface RelatedContentItem {
   videoId?: string | null;
   playlistId?: string | null;
   isMix: boolean;
+  isLive?: boolean | null;
 }
 
 export interface VideoChapter {
@@ -44,6 +46,7 @@ export interface VideoDetails {
   viewCountText?: string | null;
   publishedText?: string | null;
   chapters?: VideoChapter[];
+  isLive?: boolean | null;
 }
 
 export interface StreamInfo {
@@ -55,7 +58,40 @@ export interface StreamInfo {
   audioTracks: AudioTrack[];
   hlsManifestUrl?: string | null;
   dashManifestUrl?: string | null;
+  isLive?: boolean | null;
   sabr?: SabrStreamInfo | null;
+}
+
+export interface LiveChatSegment {
+  text: string;
+  emojiImageUrl?: string | null;
+}
+
+export type LiveChatMessageType = "text" | "superChat" | "membership";
+
+export interface LiveChatMessage {
+  id: string;
+  author: string;
+  authorPhotoUrl?: string | null;
+  message: string;
+  segments: LiveChatSegment[];
+  timestamp?: string | null;
+  messageType: LiveChatMessageType;
+  isOwner: boolean;
+  isModerator: boolean;
+  isVerified: boolean;
+  isMember: boolean;
+  memberBadgeUrl?: string | null;
+  superChatAmount?: string | null;
+  superChatArgb?: number | null;
+  superChatHeaderArgb?: number | null;
+}
+
+export interface LiveChatResponse {
+  messages: LiveChatMessage[];
+  continuation?: string | null;
+  pollingIntervalMs: number;
+  isReplay: boolean;
 }
 
 /** SABR (Server Adaptive Bit Rate) availability + local manifest endpoint. */

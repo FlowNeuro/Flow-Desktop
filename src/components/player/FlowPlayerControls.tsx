@@ -41,6 +41,7 @@ export interface FlowPlayerControlsProps {
   qualities?: StreamVariant[];
   selectedQualityId?: string | null;
   isDashPlayback?: boolean;
+  isLive?: boolean;
   onSelectQuality?: (variant: StreamVariant | "auto") => void;
 
   captions?: CaptionTrack[];
@@ -92,6 +93,13 @@ function cx(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
 
+// The seekable DVR window of a live stream: [start, end] in player-timeline seconds.
+function liveWindow(video: HTMLVideoElement) {
+  const len = video.seekable.length;
+  if (!len) return { start: 0, end: 0 };
+  return { start: video.seekable.start(0), end: video.seekable.end(len - 1) };
+}
+
 function formatTime(value: number) {
   if (!Number.isFinite(value) || value < 0) return "0:00";
   const total = Math.floor(value);
@@ -114,6 +122,7 @@ export const FlowPlayerControls: React.FC<FlowPlayerControlsProps> = ({
   qualities = [],
   selectedQualityId,
   isDashPlayback = false,
+  isLive = false,
   onSelectQuality,
   captions = [],
   selectedCaptionId,
@@ -166,7 +175,7 @@ export const FlowPlayerControls: React.FC<FlowPlayerControlsProps> = ({
   const timeTextRef = useRef<HTMLDivElement>(null);
 
   const segments = React.useMemo(() => {
-    if (!chapters || chapters.length === 0) {
+    if (isLive || !chapters || chapters.length === 0) {
       return [{ title: "", startSeconds: 0, endSeconds: duration || 1 }];
     }
     const sorted = [...chapters].sort((a, b) => a.startSeconds - b.startSeconds);
@@ -186,7 +195,7 @@ export const FlowPlayerControls: React.FC<FlowPlayerControlsProps> = ({
       };
     });
     return capped;
-  }, [chapters, duration]);
+  }, [chapters, duration, isLive]);
 
   const hoverChapter = hoverTime !== null
     ? segments?.find((c) => hoverTime >= c.startSeconds && hoverTime <= c.endSeconds)
@@ -198,6 +207,26 @@ export const FlowPlayerControls: React.FC<FlowPlayerControlsProps> = ({
       const video = containerRef.current?.querySelector("video");
       if (video) {
         const cur = video.currentTime;
+
+        // Live: the seekbar tracks the DVR window and the time shows real broadcast elapsed.
+        if (isLive) {
+          const { start, end } = liveWindow(video);
+          const win = Math.max(1, end - start);
+          const livePct = Math.min(100, Math.max(0, ((cur - start) / win) * 100));
+          if (progressBarRef.current) progressBarRef.current.style.width = `${livePct}%`;
+          containerRef.current
+            ?.querySelectorAll(".chapter-progress-fill, .chapter-buffered-fill")
+            .forEach((fill) => ((fill as HTMLElement).style.width = `${livePct}%`));
+          if (playheadRef.current) playheadRef.current.style.left = `${livePct}%`;
+          if (chapterPillRef.current) chapterPillRef.current.style.display = "none";
+          if (timeTextRef.current) {
+            const offset = parseFloat(video.dataset.liveOffset || "0");
+            timeTextRef.current.textContent = formatTime(cur + offset);
+          }
+          animId = requestAnimationFrame(updateProgress);
+          return;
+        }
+
         const dur = video.duration || duration || 0;
         const pct = dur > 0 ? Math.min(100, Math.max(0, (cur / dur) * 100)) : 0;
 
@@ -259,7 +288,7 @@ export const FlowPlayerControls: React.FC<FlowPlayerControlsProps> = ({
 
     animId = requestAnimationFrame(updateProgress);
     return () => cancelAnimationFrame(animId);
-  }, [containerRef, duration, segments, bufferedPct]);
+  }, [containerRef, duration, segments, bufferedPct, isLive]);
 
   const progressPct =
     duration > 0
@@ -289,12 +318,20 @@ export const FlowPlayerControls: React.FC<FlowPlayerControlsProps> = ({
       const track = containerRef.current?.querySelector(
         "[data-progress-track]"
       );
-      if (!(track instanceof HTMLElement) || duration <= 0) return;
+      if (!(track instanceof HTMLElement)) return;
       const rect = track.getBoundingClientRect();
       const ratio = Math.min(
         1,
         Math.max(0, (e.clientX - rect.left) / rect.width)
       );
+      if (isLive) {
+        const video = containerRef.current?.querySelector("video");
+        if (!video || !video.seekable.length) return;
+        const { start, end } = liveWindow(video);
+        seekTo(start + ratio * Math.max(0, end - start));
+        return;
+      }
+      if (duration <= 0) return;
       seekTo(ratio * duration);
     };
 
@@ -309,14 +346,29 @@ export const FlowPlayerControls: React.FC<FlowPlayerControlsProps> = ({
       document.removeEventListener("pointermove", handlePointerMove);
       document.removeEventListener("pointerup", handlePointerUp);
     };
-  }, [isScrubbing, duration, seekTo, setIsScrubbing, containerRef]);
+  }, [isScrubbing, duration, seekTo, setIsScrubbing, containerRef, isLive]);
 
   const handlePointerSeek = (clientX: number) => {
     const track = containerRef.current?.querySelector("[data-progress-track]");
-    if (!(track instanceof HTMLElement) || duration <= 0) return;
+    if (!(track instanceof HTMLElement)) return;
     const rect = track.getBoundingClientRect();
     const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+    if (isLive) {
+      const video = containerRef.current?.querySelector("video");
+      if (!video || !video.seekable.length) return;
+      const { start, end } = liveWindow(video);
+      seekTo(start + ratio * Math.max(0, end - start));
+      return;
+    }
+    if (duration <= 0) return;
     seekTo(ratio * duration);
+  };
+
+  const seekToLiveEdge = () => {
+    const video = containerRef.current?.querySelector("video");
+    if (video && video.seekable.length) {
+      seekTo(video.seekable.end(video.seekable.length - 1));
+    }
   };
 
   const handleProgressMove = (event: React.MouseEvent<HTMLDivElement>) => {
@@ -453,7 +505,7 @@ export const FlowPlayerControls: React.FC<FlowPlayerControlsProps> = ({
             />
 
             {/* Hover Preview Tooltip */}
-            {hoverTime !== null && duration > 0 && (
+            {hoverTime !== null && duration > 0 && !isLive && (
               <div
                 className="absolute bottom-8 -translate-x-1/2 flex flex-col items-center pointer-events-none z-50 transition-all duration-75"
                 style={{ left: `${hoverPct}%` }}
@@ -532,11 +584,22 @@ export const FlowPlayerControls: React.FC<FlowPlayerControlsProps> = ({
                 />
               </div>
 
-              <div 
-                ref={timeTextRef}
-                className="ml-1 whitespace-nowrap text-xs font-semibold text-white sm:text-sm bg-black/20 rounded-full px-2 py-1"
-              >
-                {formatTime(usePlayerStore.getState().currentTime)} <span className="text-zinc-400">/</span> {formatTime(duration)}
+              <div className="ml-1 flex items-center gap-1.5">
+                <div
+                  ref={timeTextRef}
+                  className="whitespace-nowrap text-xs font-semibold text-white sm:text-sm bg-black/20 rounded-full px-2 py-1"
+                />
+                {isLive && (
+                  <button
+                    type="button"
+                    title="Go to live"
+                    onClick={seekToLiveEdge}
+                    className="flex items-center gap-1 whitespace-nowrap rounded-full bg-black/20 px-2 py-1 text-xs font-bold uppercase tracking-wide text-white hover:bg-white/10"
+                  >
+                    <span className="h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse" />
+                    Live
+                  </button>
+                )}
               </div>
 
               <button

@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as dashjs from "dashjs";
+import Hls from "hls.js";
 import { Loader2, RotateCcw } from "lucide-react";
 import { usePlayerStore } from "../../store/usePlayerStore";
 import { useSettingsStore, type SponsorBlockCategory, type SponsorBlockAction } from "../../store/useSettingsStore";
@@ -11,6 +12,8 @@ import { SubtitleOverlay } from "./SubtitleOverlay";
 type PlayerProps = {
   src?: string | null;
   dashManifestUrl?: string | null;
+  hlsManifestUrl?: string | null;
+  isLive?: boolean;
   title?: string;
   poster?: string | null;
   isLoading?: boolean;
@@ -106,6 +109,8 @@ function cx(...classes: Array<string | false | null | undefined>) {
 export const Player: React.FC<PlayerProps> = ({
   src,
   dashManifestUrl,
+  hlsManifestUrl,
+  isLive = false,
   title,
   poster,
   isLoading = false,
@@ -139,6 +144,7 @@ export const Player: React.FC<PlayerProps> = ({
   const pendingResumeTimeRef = useRef(0);
   const sourceSwitchingRef = useRef(false);
   const dashPlayerRef = useRef<DashPlayerController | null>(null);
+  const hlsPlayerRef = useRef<Hls | null>(null);
   const qualitySwitchSnapshotRef = useRef<QualitySwitchSnapshot | null>(null);
   const qualitySwitchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mediaBufferingRef = useRef(false);
@@ -195,6 +201,7 @@ export const Player: React.FC<PlayerProps> = ({
   const [seekFeedback, setSeekFeedback] = useState<PlayerSeekFeedback | null>(null);
 
   const isDashPlayback = !!dashManifestUrl;
+  const isHlsPlayback = !!hlsManifestUrl && !isDashPlayback;
   const dashProxyPrefix = useMemo(() => {
     if (!dashManifestUrl) return null;
     const marker = "?url=";
@@ -202,6 +209,13 @@ export const Player: React.FC<PlayerProps> = ({
     if (markerIndex < 0) return null;
     return dashManifestUrl.slice(0, markerIndex + marker.length);
   }, [dashManifestUrl]);
+  const hlsProxyPrefix = useMemo(() => {
+    if (!hlsManifestUrl) return null;
+    const marker = "?url=";
+    const markerIndex = hlsManifestUrl.indexOf(marker);
+    if (markerIndex < 0) return null;
+    return hlsManifestUrl.slice(0, markerIndex + marker.length);
+  }, [hlsManifestUrl]);
 
   const supportedQualities = useMemo(() => {
     if (!isDashPlayback) return qualities;
@@ -385,12 +399,16 @@ export const Player: React.FC<PlayerProps> = ({
     stallCountRef.current = 0;
     waitingSinceRef.current = null;
     playbackStartAtRef.current = null;
-    logPlayerEventRef.current("source-mode-selected", { sourceMode, hasDash: isDashPlayback });
-  }, [src, dashManifestUrl, isDashPlayback, sourceMode]);
+    logPlayerEventRef.current("source-mode-selected", {
+      sourceMode,
+      hasDash: isDashPlayback,
+      hasHls: isHlsPlayback,
+    });
+  }, [src, dashManifestUrl, hlsManifestUrl, isDashPlayback, isHlsPlayback, sourceMode]);
 
   useEffect(() => {
     if (!isPlaying || !!error) return;
-    if (isDashPlayback) return;
+    if (isDashPlayback || isHlsPlayback) return;
 
     const interval = window.setInterval(() => {
       const video = videoRef.current;
@@ -480,7 +498,7 @@ export const Player: React.FC<PlayerProps> = ({
     setIsPlaying(shouldPlay);
 
     if (!video) return;
-    if (shouldPlay && (isDashPlayback || src) && !error) {
+    if (shouldPlay && (isDashPlayback || isHlsPlayback || src) && !error) {
       void video.play().catch(() => {
         desiredPlayingRef.current = false;
         setIsPlaying(false);
@@ -747,6 +765,100 @@ export const Player: React.FC<PlayerProps> = ({
   }, [dashManifestUrl, dashProxyPrefix, isDashPlayback]);
 
   useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    if (!isHlsPlayback || !hlsManifestUrl) {
+      hlsPlayerRef.current?.destroy();
+      hlsPlayerRef.current = null;
+      return;
+    }
+
+    const rewrite = (url: string) =>
+      hlsProxyPrefix && !url.startsWith("http://127.0.0.1:") && !url.startsWith("blob:")
+        ? `${hlsProxyPrefix}${encodeURIComponent(url)}`
+        : url;
+
+    if (!Hls.isSupported()) {
+      video.src = hlsManifestUrl;
+      logPlayerEventRef.current("hls-native-attach", { hlsManifestUrl });
+      return () => {
+        video.removeAttribute("src");
+        video.load();
+      };
+    }
+
+    const DefaultLoader = Hls.DefaultConfig.loader as any;
+    class ProxyLoader extends DefaultLoader {
+      load(context: any, config: any, callbacks: any) {
+        if (context?.url) context.url = rewrite(context.url);
+        super.load(context, config, callbacks);
+      }
+    }
+
+    const hls = new Hls({
+      enableWorker: true,
+      lowLatencyMode: false,
+      backBufferLength: 90,
+      liveSyncDurationCount: 4,
+      liveMaxLatencyDurationCount: 12,
+      liveDurationInfinity: isLive,
+      loader: ProxyLoader as unknown as typeof Hls.DefaultConfig.loader,
+    });
+    hlsPlayerRef.current = hls;
+
+    hls.on(Hls.Events.MANIFEST_PARSED, () => {
+      logPlayerEventRef.current("hls-manifest-parsed", { levels: hls.levels.length });
+      if (desiredPlayingRef.current) void video.play().catch(() => {});
+    });
+    hls.on(Hls.Events.FRAG_CHANGED, (_event, data) => {
+      const frag = data?.frag;
+      if (!frag || !Number.isFinite(frag.sn as number) || !(frag.duration > 0)) return;
+      const offset = (frag.sn as number) * frag.duration - frag.start;
+      if (Number.isFinite(offset)) video.dataset.liveOffset = String(offset);
+    });
+    hls.on(Hls.Events.ERROR, (_event, data) => {
+      logPlayerEventRef.current("hls-error", {
+        type: data.type,
+        details: data.details,
+        fatal: data.fatal,
+      });
+      if (!data.fatal) {
+        if (isLive && data.details === Hls.ErrorDetails.BUFFER_STALLED_ERROR) {
+          const syncPos = hls.liveSyncPosition;
+          const seekable = video.seekable;
+          const target =
+            syncPos != null && Number.isFinite(syncPos)
+              ? syncPos
+              : seekable.length
+                ? seekable.end(seekable.length - 1) - 4
+                : null;
+          if (target != null && Number.isFinite(target) && target > video.currentTime) {
+            video.currentTime = target;
+            if (desiredPlayingRef.current) void video.play().catch(() => {});
+          }
+        }
+        return;
+      }
+      if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+        hls.startLoad();
+      } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+        hls.recoverMediaError();
+      } else {
+        fireRetrySourceRef.current(`hls:${data.details}`);
+      }
+    });
+
+    hls.loadSource(hlsManifestUrl);
+    hls.attachMedia(video);
+
+    return () => {
+      hls.destroy();
+      if (hlsPlayerRef.current === hls) hlsPlayerRef.current = null;
+    };
+  }, [hlsManifestUrl, hlsProxyPrefix, isHlsPlayback, isLive]);
+
+  useEffect(() => {
     if (!isDashPlayback) return;
     applyDashQualitySelection();
   }, [applyDashQualitySelection, isDashPlayback, selectedQualityId]);
@@ -907,7 +1019,7 @@ export const Player: React.FC<PlayerProps> = ({
     if (isSourceSwitching || sourceSwitchingRef.current) return;
 
     desiredPlayingRef.current = isPlaying;
-    if (isPlaying && (isDashPlayback || src) && !error) {
+    if (isPlaying && (isDashPlayback || isHlsPlayback || src) && !error) {
       void video.play().catch(() => {
         desiredPlayingRef.current = false;
         setIsPlaying(false);
@@ -1260,7 +1372,7 @@ export const Player: React.FC<PlayerProps> = ({
 
       <video
         ref={videoRef}
-        src={isDashPlayback ? undefined : src || undefined}
+        src={isDashPlayback || isHlsPlayback ? undefined : src || undefined}
         poster={effectivePoster}
         playsInline
         preload="auto"
@@ -1428,6 +1540,7 @@ export const Player: React.FC<PlayerProps> = ({
         qualities={supportedQualities}
         selectedQualityId={selectedQualityId || "auto"}
         isDashPlayback={isDashPlayback}
+        isLive={isLive}
         onSelectQuality={onSelectQuality}
         captions={captions}
         selectedCaptionId={selectedCaptionId}

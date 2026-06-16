@@ -53,6 +53,10 @@ export interface CommentsSectionProps {
   videoId: string;
 }
 
+export interface LiveChatProps {
+  videoId: string;
+}
+
 export interface WatchErrorStateProps {
   message: string;
   onRetryWithProxy?: () => void;

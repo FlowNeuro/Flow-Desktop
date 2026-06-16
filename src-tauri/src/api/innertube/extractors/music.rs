@@ -205,6 +205,7 @@ impl InnertubeClient {
                                     published_text: None,
                                     view_count_text: Some("Related Song".to_string()),
                                     channel_avatar_url: None,
+                                    is_live: false,
                                 });
                             }
                         }
@@ -447,6 +448,7 @@ impl InnertubeClient {
                                     published_text: None,
                                     view_count_text: Some("Song".to_string()),
                                     channel_avatar_url: None,
+                                    is_live: false,
                                 });
                             }
                         }

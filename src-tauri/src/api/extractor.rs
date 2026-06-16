@@ -3,6 +3,7 @@ use async_trait::async_trait;
 use crate::errors::AppResult;
 use crate::models::channel::{ChannelDetails, ChannelTabResponse};
 use crate::models::comment::CommentsResponse;
+use crate::models::live_chat::LiveChatResponse;
 use crate::models::music::{ArtistPage, ChartsPage, ExplorePage};
 use crate::models::playlist::PlaylistDetailsResponse;
 use crate::models::search::{SearchVideosRequest, SearchVideosResponse};
@@ -41,6 +42,12 @@ pub trait YoutubeExtractor: Send + Sync {
         video_id: &str,
         page_token: Option<String>,
     ) -> AppResult<CommentsResponse>;
+
+    async fn get_live_chat(
+        &self,
+        video_id: &str,
+        continuation: Option<String>,
+    ) -> AppResult<LiveChatResponse>;
 
     async fn get_trending_videos(&self) -> AppResult<Vec<VideoSummary>>;
 

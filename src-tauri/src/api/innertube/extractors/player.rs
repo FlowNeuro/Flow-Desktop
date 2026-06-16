@@ -1117,6 +1117,7 @@ impl InnertubeClient {
             view_count_text,
             published_text,
             chapters,
+            is_live: res["videoDetails"]["isLive"].as_bool().unwrap_or(false),
         })
     }
 
@@ -1255,6 +1256,46 @@ impl InnertubeClient {
             )));
         }
 
+        let is_live = res["videoDetails"]["isLive"].as_bool().unwrap_or(false);
+        let mut hls_manifest_url = streaming_data["hlsManifestUrl"]
+            .as_str()
+            .map(ToOwned::to_owned);
+        let mut dash_manifest_url = streaming_data["dashManifestUrl"]
+            .as_str()
+            .map(ToOwned::to_owned);
+
+        // Live broadcasts are served through the HLS/DASH manifest, not a progressive variant.
+        // The IOS client reliably exposes a live HLS manifest, so fetch it when the primary
+        // client returned none.
+        if is_live && hls_manifest_url.is_none() {
+            let po_token = generate_po_token(video_id_trimmed).await;
+            let mut live_payload = serde_json::json!({
+                "context": get_ios_context(visitor_data_for_sabr.clone(), po_token),
+                "videoId": video_id_trimmed,
+                "contentCheckOk": true,
+                "racyCheckOk": true,
+                "playbackContext": {
+                    "contentPlaybackContext": {
+                        "referer": "https://www.youtube.com",
+                        "signatureTimestamp": 19550
+                    }
+                }
+            });
+            if let Ok(live_res) = self
+                .post_innertube("player", "IOS", "19.29.1", &mut live_payload)
+                .await
+            {
+                if let Some(hls) = live_res["streamingData"]["hlsManifestUrl"].as_str() {
+                    hls_manifest_url = Some(hls.to_string());
+                }
+                if dash_manifest_url.is_none() {
+                    if let Some(dash) = live_res["streamingData"]["dashManifestUrl"].as_str() {
+                        dash_manifest_url = Some(dash.to_string());
+                    }
+                }
+            }
+        }
+
         let (variants, mut last_stream_error) =
             collect_stream_variants(streaming_data, video_id_trimmed);
         let mut stream_url = variants
@@ -1283,9 +1324,14 @@ impl InnertubeClient {
         let local_url = match stream_url {
             Some(url) => url,
             None => {
-                return Err(last_stream_error.unwrap_or_else(|| {
-                    AppError::Extractor("No playable stream URLs found for this video".into())
-                }));
+                // A live broadcast plays from its manifest, so a missing progressive URL is fine.
+                if is_live && (hls_manifest_url.is_some() || dash_manifest_url.is_some()) {
+                    String::new()
+                } else {
+                    return Err(last_stream_error.unwrap_or_else(|| {
+                        AppError::Extractor("No playable stream URLs found for this video".into())
+                    }));
+                }
             }
         };
 
@@ -1316,12 +1362,9 @@ impl InnertubeClient {
             variants,
             captions: collect_caption_tracks(&res),
             audio_tracks: collect_audio_tracks(streaming_data),
-            hls_manifest_url: streaming_data["hlsManifestUrl"]
-                .as_str()
-                .map(ToOwned::to_owned),
-            dash_manifest_url: streaming_data["dashManifestUrl"]
-                .as_str()
-                .map(ToOwned::to_owned),
+            hls_manifest_url,
+            dash_manifest_url,
+            is_live,
             sabr,
             sabr_descriptor,
         })

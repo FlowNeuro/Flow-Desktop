@@ -25,6 +25,7 @@ export function RelatedVideos({ items, loading, onSelect }: RelatedVideosProps) 
           durationSeconds: item.durationSeconds,
           publishedText: item.publishedText,
           viewCountText: item.viewCountText,
+          isLive: item.isLive,
         };
         return (
           <VideoCard key={`${item.itemType}-${item.id}`} video={video} variant="compact" onPlay={() => onSelect(item)} />

@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { useSubscriptionStore } from '../../store/useSubscriptionStore';
 import { useFeedActionsStore } from '../../store/useFeedActionsStore';
+import { useLiveStore } from '../../store/useLiveStore';
 import { Plus, Ban, Check, MoreVertical, Trash2, GripHorizontal, Sparkles, Eye, EyeOff } from 'lucide-react';
 import type { VideoSummary } from '../../types/video';
 import { Button } from '../ui/Button';
@@ -34,6 +35,17 @@ function formatDuration(seconds?: number | null) {
     return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   }
   return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+function LiveBadge({ className }: { className?: string }) {
+  return (
+    <div
+      className={`z-10 flex items-center gap-1 rounded bg-primary px-1 py-px text-[11px] font-bold uppercase leading-tight tracking-wide text-on-primary ${className || ''}`}
+    >
+      <span className="h-1.5 w-1.5 rounded-full bg-current animate-pulse" />
+      Live
+    </div>
+  );
 }
 
 // ─── Thumbnail Color Extraction ────────────────────────────────
@@ -112,6 +124,14 @@ export function VideoCard({
   const isChannel = video.id.startsWith("channel:");
   const cleanId = isChannel ? video.id.replace("channel:", "") : video.id;
   const channelId = video.channelId || "";
+
+  const markLive = useLiveStore((s) => s.markLive);
+  const liveFromStore = useLiveStore((s) => s.liveIds.has(video.id));
+  const isLiveVideo = !!video.isLive || liveFromStore;
+
+  useEffect(() => {
+    if (video.isLive) markLive(video.id);
+  }, [video.id, video.isLive, markLive]);
 
   const { dearrowEnabled } = useSettingsStore();
 
@@ -383,7 +403,9 @@ export function VideoCard({
           ) : (
             <div className="h-full w-full bg-zinc-800" />
           )}
-          {video.durationSeconds ? (
+          {isLiveVideo ? (
+            <LiveBadge className="absolute bottom-1 right-1" />
+          ) : video.durationSeconds ? (
             <div className="absolute bottom-1 right-1 z-10 rounded bg-neutral-950/90 px-1 py-px text-[11px] font-medium leading-tight text-white">
               {formatDuration(video.durationSeconds)}
             </div>
@@ -478,7 +500,9 @@ export function VideoCard({
             <div className="h-full w-full bg-zinc-800" />
           )}
 
-          {video.durationSeconds ? (
+          {isLiveVideo ? (
+            <LiveBadge className="absolute bottom-1 right-1" />
+          ) : video.durationSeconds ? (
             <div className="absolute bottom-1 right-1 z-10 rounded bg-neutral-950/90 px-1 py-px text-[12px] font-medium leading-tight tracking-wide text-white">
               {formatDuration(video.durationSeconds)}
             </div>
@@ -555,7 +579,9 @@ export function VideoCard({
           <div className="w-full h-full bg-zinc-800" />
         )}
 
-        {video.durationSeconds ? (
+        {isLiveVideo ? (
+          <LiveBadge className={`absolute right-1 ${isHistoryCard ? 'bottom-2' : 'bottom-1'}`} />
+        ) : video.durationSeconds ? (
           <div className={`absolute right-1 z-10 bg-black/80 px-1 py-px rounded text-[12px] font-medium text-white leading-tight tracking-wide ${isHistoryCard ? 'bottom-2' : 'bottom-1'}`}>
             {formatDuration(video.durationSeconds)}
           </div>
