@@ -554,7 +554,14 @@ async fn relay_remote(
                 .unwrap_or("bytes")
                 .to_string();
 
+            let ct_lower = content_type_value.to_ascii_lowercase();
+            let is_manifest = ct_lower.contains("mpegurl")
+                || ct_lower.contains("dash+xml")
+                || ct_lower.contains("application/vnd.apple")
+                || ct_lower.contains("text/vtt");
+
             should_cache = status.is_success()
+                && !is_manifest
                 && content_length_header.is_some()
                 && content_length_value > 0
                 && content_length_value <= MAX_CACHED_RESPONSE_BYTES
@@ -574,7 +581,11 @@ async fn relay_remote(
             }
             response_headers.push_str(&format!("Accept-Ranges: {accept_ranges_value}\r\n"));
             response_headers.push_str(CORS_HEADERS);
-            response_headers.push_str("Cache-Control: private, max-age=1800\r\n");
+            if is_manifest {
+                response_headers.push_str("Cache-Control: no-cache, no-store, must-revalidate\r\n");
+            } else {
+                response_headers.push_str("Cache-Control: private, max-age=1800\r\n");
+            }
             // With no Content-Length the body is delimited by connection close, so the client
             // reads until EOF instead of mis-framing a keep-alive response.
             if content_length_header.is_some() {

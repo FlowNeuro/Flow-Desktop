@@ -236,7 +236,7 @@ export const Player: React.FC<PlayerProps> = ({
     || audioTracks[0]
     || null;
 
-  const usesExternalAudio = !isDashPlayback && !!selectedQuality && !selectedQuality.hasAudio && !!selectedAudioTrack?.localUrl;
+  const usesExternalAudio = !isDashPlayback && !isHlsPlayback && !!selectedQuality && !selectedQuality.hasAudio && !!selectedAudioTrack?.localUrl;
 
   const shouldShowControls = controlsVisible || !isPlaying || settingsOpen || isScrubbing;
   const showAmbient = ambientMode && !!poster && !error;
