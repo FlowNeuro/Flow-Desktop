@@ -7,13 +7,17 @@ import { Select } from '../../ui/Select';
 import { Button } from '../../ui/Button';
 import { usePreference } from '../../../lib/usePreference';
 import { getSetting, setSetting, clearWatchHistory, getWatchHistory } from '../../../lib/api/db';
-import { pickSaveFile } from '../../../lib/dialogs';
+import { writeBackupFile } from '../../../lib/api/files';
+import { buildSettingsBackupJson, type SettingsBackupScope } from '../../../lib/settings/backup';
+import { confirmAction, pickSaveFile } from '../../../lib/dialogs';
 import { isTauriEnv } from '../../../lib/api/env';
 import { getString } from '../../../lib/i18n/index';
-import { SETTING_EXPORT_KEYS, SETTINGS } from '../../../lib/settings/schema';
+import { SETTINGS } from '../../../lib/settings/schema';
+import { useUiStore } from '../../../store/useUiStore';
 
 export function DataTab() {
   const navigate = useNavigate();
+  const showToast = useUiStore((state) => state.showToast);
   const [backupFrequency, setBackupFrequency] = usePreference(SETTINGS.AUTO_BACKUP_FREQUENCY, 'NONE');
   const [backupType, setBackupType] = usePreference(SETTINGS.AUTO_BACKUP_TYPE, 'APP_DATA');
   const [historyCount, setHistoryCount] = useState(0);
@@ -31,7 +35,7 @@ export function DataTab() {
   }, []);
 
   const handleClearData = async () => {
-    if (!confirm(getString('settings_clear_confirm'))) return;
+    if (!(await confirmAction(getString('settings_clear_confirm'), getString('settings_clear_cache')))) return;
     setClearing(true);
     try {
       await clearWatchHistory();
@@ -39,8 +43,10 @@ export function DataTab() {
       await setSetting('user_playlists', '[]');
       setHistoryCount(0);
       setSubCount(0);
+      showToast({ message: getString('settings_clear_success'), variant: 'success' });
     } catch (e) {
       console.error('Failed to reset data', e);
+      showToast({ message: getString('settings_clear_failed'), variant: 'error' });
     } finally {
       setClearing(false);
     }
@@ -48,30 +54,15 @@ export function DataTab() {
 
   const handleExport = async () => {
     try {
-      const strings: Record<string, unknown> = {};
-      const booleans: Record<string, unknown> = {};
-      const ints: Record<string, unknown> = {};
-      const floats: Record<string, unknown> = {};
-
-      for (const key of SETTING_EXPORT_KEYS) {
-        const val = await getSetting(key);
-        if (val === null) continue;
-        if (val === 'true' || val === 'false') { booleans[key] = val === 'true'; }
-        else if (/^\d+$/.test(val)) { ints[key] = parseInt(val, 10); }
-        else if (/^\d+\.\d+$/.test(val)) { floats[key] = parseFloat(val); }
-        else { strings[key] = val; }
-      }
-
-      const exported = { strings, booleans, ints, floats };
-      const jsonStr = JSON.stringify(exported, null, 2);
+      const jsonStr = await buildSettingsBackupJson(backupType as SettingsBackupScope);
       const defaultName = `flow_backup_${new Date().toISOString().slice(0, 10)}.json`;
 
       if (await isTauriEnv()) {
         const savePath = await pickSaveFile(getString('settings_export_data'), defaultName, [{ name: 'JSON', extensions: ['json'] }]);
-        if (savePath) {
-          const { writeTextFile } = await import('@tauri-apps/plugin-dialog').then(() => import('@tauri-apps/api').then(m => m as any)).catch(() => ({ writeTextFile: null }));
-          if (writeTextFile) { await writeTextFile(savePath, jsonStr); return; }
-        }
+        if (!savePath) return;
+        await writeBackupFile(savePath, jsonStr);
+        showToast({ message: getString('settings_export_success'), variant: 'success' });
+        return;
       }
 
       const blob = new Blob([jsonStr], { type: 'application/json' });
@@ -81,8 +72,10 @@ export function DataTab() {
       a.download = defaultName;
       a.click();
       URL.revokeObjectURL(url);
+      showToast({ message: getString('settings_export_success'), variant: 'success' });
     } catch (e) {
       console.error('Export failed', e);
+      showToast({ message: getString('settings_export_failed'), variant: 'error' });
     }
   };
 

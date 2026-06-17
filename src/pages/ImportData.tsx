@@ -1,6 +1,6 @@
 import React, { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Upload, Check, AlertCircle, FolderHeart, History, Tv, Loader2, Brain, Database, FileText } from "lucide-react";
+import { ArrowLeft, Upload, Check, AlertCircle, FolderHeart, History, Tv, Loader2, Brain, Database, FileText, SlidersHorizontal } from "lucide-react";
 import { unzipSync } from "fflate";
 import { getSetting, setSetting, addWatchRecord } from "../lib/api/db";
 import { logInteraction } from "../lib/api/recommendation";
@@ -12,6 +12,9 @@ import {
 import { useSubscriptionStore } from "../store/useSubscriptionStore";
 import { parseSubscriptionExport } from "../lib/api/youtube";
 import { getString } from "../lib/i18n/index";
+import { validateSettingsBackup } from "../lib/settings/backup";
+import type { SettingKey } from "../lib/settings/schema";
+import { setSettingValue } from "../store/useAppSettingsStore";
 import type { VideoSummary } from "../types/video";
 import type { WatchHistoryRecord } from "../types/db";
 
@@ -26,6 +29,7 @@ export const ImportData: React.FC = () => {
   const [importPlaylists, setImportPlaylists] = useState(true);
   const [importHistory, setImportHistory] = useState(true);
   const [importNeuro, setImportNeuro] = useState(true);
+  const [importSettings, setImportSettings] = useState(true);
 
   const [importState, setImportState] = useState<"idle" | "reading" | "parsing" | "saving" | "success" | "error">("idle");
   const [progress, setProgress] = useState(0);
@@ -36,6 +40,7 @@ export const ImportData: React.FC = () => {
   const [playlistsCount, setPlaylistsCount] = useState(0);
   const [historyCount, setHistoryCount] = useState(0);
   const [neuroCount, setNeuroCount] = useState(0);
+  const [settingsCount, setSettingsCount] = useState(0);
 
   const { subscribe } = useSubscriptionStore();
 
@@ -127,7 +132,7 @@ export const ImportData: React.FC = () => {
     const file = e.target.files?.[0];
     if (!file) return;
     setImportState("reading"); setProgress(15); setStatusMessage(getString("import_reading")); setErrorMessage("");
-    setSubsCount(0); setPlaylistsCount(0); setHistoryCount(0); setNeuroCount(0);
+    setSubsCount(0); setPlaylistsCount(0); setHistoryCount(0); setNeuroCount(0); setSettingsCount(0);
     const isZip = file.name.endsWith(".zip");
     const reader = new FileReader();
     reader.onprogress = (event) => { if (event.lengthComputable) setProgress(15 + Math.round((event.loaded / event.total) * 20)); };
@@ -139,21 +144,37 @@ export const ImportData: React.FC = () => {
         let backupData: any = null;
         if (isZip) {
           const ab = event.target?.result as ArrayBuffer;
-          if (!ab) throw new Error("Empty archive buffer.");
+          if (!ab) throw new Error(getString("import_error_empty_archive"));
           const dec = unzipSync(new Uint8Array(ab));
           const jk = Object.keys(dec).filter(k => k.toLowerCase().endsWith(".json"));
           const key = jk.find(k => /app[_-]?data|master[_-]?backup/i.test(k)) ?? jk.find(k => /engine[_-]?brain|neuro[_-]?brain|flow[_-]?brain/i.test(k)) ?? jk[0];
-          if (!key) throw new Error("No JSON file found in archive.");
+          if (!key) throw new Error(getString("import_error_no_json_archive"));
           text = new TextDecoder("utf-8").decode(dec[key]);
         } else { text = event.target?.result as string; }
-        if (!text?.trim()) throw new Error("The imported backup is empty.");
+        if (!text?.trim()) throw new Error(getString("import_error_empty_backup"));
         const trimmed = text.trim();
         const isJson = trimmed.startsWith("{") || trimmed.startsWith("[");
         const isHtml = trimmed.toLowerCase().includes("<html") || trimmed.toLowerCase().includes("<!doctype html");
-        if (isJson) { try { backupData = JSON.parse(text); } catch { if (trimmed.includes("\n")) { backupData = { isFreeTubeHistory: true, rawText: text }; } else { throw new Error("Invalid JSON syntax."); } } }
+        if (isJson) { try { backupData = JSON.parse(text); } catch { if (trimmed.includes("\n")) { backupData = { isFreeTubeHistory: true, rawText: text }; } else { throw new Error(getString("import_error_invalid_json")); } } }
 
         setImportState("saving"); setProgress(60); setStatusMessage(getString("import_writing"));
-        let subbedCount = 0, playCount = 0, timelineCount = 0;
+        let subbedCount = 0, playCount = 0, timelineCount = 0, importedSettingsCount = 0;
+
+        const settingsBackup = isJson && backupData ? validateSettingsBackup(backupData) : null;
+        const settingsEntries = settingsBackup
+          ? Object.entries(settingsBackup.settings) as [SettingKey, string][]
+          : [];
+        if (importSettings && settingsEntries.length > 0) {
+          setStatusMessage(getString("import_importing_settings", settingsEntries.length));
+          for (let i = 0; i < settingsEntries.length; i++) {
+            const entry = settingsEntries[i];
+            if (!entry) continue;
+            const [key, value] = entry;
+            if (await setSettingValue(key, value)) importedSettingsCount++;
+            setProgress(60 + Math.round((importedSettingsCount / settingsEntries.length) * 8));
+          }
+          setSettingsCount(importedSettingsCount);
+        }
 
         let brainToImport: unknown | null = null;
         if (isJson && backupData) brainToImport = extractFlowNeuroBrainCandidate(backupData);
@@ -213,11 +234,12 @@ export const ImportData: React.FC = () => {
       } catch (err: any) { console.error("Import failure", err); setImportState("error"); setErrorMessage(err?.message || getString("import_file_not_recognized")); }
     };
 
-    reader.onerror = () => { setImportState("error"); setErrorMessage("Failed to read file."); };
+    reader.onerror = () => { setImportState("error"); setErrorMessage(getString("import_error_read_file")); };
     if (isZip) reader.readAsArrayBuffer(file); else reader.readAsText(file);
   };
 
   const toggleItems = [
+    { key: "settings", label: getString("import_settings"), desc: getString("import_settings_desc"), icon: <SlidersHorizontal size={16} />, checked: importSettings, toggle: () => setImportSettings(!importSettings) },
     { key: "subs", label: getString("import_subscriptions"), desc: getString("import_subscriptions_desc"), icon: <Tv size={16} />, checked: importSubs, toggle: () => setImportSubs(!importSubs) },
     { key: "playlists", label: getString("import_playlists"), desc: getString("import_playlists_desc"), icon: <FolderHeart size={16} />, checked: importPlaylists, toggle: () => setImportPlaylists(!importPlaylists) },
     { key: "history", label: getString("import_watch_history"), desc: getString("import_watch_history_desc"), icon: <History size={16} />, checked: importHistory, toggle: () => setImportHistory(!importHistory) },
@@ -321,7 +343,8 @@ export const ImportData: React.FC = () => {
                   {subsCount > 0 && <div className="flex justify-between bg-surface-container-high px-3 py-2 rounded-lg"><span>{getString("import_subscriptions")}</span><span className="font-mono text-neutral-200">{subsCount}</span></div>}
                   {playlistsCount > 0 && <div className="flex justify-between bg-surface-container-high px-3 py-2 rounded-lg"><span>{getString("import_playlists")}</span><span className="font-mono text-neutral-200">{playlistsCount}</span></div>}
                   {historyCount > 0 && <div className="flex justify-between bg-surface-container-high px-3 py-2 rounded-lg"><span>{getString("import_watch_history")}</span><span className="font-mono text-neutral-200">{historyCount}</span></div>}
-                  {neuroCount > 0 && <div className="flex justify-between bg-surface-container-high px-3 py-2 rounded-lg"><span>{getString("import_neuro_profile")}</span><span className="font-mono text-neutral-200">OK</span></div>}
+                  {settingsCount > 0 && <div className="flex justify-between bg-surface-container-high px-3 py-2 rounded-lg"><span>{getString("import_settings")}</span><span className="font-mono text-neutral-200">{settingsCount}</span></div>}
+                  {neuroCount > 0 && <div className="flex justify-between bg-surface-container-high px-3 py-2 rounded-lg"><span>{getString("import_neuro_profile")}</span><span className="font-mono text-neutral-200">{getString("ok")}</span></div>}
                 </div>
                 <p className="text-xs text-neutral-500">{getString("import_click_another")}</p>
               </div>
@@ -361,10 +384,10 @@ export const ImportData: React.FC = () => {
           <div className="bg-surface-container-low rounded-2xl border border-neutral-800 p-5">
             <div className="flex items-center gap-2 mb-3">
               <Database size={14} className="text-neutral-400" />
-              <h4 className="text-xs uppercase tracking-widest text-neutral-500 font-semibold">FlowNeuro</h4>
+              <h4 className="text-xs uppercase tracking-widest text-neutral-500 font-semibold">{getString("import_flowneuro_card_title")}</h4>
             </div>
             <p className="text-xs text-neutral-400 leading-relaxed">
-              When watch history or subscriptions are imported, the local recommendation engine automatically seeds interest profiles from titles, keywords, and creators.
+              {getString("import_flowneuro_card_body")}
             </p>
           </div>
         </div>

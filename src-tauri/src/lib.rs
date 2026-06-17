@@ -21,6 +21,7 @@ use commands::db::{
     add_watch_record, clear_watch_history, delete_watch_record, get_music_history, get_setting,
     get_watch_history, set_setting,
 };
+use commands::files::write_backup_file;
 use commands::recommendation::{
     complete_onboarding, generate_discovery_queries, get_brain_snapshot, get_feed_quotas,
     block_channel, get_flow_persona, get_onboarding_status, get_recommendation_events,
@@ -144,6 +145,7 @@ pub fn run() {
             clear_watch_history,
             get_setting,
             set_setting,
+            write_backup_file,
             rank_videos,
             log_interaction,
             mark_not_interested,

@@ -29,3 +29,15 @@ export async function pickSaveFile(
   }
   return null;
 }
+
+export async function confirmAction(message: string, title?: string): Promise<boolean> {
+  if (await isTauriEnv()) {
+    try {
+      const { confirm } = await import('@tauri-apps/plugin-dialog');
+      return await confirm(message, { title, kind: 'warning' });
+    } catch {
+      return false;
+    }
+  }
+  return window.confirm(message);
+}
