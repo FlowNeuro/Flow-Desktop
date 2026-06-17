@@ -9,6 +9,8 @@ import {
 import { logInteraction } from "../../lib/api/recommendation";
 import { addWatchRecord } from "../../lib/api/db";
 import { isMusicVideo } from "../../lib/utils";
+import { SETTINGS } from "../../lib/settings/schema";
+import { useAppSettingsStore } from "../../store/useAppSettingsStore";
 import type { FlowPlayerCoreProps } from "./types";
 
 /**
@@ -23,7 +25,9 @@ export function FlowPlayerCore({ videoId, videoDetails, onEnded }: FlowPlayerCor
   const dearrowData = usePlayerStore((s) => s.dearrowData);
   const setCurrentTime = usePlayerStore((s) => s.setCurrentTime);
   const setDuration = usePlayerStore((s) => s.setDuration);
+  const setIsPlaying = usePlayerStore((s) => s.setIsPlaying);
   const playNext = usePlayerStore((s) => s.playNext);
+  const autoplayEnabled = useAppSettingsStore((s) => s.values[SETTINGS.AUTOPLAY_ENABLED] !== "false");
 
   const stream = useVideoStream(videoId);
 
@@ -133,9 +137,13 @@ export function FlowPlayerCore({ videoId, videoDetails, onEnded }: FlowPlayerCor
     ).catch((err) => console.warn("Failed to log watch interaction on ended", err));
 
     clearLocalWatchProgress(currentVideo.id);
-    playNext();
+    if (autoplayEnabled) {
+      playNext();
+    } else {
+      setIsPlaying(false);
+    }
     onEnded?.();
-  }, [currentVideo, onEnded, playNext, resolvedChannelId, videoDetails]);
+  }, [autoplayEnabled, currentVideo, onEnded, playNext, resolvedChannelId, setIsPlaying, videoDetails]);
 
   const title = (dearrowData?.title || currentVideo?.title) ?? "";
   const poster =

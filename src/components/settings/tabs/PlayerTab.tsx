@@ -68,6 +68,7 @@ export function PlayerTab() {
             { value: '0.75', label: '0.75x' }, { value: '1.0', label: '1.0x' },
             { value: '1.25', label: '1.25x' }, { value: '1.5', label: '1.5x' },
             { value: '1.75', label: '1.75x' }, { value: '2.0', label: '2.0x' },
+            { value: '2.5', label: '2.5x' }, { value: '3.0', label: '3.0x' }, { value: '4.0', label: '4.0x' },
           ]} />
         </SettingItem>
         <SettingItem title={getString('settings_custom_speed_presets')} description={getString('settings_custom_speed_presets_desc')}>

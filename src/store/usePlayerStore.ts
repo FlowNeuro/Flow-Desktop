@@ -4,7 +4,7 @@ import { getMusicLyrics, getMusicRelated } from "../lib/api/youtube";
 
 import type { SponsorBlockSegment, DeArrowOverride, RydData } from "../lib/api/foss";
 
-export type PlaybackRate = 0.25 | 0.5 | 0.75 | 1 | 1.25 | 1.5 | 1.75 | 2;
+export type PlaybackRate = number;
 export type RepeatMode = "none" | "one" | "all";
 export type PlayMode = "video" | "music";
 
@@ -138,7 +138,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
 
   setVolume: (volume) => set({ volume: Math.min(1, Math.max(0, volume)) }),
 
-  setPlaybackRate: (playbackRate) => set({ playbackRate }),
+  setPlaybackRate: (playbackRate) => set({ playbackRate: Math.min(4, Math.max(0.25, playbackRate)) }),
 
   setQueue: (queue, startIndex = 0) => {
     set({

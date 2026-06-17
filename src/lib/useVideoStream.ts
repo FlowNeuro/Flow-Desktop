@@ -3,6 +3,9 @@ import { usePlayerStore } from "../store/usePlayerStore";
 import { getStreamInfo, getYoutubeErrorMessage } from "./api/youtube";
 import { addWatchRecord } from "./api/db";
 import { isMusicVideo } from "./utils";
+import { SETTINGS } from "./settings/schema";
+import { selectPreferredStreamVariant } from "./settings/playerRuntime";
+import { useAppSettingsStore } from "../store/useAppSettingsStore";
 import type { AudioTrack, CaptionTrack, StreamInfo, StreamVariant } from "../types/video";
 
 export type SourceMode = "hls" | "dash-native" | "sabr-dash" | "direct" | "unavailable";
@@ -149,6 +152,8 @@ export function useVideoStream(videoId: string | undefined): VideoStream {
   const currentVideo = usePlayerStore((s) => s.currentVideo);
   const setIsPlaying = usePlayerStore((s) => s.setIsPlaying);
   const setCaptionsInStore = usePlayerStore((s) => s.setCaptions);
+  const preferredQuality = useAppSettingsStore((s) => s.values[SETTINGS.DEFAULT_QUALITY_WIFI] ?? "1080p");
+  const preferredCodec = useAppSettingsStore((s) => s.values[SETTINGS.DEFAULT_VIDEO_CODEC] ?? "H.264");
 
   const [streamUrl, setStreamUrl] = useState<string | null>(null);
   const [streamVariants, setStreamVariants] = useState<StreamVariant[]>([]);
@@ -190,7 +195,14 @@ export function useVideoStream(videoId: string | undefined): VideoStream {
         setAudioTracks(info.audioTracks || []);
         setIsLive(!!info.isLive);
 
-        let initialQualityId = selectedQualityId || "auto";
+        const canUseAdaptive = (info.audioTracks || []).some((track) => !!track.localUrl);
+        const preferredVariant = selectPreferredStreamVariant(
+          info.variants || [],
+          preferredQuality,
+          preferredCodec,
+          canUseAdaptive,
+        );
+        let initialQualityId = preferredVariant?.id || (preferredQuality === "Auto" ? "auto" : selectedQualityId || "auto");
         if (initialQualityId === "null" || !initialQualityId) initialQualityId = "auto";
         setSelectedQualityId(initialQualityId);
 
@@ -252,7 +264,7 @@ export function useVideoStream(videoId: string | undefined): VideoStream {
     };
 
     void loadStream();
-  }, [currentVideo, videoId, setIsPlaying, publishCaptions]);
+  }, [currentVideo, videoId, setIsPlaying, publishCaptions, preferredCodec, preferredQuality]);
 
   const onSelectQuality = useCallback(
     (variant: StreamVariant | "auto") => {
@@ -344,7 +356,15 @@ export function useVideoStream(videoId: string | undefined): VideoStream {
         publishCaptions(info.captions || []);
         setAudioTracks(info.audioTracks || []);
         setIsLive(!!info.isLive);
-        setSelectedQualityId("auto");
+        const canUseAdaptive = (info.audioTracks || []).some((track) => !!track.localUrl);
+        const preferredVariant = selectPreferredStreamVariant(
+          info.variants || [],
+          preferredQuality,
+          preferredCodec,
+          canUseAdaptive,
+        );
+        const initialQualityId = preferredVariant?.id || "auto";
+        setSelectedQualityId(initialQualityId);
         setStreamError(null);
 
         const mode = computeAvailableSourceModes(info)[0] || "unavailable";
@@ -365,11 +385,11 @@ export function useVideoStream(videoId: string | undefined): VideoStream {
         } else {
           setHlsManifestUrl(null);
           setDashManifestUrl(null);
-          setStreamUrl(pickDirectVariantUrl(info, "auto"));
+          setStreamUrl(pickDirectVariantUrl(info, initialQualityId));
         }
       })
       .catch((err) => setStreamError(getYoutubeErrorMessage(err)));
-  }, [currentVideo, publishCaptions]);
+  }, [currentVideo, preferredCodec, preferredQuality, publishCaptions]);
 
   return {
     streamUrl,

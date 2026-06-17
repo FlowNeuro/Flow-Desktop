@@ -65,9 +65,14 @@ export interface FlowPlayerControlsProps {
 
   isPip: boolean;
   togglePictureInPicture: () => void;
+  showPipButton?: boolean;
+  showFullscreenTitle?: boolean;
 
   seekTo: (time: number) => void;
   togglePlay: () => void;
+  speedOptions?: PlaybackRate[];
+  speedSliderEnabled?: boolean;
+  onSelectPlaybackRate?: (playbackRate: PlaybackRate) => void;
 
   settingsOpen: boolean;
   setSettingsOpen: React.Dispatch<React.SetStateAction<boolean>>;
@@ -80,7 +85,7 @@ export interface FlowPlayerControlsProps {
 
 type SettingsPane = "root" | "speed" | "quality" | "captions" | "captions-customize" | "audio" | "sleep";
 
-const speedOptions: PlaybackRate[] = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
+const defaultSpeedOptions: PlaybackRate[] = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
 const sleepOptions = [
   { label: "Off", minutes: 0 },
   { label: "15 min", minutes: 15 },
@@ -139,8 +144,13 @@ export const FlowPlayerControls: React.FC<FlowPlayerControlsProps> = ({
   toggleFullscreen,
   isPip,
   togglePictureInPicture,
+  showPipButton = true,
+  showFullscreenTitle = false,
   seekTo,
   togglePlay,
+  speedOptions = defaultSpeedOptions,
+  speedSliderEnabled = false,
+  onSelectPlaybackRate,
   settingsOpen,
   setSettingsOpen,
   isScrubbing,
@@ -165,6 +175,7 @@ export const FlowPlayerControls: React.FC<FlowPlayerControlsProps> = ({
   } = usePlayerStore();
 
   const { sponsorBlockColors, sponsorBlockEnabled } = useSettingsStore();
+  const selectPlaybackRate = onSelectPlaybackRate ?? setPlaybackRate;
 
   const [settingsPane, setSettingsPane] = useState<SettingsPane>("root");
   const [hoverTime, setHoverTime] = useState<number | null>(null);
@@ -416,7 +427,7 @@ export const FlowPlayerControls: React.FC<FlowPlayerControlsProps> = ({
           className="pointer-events-auto"
           onClick={(event) => event.stopPropagation()}
         >
-          {title && (
+          {title && (!isFullscreen || showFullscreenTitle) && (
             <div className="mb-2 hidden max-w-[70%] truncate text-sm font-bold text-white/95 sm:block">
               {title}
             </div>
@@ -669,17 +680,19 @@ export const FlowPlayerControls: React.FC<FlowPlayerControlsProps> = ({
                   }
                 />
               </button>
-              <button
-                type="button"
-                title="Picture in picture"
-                onClick={togglePictureInPicture}
-                className={cx(
-                  "hidden h-7 w-7 place-items-center rounded-full hover:bg-white/10 sm:grid",
-                  isPip && "bg-white/15"
-                )}
-              >
-                <PictureInPicture2 size={19} />
-              </button>
+              {showPipButton && (
+                <button
+                  type="button"
+                  title="Picture in picture"
+                  onClick={togglePictureInPicture}
+                  className={cx(
+                    "hidden h-7 w-7 place-items-center rounded-full hover:bg-white/10 sm:grid",
+                    isPip && "bg-white/15"
+                  )}
+                >
+                  <PictureInPicture2 size={19} />
+                </button>
+              )}
               <button
                 type="button"
                 title="Theater mode"
@@ -796,12 +809,30 @@ export const FlowPlayerControls: React.FC<FlowPlayerControlsProps> = ({
 
         {settingsPane === "speed" && (
           <div className="space-y-1 animate-pane-in max-h-60 overflow-y-auto pr-1 select-scrollbar-hidden">
+            {speedSliderEnabled && (
+              <div className="rounded-md px-3 py-3 text-sm text-zinc-100">
+                <div className="mb-2 flex items-center justify-between text-xs font-semibold text-zinc-300">
+                  <span>Speed</span>
+                  <span className="font-mono text-primary">{playbackRate}x</span>
+                </div>
+                <input
+                  aria-label="Playback speed"
+                  type="range"
+                  min={0.25}
+                  max={4}
+                  step={0.05}
+                  value={playbackRate}
+                  onChange={(event) => selectPlaybackRate(Number(event.target.value))}
+                  className="h-1 w-full accent-primary"
+                />
+              </div>
+            )}
             {speedOptions.map((speed) => (
               <button
                 key={speed}
                 type="button"
                 onClick={() => {
-                  setPlaybackRate(speed);
+                  selectPlaybackRate(speed);
                   setSettingsPane("root");
                 }}
                 className="flex h-10 w-full items-center justify-between rounded-md px-3 text-sm font-medium hover:bg-white/10"

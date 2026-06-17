@@ -8,6 +8,15 @@ import type { AudioTrack, CaptionTrack, StreamVariant, VideoChapter } from "../.
 import { FlowPlayerControls } from "./FlowPlayerControls";
 import { PlayerGestureOverlay, type PlayerSeekFeedback } from "./gesture/overlay";
 import { SubtitleOverlay } from "./SubtitleOverlay";
+import { SETTINGS } from "../../lib/settings/schema";
+import {
+  formatPlaybackRate,
+  normalizePlaybackRate,
+  parseCustomSpeedPresets,
+  selectPreferredAudioTrackId,
+  selectPreferredCaptionId,
+} from "../../lib/settings/playerRuntime";
+import { setSettingValue, useAppSettingsStore } from "../../store/useAppSettingsStore";
 
 type PlayerProps = {
   src?: string | null;
@@ -172,7 +181,78 @@ export const Player: React.FC<PlayerProps> = ({
     isTheaterMode,
     setIsTheaterMode,
     sponsorBlockSegments,
+    subtitleStyle,
+    setSubtitleStyle,
   } = usePlayerStore();
+
+  const autoplayEnabled = useAppSettingsStore((state) => state.values[SETTINGS.AUTOPLAY_ENABLED] !== "false");
+  const videoLoopEnabled = useAppSettingsStore((state) => state.values[SETTINGS.VIDEO_LOOP_ENABLED] === "true");
+  const rememberPlaybackSpeed = useAppSettingsStore((state) => state.values[SETTINGS.REMEMBER_PLAYBACK_SPEED] === "true");
+  const playbackSpeedSetting = useAppSettingsStore((state) => state.values[SETTINGS.PLAYBACK_SPEED] ?? "1.0");
+  const customSpeedsEnabled = useAppSettingsStore((state) => state.values[SETTINGS.CUSTOM_SPEEDS_ENABLED] === "true");
+  const customSpeedPresets = useAppSettingsStore((state) => state.values[SETTINGS.CUSTOM_SPEED_PRESETS] ?? "");
+  const longPressSpeedSetting = useAppSettingsStore((state) => state.values[SETTINGS.LONG_PRESS_PLAYBACK_SPEED] ?? "2.0");
+  const speedSliderEnabled = useAppSettingsStore((state) => state.values[SETTINGS.SPEED_SLIDER_ENABLED] === "true");
+  const seekIntervalSetting = useAppSettingsStore((state) => state.values[SETTINGS.DOUBLE_TAP_SEEK_SECONDS] ?? "10");
+  const subtitlesEnabled = useAppSettingsStore((state) => state.values[SETTINGS.SUBTITLES_ENABLED] === "true");
+  const preferredSubtitleLanguage = useAppSettingsStore((state) => state.values[SETTINGS.PREFERRED_SUBTITLE_LANGUAGE] ?? "en");
+  const subtitleFontSizeSetting = useAppSettingsStore((state) => state.values[SETTINGS.SUBTITLE_FONT_SIZE] ?? "14");
+  const subtitleBold = useAppSettingsStore((state) => state.values[SETTINGS.SUBTITLE_BOLD] !== "false");
+  const autoPipEnabled = useAppSettingsStore((state) => state.values[SETTINGS.AUTO_PIP_ENABLED] === "true");
+  const manualPipButtonEnabled = useAppSettingsStore((state) => state.values[SETTINGS.MANUAL_PIP_BUTTON_ENABLED] !== "false");
+  const showFullscreenTitle = useAppSettingsStore((state) => state.values[SETTINGS.SHOW_FULLSCREEN_TITLE] === "true");
+  const preferredAudioLanguage = useAppSettingsStore((state) => state.values[SETTINGS.PREFERRED_AUDIO_LANGUAGE] ?? "original");
+  const bufferProfile = useAppSettingsStore((state) => state.values[SETTINGS.BUFFER_PROFILE] ?? "STABLE");
+  const minBufferSetting = useAppSettingsStore((state) => state.values[SETTINGS.MIN_BUFFER_MS] ?? "30000");
+  const maxBufferSetting = useAppSettingsStore((state) => state.values[SETTINGS.MAX_BUFFER_MS] ?? "50000");
+  const startupBufferSetting = useAppSettingsStore((state) => state.values[SETTINGS.BUFFER_FOR_PLAYBACK_MS] ?? "2500");
+  const rebufferSetting = useAppSettingsStore((state) => state.values[SETTINGS.BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS] ?? "5000");
+
+  const defaultPlaybackRate = useMemo(
+    () => normalizePlaybackRate(playbackSpeedSetting),
+    [playbackSpeedSetting],
+  );
+  const longPressPlaybackRate = useMemo(
+    () => normalizePlaybackRate(longPressSpeedSetting, 2),
+    [longPressSpeedSetting],
+  );
+  const configuredSpeedOptions = useMemo(
+    () => parseCustomSpeedPresets(customSpeedPresets, customSpeedsEnabled),
+    [customSpeedPresets, customSpeedsEnabled],
+  );
+  const seekIntervalSeconds = useMemo(() => {
+    const parsed = Number(seekIntervalSetting);
+    return Number.isFinite(parsed) ? Math.min(30, Math.max(5, parsed)) : 10;
+  }, [seekIntervalSetting]);
+  const bufferConfig = useMemo(() => {
+    const custom = {
+      minMs: Number(minBufferSetting),
+      maxMs: Number(maxBufferSetting),
+      startupMs: Number(startupBufferSetting),
+      rebufferMs: Number(rebufferSetting),
+    };
+    const stable = { minMs: 30000, maxMs: 50000, startupMs: 2500, rebufferMs: 5000 };
+    const profiles: Record<string, typeof custom> = {
+      AGGRESSIVE: { minMs: 5000, maxMs: 30000, startupMs: 500, rebufferMs: 2500 },
+      STABLE: stable,
+      DATASAVER: { minMs: 12000, maxMs: 25000, startupMs: 1500, rebufferMs: 5000 },
+      CUSTOM: custom,
+    };
+    const selected = profiles[bufferProfile] ?? stable;
+    const minMs = Number.isFinite(selected.minMs) ? selected.minMs : stable.minMs;
+    const maxMs = Number.isFinite(selected.maxMs) ? selected.maxMs : stable.maxMs;
+    const startupMs = Number.isFinite(selected.startupMs) ? selected.startupMs : stable.startupMs;
+    const rebufferMs = Number.isFinite(selected.rebufferMs) ? selected.rebufferMs : stable.rebufferMs;
+    const normalizedMinMs = Math.min(120000, Math.max(5000, minMs));
+    const normalizedMaxMs = Math.min(120000, Math.max(25000, Math.max(maxMs, normalizedMinMs)));
+
+    return {
+      minSeconds: normalizedMinMs / 1000,
+      maxSeconds: normalizedMaxMs / 1000,
+      startupSeconds: Math.min(5, Math.max(0.5, startupMs / 1000)),
+      rebufferSeconds: Math.min(10, Math.max(2.5, rebufferMs / 1000)),
+    };
+  }, [bufferProfile, maxBufferSetting, minBufferSetting, rebufferSetting, startupBufferSetting]);
 
   const [controlsVisible, setControlsVisible] = useState(true);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -359,6 +439,71 @@ export const Player: React.FC<PlayerProps> = ({
   useEffect(() => {
     loadSettings();
   }, [loadSettings]);
+
+  const mediaIdentity = src || dashManifestUrl || hlsManifestUrl || "";
+  const appliedInitialRateForRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!mediaIdentity || appliedInitialRateForRef.current === mediaIdentity) return;
+    appliedInitialRateForRef.current = mediaIdentity;
+    setPlaybackRate(defaultPlaybackRate);
+  }, [defaultPlaybackRate, mediaIdentity, setPlaybackRate]);
+
+  const selectPlaybackRate = useCallback((nextRate: number) => {
+    const normalizedRate = normalizePlaybackRate(nextRate);
+    setPlaybackRate(normalizedRate);
+    if (rememberPlaybackSpeed) {
+      void setSettingValue(SETTINGS.PLAYBACK_SPEED, formatPlaybackRate(normalizedRate));
+    }
+  }, [rememberPlaybackSpeed, setPlaybackRate]);
+
+  const toggleLoopSetting = useCallback(() => {
+    void setSettingValue(SETTINGS.VIDEO_LOOP_ENABLED, String(!videoLoopEnabled));
+  }, [videoLoopEnabled]);
+
+  useEffect(() => {
+    const nextFontSize = Number(subtitleFontSizeSetting);
+    const normalizedFontSize = Number.isFinite(nextFontSize) ? nextFontSize : 14;
+    if (subtitleStyle.fontSize === normalizedFontSize && subtitleStyle.isBold === subtitleBold) return;
+    setSubtitleStyle({
+      ...subtitleStyle,
+      fontSize: normalizedFontSize,
+      isBold: subtitleBold,
+    });
+  }, [setSubtitleStyle, subtitleBold, subtitleFontSizeSetting, subtitleStyle]);
+
+  useEffect(() => {
+    if (!subtitlesEnabled) {
+      setSelectedCaptionId("off");
+      return;
+    }
+
+    const preferredCaptionId = selectPreferredCaptionId(captions, preferredSubtitleLanguage);
+    setSelectedCaptionId(preferredCaptionId ?? "off");
+  }, [captions, preferredSubtitleLanguage, subtitlesEnabled]);
+
+  useEffect(() => {
+    setSelectedAudioTrackId(selectPreferredAudioTrackId(audioTracks, preferredAudioLanguage));
+  }, [audioTracks, preferredAudioLanguage]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (video) video.loop = videoLoopEnabled && !isLive;
+  }, [isLive, videoLoopEnabled]);
+
+  const autoPipEnabledRef = useRef(autoPipEnabled);
+  useEffect(() => {
+    autoPipEnabledRef.current = autoPipEnabled;
+  }, [autoPipEnabled]);
+
+  useEffect(() => {
+    return () => {
+      const video = videoRef.current;
+      if (!autoPipEnabledRef.current || !video || !desiredPlayingRef.current || video.paused || video.ended) return;
+      if (!document.pictureInPictureEnabled || document.pictureInPictureElement) return;
+      void video.requestPictureInPicture().catch(() => {});
+    };
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -621,11 +766,11 @@ export const Player: React.FC<PlayerProps> = ({
         },
         buffer: {
           fastSwitchEnabled: true,
-          bufferToKeep: 1800,
+          bufferToKeep: Math.max(60, bufferConfig.maxSeconds),
           bufferPruningInterval: 120,
-          bufferTimeDefault: 30,
-          bufferTimeAtTopQuality: 90,
-          bufferTimeAtTopQualityLongForm: 180,
+          bufferTimeDefault: bufferConfig.minSeconds,
+          bufferTimeAtTopQuality: bufferConfig.maxSeconds,
+          bufferTimeAtTopQualityLongForm: bufferConfig.maxSeconds,
           longFormContentDurationThreshold: 600,
         },
       },
@@ -762,7 +907,7 @@ export const Player: React.FC<PlayerProps> = ({
         dashPlayerRef.current = null;
       }
     };
-  }, [dashManifestUrl, dashProxyPrefix, isDashPlayback]);
+  }, [bufferConfig, dashManifestUrl, dashProxyPrefix, isDashPlayback]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -799,7 +944,9 @@ export const Player: React.FC<PlayerProps> = ({
     const hls = new Hls({
       enableWorker: true,
       lowLatencyMode: false,
-      backBufferLength: 90,
+      maxBufferLength: bufferConfig.maxSeconds,
+      maxMaxBufferLength: bufferConfig.maxSeconds,
+      backBufferLength: Math.max(30, bufferConfig.maxSeconds),
       liveSyncDurationCount: 4,
       liveMaxLatencyDurationCount: 12,
       liveDurationInfinity: isLive,
@@ -856,7 +1003,7 @@ export const Player: React.FC<PlayerProps> = ({
       hls.destroy();
       if (hlsPlayerRef.current === hls) hlsPlayerRef.current = null;
     };
-  }, [hlsManifestUrl, hlsProxyPrefix, isHlsPlayback, isLive]);
+  }, [bufferConfig, hlsManifestUrl, hlsProxyPrefix, isHlsPlayback, isLive]);
 
   useEffect(() => {
     if (!isDashPlayback) return;
@@ -1127,18 +1274,18 @@ export const Player: React.FC<PlayerProps> = ({
           togglePlay();
           break;
         case "j":
-          seekBy(-10);
+          seekBy(-seekIntervalSeconds);
           break;
         case "l":
-          seekBy(10);
+          seekBy(seekIntervalSeconds);
           break;
         case "arrowleft":
           event.preventDefault();
-          seekBy(-10);
+          seekBy(-seekIntervalSeconds);
           break;
         case "arrowright":
           event.preventDefault();
-          seekBy(10);
+          seekBy(seekIntervalSeconds);
           break;
         case "arrowup":
           event.preventDefault();
@@ -1169,6 +1316,7 @@ export const Player: React.FC<PlayerProps> = ({
     isTheaterMode,
     revealControls,
     seekBy,
+    seekIntervalSeconds,
     seekTo,
     setIsTheaterMode,
     setMuted,
@@ -1374,6 +1522,7 @@ export const Player: React.FC<PlayerProps> = ({
         ref={videoRef}
         src={isDashPlayback || isHlsPlayback ? undefined : src || undefined}
         poster={effectivePoster}
+        loop={videoLoopEnabled && !isLive}
         playsInline
         preload="auto"
         onLoadedMetadata={handleLoadedMetadata}
@@ -1405,8 +1554,17 @@ export const Player: React.FC<PlayerProps> = ({
           setIsPlaying(false);
         }}
         onEnded={() => {
+          if (videoLoopEnabled && !isLive) {
+            seekTo(0);
+            setPlaybackDesired(true);
+            return;
+          }
           onEnded?.();
-          if (!onEnded) playNext();
+          if (!onEnded && autoplayEnabled) {
+            playNext();
+          } else if (!autoplayEnabled) {
+            setPlaybackDesired(false);
+          }
         }}
         className="relative z-10 h-full w-full object-contain"
       />
@@ -1430,7 +1588,11 @@ export const Player: React.FC<PlayerProps> = ({
         currentTime={currentTime}
         duration={duration}
         seekFeedback={seekFeedback}
+        seekIntervalSeconds={seekIntervalSeconds}
+        longPressPlaybackRate={longPressPlaybackRate}
+        loopEnabled={videoLoopEnabled}
         setPlaybackRate={setPlaybackRate}
+        onToggleLoop={toggleLoopSetting}
         togglePlay={togglePlay}
         toggleFullscreen={toggleFullscreen}
         togglePictureInPicture={togglePictureInPicture}
@@ -1557,8 +1719,13 @@ export const Player: React.FC<PlayerProps> = ({
         toggleFullscreen={toggleFullscreen}
         isPip={isPip}
         togglePictureInPicture={togglePictureInPicture}
+        showPipButton={manualPipButtonEnabled}
+        showFullscreenTitle={showFullscreenTitle}
         seekTo={seekTo}
         togglePlay={togglePlay}
+        speedOptions={configuredSpeedOptions}
+        speedSliderEnabled={speedSliderEnabled}
+        onSelectPlaybackRate={selectPlaybackRate}
         settingsOpen={settingsOpen}
         setSettingsOpen={setSettingsOpen}
         isScrubbing={isScrubbing}

@@ -37,7 +37,11 @@ type PlayerGestureOverlayProps = {
   currentTime: number;
   duration: number;
   seekFeedback: PlayerSeekFeedback | null;
+  seekIntervalSeconds: number;
+  longPressPlaybackRate: PlaybackRate;
+  loopEnabled: boolean;
   setPlaybackRate: (playbackRate: PlaybackRate) => void;
+  onToggleLoop: () => void;
   togglePlay: () => void;
   toggleFullscreen: () => void;
   togglePictureInPicture: () => void;
@@ -85,7 +89,11 @@ export const PlayerGestureOverlay: React.FC<PlayerGestureOverlayProps> = ({
   currentTime,
   duration,
   seekFeedback,
+  seekIntervalSeconds,
+  longPressPlaybackRate,
+  loopEnabled,
   setPlaybackRate,
+  onToggleLoop,
   togglePlay,
   toggleFullscreen,
   togglePictureInPicture,
@@ -97,7 +105,6 @@ export const PlayerGestureOverlay: React.FC<PlayerGestureOverlayProps> = ({
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [copiedLabel, setCopiedLabel] = useState<string | null>(null);
   const [isBoosting, setIsBoosting] = useState(false);
-  const [loopEnabled, setLoopEnabled] = useState(false);
   const [statsVisible, setStatsVisible] = useState(false);
   const centerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -168,7 +175,7 @@ export const PlayerGestureOverlay: React.FC<PlayerGestureOverlayProps> = ({
       previousRateRef.current = playbackRate;
       longPressActiveRef.current = true;
       setIsBoosting(true);
-      setPlaybackRate(2);
+      setPlaybackRate(longPressPlaybackRate);
       onRevealControls();
     }, 420);
   };
@@ -196,11 +203,11 @@ export const PlayerGestureOverlay: React.FC<PlayerGestureOverlayProps> = ({
     const rect = event.currentTarget.getBoundingClientRect();
     const x = event.clientX - rect.left;
     if (x < rect.width * 0.35) {
-      seekTo(currentTime - 10);
-      onSeekFeedback("backward", 10);
+      seekTo(currentTime - seekIntervalSeconds);
+      onSeekFeedback("backward", seekIntervalSeconds);
     } else if (x > rect.width * 0.65) {
-      seekTo(currentTime + 10);
-      onSeekFeedback("forward", 10);
+      seekTo(currentTime + seekIntervalSeconds);
+      onSeekFeedback("forward", seekIntervalSeconds);
     } else {
       toggleFullscreen();
     }
@@ -243,11 +250,7 @@ export const PlayerGestureOverlay: React.FC<PlayerGestureOverlayProps> = ({
     {
       label: loopEnabled ? "Loop on" : "Loop",
       icon: <Repeat1 size={21} />,
-      action: () => {
-        const nextLoop = !loopEnabled;
-        if (videoRef.current) videoRef.current.loop = nextLoop;
-        setLoopEnabled(nextLoop);
-      },
+      action: onToggleLoop,
     },
     {
       label: "Miniplayer",
@@ -312,7 +315,7 @@ export const PlayerGestureOverlay: React.FC<PlayerGestureOverlayProps> = ({
 
       {isBoosting && (
         <div className="pointer-events-none absolute left-1/2 top-8 z-30 -translate-x-1/2 rounded-full bg-black/30 px-5 py-2 text-sm font-bold text-white backdrop-blur-md animate-fade-in">
-          2x
+          {longPressPlaybackRate}x
         </div>
       )}
 
