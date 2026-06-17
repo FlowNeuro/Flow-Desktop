@@ -13,7 +13,7 @@ export function SettingsGroup({ title, children }: SettingsGroupProps) {
           {title}
         </h3>
       )}
-      <div className="bg-surface-container-low rounded-2xl border border-neutral-800 overflow-hidden flex flex-col divide-y divide-neutral-800/50">
+      <div className="bg-surface-container-low rounded-2xl border border-neutral-800 flex flex-col divide-y divide-neutral-800/50 [&>*:first-child]:rounded-t-[15px] [&>*:last-child]:rounded-b-[15px]">
         {children}
       </div>
     </div>

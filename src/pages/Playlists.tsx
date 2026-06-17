@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ChevronDown, ListVideo, Loader2, Plus } from "lucide-react";
+import { ListVideo, Loader2, Plus } from "lucide-react";
 import type { PlaylistSummary, VideoSummary } from "../types/video";
 import { Button } from "../components/ui/Button";
 import { SearchInput } from "../components/ui/SearchInput";
 import { CategoryChips } from "../components/layout/CategoryChips";
 import { PlaylistCard } from "../components/video/PlaylistCard";
+import { Select } from "../components/ui/Select";
 import {
   getPlaylistTimestamp,
   loadStoredPlaylists,
@@ -175,21 +176,12 @@ export const Playlists: React.FC<PlaylistsProps> = ({ onPlay: _onPlay }) => {
           </div>
 
           <div className="mt-6 mb-6 flex flex-col gap-4 md:flex-row md:items-center">
-            <div className="relative w-full md:w-52">
-              <select
-                value={sort}
-                onChange={(event) => setSort(event.target.value as PlaylistSort)}
-                aria-label="Sort playlists"
-                className="h-10 w-full appearance-none rounded-full border border-neutral-800 bg-surface-container-high px-4 pr-10 text-sm font-medium text-neutral-200 outline-none transition-colors duration-200 ease-out hover:bg-surface-container-highest"
-              >
-                {SORTS.map((sortOption) => (
-                  <option key={sortOption} value={sortOption}>
-                    {sortOption}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
-            </div>
+            <Select
+              value={sort}
+              onChange={(value) => setSort(value as PlaylistSort)}
+              options={SORTS.map((s) => ({ value: s, label: s }))}
+              className="w-full md:w-52"
+            />
 
             <CategoryChips
               categories={FILTERS}

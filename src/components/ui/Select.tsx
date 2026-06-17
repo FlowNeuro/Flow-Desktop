@@ -1,3 +1,6 @@
+import { useEffect, useRef, useState } from 'react';
+import { Check, ChevronDown } from 'lucide-react';
+
 export interface SelectOption {
   value: string;
   label: string;
@@ -11,22 +14,83 @@ export interface SelectProps {
   className?: string;
 }
 
+function cx(...parts: Array<string | false | null | undefined>): string {
+  return parts.filter(Boolean).join(' ');
+}
+
 export function Select({ value, onChange, options, disabled, className = '' }: SelectProps) {
+  const [open, setOpen] = useState(false);
+  const [openUp, setOpenUp] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handle = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handle);
+
+    if (ref.current) {
+      const rect = ref.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const dropdownHeight = 240;
+      if (spaceBelow < dropdownHeight && rect.top > dropdownHeight) {
+        setOpenUp(true);
+      } else {
+        setOpenUp(false);
+      }
+    }
+
+    return () => document.removeEventListener('mousedown', handle);
+  }, [open]);
+
+  const current = options.find((o) => o.value === value) ?? options[0];
+
   return (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      disabled={disabled}
-      className={`bg-surface-container-high text-neutral-200 rounded-md px-3 py-1.5 border border-neutral-700 text-sm outline-none transition-colors duration-200 ease-out hover:border-neutral-600 focus:border-neutral-500 disabled:opacity-50 cursor-pointer appearance-none pr-8 ${className}`}
-      style={{
-        backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`,
-        backgroundRepeat: 'no-repeat',
-        backgroundPosition: 'right 8px center',
-      }}
-    >
-      {options.map((opt) => (
-        <option key={opt.value} value={opt.value}>{opt.label}</option>
-      ))}
-    </select>
+    <div ref={ref} className={cx('relative shrink-0', className)}>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => setOpen((v) => !v)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        className="inline-flex h-9 w-full items-center justify-between gap-1.5 rounded-lg border border-neutral-800 bg-surface-container-high px-3 text-sm text-neutral-00 transition-colors duration-200 ease-out hover:bg-surface-container-highest focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)] disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        <span className="font-medium">{current?.label}</span>
+        <ChevronDown
+          className={cx('h-4 w-4 text-neutral-400 transition-transform duration-200', open && 'rotate-180')}
+        />
+      </button>
+
+      {open && (
+        <div
+          role="listbox"
+          className={cx(
+            'absolute right-0 z-50 min-w-[12rem] rounded-xl border border-neutral-800 bg-surface-container-high py-1.5 shadow-lg max-h-60 overflow-y-auto',
+            openUp ? 'bottom-full mb-2' : 'top-full mt-2'
+          )}
+        >
+          {options.map((o) => {
+            const active = o.value === value;
+            return (
+              <button
+                key={o.value}
+                type="button"
+                role="option"
+                aria-selected={active}
+                onClick={() => {
+                  onChange(o.value);
+                  setOpen(false);
+                }}
+                className="flex w-full items-center justify-between gap-3 px-3.5 py-2 text-sm text-neutral-300 transition-colors duration-200 ease-out hover:bg-surface-container-highest hover:text-neutral-100"
+              >
+                <span className={active ? 'text-neutral-100' : undefined}>{o.label}</span>
+                {active && <Check className="h-4 w-4 text-[var(--color-primary)]" />}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }

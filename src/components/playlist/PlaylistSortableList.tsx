@@ -15,8 +15,8 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { ChevronDown } from "lucide-react";
 import { VideoCard } from "../video/VideoCard";
+import { Select } from "../ui/Select";
 import {
   PLAYLIST_SORT_OPTIONS,
   type PlaylistSortType,
@@ -184,21 +184,12 @@ export function PlaylistSortableList({
   return (
     <section className="flex h-full min-h-0 min-w-0 flex-col">
       <div className="shrink-0 border-b border-neutral-800/50 bg-background pb-4">
-        <div className="relative w-full max-w-xs">
-          <select
+          <Select
             value={sortType}
-            onChange={(event) => onSortChange(event.target.value as PlaylistSortType)}
-            aria-label="Sort playlist"
-            className="h-10 w-full appearance-none rounded-full border border-neutral-800 bg-surface-container-high px-4 pr-10 text-sm font-medium text-neutral-200 outline-none transition-colors duration-200 ease-out hover:bg-surface-container-highest"
-          >
-            {PLAYLIST_SORT_OPTIONS.map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
-          </select>
-          <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
-        </div>
+            onChange={(val) => onSortChange(val as PlaylistSortType)}
+            options={PLAYLIST_SORT_OPTIONS.map((option) => ({ value: option, label: option }))}
+            className="w-full max-w-xs"
+          />
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto pt-4">
