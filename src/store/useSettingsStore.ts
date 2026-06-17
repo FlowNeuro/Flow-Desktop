@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { getSetting, setSetting } from "../lib/api/db";
 import { SETTINGS } from "../lib/settings/schema";
+import { getSettingValue, setSettingValue, useAppSettingsStore } from "./useAppSettingsStore";
 
 export type SponsorBlockCategory =
   | "sponsor"
@@ -14,6 +15,22 @@ export type SponsorBlockCategory =
   | "exclusive_access";
 
 export type SponsorBlockAction = "skip" | "mute" | "notify" | "ignore";
+
+export const SPONSORBLOCK_CATEGORIES = [
+  "sponsor",
+  "intro",
+  "outro",
+  "selfpromo",
+  "interaction",
+  "music_offtopic",
+  "filler",
+  "preview",
+  "exclusive_access",
+] as const satisfies readonly SponsorBlockCategory[];
+
+const SPONSORBLOCK_ACTIONS = ["skip", "mute", "notify", "ignore"] as const satisfies readonly SponsorBlockAction[];
+const HEX_COLOR_RE = /^#[0-9a-f]{6}$/i;
+const DEFAULT_SERVER_URL = "https://sponsor.ajay.app";
 
 export const DEFAULT_SB_COLORS: Record<SponsorBlockCategory, string> = {
   sponsor: "#00d400",
@@ -38,6 +55,66 @@ export const DEFAULT_SB_ACTIONS: Record<SponsorBlockCategory, SponsorBlockAction
   preview: "ignore",
   exclusive_access: "ignore",
 };
+
+function isSponsorBlockCategory(value: string): value is SponsorBlockCategory {
+  return (SPONSORBLOCK_CATEGORIES as readonly string[]).includes(value);
+}
+
+function isSponsorBlockAction(value: string): value is SponsorBlockAction {
+  return (SPONSORBLOCK_ACTIONS as readonly string[]).includes(value);
+}
+
+function normalizeServerUrl(rawUrl: string): string | null {
+  const trimmed = rawUrl.trim();
+  if (!trimmed) return DEFAULT_SERVER_URL;
+
+  try {
+    const url = new URL(trimmed);
+    if (url.protocol !== "https:" && url.protocol !== "http:") return null;
+    return url.origin;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeColors(raw: string | null | undefined): Record<SponsorBlockCategory, string> {
+  if (!raw) return DEFAULT_SB_COLORS;
+
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    const next = { ...DEFAULT_SB_COLORS };
+    for (const [category, color] of Object.entries(parsed)) {
+      if (isSponsorBlockCategory(category) && typeof color === "string" && HEX_COLOR_RE.test(color)) {
+        next[category] = color.toLowerCase();
+      }
+    }
+    return next;
+  } catch {
+    return DEFAULT_SB_COLORS;
+  }
+}
+
+function normalizeActions(raw: string | null | undefined): Record<SponsorBlockCategory, SponsorBlockAction> {
+  if (!raw) return DEFAULT_SB_ACTIONS;
+
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    const next = { ...DEFAULT_SB_ACTIONS };
+    for (const [category, action] of Object.entries(parsed)) {
+      if (isSponsorBlockCategory(category) && typeof action === "string" && isSponsorBlockAction(action)) {
+        next[category] = action;
+      }
+    }
+    return next;
+  } catch {
+    return DEFAULT_SB_ACTIONS;
+  }
+}
+
+function parseNonNegativeInt(raw: string | null | undefined): number {
+  const parsed = Number.parseInt(raw ?? "0", 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+}
 
 interface SettingsState {
   sponsorBlockEnabled: boolean;
@@ -85,48 +162,24 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   loadSettings: async () => {
     try {
-      const sbEnabled = await getSetting(SETTINGS.SPONSORBLOCK_ENABLED);
-      const daEnabled = await getSetting(SETTINGS.DEARROW_ENABLED);
-      const dabEnabled = await getSetting(SETTINGS.DEARROW_BADGE_ENABLED);
-      const rEnabled = await getSetting(SETTINGS.RYTD_ENABLED);
-      const sSubmit = await getSetting(SETTINGS.SB_SUBMIT_ENABLED);
-      const sUser = await getSetting(SETTINGS.SPONSORBLOCK_USER_ID);
-      const sServer = await getSetting(SETTINGS.SPONSORBLOCK_SERVER);
-      
-      const sbColorsRaw = await getSetting(SETTINGS.SPONSORBLOCK_COLORS);
-      const sbActionsRaw = await getSetting(SETTINGS.SPONSORBLOCK_CATEGORIES);
+      await useAppSettingsStore.getState().loadSettings();
 
-      const dbMinutes = await getSetting(SETTINGS.SPONSORBLOCK_SAVED_MINUTES);
-      const dbSegments = await getSetting(SETTINGS.SPONSORBLOCK_SKIPPED_SEGMENTS);
-
-      let loadedColors = { ...DEFAULT_SB_COLORS };
-      if (sbColorsRaw) {
-        try {
-          const parsed = JSON.parse(sbColorsRaw);
-          loadedColors = { ...DEFAULT_SB_COLORS, ...parsed };
-        } catch (_) {}
-      }
-
-      let loadedActions = { ...DEFAULT_SB_ACTIONS };
-      if (sbActionsRaw) {
-        try {
-          const parsed = JSON.parse(sbActionsRaw);
-          loadedActions = { ...DEFAULT_SB_ACTIONS, ...parsed };
-        } catch (_) {}
-      }
+      const serverUrl = normalizeServerUrl(getSettingValue(SETTINGS.SPONSORBLOCK_SERVER)) ?? DEFAULT_SERVER_URL;
+      const dbMinutes = getSettingValue(SETTINGS.SPONSORBLOCK_SAVED_MINUTES);
+      const dbSegments = getSettingValue(SETTINGS.SPONSORBLOCK_SKIPPED_SEGMENTS);
 
       set({
-        sponsorBlockEnabled: sbEnabled !== null ? sbEnabled === "true" : true,
-        dearrowEnabled: daEnabled !== null ? daEnabled === "true" : true,
-        dearrowBadgeEnabled: dabEnabled !== null ? dabEnabled === "true" : true,
-        rytdEnabled: rEnabled !== null ? rEnabled === "true" : true,
-        sbSubmitEnabled: sSubmit !== null ? sSubmit === "true" : false,
-        sbUserId: sUser || "",
-        serverUrl: sServer || "https://sponsor.ajay.app",
-        sponsorBlockColors: loadedColors,
-        sponsorBlockActions: loadedActions,
-        savedMinutes: dbMinutes !== null ? parseInt(dbMinutes, 10) : 0,
-        segmentsSkipped: dbSegments !== null ? parseInt(dbSegments, 10) : 0,
+        sponsorBlockEnabled: getSettingValue(SETTINGS.SPONSORBLOCK_ENABLED) !== "false",
+        dearrowEnabled: getSettingValue(SETTINGS.DEARROW_ENABLED) !== "false",
+        dearrowBadgeEnabled: getSettingValue(SETTINGS.DEARROW_BADGE_ENABLED) !== "false",
+        rytdEnabled: getSettingValue(SETTINGS.RYTD_ENABLED) !== "false",
+        sbSubmitEnabled: getSettingValue(SETTINGS.SB_SUBMIT_ENABLED) === "true",
+        sbUserId: getSettingValue(SETTINGS.SPONSORBLOCK_USER_ID),
+        serverUrl,
+        sponsorBlockColors: normalizeColors(getSettingValue(SETTINGS.SPONSORBLOCK_COLORS)),
+        sponsorBlockActions: normalizeActions(getSettingValue(SETTINGS.SPONSORBLOCK_CATEGORIES)),
+        savedMinutes: parseNonNegativeInt(dbMinutes),
+        segmentsSkipped: parseNonNegativeInt(dbSegments),
       });
     } catch (e) {
       console.warn("Failed to load settings in useSettingsStore", e);
@@ -135,67 +188,70 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   setSponsorBlockEnabled: async (enabled) => {
     set({ sponsorBlockEnabled: enabled });
-    await setSetting(SETTINGS.SPONSORBLOCK_ENABLED, String(enabled));
+    await setSettingValue(SETTINGS.SPONSORBLOCK_ENABLED, String(enabled));
   },
 
   setDeArrowEnabled: async (enabled) => {
     set({ dearrowEnabled: enabled });
-    await setSetting(SETTINGS.DEARROW_ENABLED, String(enabled));
+    await setSettingValue(SETTINGS.DEARROW_ENABLED, String(enabled));
   },
 
   setDeArrowBadgeEnabled: async (enabled) => {
     set({ dearrowBadgeEnabled: enabled });
-    await setSetting(SETTINGS.DEARROW_BADGE_ENABLED, String(enabled));
+    await setSettingValue(SETTINGS.DEARROW_BADGE_ENABLED, String(enabled));
   },
 
   setRytdEnabled: async (enabled) => {
     set({ rytdEnabled: enabled });
-    await setSetting(SETTINGS.RYTD_ENABLED, String(enabled));
+    await setSettingValue(SETTINGS.RYTD_ENABLED, String(enabled));
   },
 
   setSbSubmitEnabled: async (enabled) => {
     set({ sbSubmitEnabled: enabled });
-    await setSetting(SETTINGS.SB_SUBMIT_ENABLED, String(enabled));
+    await setSettingValue(SETTINGS.SB_SUBMIT_ENABLED, String(enabled));
   },
 
   setSbUserId: async (id) => {
     set({ sbUserId: id });
-    await setSetting(SETTINGS.SPONSORBLOCK_USER_ID, id);
+    await setSettingValue(SETTINGS.SPONSORBLOCK_USER_ID, id);
   },
 
   setServerUrl: async (url) => {
-    set({ serverUrl: url });
-    await setSetting(SETTINGS.SPONSORBLOCK_SERVER, url);
+    const normalizedUrl = normalizeServerUrl(url);
+    if (!normalizedUrl) {
+      console.warn("Rejected invalid SponsorBlock API server URL", url);
+      return;
+    }
+    set({ serverUrl: normalizedUrl });
+    await setSettingValue(SETTINGS.SPONSORBLOCK_SERVER, normalizedUrl);
   },
 
   setCategoryColor: async (category, color) => {
+    if (!isSponsorBlockCategory(category) || !HEX_COLOR_RE.test(color)) return;
     const updatedColors = { ...get().sponsorBlockColors, [category]: color };
     set({ sponsorBlockColors: updatedColors });
-    await setSetting(SETTINGS.SPONSORBLOCK_COLORS, JSON.stringify(updatedColors));
+    await setSettingValue(SETTINGS.SPONSORBLOCK_COLORS, JSON.stringify(updatedColors));
   },
 
   setCategoryAction: async (category, action) => {
+    if (!isSponsorBlockCategory(category) || !isSponsorBlockAction(action)) return;
     const updatedActions = { ...get().sponsorBlockActions, [category]: action };
     set({ sponsorBlockActions: updatedActions });
-    await setSetting(SETTINGS.SPONSORBLOCK_CATEGORIES, JSON.stringify(updatedActions));
+    await setSettingValue(SETTINGS.SPONSORBLOCK_CATEGORIES, JSON.stringify(updatedActions));
   },
 
   resetCategoryColors: async () => {
     set({ sponsorBlockColors: DEFAULT_SB_COLORS });
-    await setSetting(SETTINGS.SPONSORBLOCK_COLORS, JSON.stringify(DEFAULT_SB_COLORS));
+    await setSettingValue(SETTINGS.SPONSORBLOCK_COLORS, JSON.stringify(DEFAULT_SB_COLORS));
   },
 
   resetStats: async () => {
     set({ savedMinutes: 0, segmentsSkipped: 0 });
-    await setSetting(SETTINGS.SPONSORBLOCK_SAVED_MINUTES, "0");
-    await setSetting(SETTINGS.SPONSORBLOCK_SKIPPED_SEGMENTS, "0");
-    await setSetting(SETTINGS.SPONSORBLOCK_SAVED_SECONDS, "0");
+    await setSettingValue(SETTINGS.SPONSORBLOCK_SAVED_MINUTES, "0");
+    await setSettingValue(SETTINGS.SPONSORBLOCK_SKIPPED_SEGMENTS, "0");
+    await setSettingValue(SETTINGS.SPONSORBLOCK_SAVED_SECONDS, "0");
     
-    const categories: SponsorBlockCategory[] = [
-      "sponsor", "intro", "outro", "selfpromo", "interaction", 
-      "music_offtopic", "filler", "preview", "exclusive_access"
-    ];
-    for (const cat of categories) {
+    for (const cat of SPONSORBLOCK_CATEGORIES) {
       await setSetting(`sb_stats_clips_${cat}`, "0");
       await setSetting(`sb_stats_seconds_${cat}`, "0");
     }
@@ -206,8 +262,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       const currentSegments = get().segmentsSkipped;
       const nextSegments = currentSegments + 1;
       
-      const currentSecondsRaw = await getSetting(SETTINGS.SPONSORBLOCK_SAVED_SECONDS);
-      const currentSeconds = currentSecondsRaw ? parseInt(currentSecondsRaw, 10) : 0;
+      const currentSeconds = parseNonNegativeInt(getSettingValue(SETTINGS.SPONSORBLOCK_SAVED_SECONDS));
       const nextSeconds = currentSeconds + seconds;
       const nextMinutes = Math.round(nextSeconds / 60);
 
@@ -219,9 +274,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       const catSecs = catSecsRaw ? parseInt(catSecsRaw, 10) : 0;
       const nextCatSecs = catSecs + seconds;
 
-      await setSetting(SETTINGS.SPONSORBLOCK_SKIPPED_SEGMENTS, String(nextSegments));
-      await setSetting(SETTINGS.SPONSORBLOCK_SAVED_SECONDS, String(nextSeconds));
-      await setSetting(SETTINGS.SPONSORBLOCK_SAVED_MINUTES, String(nextMinutes));
+      await setSettingValue(SETTINGS.SPONSORBLOCK_SKIPPED_SEGMENTS, String(nextSegments));
+      await setSettingValue(SETTINGS.SPONSORBLOCK_SAVED_SECONDS, String(nextSeconds));
+      await setSettingValue(SETTINGS.SPONSORBLOCK_SAVED_MINUTES, String(nextMinutes));
       await setSetting(`sb_stats_clips_${category}`, String(nextCatClips));
       await setSetting(`sb_stats_seconds_${category}`, String(nextCatSecs));
 

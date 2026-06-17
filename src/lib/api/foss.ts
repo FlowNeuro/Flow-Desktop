@@ -60,8 +60,12 @@ export interface RydData {
 }
 
 export async function getReturnYouTubeDislike(videoId: string): Promise<RydData | null> {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 8000);
   try {
-    const res = await fetch(`https://returnyoutubedislikeapi.com/votes?videoId=${videoId}`);
+    const res = await fetch(`https://returnyoutubedislikeapi.com/votes?videoId=${videoId}`, {
+      signal: controller.signal,
+    });
     if (!res.ok) {
       if (res.status === 404) return null;
       throw new Error(`RYD API error: ${res.status}`);
@@ -71,5 +75,7 @@ export async function getReturnYouTubeDislike(videoId: string): Promise<RydData 
   } catch (error) {
     console.warn("Failed to fetch RYD data", error);
     return null;
+  } finally {
+    window.clearTimeout(timeout);
   }
 }

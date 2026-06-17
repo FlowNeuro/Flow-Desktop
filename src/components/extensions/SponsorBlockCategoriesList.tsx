@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { WandSparkles , ThumbsDown, ChevronDown, Check, RotateCcw } from "lucide-react";
-import { useSettingsStore, SponsorBlockCategory, SponsorBlockAction } from "../../store/useSettingsStore";
+import { useSettingsStore, DEFAULT_SB_COLORS, SponsorBlockCategory, SponsorBlockAction } from "../../store/useSettingsStore";
 
 // The official 23 premium MD3 preset colors matching the mobile Compose Screen
 const PRESET_COLORS = [
@@ -269,18 +269,7 @@ export const SponsorBlockCategoriesList: React.FC = () => {
                             </span>
                             <button
                               onClick={() => {
-                                const defaults: Record<SponsorBlockCategory, string> = {
-                                  sponsor: "#00d400",
-                                  intro: "#00ffff",
-                                  outro: "#0000ff",
-                                  selfpromo: "#ffff00",
-                                  interaction: "#ff0000",
-                                  music_offtopic: "#ff0584",
-                                  filler: "#7300ff",
-                                  preview: "#0080c0",
-                                  exclusive_access: "#ff7f00",
-                                };
-                                setCategoryColor(cat.id, defaults[cat.id]);
+                                setCategoryColor(cat.id, DEFAULT_SB_COLORS[cat.id]);
                                 setActiveColorPicker(null);
                               }}
                               className="text-[9px] font-bold text-[var(--color-primary)] hover:text-[var(--color-primary)] flex items-center gap-1 transition-colors"

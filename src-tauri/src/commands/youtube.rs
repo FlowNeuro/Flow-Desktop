@@ -782,9 +782,10 @@ pub async fn get_sponsorblock_segments(
 ) -> Result<serde_json::Value, ErrorResponse> {
     validate_video_id(&video_id).map_err(ErrorResponse::from)?;
 
-    let base_url = server_url.unwrap_or_else(|| "https://sponsor.ajay.app".to_string());
+    let base_url = normalize_sponsorblock_server_url(server_url.as_deref())
+        .map_err(ErrorResponse::from)?;
     let url = format!(
-        "{}/api/skipSegments?videoID={}&categories=[\"sponsor\",\"intro\",\"outro\",\"selfpromo\",\"interaction\",\"filler\"]",
+        "{}/api/skipSegments?videoID={}&categories=[\"sponsor\",\"intro\",\"outro\",\"selfpromo\",\"interaction\",\"filler\",\"music_offtopic\",\"preview\",\"exclusive_access\"]",
         base_url, video_id
     );
 
@@ -816,6 +817,32 @@ pub async fn get_sponsorblock_segments(
         .map_err(|e| crate::errors::AppError::Extractor(format!("JSON parse error: {}", e)))?;
 
     Ok(segments)
+}
+
+fn normalize_sponsorblock_server_url(server_url: Option<&str>) -> crate::errors::AppResult<String> {
+    let raw = server_url
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or("https://sponsor.ajay.app");
+    let parsed = reqwest::Url::parse(raw)
+        .map_err(|_| crate::errors::AppError::Validation("Invalid SponsorBlock server URL".into()))?;
+
+    match parsed.scheme() {
+        "http" | "https" => {}
+        _ => {
+            return Err(crate::errors::AppError::Validation(
+                "SponsorBlock server URL must use http or https".into(),
+            ));
+        }
+    }
+
+    let origin = parsed.origin().unicode_serialization();
+    if origin == "null" {
+        return Err(crate::errors::AppError::Validation(
+            "SponsorBlock server URL must include an origin".into(),
+        ));
+    }
+    Ok(origin)
 }
 
 #[tauri::command]

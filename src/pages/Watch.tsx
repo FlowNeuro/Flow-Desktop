@@ -127,7 +127,7 @@ export function Watch() {
         const [dearrow, ryd, segments] = await Promise.all([
           settings.dearrowEnabled ? getDeArrowOverride(videoId).catch(() => null) : Promise.resolve(null),
           settings.rytdEnabled ? getReturnYouTubeDislike(videoId).catch(() => null) : Promise.resolve(null),
-          settings.sponsorBlockEnabled ? getSponsorBlockSegments(videoId).catch(() => []) : Promise.resolve([]),
+          settings.sponsorBlockEnabled ? getSponsorBlockSegments(videoId, settings.serverUrl).catch(() => []) : Promise.resolve([]),
         ]);
         setDearrowData(dearrow);
         setRydData(ryd);

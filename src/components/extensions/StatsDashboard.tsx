@@ -2,6 +2,8 @@ import React, { useState, useEffect } from "react";
 import { AreaChart, Area, ResponsiveContainer } from "recharts";
 import { Activity, Server, Upload, Copy, Check, Info } from "lucide-react";
 import { useSettingsStore } from "../../store/useSettingsStore";
+import { SETTINGS } from "../../lib/settings/schema";
+import { isSettingDisabledUntilWired } from "../../lib/settings/values";
 
 export const StatsDashboard: React.FC = () => {
   const {
@@ -20,6 +22,7 @@ export const StatsDashboard: React.FC = () => {
   const [success, setSuccess] = useState(false);
   const [localServerUrl, setLocalServerUrl] = useState(serverUrl);
   const [localUserId, setLocalUserId] = useState(sbUserId);
+  const submissionsDisabled = isSettingDisabledUntilWired(SETTINGS.SB_SUBMIT_ENABLED);
 
   useEffect(() => {
     setLocalServerUrl(serverUrl);
@@ -37,6 +40,7 @@ export const StatsDashboard: React.FC = () => {
   };
 
   const handleGenerateUserId = () => {
+    if (submissionsDisabled) return;
     const chars = "abcdef0123456789";
     let generated = "";
     for (let i = 0; i < 32; i++) {
@@ -48,7 +52,9 @@ export const StatsDashboard: React.FC = () => {
 
   const handleSaveApiConfigs = async () => {
     await setServerUrl(localServerUrl);
-    await setSbUserId(localUserId);
+    if (!submissionsDisabled) {
+      await setSbUserId(localUserId);
+    }
     setSuccess(true);
     setTimeout(() => setSuccess(false), 2000);
   };
@@ -181,8 +187,9 @@ export const StatsDashboard: React.FC = () => {
           </div>
 
           <button
+            disabled={submissionsDisabled}
             onClick={() => setSbSubmitEnabled(!sbSubmitEnabled)}
-            className={`w-12 h-6 rounded-full p-1 transition-colors cursor-pointer flex items-center ${
+            className={`w-12 h-6 rounded-full p-1 transition-colors flex items-center disabled:cursor-not-allowed disabled:opacity-50 ${
               sbSubmitEnabled ? "bg-[var(--color-primary)] justify-end" : "bg-[var(--color-surface-container-high)] justify-start"
             }`}
           >
@@ -190,7 +197,7 @@ export const StatsDashboard: React.FC = () => {
           </button>
         </div>
 
-        {sbSubmitEnabled && (
+        {sbSubmitEnabled && !submissionsDisabled && (
           <div className="pt-3 border-t border-[var(--color-outline-variant)] space-y-4">
             <div className="flex flex-col gap-1.5">
               <div className="flex justify-between items-center">

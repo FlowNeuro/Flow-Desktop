@@ -3,6 +3,7 @@ import { Routes, Route, Navigate, useNavigate, useLocation } from "react-router-
 import { usePlayerStore } from "./store/usePlayerStore";
 import { useFeedActionsStore } from "./store/useFeedActionsStore";
 import { useAppSettingsStore } from "./store/useAppSettingsStore";
+import { useSettingsStore } from "./store/useSettingsStore";
 import { getOnboardingStatus } from "./lib/api/recommendation";
 import type { VideoSummary } from "./types/video";
 
@@ -43,6 +44,7 @@ function App() {
   useEffect(() => {
     void useFeedActionsStore.getState().load();
     void useAppSettingsStore.getState().loadSettings();
+    void useSettingsStore.getState().loadSettings();
   }, []);
 
   // Check onboarding state from sqlite db setting

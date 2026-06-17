@@ -1463,8 +1463,6 @@ export const Player: React.FC<PlayerProps> = ({
                 notifyTimeoutRef.current = null;
               }, 2000);
 
-              const durationSegment = Math.max(0, end - start);
-              void incrementStats(segment.category as SponsorBlockCategory, durationSegment);
             }
           }
         }
