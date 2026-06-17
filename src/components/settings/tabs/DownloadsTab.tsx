@@ -6,13 +6,14 @@ import { Select } from '../../ui/Select';
 import { useBoolPref, usePreference, useNumberPref } from '../../../lib/usePreference';
 import { pickFolder } from '../../../lib/dialogs';
 import { getString } from '../../../lib/i18n/index';
+import { SETTINGS } from '../../../lib/settings/schema';
 
 export function DownloadsTab() {
-  const [downloadQuality, setDownloadQuality] = usePreference('default_download_quality', '720p');
-  const [parallelDownload, setParallelDownload] = useBoolPref('parallel_download_enabled', true);
-  const [threads, setThreads] = useNumberPref('download_threads', 3);
-  const [downloadPath, setDownloadPath] = usePreference('download_location', '');
-  const [musicPath, setMusicPath] = usePreference('music_download_location', '');
+  const [downloadQuality, setDownloadQuality] = usePreference(SETTINGS.DEFAULT_DOWNLOAD_QUALITY, '720p');
+  const [parallelDownload, setParallelDownload] = useBoolPref(SETTINGS.PARALLEL_DOWNLOAD_ENABLED, true);
+  const [threads, setThreads] = useNumberPref(SETTINGS.DOWNLOAD_THREADS, 3);
+  const [downloadPath, setDownloadPath] = usePreference(SETTINGS.DOWNLOAD_LOCATION, '');
+  const [musicPath, setMusicPath] = usePreference(SETTINGS.MUSIC_DOWNLOAD_LOCATION, '');
 
   const browseVideoFolder = async () => {
     const path = await pickFolder(getString('settings_video_download_folder'));
@@ -29,7 +30,7 @@ export function DownloadsTab() {
       <SettingsGroup title={getString('settings_group_download_quality')}>
         <SettingItem title={getString('settings_download_quality')} description={getString('settings_download_quality_desc')}>
           <Select value={downloadQuality} onChange={setDownloadQuality} options={[
-            { value: 'Auto', label: 'Auto' }, { value: '2160p', label: '2160p (4K)' },
+            { value: 'Auto', label: getString('quality_auto') }, { value: '2160p', label: '2160p (4K)' },
             { value: '1440p', label: '1440p' }, { value: '1080p', label: '1080p' },
             { value: '720p', label: '720p' }, { value: '480p', label: '480p' }, { value: '360p', label: '360p' },
           ]} />

@@ -4,6 +4,7 @@ import { ToggleSwitch } from '../../ui/ToggleSwitch';
 import { Select } from '../../ui/Select';
 import { useBoolPref, usePreference, useNumberPref } from '../../../lib/usePreference';
 import { getString } from '../../../lib/i18n/index';
+import { SETTINGS } from '../../../lib/settings/schema';
 
 const REGION_OPTIONS = [
   { value: 'DZ', label: 'Algeria' }, { value: 'AR', label: 'Argentina' }, { value: 'AU', label: 'Australia' },
@@ -45,49 +46,49 @@ const REGION_OPTIONS = [
 ];
 
 export function ContentTab() {
-  const [gridSize, setGridSize] = usePreference('grid_item_size', 'BIG');
-  const [titleMaxLines, setTitleMaxLines] = useNumberPref('video_title_max_lines', 1);
-  const [downloadDialogStyle, setDownloadDialogStyle] = usePreference('download_dialog_style', 'FULL');
-  const [homeFeed, setHomeFeed] = useBoolPref('home_feed_enabled', true);
-  const [appLogo, setAppLogo] = useBoolPref('show_app_logo_icon', true);
-  const [shortsShelf, setShortsShelf] = useBoolPref('shorts_shelf_enabled', true);
-  const [homeShortsShelf, setHomeShortsShelf] = useBoolPref('home_shorts_shelf_enabled', true);
-  const [continueWatching, setContinueWatching] = useBoolPref('continue_watching_enabled', true);
-  const [comments, setComments] = useBoolPref('comments_enabled', true);
-  const [commentsPreview, setCommentsPreview] = useBoolPref('comments_preview_enabled', true);
-  const [relatedVideos, setRelatedVideos] = useBoolPref('show_related_videos', true);
-  const [hideWatched, setHideWatched] = useBoolPref('hide_watched_videos', false);
-  const [disableShorts, setDisableShorts] = useBoolPref('disable_shorts_player', false);
-  const [cardActions, setCardActions] = useBoolPref('video_card_actions_enabled', false);
-  const [markWatched, setMarkWatched] = useBoolPref('video_card_mark_watched_enabled', false);
-  const [relatedCardStyle, setRelatedCardStyle] = usePreference('related_card_style', 'FULL_WIDTH');
-  const [shortsNav, setShortsNav] = useBoolPref('shorts_navigation_enabled', true);
-  const [musicNav, setMusicNav] = useBoolPref('music_navigation_enabled', true);
-  const [searchTab, setSearchTab] = useBoolPref('search_nav_tab_enabled', false);
-  const [categoriesTab, setCategoriesTab] = useBoolPref('categories_nav_tab_enabled', false);
-  const [subsRefresh, setSubsRefresh] = useBoolPref('subscription_refresh_on_startup', false);
-  const [subsShowVideos, setSubsShowVideos] = useBoolPref('subscription_show_videos', true);
-  const [subsShowShorts, setSubsShowShorts] = useBoolPref('subscription_show_shorts', true);
-  const [subsShowLive, setSubsShowLive] = useBoolPref('subscription_show_live', true);
-  const [regionPicker, setRegionPicker] = useBoolPref('show_region_picker_in_explore', true);
-  const [trendingRegion, setTrendingRegion] = usePreference('trending_region', 'US');
+  const [gridSize, setGridSize] = usePreference(SETTINGS.GRID_ITEM_SIZE, 'BIG');
+  const [titleMaxLines, setTitleMaxLines] = useNumberPref(SETTINGS.VIDEO_TITLE_MAX_LINES, 1);
+  const [downloadDialogStyle, setDownloadDialogStyle] = usePreference(SETTINGS.DOWNLOAD_DIALOG_STYLE, 'FULL');
+  const [homeFeed, setHomeFeed] = useBoolPref(SETTINGS.HOME_FEED_ENABLED, true);
+  const [appLogo, setAppLogo] = useBoolPref(SETTINGS.SHOW_APP_LOGO_ICON, true);
+  const [shortsShelf, setShortsShelf] = useBoolPref(SETTINGS.SHORTS_SHELF_ENABLED, true);
+  const [homeShortsShelf, setHomeShortsShelf] = useBoolPref(SETTINGS.HOME_SHORTS_SHELF_ENABLED, true);
+  const [continueWatching, setContinueWatching] = useBoolPref(SETTINGS.CONTINUE_WATCHING_ENABLED, true);
+  const [comments, setComments] = useBoolPref(SETTINGS.COMMENTS_ENABLED, true);
+  const [commentsPreview, setCommentsPreview] = useBoolPref(SETTINGS.COMMENTS_PREVIEW_ENABLED, true);
+  const [relatedVideos, setRelatedVideos] = useBoolPref(SETTINGS.SHOW_RELATED_VIDEOS, true);
+  const [hideWatched, setHideWatched] = useBoolPref(SETTINGS.HIDE_WATCHED_VIDEOS, false);
+  const [disableShorts, setDisableShorts] = useBoolPref(SETTINGS.DISABLE_SHORTS_PLAYER, false);
+  const [cardActions, setCardActions] = useBoolPref(SETTINGS.VIDEO_CARD_ACTIONS_ENABLED, false);
+  const [markWatched, setMarkWatched] = useBoolPref(SETTINGS.VIDEO_CARD_MARK_WATCHED_ENABLED, false);
+  const [relatedCardStyle, setRelatedCardStyle] = usePreference(SETTINGS.RELATED_CARD_STYLE, 'FULL_WIDTH');
+  const [shortsNav, setShortsNav] = useBoolPref(SETTINGS.SHORTS_NAVIGATION_ENABLED, true);
+  const [musicNav, setMusicNav] = useBoolPref(SETTINGS.MUSIC_NAVIGATION_ENABLED, true);
+  const [searchTab, setSearchTab] = useBoolPref(SETTINGS.SEARCH_NAV_TAB_ENABLED, false);
+  const [categoriesTab, setCategoriesTab] = useBoolPref(SETTINGS.CATEGORIES_NAV_TAB_ENABLED, false);
+  const [subsRefresh, setSubsRefresh] = useBoolPref(SETTINGS.SUBSCRIPTION_REFRESH_ON_STARTUP, false);
+  const [subsShowVideos, setSubsShowVideos] = useBoolPref(SETTINGS.SUBSCRIPTION_SHOW_VIDEOS, true);
+  const [subsShowShorts, setSubsShowShorts] = useBoolPref(SETTINGS.SUBSCRIPTION_SHOW_SHORTS, true);
+  const [subsShowLive, setSubsShowLive] = useBoolPref(SETTINGS.SUBSCRIPTION_SHOW_LIVE, true);
+  const [regionPicker, setRegionPicker] = useBoolPref(SETTINGS.SHOW_REGION_PICKER_IN_EXPLORE, true);
+  const [trendingRegion, setTrendingRegion] = usePreference(SETTINGS.TRENDING_REGION, 'US');
 
   return (
     <div className="space-y-6 pb-8">
       <SettingsGroup title={getString('settings_group_layout')}>
         <SettingItem title={getString('settings_music_grid_scale')} description={getString('settings_music_grid_scale_desc')}>
-          <Select value={gridSize} onChange={setGridSize} options={[{ value: 'BIG', label: 'Large' }, { value: 'SMALL', label: 'Compact' }]} />
+          <Select value={gridSize} onChange={setGridSize} options={[{ value: 'BIG', label: getString('settings_option_large') }, { value: 'SMALL', label: getString('settings_option_compact') }]} />
         </SettingItem>
         <SettingItem title={getString('settings_video_title_lines')} description={getString('settings_video_title_lines_desc')}>
           <Select value={String(titleMaxLines)} onChange={(v) => setTitleMaxLines(Number(v))} options={[
-            { value: '0', label: 'Unlimited' }, { value: '1', label: '1 line' }, { value: '2', label: '2 lines' }, { value: '3', label: '3 lines' },
+            { value: '0', label: getString('settings_option_unlimited') }, { value: '1', label: getString('settings_option_one_line') }, { value: '2', label: getString('settings_option_two_lines') }, { value: '3', label: getString('settings_option_three_lines') },
           ]} />
         </SettingItem>
         <SettingItem title={getString('settings_download_dialog')} description={getString('settings_download_dialog_desc')}>
-          <Select value={downloadDialogStyle} onChange={setDownloadDialogStyle} options={[{ value: 'FULL', label: 'Full' }, { value: 'COMPACT', label: 'Compact' }]} />
+          <Select value={downloadDialogStyle} onChange={setDownloadDialogStyle} options={[{ value: 'FULL', label: getString('settings_option_full') }, { value: 'COMPACT', label: getString('settings_option_compact') }]} />
         </SettingItem>
         <SettingItem title={getString('settings_related_style')}>
-          <Select value={relatedCardStyle} onChange={setRelatedCardStyle} options={[{ value: 'FULL_WIDTH', label: 'Full Width' }, { value: 'COMPACT', label: 'Compact' }]} />
+          <Select value={relatedCardStyle} onChange={setRelatedCardStyle} options={[{ value: 'FULL_WIDTH', label: getString('settings_option_full_width') }, { value: 'COMPACT', label: getString('settings_option_compact') }]} />
         </SettingItem>
       </SettingsGroup>
 

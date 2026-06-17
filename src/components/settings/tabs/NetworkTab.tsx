@@ -6,20 +6,21 @@ import { Select } from '../../ui/Select';
 import { TextInput } from '../../ui/TextInput';
 import { useBoolPref, usePreference, useNumberPref } from '../../../lib/usePreference';
 import { getString } from '../../../lib/i18n/index';
+import { SETTINGS } from '../../../lib/settings/schema';
 
 export function NetworkTab() {
-  const [bufferProfile, setBufferProfile] = usePreference('buffer_profile', 'STABLE');
-  const [minBuffer, setMinBuffer] = useNumberPref('min_buffer_ms', 30000);
-  const [maxBuffer, setMaxBuffer] = useNumberPref('max_buffer_ms', 50000);
-  const [playbackBuffer, setPlaybackBuffer] = useNumberPref('buffer_for_playback_ms', 2500);
-  const [rebufferBuffer, setRebufferBuffer] = useNumberPref('buffer_for_playback_after_rebuffer_ms', 5000);
-  const [cacheSize, setCacheSize] = useNumberPref('media_cache_size_mb', 500);
-  const [proxyEnabled, setProxyEnabled] = useBoolPref('proxy_enabled', false);
-  const [proxyType, setProxyType] = usePreference('proxy_type', 'http');
-  const [proxyHost, setProxyHost] = usePreference('proxy_host', '');
-  const [proxyPort, setProxyPort] = usePreference('proxy_port', '8080');
-  const [proxyUser, setProxyUser] = usePreference('proxy_username', '');
-  const [proxyPass, setProxyPass] = usePreference('proxy_password', '');
+  const [bufferProfile, setBufferProfile] = usePreference(SETTINGS.BUFFER_PROFILE, 'STABLE');
+  const [minBuffer, setMinBuffer] = useNumberPref(SETTINGS.MIN_BUFFER_MS, 30000);
+  const [maxBuffer, setMaxBuffer] = useNumberPref(SETTINGS.MAX_BUFFER_MS, 50000);
+  const [playbackBuffer, setPlaybackBuffer] = useNumberPref(SETTINGS.BUFFER_FOR_PLAYBACK_MS, 2500);
+  const [rebufferBuffer, setRebufferBuffer] = useNumberPref(SETTINGS.BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS, 5000);
+  const [cacheSize, setCacheSize] = useNumberPref(SETTINGS.MEDIA_CACHE_SIZE_MB, 500);
+  const [proxyEnabled, setProxyEnabled] = useBoolPref(SETTINGS.PROXY_ENABLED, false);
+  const [proxyType, setProxyType] = usePreference(SETTINGS.PROXY_TYPE, 'http');
+  const [proxyHost, setProxyHost] = usePreference(SETTINGS.PROXY_HOST, '');
+  const [proxyPort, setProxyPort] = usePreference(SETTINGS.PROXY_PORT, '8080');
+  const [proxyUser, setProxyUser] = usePreference(SETTINGS.PROXY_USERNAME, '');
+  const [proxyPass, setProxyPass] = usePreference(SETTINGS.PROXY_PASSWORD, '');
   const [localPort, setLocalPort] = useState(proxyPort);
   const [localHost, setLocalHost] = useState(proxyHost);
 
@@ -28,8 +29,8 @@ export function NetworkTab() {
       <SettingsGroup title={getString('settings_group_buffer_profile')}>
         <SettingItem title={getString('settings_buffering_strategy')} description={getString('settings_buffering_strategy_desc')}>
           <Select value={bufferProfile} onChange={setBufferProfile} options={[
-            { value: 'AGGRESSIVE', label: 'Fast Start' }, { value: 'STABLE', label: 'Balanced' },
-            { value: 'DATASAVER', label: 'Data Saver' }, { value: 'CUSTOM', label: 'Custom' },
+            { value: 'AGGRESSIVE', label: getString('settings_buffer_fast_start') }, { value: 'STABLE', label: getString('settings_buffer_balanced') },
+            { value: 'DATASAVER', label: getString('settings_buffer_data_saver') }, { value: 'CUSTOM', label: getString('settings_option_custom') },
           ]} />
         </SettingItem>
       </SettingsGroup>
@@ -67,7 +68,7 @@ export function NetworkTab() {
         <SettingItem title={getString('settings_media_cache_limit')} description={getString('settings_media_cache_limit_desc')}>
           <Select value={String(cacheSize)} onChange={(v) => setCacheSize(Number(v))} options={[
             { value: '100', label: '100 MB' }, { value: '200', label: '200 MB' }, { value: '500', label: '500 MB' },
-            { value: '1000', label: '1 GB' }, { value: '2000', label: '2 GB' }, { value: '0', label: 'Unlimited' },
+            { value: '1000', label: '1 GB' }, { value: '2000', label: '2 GB' }, { value: '0', label: getString('settings_option_unlimited') },
           ]} />
         </SettingItem>
       </SettingsGroup>
@@ -90,10 +91,10 @@ export function NetworkTab() {
               <TextInput value={localPort} onChange={setLocalPort} onBlur={() => setProxyPort(localPort)} placeholder="8080" className="w-24" />
             </SettingItem>
             <SettingItem title={getString('settings_proxy_username')} description={getString('settings_proxy_username_desc')}>
-              <TextInput value={proxyUser} onChange={setProxyUser} placeholder="Username" className="w-48" />
+              <TextInput value={proxyUser} onChange={setProxyUser} placeholder={getString('settings_proxy_username')} className="w-48" />
             </SettingItem>
             <SettingItem title={getString('settings_proxy_password')}>
-              <TextInput value={proxyPass} onChange={setProxyPass} placeholder="Password" type="password" className="w-48" />
+              <TextInput value={proxyPass} onChange={setProxyPass} placeholder={getString('settings_proxy_password')} type="password" className="w-48" />
             </SettingItem>
           </>
         )}

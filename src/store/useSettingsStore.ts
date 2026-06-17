@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { getSetting, setSetting } from "../lib/api/db";
+import { SETTINGS } from "../lib/settings/schema";
 
 export type SponsorBlockCategory =
   | "sponsor"
@@ -84,19 +85,19 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   loadSettings: async () => {
     try {
-      const sbEnabled = await getSetting("sponsorblock_enabled");
-      const daEnabled = await getSetting("dearrow_enabled");
-      const dabEnabled = await getSetting("dearrow_badge_enabled");
-      const rEnabled = await getSetting("rytd_enabled");
-      const sSubmit = await getSetting("sb_submit_enabled");
-      const sUser = await getSetting("sponsorblock_user_id");
-      const sServer = await getSetting("sponsorblock_server");
+      const sbEnabled = await getSetting(SETTINGS.SPONSORBLOCK_ENABLED);
+      const daEnabled = await getSetting(SETTINGS.DEARROW_ENABLED);
+      const dabEnabled = await getSetting(SETTINGS.DEARROW_BADGE_ENABLED);
+      const rEnabled = await getSetting(SETTINGS.RYTD_ENABLED);
+      const sSubmit = await getSetting(SETTINGS.SB_SUBMIT_ENABLED);
+      const sUser = await getSetting(SETTINGS.SPONSORBLOCK_USER_ID);
+      const sServer = await getSetting(SETTINGS.SPONSORBLOCK_SERVER);
       
-      const sbColorsRaw = await getSetting("sponsorblock_colors");
-      const sbActionsRaw = await getSetting("sponsorblock_categories");
+      const sbColorsRaw = await getSetting(SETTINGS.SPONSORBLOCK_COLORS);
+      const sbActionsRaw = await getSetting(SETTINGS.SPONSORBLOCK_CATEGORIES);
 
-      const dbMinutes = await getSetting("sponsorblock_saved_minutes");
-      const dbSegments = await getSetting("sponsorblock_skipped_segments");
+      const dbMinutes = await getSetting(SETTINGS.SPONSORBLOCK_SAVED_MINUTES);
+      const dbSegments = await getSetting(SETTINGS.SPONSORBLOCK_SKIPPED_SEGMENTS);
 
       let loadedColors = { ...DEFAULT_SB_COLORS };
       if (sbColorsRaw) {
@@ -134,61 +135,61 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   setSponsorBlockEnabled: async (enabled) => {
     set({ sponsorBlockEnabled: enabled });
-    await setSetting("sponsorblock_enabled", String(enabled));
+    await setSetting(SETTINGS.SPONSORBLOCK_ENABLED, String(enabled));
   },
 
   setDeArrowEnabled: async (enabled) => {
     set({ dearrowEnabled: enabled });
-    await setSetting("dearrow_enabled", String(enabled));
+    await setSetting(SETTINGS.DEARROW_ENABLED, String(enabled));
   },
 
   setDeArrowBadgeEnabled: async (enabled) => {
     set({ dearrowBadgeEnabled: enabled });
-    await setSetting("dearrow_badge_enabled", String(enabled));
+    await setSetting(SETTINGS.DEARROW_BADGE_ENABLED, String(enabled));
   },
 
   setRytdEnabled: async (enabled) => {
     set({ rytdEnabled: enabled });
-    await setSetting("rytd_enabled", String(enabled));
+    await setSetting(SETTINGS.RYTD_ENABLED, String(enabled));
   },
 
   setSbSubmitEnabled: async (enabled) => {
     set({ sbSubmitEnabled: enabled });
-    await setSetting("sb_submit_enabled", String(enabled));
+    await setSetting(SETTINGS.SB_SUBMIT_ENABLED, String(enabled));
   },
 
   setSbUserId: async (id) => {
     set({ sbUserId: id });
-    await setSetting("sponsorblock_user_id", id);
+    await setSetting(SETTINGS.SPONSORBLOCK_USER_ID, id);
   },
 
   setServerUrl: async (url) => {
     set({ serverUrl: url });
-    await setSetting("sponsorblock_server", url);
+    await setSetting(SETTINGS.SPONSORBLOCK_SERVER, url);
   },
 
   setCategoryColor: async (category, color) => {
     const updatedColors = { ...get().sponsorBlockColors, [category]: color };
     set({ sponsorBlockColors: updatedColors });
-    await setSetting("sponsorblock_colors", JSON.stringify(updatedColors));
+    await setSetting(SETTINGS.SPONSORBLOCK_COLORS, JSON.stringify(updatedColors));
   },
 
   setCategoryAction: async (category, action) => {
     const updatedActions = { ...get().sponsorBlockActions, [category]: action };
     set({ sponsorBlockActions: updatedActions });
-    await setSetting("sponsorblock_categories", JSON.stringify(updatedActions));
+    await setSetting(SETTINGS.SPONSORBLOCK_CATEGORIES, JSON.stringify(updatedActions));
   },
 
   resetCategoryColors: async () => {
     set({ sponsorBlockColors: DEFAULT_SB_COLORS });
-    await setSetting("sponsorblock_colors", JSON.stringify(DEFAULT_SB_COLORS));
+    await setSetting(SETTINGS.SPONSORBLOCK_COLORS, JSON.stringify(DEFAULT_SB_COLORS));
   },
 
   resetStats: async () => {
     set({ savedMinutes: 0, segmentsSkipped: 0 });
-    await setSetting("sponsorblock_saved_minutes", "0");
-    await setSetting("sponsorblock_skipped_segments", "0");
-    await setSetting("sponsorblock_saved_seconds", "0");
+    await setSetting(SETTINGS.SPONSORBLOCK_SAVED_MINUTES, "0");
+    await setSetting(SETTINGS.SPONSORBLOCK_SKIPPED_SEGMENTS, "0");
+    await setSetting(SETTINGS.SPONSORBLOCK_SAVED_SECONDS, "0");
     
     const categories: SponsorBlockCategory[] = [
       "sponsor", "intro", "outro", "selfpromo", "interaction", 
@@ -205,7 +206,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       const currentSegments = get().segmentsSkipped;
       const nextSegments = currentSegments + 1;
       
-      const currentSecondsRaw = await getSetting("sponsorblock_saved_seconds");
+      const currentSecondsRaw = await getSetting(SETTINGS.SPONSORBLOCK_SAVED_SECONDS);
       const currentSeconds = currentSecondsRaw ? parseInt(currentSecondsRaw, 10) : 0;
       const nextSeconds = currentSeconds + seconds;
       const nextMinutes = Math.round(nextSeconds / 60);
@@ -218,9 +219,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       const catSecs = catSecsRaw ? parseInt(catSecsRaw, 10) : 0;
       const nextCatSecs = catSecs + seconds;
 
-      await setSetting("sponsorblock_skipped_segments", String(nextSegments));
-      await setSetting("sponsorblock_saved_seconds", String(nextSeconds));
-      await setSetting("sponsorblock_saved_minutes", String(nextMinutes));
+      await setSetting(SETTINGS.SPONSORBLOCK_SKIPPED_SEGMENTS, String(nextSegments));
+      await setSetting(SETTINGS.SPONSORBLOCK_SAVED_SECONDS, String(nextSeconds));
+      await setSetting(SETTINGS.SPONSORBLOCK_SAVED_MINUTES, String(nextMinutes));
       await setSetting(`sb_stats_clips_${category}`, String(nextCatClips));
       await setSetting(`sb_stats_seconds_${category}`, String(nextCatSecs));
 

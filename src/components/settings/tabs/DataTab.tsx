@@ -10,37 +10,12 @@ import { getSetting, setSetting, clearWatchHistory, getWatchHistory } from '../.
 import { pickSaveFile } from '../../../lib/dialogs';
 import { isTauriEnv } from '../../../lib/api/env';
 import { getString } from '../../../lib/i18n/index';
-
-const EXPORT_KEYS = [
-  'autoplay_enabled', 'video_loop_enabled', 'skip_silence_enabled', 'stable_volume_enabled',
-  'allow_volume_boost', 'remember_playback_speed', 'playback_speed', 'custom_speeds_enabled',
-  'custom_speed_presets', 'long_press_playback_speed', 'speed_slider_enabled',
-  'double_tap_seek_seconds', 'subtitles_enabled', 'preferred_subtitle_language',
-  'subtitle_font_size', 'subtitle_bold', 'slider_style', 'show_fullscreen_title',
-  'adaptive_player_size_enabled', 'auto_pip_enabled', 'manual_pip_button_enabled',
-  'mini_player_show_skip_controls', 'mini_player_show_next_prev_controls',
-  'grid_item_size', 'video_title_max_lines', 'download_dialog_style', 'home_feed_enabled',
-  'show_app_logo_icon', 'shorts_shelf_enabled', 'home_shorts_shelf_enabled',
-  'continue_watching_enabled', 'comments_enabled', 'comments_preview_enabled',
-  'show_related_videos', 'hide_watched_videos', 'disable_shorts_player',
-  'video_card_actions_enabled', 'video_card_mark_watched_enabled', 'related_card_style',
-  'shorts_navigation_enabled', 'music_navigation_enabled', 'search_nav_tab_enabled',
-  'categories_nav_tab_enabled', 'subscription_refresh_on_startup',
-  'subscription_show_videos', 'subscription_show_shorts', 'subscription_show_live',
-  'show_region_picker_in_explore', 'trending_region', 'default_quality_wifi',
-  'default_video_codec', 'shorts_quality_wifi', 'music_audio_quality',
-  'preferred_audio_language', 'buffer_profile', 'min_buffer_ms', 'max_buffer_ms',
-  'buffer_for_playback_ms', 'buffer_for_playback_after_rebuffer_ms', 'media_cache_size_mb',
-  'proxy_enabled', 'proxy_type', 'proxy_host', 'proxy_port', 'proxy_username',
-  'default_download_quality', 'parallel_download_enabled', 'download_threads',
-  'download_location', 'music_download_location', 'auto_backup_frequency', 'auto_backup_type',
-  'sponsorblock_enabled', 'dearrow_enabled', 'rytd_enabled',
-];
+import { SETTING_EXPORT_KEYS, SETTINGS } from '../../../lib/settings/schema';
 
 export function DataTab() {
   const navigate = useNavigate();
-  const [backupFrequency, setBackupFrequency] = usePreference('auto_backup_frequency', 'NONE');
-  const [backupType, setBackupType] = usePreference('auto_backup_type', 'APP_DATA');
+  const [backupFrequency, setBackupFrequency] = usePreference(SETTINGS.AUTO_BACKUP_FREQUENCY, 'NONE');
+  const [backupType, setBackupType] = usePreference(SETTINGS.AUTO_BACKUP_TYPE, 'APP_DATA');
   const [historyCount, setHistoryCount] = useState(0);
   const [subCount, setSubCount] = useState(0);
   const [clearing, setClearing] = useState(false);
@@ -78,7 +53,7 @@ export function DataTab() {
       const ints: Record<string, unknown> = {};
       const floats: Record<string, unknown> = {};
 
-      for (const key of EXPORT_KEYS) {
+      for (const key of SETTING_EXPORT_KEYS) {
         const val = await getSetting(key);
         if (val === null) continue;
         if (val === 'true' || val === 'false') { booleans[key] = val === 'true'; }
@@ -116,13 +91,13 @@ export function DataTab() {
       <SettingsGroup title={getString('settings_group_auto_backup')}>
         <SettingItem title={getString('settings_backup_frequency')} description={getString('settings_backup_frequency_desc')}>
           <Select value={backupFrequency} onChange={setBackupFrequency} options={[
-            { value: 'NONE', label: 'Disabled' }, { value: 'DAILY', label: 'Daily' },
-            { value: 'WEEKLY', label: 'Weekly' }, { value: 'MONTHLY', label: 'Monthly' },
+            { value: 'NONE', label: getString('settings_option_disabled') }, { value: 'DAILY', label: getString('settings_backup_daily') },
+            { value: 'WEEKLY', label: getString('settings_backup_weekly') }, { value: 'MONTHLY', label: getString('settings_backup_monthly') },
           ]} />
         </SettingItem>
         <SettingItem title={getString('settings_backup_scope')} description={getString('settings_backup_scope_desc')}>
           <Select value={backupType} onChange={setBackupType} options={[
-            { value: 'APP_DATA', label: 'Settings & History' }, { value: 'BRAIN', label: 'NeuroEngine Only' }, { value: 'MASTER', label: 'All Data' },
+            { value: 'APP_DATA', label: getString('settings_backup_scope_app_data') }, { value: 'BRAIN', label: getString('settings_backup_scope_brain') }, { value: 'MASTER', label: getString('settings_backup_scope_master') },
           ]} />
         </SettingItem>
       </SettingsGroup>

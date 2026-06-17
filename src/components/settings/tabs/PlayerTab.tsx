@@ -5,37 +5,38 @@ import { Select } from '../../ui/Select';
 import { TextInput } from '../../ui/TextInput';
 import { useBoolPref, usePreference, useNumberPref } from '../../../lib/usePreference';
 import { getString } from '../../../lib/i18n/index';
+import { SETTINGS } from '../../../lib/settings/schema';
 
 export function PlayerTab() {
-  const [autoplay, setAutoplay] = useBoolPref('autoplay_enabled', true);
-  const [loop, setLoop] = useBoolPref('video_loop_enabled', false);
-  const [skipSilence, setSkipSilence] = useBoolPref('skip_silence_enabled', false);
-  const [stableVolume, setStableVolume] = useBoolPref('stable_volume_enabled', false);
-  const [volumeBoost, setVolumeBoost] = useBoolPref('allow_volume_boost', false);
+  const [autoplay, setAutoplay] = useBoolPref(SETTINGS.AUTOPLAY_ENABLED, true);
+  const [loop, setLoop] = useBoolPref(SETTINGS.VIDEO_LOOP_ENABLED, false);
+  const [skipSilence, setSkipSilence] = useBoolPref(SETTINGS.SKIP_SILENCE_ENABLED, false);
+  const [stableVolume, setStableVolume] = useBoolPref(SETTINGS.STABLE_VOLUME_ENABLED, false);
+  const [volumeBoost, setVolumeBoost] = useBoolPref(SETTINGS.ALLOW_VOLUME_BOOST, false);
 
-  const [rememberSpeed, setRememberSpeed] = useBoolPref('remember_playback_speed', false);
-  const [playbackSpeed, setPlaybackSpeed] = usePreference('playback_speed', '1.0');
-  const [customSpeeds, setCustomSpeeds] = useBoolPref('custom_speeds_enabled', false);
-  const [customPresets, setCustomPresets] = usePreference('custom_speed_presets', '');
-  const [longPressSpeed, setLongPressSpeed] = usePreference('long_press_playback_speed', '2.0');
-  const [speedSlider, setSpeedSlider] = useBoolPref('speed_slider_enabled', false);
+  const [rememberSpeed, setRememberSpeed] = useBoolPref(SETTINGS.REMEMBER_PLAYBACK_SPEED, false);
+  const [playbackSpeed, setPlaybackSpeed] = usePreference(SETTINGS.PLAYBACK_SPEED, '1.0');
+  const [customSpeeds, setCustomSpeeds] = useBoolPref(SETTINGS.CUSTOM_SPEEDS_ENABLED, false);
+  const [customPresets, setCustomPresets] = usePreference(SETTINGS.CUSTOM_SPEED_PRESETS, '');
+  const [longPressSpeed, setLongPressSpeed] = usePreference(SETTINGS.LONG_PRESS_PLAYBACK_SPEED, '2.0');
+  const [speedSlider, setSpeedSlider] = useBoolPref(SETTINGS.SPEED_SLIDER_ENABLED, false);
 
-  const [doubleTapSeek, setDoubleTapSeek] = useNumberPref('double_tap_seek_seconds', 10);
+  const [doubleTapSeek, setDoubleTapSeek] = useNumberPref(SETTINGS.DOUBLE_TAP_SEEK_SECONDS, 10);
 
-  const [subtitles, setSubtitles] = useBoolPref('subtitles_enabled', false);
-  const [subtitleLang, setSubtitleLang] = usePreference('preferred_subtitle_language', 'en');
-  const [subtitleSize, setSubtitleSize] = usePreference('subtitle_font_size', '14');
-  const [subtitleBold, setSubtitleBold] = useBoolPref('subtitle_bold', true);
+  const [subtitles, setSubtitles] = useBoolPref(SETTINGS.SUBTITLES_ENABLED, false);
+  const [subtitleLang, setSubtitleLang] = usePreference(SETTINGS.PREFERRED_SUBTITLE_LANGUAGE, 'en');
+  const [subtitleSize, setSubtitleSize] = usePreference(SETTINGS.SUBTITLE_FONT_SIZE, '14');
+  const [subtitleBold, setSubtitleBold] = useBoolPref(SETTINGS.SUBTITLE_BOLD, true);
 
-  const [miniSkip, setMiniSkip] = useBoolPref('mini_player_show_skip_controls', false);
-  const [miniNextPrev, setMiniNextPrev] = useBoolPref('mini_player_show_next_prev_controls', false);
+  const [miniSkip, setMiniSkip] = useBoolPref(SETTINGS.MINI_PLAYER_SHOW_SKIP_CONTROLS, false);
+  const [miniNextPrev, setMiniNextPrev] = useBoolPref(SETTINGS.MINI_PLAYER_SHOW_NEXT_PREV_CONTROLS, false);
 
-  const [sliderStyle, setSliderStyle] = usePreference('slider_style', 'DEFAULT');
-  const [fullscreenTitle, setFullscreenTitle] = useBoolPref('show_fullscreen_title', false);
-  const [adaptiveSize, setAdaptiveSize] = useBoolPref('adaptive_player_size_enabled', true);
+  const [sliderStyle, setSliderStyle] = usePreference(SETTINGS.SLIDER_STYLE, 'DEFAULT');
+  const [fullscreenTitle, setFullscreenTitle] = useBoolPref(SETTINGS.SHOW_FULLSCREEN_TITLE, false);
+  const [adaptiveSize, setAdaptiveSize] = useBoolPref(SETTINGS.ADAPTIVE_PLAYER_SIZE_ENABLED, true);
 
-  const [autoPip, setAutoPip] = useBoolPref('auto_pip_enabled', false);
-  const [pipButton, setPipButton] = useBoolPref('manual_pip_button_enabled', true);
+  const [autoPip, setAutoPip] = useBoolPref(SETTINGS.AUTO_PIP_ENABLED, false);
+  const [pipButton, setPipButton] = useBoolPref(SETTINGS.MANUAL_PIP_BUTTON_ENABLED, true);
 
   return (
     <div className="space-y-6 pb-8">
@@ -74,7 +75,7 @@ export function PlayerTab() {
         </SettingItem>
         {customSpeeds && (
           <SettingItem title={getString('settings_speed_values')} description={getString('settings_speed_values_desc')}>
-            <TextInput value={customPresets} onChange={setCustomPresets} placeholder="0.5,1.0,1.5,2.0" className="w-48" />
+          <TextInput value={customPresets} onChange={setCustomPresets} placeholder="0.5,1.0,1.5,2.0" className="w-48" />
           </SettingItem>
         )}
         <SettingItem title={getString('settings_long_press_speed')} description={getString('settings_long_press_speed_desc')}>
@@ -103,11 +104,11 @@ export function PlayerTab() {
         </SettingItem>
         <SettingItem title={getString('settings_preferred_language')}>
           <Select value={subtitleLang} onChange={setSubtitleLang} options={[
-            { value: 'en', label: 'English' }, { value: 'es', label: 'Spanish' },
-            { value: 'fr', label: 'French' }, { value: 'de', label: 'German' },
-            { value: 'pt', label: 'Portuguese' }, { value: 'ja', label: 'Japanese' },
-            { value: 'ko', label: 'Korean' }, { value: 'zh', label: 'Chinese' },
-            { value: 'ar', label: 'Arabic' }, { value: 'hi', label: 'Hindi' }, { value: 'ru', label: 'Russian' },
+            { value: 'en', label: getString('settings_language_english') }, { value: 'es', label: getString('settings_language_spanish') },
+            { value: 'fr', label: getString('settings_language_french') }, { value: 'de', label: getString('settings_language_german') },
+            { value: 'pt', label: getString('settings_language_portuguese') }, { value: 'ja', label: getString('settings_language_japanese') },
+            { value: 'ko', label: getString('settings_language_korean') }, { value: 'zh', label: getString('settings_language_chinese') },
+            { value: 'ar', label: getString('settings_language_arabic') }, { value: 'hi', label: getString('settings_language_hindi') }, { value: 'ru', label: getString('settings_language_russian') },
           ]} />
         </SettingItem>
         <SettingItem title={getString('settings_font_size')}>
@@ -142,8 +143,8 @@ export function PlayerTab() {
       <SettingsGroup title={getString('settings_group_player_appearance')}>
         <SettingItem title={getString('settings_seekbar_style')}>
           <Select value={sliderStyle} onChange={setSliderStyle} options={[
-            { value: 'DEFAULT', label: 'Default' }, { value: 'METROLIST', label: 'Metro' },
-            { value: 'METROLIST_SLIM', label: 'Metro Slim' }, { value: 'SQUIGGLY', label: 'Squiggly' }, { value: 'SLIM', label: 'Slim' },
+            { value: 'DEFAULT', label: getString('settings_option_default') }, { value: 'METROLIST', label: getString('settings_seekbar_metro') },
+            { value: 'METROLIST_SLIM', label: getString('settings_seekbar_metro_slim') }, { value: 'SQUIGGLY', label: getString('settings_seekbar_squiggly') }, { value: 'SLIM', label: getString('settings_seekbar_slim') },
           ]} />
         </SettingItem>
         <SettingItem title={getString('settings_fullscreen_title')} description={getString('settings_fullscreen_title_desc')}>
