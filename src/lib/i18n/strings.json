@@ -179,6 +179,10 @@
   "settings_note_shorts_playback_path_missing": "No separate Shorts playback path found.",
   "settings_note_media_cache_accounting_missing": "No media cache accounting target found.",
   "settings_note_download_manager_missing": "No download manager exists yet.",
+  "settings_save_failed_title": "Setting not saved",
+  "settings_save_failed_message": "Your previous value was restored. Try again in a moment.",
+  "settings_invalid_value_title": "Invalid setting",
+  "settings_invalid_value_message": "That value is not allowed for this setting.",
 
   "settings_group_playback": "Playback",
   "settings_autoplay": "Autoplay",

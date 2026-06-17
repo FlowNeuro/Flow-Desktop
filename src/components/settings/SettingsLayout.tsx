@@ -43,7 +43,7 @@ export function SettingsLayout({ children }: SettingsLayoutProps) {
   const [activeTab, setActiveTab] = useState<SettingsCategory>('player');
 
   return (
-    <div className="max-w-[1400px] mx-auto w-full h-[calc(100vh-64px)] flex">
+    <div className="mx-auto w-full h-[calc(100vh-64px)] flex">
       <nav className="w-56 shrink-0 border-r border-neutral-800 overflow-y-auto py-6 px-3 flex flex-col gap-1">
         <h2 className="text-lg font-bold text-neutral-100 px-3 mb-4">{getString('settings_title')}</h2>
         {categories.map((cat) => (
