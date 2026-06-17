@@ -8,6 +8,12 @@
     "dialog:default",
     "dialog:allow-open",
     "dialog:allow-save",
+    "os:allow-arch",
+    "os:allow-family",
+    "os:allow-locale",
+    "os:allow-os-type",
+    "os:allow-platform",
+    "os:allow-version",
     "opener:default"
   ]
 }

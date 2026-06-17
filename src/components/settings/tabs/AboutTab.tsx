@@ -1,8 +1,11 @@
-import { ExternalLink, Globe, Scale, Code2, Cpu, Monitor, User } from 'lucide-react';
+import { useEffect, useState, type ReactNode } from 'react';
+import { ExternalLink, Globe, Scale, Code2, Cpu, Monitor, User, Package, Fingerprint, Info } from 'lucide-react';
 import { SettingsGroup } from '../SettingsGroup';
 import Logo from '../../common/Logo';
 import { getString } from '../../../lib/i18n/index';
 import { openExternal } from '../../../lib/openExternal';
+import { getAppMetadata, type AppMetadata } from '../../../lib/appMetadata';
+import { getSystemMetadata, type SystemMetadata } from '../../../lib/systemMetadata';
 
 function GithubIcon({ size = 16 }: { size?: number }) {
   return (
@@ -28,39 +31,75 @@ function PatreonIcon({ size = 16 }: { size?: number }) {
   );
 }
 
-function LinkRow({ icon, label, value, href }: { icon: React.ReactNode; label: string; value: string; href?: string }) {
+function LinkRow({ icon, label, value, href }: { icon: ReactNode; label: string; value: string; href?: string }) {
   return (
     <div
       onClick={href ? () => openExternal(href) : undefined}
       className={`flex items-center justify-between px-5 py-4 hover:bg-surface-container transition-colors duration-200 ease-out group ${href ? 'cursor-pointer' : ''}`}
     >
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 shrink-0 pr-4">
         <span className="text-neutral-400">{icon}</span>
         <span className="text-sm font-medium text-neutral-200">{label}</span>
       </div>
-      <div className="flex items-center gap-2">
-        {value && <span className="text-sm text-neutral-400">{value}</span>}
+      <div className="flex items-center justify-end gap-2 min-w-0 text-right">
+        {value && <span className="text-sm text-neutral-400 break-all">{value}</span>}
         {href && <ExternalLink size={12} className="text-neutral-500 group-hover:text-neutral-300 transition-colors" />}
       </div>
     </div>
   );
 }
 
+const unknown = () => getString('settings_unknown');
+
+const sourceLabel = (source?: AppMetadata['source'] | SystemMetadata['source']) => {
+  if (source === 'tauri' || source === 'tauri-os') return getString('settings_source_tauri');
+  if (source === 'fallback' || source === 'browser-fallback') return getString('settings_source_fallback');
+  return unknown();
+};
+
 export function AboutTab() {
+  const [appMetadata, setAppMetadata] = useState<AppMetadata | null>(null);
+  const [systemMetadata, setSystemMetadata] = useState<SystemMetadata | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    Promise.all([getAppMetadata(), getSystemMetadata()])
+      .then(([app, system]) => {
+        if (!active) return;
+        setAppMetadata(app);
+        setSystemMetadata(system);
+      })
+      .catch(() => {
+        if (!active) return;
+        setAppMetadata(null);
+        setSystemMetadata(null);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const appName = appMetadata?.name ?? getString('settings_loading_metadata');
+
   return (
     <div className="space-y-6 pb-8">
       <div className="flex flex-col items-center py-8">
         <Logo size={72} />
-        <h2 className="text-2xl font-bold text-neutral-100 mt-4">Flow Desktop</h2>
+        <h2 className="text-2xl font-bold text-neutral-100 mt-4">{appName}</h2>
         <p className="text-sm text-neutral-400 mt-1">{getString('settings_about_subtitle')}</p>
       </div>
 
       <SettingsGroup title={getString('settings_group_app')}>
-        <LinkRow icon={<Code2 size={16} />} label={getString('settings_version')} value="0.1.0-dev" />
+        <LinkRow icon={<Code2 size={16} />} label={getString('settings_version')} value={appMetadata?.version ?? unknown()} />
         <div className="border-t border-neutral-800/50" />
-        <LinkRow icon={<Monitor size={16} />} label={getString('settings_platform')} value="Windows 11 / Tauri 2.0" />
+        <LinkRow icon={<Fingerprint size={16} />} label={getString('settings_identifier')} value={appMetadata?.identifier ?? unknown()} />
         <div className="border-t border-neutral-800/50" />
-        <LinkRow icon={<Cpu size={16} />} label={getString('settings_engine')} value="Innertube Native + FlowNeuro" />
+        <LinkRow icon={<Cpu size={16} />} label={getString('settings_tauri_version')} value={appMetadata?.tauriVersion ?? unknown()} />
+        <div className="border-t border-neutral-800/50" />
+        <LinkRow icon={<Package size={16} />} label={getString('settings_bundle_type')} value={appMetadata?.bundleType ?? unknown()} />
+        <div className="border-t border-neutral-800/50" />
+        <LinkRow icon={<Info size={16} />} label={getString('settings_metadata_source')} value={sourceLabel(appMetadata?.source)} />
       </SettingsGroup>
 
       <SettingsGroup title={getString('settings_group_contact')}>
@@ -90,11 +129,21 @@ export function AboutTab() {
       </SettingsGroup>
 
       <SettingsGroup title={getString('settings_group_device')}>
-        <LinkRow icon={<Monitor size={16} />} label={getString('settings_os')} value={navigator.platform} />
+        <LinkRow icon={<Monitor size={16} />} label={getString('settings_platform')} value={systemMetadata?.platform ?? unknown()} />
         <div className="border-t border-neutral-800/50" />
-        <LinkRow icon={<Cpu size={16} />} label={getString('settings_user_agent')} value={navigator.userAgent.split(' ').slice(-2).join(' ')} />
+        <LinkRow icon={<Monitor size={16} />} label={getString('settings_os')} value={systemMetadata ? `${systemMetadata.osType} ${systemMetadata.osVersion}` : unknown()} />
         <div className="border-t border-neutral-800/50" />
-        <LinkRow icon={<Monitor size={16} />} label={getString('settings_display')} value={`${window.screen.width}x${window.screen.height}`} />
+        <LinkRow icon={<Cpu size={16} />} label={getString('settings_os_family')} value={systemMetadata?.family ?? unknown()} />
+        <div className="border-t border-neutral-800/50" />
+        <LinkRow icon={<Cpu size={16} />} label={getString('settings_architecture')} value={systemMetadata?.arch ?? unknown()} />
+        <div className="border-t border-neutral-800/50" />
+        <LinkRow icon={<Globe size={16} />} label={getString('settings_locale')} value={systemMetadata?.locale ?? unknown()} />
+        <div className="border-t border-neutral-800/50" />
+        <LinkRow icon={<Monitor size={16} />} label={getString('settings_display')} value={systemMetadata?.display ?? unknown()} />
+        <div className="border-t border-neutral-800/50" />
+        <LinkRow icon={<Info size={16} />} label={getString('settings_metadata_source')} value={sourceLabel(systemMetadata?.source)} />
+        <div className="border-t border-neutral-800/50" />
+        <LinkRow icon={<Cpu size={16} />} label={getString('settings_user_agent')} value={systemMetadata?.userAgent ?? unknown()} />
       </SettingsGroup>
     </div>
   );
