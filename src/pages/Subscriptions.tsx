@@ -2,7 +2,10 @@ import React, { useMemo, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Check, ChevronDown, ChevronUp, ListChecks, Loader2, Pencil, Plus, Trash2, Upload, User } from "lucide-react";
 import { parseSubscriptionExport } from "../lib/api/youtube";
+import { SETTINGS } from "../lib/settings/schema";
 import { useSubscriptionStore } from "../store/useSubscriptionStore";
+import { useAppSettingsStore } from "../store/useAppSettingsStore";
+import { useFeedHiddenFilter } from "../store/useFeedActionsStore";
 import { getString } from "../lib/i18n/index";
 import { Button } from "../components/ui/Button";
 import { SearchInput } from "../components/ui/SearchInput";
@@ -47,6 +50,11 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ onPlay, onAddToQue
   } = useSubscriptionStore();
   const { videos, rssChannels, loading: feedLoading, error: feedError } = useSubscriptionFeed(subscriptions);
   const channelDetails = useSubscriptionChannelDetails(subscriptions);
+  const showSubscriptionVideos = useAppSettingsStore((state) => state.values[SETTINGS.SUBSCRIPTION_SHOW_VIDEOS] !== "false");
+  const showSubscriptionShorts = useAppSettingsStore((state) => state.values[SETTINGS.SUBSCRIPTION_SHOW_SHORTS] !== "false");
+  const showSubscriptionLive = useAppSettingsStore((state) => state.values[SETTINGS.SUBSCRIPTION_SHOW_LIVE] !== "false");
+  const hideWatchedVideos = useAppSettingsStore((state) => state.values[SETTINGS.HIDE_WATCHED_VIDEOS] === "true");
+  const isHidden = useFeedHiddenFilter({ hideWatched: hideWatchedVideos });
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null);
   const [selectedGroupName, setSelectedGroupName] = useState<string | null>(null);
@@ -171,6 +179,8 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ onPlay, onAddToQue
 
   const filteredVideos = useMemo(() => {
     return videos.filter((video) => {
+      if (isHidden(video)) return false;
+
       const matchesSearch = !query
         || video.title.toLowerCase().includes(query)
         || video.channelName.toLowerCase().includes(query);
@@ -180,10 +190,16 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ onPlay, onAddToQue
 
       return matchesSearch && matchesChannel && matchesGroup;
     });
-  }, [query, selectedChannelId, selectedGroup, videos]);
+  }, [isHidden, query, selectedChannelId, selectedGroup, videos]);
 
   const isShortVideo = (video: VideoSummary) => {
     return video.durationSeconds != null && video.durationSeconds > 0 && video.durationSeconds <= 60;
+  };
+
+  const isLiveVideo = (video: VideoSummary) => {
+    const published = video.publishedText?.toLowerCase() ?? "";
+    const views = video.viewCountText?.toLowerCase() ?? "";
+    return Boolean(video.isLive) || published.includes("live") || views.includes("watching");
   };
 
   const { shortsForShelf, regularVideos } = useMemo(() => {
@@ -191,19 +207,25 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ onPlay, onAddToQue
     const regular: VideoSummary[] = [];
     for (const video of filteredVideos) {
       if (isShortVideo(video)) {
-        shorts.push({
-          type: "short",
-          id: video.id,
-          title: video.title,
-          thumbnailUrl: video.thumbnailUrl ?? null,
-          viewCountText: video.viewCountText ?? null,
-        });
-      } else {
+        if (showSubscriptionShorts) {
+          shorts.push({
+            type: "short",
+            id: video.id,
+            title: video.title,
+            thumbnailUrl: video.thumbnailUrl ?? null,
+            viewCountText: video.viewCountText ?? null,
+          });
+        }
+      } else if (isLiveVideo(video)) {
+        if (showSubscriptionLive) {
+          regular.push(video);
+        }
+      } else if (showSubscriptionVideos) {
         regular.push(video);
       }
     }
     return { shortsForShelf: shorts, regularVideos: regular };
-  }, [filteredVideos]);
+  }, [filteredVideos, showSubscriptionLive, showSubscriptionShorts, showSubscriptionVideos]);
 
   const handleSelectChannel = (channel: SubscribedChannel) => {
     setSelectedChannelId((current) => current === channel.id ? null : channel.id);
@@ -303,11 +325,11 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ onPlay, onAddToQue
                     </div>
                   ) : feedLoading ? (
                     <VideoGrid loading={true} skeletonCount={10} onPlay={onPlay} />
-                  ) : filteredVideos.length > 0 ? (
+                  ) : shortsForShelf.length > 0 || regularVideos.length > 0 ? (
                     <>
                       {shortsForShelf.length > 0 && (
                         <ShortsShelf
-                          title="Shorts"
+                          title={getString("shorts")}
                           shorts={shortsForShelf}
                           onPlay={onPlay}
                         />

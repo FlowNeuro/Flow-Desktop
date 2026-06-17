@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { usePlayerStore } from "../store/usePlayerStore";
 import { useSubscriptionStore } from "../store/useSubscriptionStore";
 import { useSettingsStore } from "../store/useSettingsStore";
+import { useAppSettingsStore } from "../store/useAppSettingsStore";
 import {
   getVideoDetails,
   getChannelDetails,
@@ -25,6 +26,7 @@ import {
   WatchErrorState,
 } from "../components/watch";
 import type { RelatedContentItem, VideoSummary } from "../types/video";
+import { SETTINGS } from "../lib/settings/schema";
 
 const CommentsSection = lazy(() => import("../components/watch/CommentsSection"));
 
@@ -46,6 +48,8 @@ export function Watch() {
   const captions = usePlayerStore((s) => s.captions);
 
   const { loadSubscriptions } = useSubscriptionStore();
+  const commentsEnabled = useAppSettingsStore((state) => state.values[SETTINGS.COMMENTS_ENABLED] !== "false");
+  const relatedVideosEnabled = useAppSettingsStore((state) => state.values[SETTINGS.SHOW_RELATED_VIDEOS] !== "false");
 
   const [channelDetails, setChannelDetails] = useState<any>(null);
   const [videoDetails, setVideoDetails] = useState<any>(null);
@@ -134,6 +138,12 @@ export function Watch() {
     };
 
     const loadRelated = async () => {
+      if (!relatedVideosEnabled) {
+        setRelatedVideos([]);
+        setRelatedLoading(false);
+        return;
+      }
+
       setRelatedLoading(true);
       try {
         setRelatedVideos(await getRelatedVideos(videoId));
@@ -148,7 +158,7 @@ export function Watch() {
     void loadVideoMeta();
     void loadFossMetadata();
     void loadRelated();
-  }, [videoId, retryNonce, setDearrowData, setRydData, setSponsorBlockSegments, loadSettings]);
+  }, [videoId, retryNonce, setDearrowData, setRydData, setSponsorBlockSegments, loadSettings, relatedVideosEnabled]);
 
   const mapRelatedItemToVideoSummary = useCallback(
     (item: RelatedContentItem): VideoSummary => ({
@@ -229,11 +239,11 @@ export function Watch() {
         />
       }
       description={<DescriptionCard currentVideo={currentVideo} videoData={videoDetails} />}
-      comments={
+      comments={commentsEnabled ? (
         <Suspense fallback={<div className="h-32" />}>
           <CommentsSection videoId={videoId} />
         </Suspense>
-      }
+      ) : null}
       sidebar={
         <>
           {videoDetails?.isLive && <LiveChat videoId={videoId} />}
@@ -251,7 +261,7 @@ export function Watch() {
             </div>
           )}
 
-          <RelatedVideos items={relatedVideos} loading={relatedLoading} onSelect={handleRelatedClick} />
+          {relatedVideosEnabled && <RelatedVideos items={relatedVideos} loading={relatedLoading} onSelect={handleRelatedClick} />}
         </>
       }
     />

@@ -6,6 +6,7 @@ import { TextInput } from '../../ui/TextInput';
 import { useBoolPref, usePreference, useNumberPref } from '../../../lib/usePreference';
 import { getString } from '../../../lib/i18n/index';
 import { SETTINGS } from '../../../lib/settings/schema';
+import { isSettingDisabledUntilWired } from '../../../lib/settings/values';
 
 export function PlayerTab() {
   const [autoplay, setAutoplay] = useBoolPref(SETTINGS.AUTOPLAY_ENABLED, true);
@@ -31,7 +32,6 @@ export function PlayerTab() {
   const [miniSkip, setMiniSkip] = useBoolPref(SETTINGS.MINI_PLAYER_SHOW_SKIP_CONTROLS, false);
   const [miniNextPrev, setMiniNextPrev] = useBoolPref(SETTINGS.MINI_PLAYER_SHOW_NEXT_PREV_CONTROLS, false);
 
-  const [sliderStyle, setSliderStyle] = usePreference(SETTINGS.SLIDER_STYLE, 'DEFAULT');
   const [fullscreenTitle, setFullscreenTitle] = useBoolPref(SETTINGS.SHOW_FULLSCREEN_TITLE, false);
   const [adaptiveSize, setAdaptiveSize] = useBoolPref(SETTINGS.ADAPTIVE_PLAYER_SIZE_ENABLED, true);
 
@@ -47,14 +47,14 @@ export function PlayerTab() {
         <SettingItem title={getString('settings_loop_video')} description={getString('settings_loop_video_desc')}>
           <ToggleSwitch checked={loop} onChange={setLoop} />
         </SettingItem>
-        <SettingItem title={getString('settings_skip_silence')} description={getString('settings_skip_silence_desc')}>
-          <ToggleSwitch checked={skipSilence} onChange={setSkipSilence} />
+        <SettingItem title={getString('settings_skip_silence')} description={getString('settings_skip_silence_desc')} disabled={isSettingDisabledUntilWired(SETTINGS.SKIP_SILENCE_ENABLED)}>
+          <ToggleSwitch checked={skipSilence} onChange={setSkipSilence} disabled={isSettingDisabledUntilWired(SETTINGS.SKIP_SILENCE_ENABLED)} />
         </SettingItem>
-        <SettingItem title={getString('settings_stable_volume')} description={getString('settings_stable_volume_desc')}>
-          <ToggleSwitch checked={stableVolume} onChange={setStableVolume} />
+        <SettingItem title={getString('settings_stable_volume')} description={getString('settings_stable_volume_desc')} disabled={isSettingDisabledUntilWired(SETTINGS.STABLE_VOLUME_ENABLED)}>
+          <ToggleSwitch checked={stableVolume} onChange={setStableVolume} disabled={isSettingDisabledUntilWired(SETTINGS.STABLE_VOLUME_ENABLED)} />
         </SettingItem>
-        <SettingItem title={getString('settings_volume_boost')} description={getString('settings_volume_boost_desc')}>
-          <ToggleSwitch checked={volumeBoost} onChange={setVolumeBoost} />
+        <SettingItem title={getString('settings_volume_boost')} description={getString('settings_volume_boost_desc')} disabled={isSettingDisabledUntilWired(SETTINGS.ALLOW_VOLUME_BOOST)}>
+          <ToggleSwitch checked={volumeBoost} onChange={setVolumeBoost} disabled={isSettingDisabledUntilWired(SETTINGS.ALLOW_VOLUME_BOOST)} />
         </SettingItem>
       </SettingsGroup>
 
@@ -124,11 +124,11 @@ export function PlayerTab() {
       </SettingsGroup>
 
       <SettingsGroup title={getString('settings_group_mini_player')}>
-        <SettingItem title={getString('settings_skip_controls')} description={getString('settings_skip_controls_desc')}>
-          <ToggleSwitch checked={miniSkip} onChange={setMiniSkip} />
+        <SettingItem title={getString('settings_skip_controls')} description={getString('settings_skip_controls_desc')} disabled={isSettingDisabledUntilWired(SETTINGS.MINI_PLAYER_SHOW_SKIP_CONTROLS)}>
+          <ToggleSwitch checked={miniSkip} onChange={setMiniSkip} disabled={isSettingDisabledUntilWired(SETTINGS.MINI_PLAYER_SHOW_SKIP_CONTROLS)} />
         </SettingItem>
-        <SettingItem title={getString('settings_next_previous')} description={getString('settings_next_previous_desc')}>
-          <ToggleSwitch checked={miniNextPrev} onChange={setMiniNextPrev} />
+        <SettingItem title={getString('settings_next_previous')} description={getString('settings_next_previous_desc')} disabled={isSettingDisabledUntilWired(SETTINGS.MINI_PLAYER_SHOW_NEXT_PREV_CONTROLS)}>
+          <ToggleSwitch checked={miniNextPrev} onChange={setMiniNextPrev} disabled={isSettingDisabledUntilWired(SETTINGS.MINI_PLAYER_SHOW_NEXT_PREV_CONTROLS)} />
         </SettingItem>
       </SettingsGroup>
 
@@ -142,17 +142,11 @@ export function PlayerTab() {
       </SettingsGroup>
 
       <SettingsGroup title={getString('settings_group_player_appearance')}>
-        <SettingItem title={getString('settings_seekbar_style')}>
-          <Select value={sliderStyle} onChange={setSliderStyle} options={[
-            { value: 'DEFAULT', label: getString('settings_option_default') }, { value: 'METROLIST', label: getString('settings_seekbar_metro') },
-            { value: 'METROLIST_SLIM', label: getString('settings_seekbar_metro_slim') }, { value: 'SQUIGGLY', label: getString('settings_seekbar_squiggly') }, { value: 'SLIM', label: getString('settings_seekbar_slim') },
-          ]} />
-        </SettingItem>
         <SettingItem title={getString('settings_fullscreen_title')} description={getString('settings_fullscreen_title_desc')}>
           <ToggleSwitch checked={fullscreenTitle} onChange={setFullscreenTitle} />
         </SettingItem>
-        <SettingItem title={getString('settings_adaptive_player')} description={getString('settings_adaptive_player_desc')}>
-          <ToggleSwitch checked={adaptiveSize} onChange={setAdaptiveSize} />
+        <SettingItem title={getString('settings_adaptive_player')} description={getString('settings_adaptive_player_desc')} disabled={isSettingDisabledUntilWired(SETTINGS.ADAPTIVE_PLAYER_SIZE_ENABLED)}>
+          <ToggleSwitch checked={adaptiveSize} onChange={setAdaptiveSize} disabled={isSettingDisabledUntilWired(SETTINGS.ADAPTIVE_PLAYER_SIZE_ENABLED)} />
         </SettingItem>
       </SettingsGroup>
     </div>

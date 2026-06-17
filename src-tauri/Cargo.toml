@@ -1,10 +1,10 @@
 [package]
-name = "flow-desktop"
+name = "flow"
 version = "0.1.0"
 description = "A privacy-first, local recommendation YouTube client and companion to Flow for Android"
 authors = ["A-EDev"]
 edition = "2024"
-default-run = "flow-desktop"
+default-run = "flow"
 license = "GPL-3.0-only"
 repository = "https://github.com/A-EDev/flow-desktop"
 

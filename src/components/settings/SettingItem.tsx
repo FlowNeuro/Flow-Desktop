@@ -3,12 +3,23 @@ import type { ReactNode } from 'react';
 export interface SettingItemProps {
   title: string;
   description?: string;
+  disabled?: boolean;
   children: ReactNode;
 }
 
-export function SettingItem({ title, description, children }: SettingItemProps) {
+function cx(...parts: Array<string | false | null | undefined>): string {
+  return parts.filter(Boolean).join(' ');
+}
+
+export function SettingItem({ title, description, disabled = false, children }: SettingItemProps) {
   return (
-    <div className="flex justify-between items-center px-5 py-4 hover:bg-surface-container transition-colors duration-200 ease-out">
+    <div
+      aria-disabled={disabled}
+      className={cx(
+        'flex justify-between items-center px-5 py-4 transition-colors duration-200 ease-out',
+        disabled ? 'opacity-50' : 'hover:bg-surface-container'
+      )}
+    >
       <div className="flex-1 min-w-0 mr-4">
         <div className="text-sm font-medium text-neutral-200">{title}</div>
         {description && (

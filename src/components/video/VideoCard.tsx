@@ -8,8 +8,10 @@ import { Button } from '../ui/Button';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { getDeArrowOverride } from '../../lib/api/foss';
 import { useSettingsStore } from '../../store/useSettingsStore';
+import { useAppSettingsStore } from '../../store/useAppSettingsStore';
 import { useChannelAvatar } from '../../lib/useChannelAvatar';
 import { resolveVideoThumbnailUrl } from '../../lib/thumbnails';
+import { SETTINGS } from '../../lib/settings/schema';
 
 export interface VideoCardProps {
   video: VideoSummary;
@@ -46,6 +48,17 @@ function LiveBadge({ className }: { className?: string }) {
       Live
     </div>
   );
+}
+
+function getTitleClampStyle(maxLines: string | undefined): React.CSSProperties | undefined {
+  const lines = Number(maxLines ?? '1');
+  if (!Number.isFinite(lines) || lines <= 0) return undefined;
+  return {
+    display: '-webkit-box',
+    WebkitLineClamp: Math.max(1, Math.min(3, Math.trunc(lines))),
+    WebkitBoxOrient: 'vertical',
+    overflow: 'hidden',
+  };
 }
 
 // ─── Thumbnail Color Extraction ────────────────────────────────
@@ -134,6 +147,9 @@ export function VideoCard({
   }, [video.id, video.isLive, markLive]);
 
   const { dearrowEnabled } = useSettingsStore();
+  const titleClampStyle = getTitleClampStyle(
+    useAppSettingsStore((state) => state.values[SETTINGS.VIDEO_TITLE_MAX_LINES])
+  );
 
   const hookAvatarUrl = useChannelAvatar(isChannel ? null : channelId || null);
   const resolvedAvatarUrl = video.channelAvatarUrl || hookAvatarUrl;
@@ -415,7 +431,8 @@ export function VideoCard({
         <div className="flex min-w-0 flex-1 flex-col">
           <h3
             onClick={() => onPlay(video)}
-            className="line-clamp-2 cursor-pointer text-sm font-medium leading-snug text-neutral-100 transition-colors group-hover:text-primary"
+            style={titleClampStyle}
+            className="cursor-pointer text-sm font-medium leading-snug text-neutral-100 transition-colors group-hover:text-primary"
           >
             {displayTitle}
           </h3>
@@ -512,7 +529,8 @@ export function VideoCard({
         <div className="flex min-w-0 flex-1 flex-col">
           <h3
             onClick={() => onPlay(video)}
-            className="line-clamp-2 cursor-pointer text-sm font-medium leading-snug text-neutral-100 transition-colors hover:text-white"
+            style={titleClampStyle}
+            className="cursor-pointer text-sm font-medium leading-snug text-neutral-100 transition-colors hover:text-white"
           >
             {displayTitle}
           </h3>
@@ -638,7 +656,8 @@ export function VideoCard({
         <div className="flex flex-col flex-1 min-w-0">
           <h3
             onClick={() => onPlay(video)}
-            className="text-zinc-100 text-sm font-medium line-clamp-2 leading-snug cursor-pointer hover:text-white transition-colors"
+            style={titleClampStyle}
+            className="text-zinc-100 text-sm font-medium leading-snug cursor-pointer hover:text-white transition-colors"
           >
             {displayTitle}
           </h3>

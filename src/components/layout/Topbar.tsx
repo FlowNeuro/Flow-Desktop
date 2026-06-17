@@ -2,9 +2,11 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Bell, Menu, Search, Settings } from 'lucide-react';
 import { useUiStore } from '../../store/useUiStore';
+import { useAppSettingsStore } from '../../store/useAppSettingsStore';
 import Logo from '../common/Logo';
 import { IconButton } from '../ui/IconButton';
 import { getSearchSuggestions } from '../../lib/api/youtube';
+import { SETTINGS } from '../../lib/settings/schema';
 
 export function Topbar() {
   const { toggleSidebar, toggleWatchSidebar, setSearchQuery } = useUiStore();
@@ -15,6 +17,7 @@ export function Topbar() {
   const location = useLocation();
   const suggestionRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const showAppLogo = useAppSettingsStore((state) => state.values[SETTINGS.SHOW_APP_LOGO_ICON] !== 'false');
 
   useEffect(() => {
     const handleOutsideClick = (e: MouseEvent) => {
@@ -74,9 +77,11 @@ export function Topbar() {
         <IconButton onClick={(location.pathname.startsWith('/watch/') || location.pathname.startsWith('/settings')) ? toggleWatchSidebar : toggleSidebar}>
           <Menu />
         </IconButton>
-        <div className="cursor-pointer" onClick={() => navigate('/')}>
-          <Logo size={36} showText={true} />
-        </div>
+        {showAppLogo && (
+          <div className="cursor-pointer" onClick={() => navigate('/')}>
+            <Logo size={36} showText={true} />
+          </div>
+        )}
         <div className="hidden ml-1 items-center sm:flex">
           <IconButton
             title="Back"

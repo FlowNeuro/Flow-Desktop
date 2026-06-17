@@ -5,6 +5,7 @@ import { Select } from '../../ui/Select';
 import { useBoolPref, usePreference, useNumberPref } from '../../../lib/usePreference';
 import { getString } from '../../../lib/i18n/index';
 import { SETTINGS } from '../../../lib/settings/schema';
+import { isSettingDisabledUntilWired } from '../../../lib/settings/values';
 
 const REGION_OPTIONS = [
   { value: 'DZ', label: 'Algeria' }, { value: 'AR', label: 'Argentina' }, { value: 'AU', label: 'Australia' },
@@ -46,7 +47,6 @@ const REGION_OPTIONS = [
 ];
 
 export function ContentTab() {
-  const [gridSize, setGridSize] = usePreference(SETTINGS.GRID_ITEM_SIZE, 'BIG');
   const [titleMaxLines, setTitleMaxLines] = useNumberPref(SETTINGS.VIDEO_TITLE_MAX_LINES, 1);
   const [downloadDialogStyle, setDownloadDialogStyle] = usePreference(SETTINGS.DOWNLOAD_DIALOG_STYLE, 'FULL');
   const [homeFeed, setHomeFeed] = useBoolPref(SETTINGS.HOME_FEED_ENABLED, true);
@@ -55,16 +55,11 @@ export function ContentTab() {
   const [homeShortsShelf, setHomeShortsShelf] = useBoolPref(SETTINGS.HOME_SHORTS_SHELF_ENABLED, true);
   const [continueWatching, setContinueWatching] = useBoolPref(SETTINGS.CONTINUE_WATCHING_ENABLED, true);
   const [comments, setComments] = useBoolPref(SETTINGS.COMMENTS_ENABLED, true);
-  const [commentsPreview, setCommentsPreview] = useBoolPref(SETTINGS.COMMENTS_PREVIEW_ENABLED, true);
   const [relatedVideos, setRelatedVideos] = useBoolPref(SETTINGS.SHOW_RELATED_VIDEOS, true);
   const [hideWatched, setHideWatched] = useBoolPref(SETTINGS.HIDE_WATCHED_VIDEOS, false);
   const [disableShorts, setDisableShorts] = useBoolPref(SETTINGS.DISABLE_SHORTS_PLAYER, false);
-  const [cardActions, setCardActions] = useBoolPref(SETTINGS.VIDEO_CARD_ACTIONS_ENABLED, false);
-  const [markWatched, setMarkWatched] = useBoolPref(SETTINGS.VIDEO_CARD_MARK_WATCHED_ENABLED, false);
-  const [relatedCardStyle, setRelatedCardStyle] = usePreference(SETTINGS.RELATED_CARD_STYLE, 'FULL_WIDTH');
   const [shortsNav, setShortsNav] = useBoolPref(SETTINGS.SHORTS_NAVIGATION_ENABLED, true);
   const [musicNav, setMusicNav] = useBoolPref(SETTINGS.MUSIC_NAVIGATION_ENABLED, true);
-  const [searchTab, setSearchTab] = useBoolPref(SETTINGS.SEARCH_NAV_TAB_ENABLED, false);
   const [categoriesTab, setCategoriesTab] = useBoolPref(SETTINGS.CATEGORIES_NAV_TAB_ENABLED, false);
   const [subsRefresh, setSubsRefresh] = useBoolPref(SETTINGS.SUBSCRIPTION_REFRESH_ON_STARTUP, false);
   const [subsShowVideos, setSubsShowVideos] = useBoolPref(SETTINGS.SUBSCRIPTION_SHOW_VIDEOS, true);
@@ -76,57 +71,47 @@ export function ContentTab() {
   return (
     <div className="space-y-6 pb-8">
       <SettingsGroup title={getString('settings_group_layout')}>
-        <SettingItem title={getString('settings_music_grid_scale')} description={getString('settings_music_grid_scale_desc')}>
-          <Select value={gridSize} onChange={setGridSize} options={[{ value: 'BIG', label: getString('settings_option_large') }, { value: 'SMALL', label: getString('settings_option_compact') }]} />
-        </SettingItem>
-        <SettingItem title={getString('settings_video_title_lines')} description={getString('settings_video_title_lines_desc')}>
-          <Select value={String(titleMaxLines)} onChange={(v) => setTitleMaxLines(Number(v))} options={[
+        <SettingItem title={getString('settings_video_title_lines')} description={getString('settings_video_title_lines_desc')} disabled={isSettingDisabledUntilWired(SETTINGS.VIDEO_TITLE_MAX_LINES)}>
+          <Select value={String(titleMaxLines)} onChange={(v) => setTitleMaxLines(Number(v))} disabled={isSettingDisabledUntilWired(SETTINGS.VIDEO_TITLE_MAX_LINES)} options={[
             { value: '0', label: getString('settings_option_unlimited') }, { value: '1', label: getString('settings_option_one_line') }, { value: '2', label: getString('settings_option_two_lines') }, { value: '3', label: getString('settings_option_three_lines') },
           ]} />
         </SettingItem>
-        <SettingItem title={getString('settings_download_dialog')} description={getString('settings_download_dialog_desc')}>
-          <Select value={downloadDialogStyle} onChange={setDownloadDialogStyle} options={[{ value: 'FULL', label: getString('settings_option_full') }, { value: 'COMPACT', label: getString('settings_option_compact') }]} />
-        </SettingItem>
-        <SettingItem title={getString('settings_related_style')}>
-          <Select value={relatedCardStyle} onChange={setRelatedCardStyle} options={[{ value: 'FULL_WIDTH', label: getString('settings_option_full_width') }, { value: 'COMPACT', label: getString('settings_option_compact') }]} />
+        <SettingItem title={getString('settings_download_dialog')} description={getString('settings_download_dialog_desc')} disabled={isSettingDisabledUntilWired(SETTINGS.DOWNLOAD_DIALOG_STYLE)}>
+          <Select value={downloadDialogStyle} onChange={setDownloadDialogStyle} disabled={isSettingDisabledUntilWired(SETTINGS.DOWNLOAD_DIALOG_STYLE)} options={[{ value: 'FULL', label: getString('settings_option_full') }, { value: 'COMPACT', label: getString('settings_option_compact') }]} />
         </SettingItem>
       </SettingsGroup>
 
       <SettingsGroup title={getString('settings_group_feed')}>
-        <SettingItem title={getString('settings_home_feed')} description={getString('settings_home_feed_desc')}><ToggleSwitch checked={homeFeed} onChange={setHomeFeed} /></SettingItem>
-        <SettingItem title={getString('settings_app_logo')} description={getString('settings_app_logo_desc')}><ToggleSwitch checked={appLogo} onChange={setAppLogo} /></SettingItem>
-        <SettingItem title={getString('settings_shorts_shelf')} description={getString('settings_shorts_shelf_desc')}><ToggleSwitch checked={shortsShelf} onChange={setShortsShelf} /></SettingItem>
-        <SettingItem title={getString('settings_home_shorts_shelf')} description={getString('settings_home_shorts_shelf_desc')}><ToggleSwitch checked={homeShortsShelf} onChange={setHomeShortsShelf} /></SettingItem>
-        <SettingItem title={getString('settings_continue_watching')} description={getString('settings_continue_watching_desc')}><ToggleSwitch checked={continueWatching} onChange={setContinueWatching} /></SettingItem>
+        <SettingItem title={getString('settings_home_feed')} description={getString('settings_home_feed_desc')} disabled={isSettingDisabledUntilWired(SETTINGS.HOME_FEED_ENABLED)}><ToggleSwitch checked={homeFeed} onChange={setHomeFeed} disabled={isSettingDisabledUntilWired(SETTINGS.HOME_FEED_ENABLED)} /></SettingItem>
+        <SettingItem title={getString('settings_app_logo')} description={getString('settings_app_logo_desc')} disabled={isSettingDisabledUntilWired(SETTINGS.SHOW_APP_LOGO_ICON)}><ToggleSwitch checked={appLogo} onChange={setAppLogo} disabled={isSettingDisabledUntilWired(SETTINGS.SHOW_APP_LOGO_ICON)} /></SettingItem>
+        <SettingItem title={getString('settings_shorts_shelf')} description={getString('settings_shorts_shelf_desc')} disabled={isSettingDisabledUntilWired(SETTINGS.SHORTS_SHELF_ENABLED)}><ToggleSwitch checked={shortsShelf} onChange={setShortsShelf} disabled={isSettingDisabledUntilWired(SETTINGS.SHORTS_SHELF_ENABLED)} /></SettingItem>
+        <SettingItem title={getString('settings_home_shorts_shelf')} description={getString('settings_home_shorts_shelf_desc')} disabled={isSettingDisabledUntilWired(SETTINGS.HOME_SHORTS_SHELF_ENABLED)}><ToggleSwitch checked={homeShortsShelf} onChange={setHomeShortsShelf} disabled={isSettingDisabledUntilWired(SETTINGS.HOME_SHORTS_SHELF_ENABLED)} /></SettingItem>
+        <SettingItem title={getString('settings_continue_watching')} description={getString('settings_continue_watching_desc')} disabled={isSettingDisabledUntilWired(SETTINGS.CONTINUE_WATCHING_ENABLED)}><ToggleSwitch checked={continueWatching} onChange={setContinueWatching} disabled={isSettingDisabledUntilWired(SETTINGS.CONTINUE_WATCHING_ENABLED)} /></SettingItem>
       </SettingsGroup>
 
       <SettingsGroup title={getString('settings_group_content')}>
-        <SettingItem title={getString('settings_comments')} description={getString('settings_comments_desc')}><ToggleSwitch checked={comments} onChange={setComments} /></SettingItem>
-        <SettingItem title={getString('settings_comment_preview')} description={getString('settings_comment_preview_desc')}><ToggleSwitch checked={commentsPreview} onChange={setCommentsPreview} /></SettingItem>
-        <SettingItem title={getString('settings_related_videos')} description={getString('settings_related_videos_desc')}><ToggleSwitch checked={relatedVideos} onChange={setRelatedVideos} /></SettingItem>
-        <SettingItem title={getString('settings_hide_watched')} description={getString('settings_hide_watched_desc')}><ToggleSwitch checked={hideWatched} onChange={setHideWatched} /></SettingItem>
-        <SettingItem title={getString('settings_disable_shorts_player')} description={getString('settings_disable_shorts_player_desc')}><ToggleSwitch checked={disableShorts} onChange={setDisableShorts} /></SettingItem>
-        <SettingItem title={getString('settings_card_actions')} description={getString('settings_card_actions_desc')}><ToggleSwitch checked={cardActions} onChange={setCardActions} /></SettingItem>
-        <SettingItem title={getString('settings_mark_watched')} description={getString('settings_mark_watched_desc')}><ToggleSwitch checked={markWatched} onChange={setMarkWatched} /></SettingItem>
+        <SettingItem title={getString('settings_comments')} description={getString('settings_comments_desc')} disabled={isSettingDisabledUntilWired(SETTINGS.COMMENTS_ENABLED)}><ToggleSwitch checked={comments} onChange={setComments} disabled={isSettingDisabledUntilWired(SETTINGS.COMMENTS_ENABLED)} /></SettingItem>
+        <SettingItem title={getString('settings_related_videos')} description={getString('settings_related_videos_desc')} disabled={isSettingDisabledUntilWired(SETTINGS.SHOW_RELATED_VIDEOS)}><ToggleSwitch checked={relatedVideos} onChange={setRelatedVideos} disabled={isSettingDisabledUntilWired(SETTINGS.SHOW_RELATED_VIDEOS)} /></SettingItem>
+        <SettingItem title={getString('settings_hide_watched')} description={getString('settings_hide_watched_desc')} disabled={isSettingDisabledUntilWired(SETTINGS.HIDE_WATCHED_VIDEOS)}><ToggleSwitch checked={hideWatched} onChange={setHideWatched} disabled={isSettingDisabledUntilWired(SETTINGS.HIDE_WATCHED_VIDEOS)} /></SettingItem>
+        <SettingItem title={getString('settings_disable_shorts_player')} description={getString('settings_disable_shorts_player_desc')} disabled={isSettingDisabledUntilWired(SETTINGS.DISABLE_SHORTS_PLAYER)}><ToggleSwitch checked={disableShorts} onChange={setDisableShorts} disabled={isSettingDisabledUntilWired(SETTINGS.DISABLE_SHORTS_PLAYER)} /></SettingItem>
       </SettingsGroup>
 
       <SettingsGroup title={getString('settings_group_nav_tabs')}>
-        <SettingItem title={getString('settings_shorts_tab')}><ToggleSwitch checked={shortsNav} onChange={setShortsNav} /></SettingItem>
-        <SettingItem title={getString('settings_music_tab')}><ToggleSwitch checked={musicNav} onChange={setMusicNav} /></SettingItem>
-        <SettingItem title={getString('settings_search_tab')} description={getString('settings_search_tab_desc')}><ToggleSwitch checked={searchTab} onChange={setSearchTab} /></SettingItem>
-        <SettingItem title={getString('settings_categories_tab')} description={getString('settings_categories_tab_desc')}><ToggleSwitch checked={categoriesTab} onChange={setCategoriesTab} /></SettingItem>
+        <SettingItem title={getString('settings_shorts_tab')} disabled={isSettingDisabledUntilWired(SETTINGS.SHORTS_NAVIGATION_ENABLED)}><ToggleSwitch checked={shortsNav} onChange={setShortsNav} disabled={isSettingDisabledUntilWired(SETTINGS.SHORTS_NAVIGATION_ENABLED)} /></SettingItem>
+        <SettingItem title={getString('settings_music_tab')} disabled={isSettingDisabledUntilWired(SETTINGS.MUSIC_NAVIGATION_ENABLED)}><ToggleSwitch checked={musicNav} onChange={setMusicNav} disabled={isSettingDisabledUntilWired(SETTINGS.MUSIC_NAVIGATION_ENABLED)} /></SettingItem>
+        <SettingItem title={getString('settings_categories_tab')} description={getString('settings_categories_tab_desc')} disabled={isSettingDisabledUntilWired(SETTINGS.CATEGORIES_NAV_TAB_ENABLED)}><ToggleSwitch checked={categoriesTab} onChange={setCategoriesTab} disabled={isSettingDisabledUntilWired(SETTINGS.CATEGORIES_NAV_TAB_ENABLED)} /></SettingItem>
       </SettingsGroup>
 
       <SettingsGroup title={getString('settings_group_subscriptions')}>
-        <SettingItem title={getString('settings_refresh_startup')} description={getString('settings_refresh_startup_desc')}><ToggleSwitch checked={subsRefresh} onChange={setSubsRefresh} /></SettingItem>
-        <SettingItem title={getString('settings_show_videos')}><ToggleSwitch checked={subsShowVideos} onChange={setSubsShowVideos} /></SettingItem>
-        <SettingItem title={getString('settings_show_shorts')}><ToggleSwitch checked={subsShowShorts} onChange={setSubsShowShorts} /></SettingItem>
-        <SettingItem title={getString('settings_show_live')}><ToggleSwitch checked={subsShowLive} onChange={setSubsShowLive} /></SettingItem>
+        <SettingItem title={getString('settings_refresh_startup')} description={getString('settings_refresh_startup_desc')} disabled={isSettingDisabledUntilWired(SETTINGS.SUBSCRIPTION_REFRESH_ON_STARTUP)}><ToggleSwitch checked={subsRefresh} onChange={setSubsRefresh} disabled={isSettingDisabledUntilWired(SETTINGS.SUBSCRIPTION_REFRESH_ON_STARTUP)} /></SettingItem>
+        <SettingItem title={getString('settings_show_videos')} disabled={isSettingDisabledUntilWired(SETTINGS.SUBSCRIPTION_SHOW_VIDEOS)}><ToggleSwitch checked={subsShowVideos} onChange={setSubsShowVideos} disabled={isSettingDisabledUntilWired(SETTINGS.SUBSCRIPTION_SHOW_VIDEOS)} /></SettingItem>
+        <SettingItem title={getString('settings_show_shorts')} disabled={isSettingDisabledUntilWired(SETTINGS.SUBSCRIPTION_SHOW_SHORTS)}><ToggleSwitch checked={subsShowShorts} onChange={setSubsShowShorts} disabled={isSettingDisabledUntilWired(SETTINGS.SUBSCRIPTION_SHOW_SHORTS)} /></SettingItem>
+        <SettingItem title={getString('settings_show_live')} disabled={isSettingDisabledUntilWired(SETTINGS.SUBSCRIPTION_SHOW_LIVE)}><ToggleSwitch checked={subsShowLive} onChange={setSubsShowLive} disabled={isSettingDisabledUntilWired(SETTINGS.SUBSCRIPTION_SHOW_LIVE)} /></SettingItem>
       </SettingsGroup>
 
       <SettingsGroup title={getString('settings_group_region')}>
-        <SettingItem title={getString('settings_region_picker')} description={getString('settings_region_picker_desc')}><ToggleSwitch checked={regionPicker} onChange={setRegionPicker} /></SettingItem>
-        <SettingItem title={getString('settings_trending_region')}><Select value={trendingRegion} onChange={setTrendingRegion} options={REGION_OPTIONS} /></SettingItem>
+        <SettingItem title={getString('settings_region_picker')} description={getString('settings_region_picker_desc')} disabled={isSettingDisabledUntilWired(SETTINGS.SHOW_REGION_PICKER_IN_EXPLORE)}><ToggleSwitch checked={regionPicker} onChange={setRegionPicker} disabled={isSettingDisabledUntilWired(SETTINGS.SHOW_REGION_PICKER_IN_EXPLORE)} /></SettingItem>
+        <SettingItem title={getString('settings_trending_region')} disabled={isSettingDisabledUntilWired(SETTINGS.TRENDING_REGION)}><Select value={trendingRegion} onChange={setTrendingRegion} options={REGION_OPTIONS} disabled={isSettingDisabledUntilWired(SETTINGS.TRENDING_REGION)} /></SettingItem>
       </SettingsGroup>
     </div>
   );

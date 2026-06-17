@@ -18,6 +18,11 @@ export const getSettingDefinition = (key: SettingKey): SettingDefinition =>
     throw new Error(`Unknown setting key: ${key}`);
   })();
 
+export const isSettingDisabledUntilWired = (key: SettingKey): boolean => {
+  const definition = getSettingDefinition(key);
+  return definition.readiness === "deferred" || definition.readiness === "persisted-only";
+};
+
 const isAllowedString = (definition: SettingDefinition, value: string) =>
   !definition.allowedValues || definition.allowedValues.includes(value);
 

@@ -18,7 +18,10 @@ import {
 } from "../lib/api/recommendation";
 import type { FeedQuotas } from "../lib/api/recommendation";
 import { useFeedActionsStore, useFeedHiddenFilter } from "../store/useFeedActionsStore";
+import { useAppSettingsStore } from "../store/useAppSettingsStore";
 import { getSetting, setSetting, getWatchHistory } from "../lib/api/db";
+import { getString } from "../lib/i18n/index";
+import { SETTINGS } from "../lib/settings/schema";
 import type { VideoSummary } from "../types/video";
 import type { WatchHistoryRecord } from "../types/db";
 import { VideoGrid } from "../components/video/VideoGrid";
@@ -107,7 +110,9 @@ const loadPersistedDiscoverFeed = async (): Promise<VideoSummary[] | null> => {
 export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
   const [activeTab] = useState<"discover" | "trending">("discover");
   const [videos, setVideos] = useState<VideoSummary[]>([]);
-  const isHidden = useFeedHiddenFilter();
+  const homeFeedEnabled = useAppSettingsStore((state) => state.values[SETTINGS.HOME_FEED_ENABLED] !== "false");
+  const hideWatchedVideos = useAppSettingsStore((state) => state.values[SETTINGS.HIDE_WATCHED_VIDEOS] === "true");
+  const isHidden = useFeedHiddenFilter({ hideWatched: hideWatchedVideos });
   const [loading, setLoading] = useState(true);
   const [, setRefreshing] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -118,7 +123,6 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
   const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null);
   const loadingMoreRef = useRef(false);
   const initialDiscoverHydratingRef = useRef(false);
-  const didRequestInitialFeedRef = useRef(false);
   const videosRef = useRef<VideoSummary[]>([]);
   const loadMoreBackoffUntilRef = useRef(0);
   const loadMoreMissesRef = useRef(0);
@@ -292,7 +296,7 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
       if (!isValidFeedVideo(video)) {
         return false;
       }
-      return !watchedIds.has(video.id);
+      return !hideWatchedVideos || !watchedIds.has(video.id);
     });
   };
 
@@ -769,6 +773,7 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
       activeTab !== "discover" ||
       loadingMoreRef.current ||
       initialDiscoverHydratingRef.current ||
+      !homeFeedEnabled ||
       loadingMore ||
       loading ||
       !hasMoreDiscover
@@ -1082,6 +1087,16 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
   };
 
   const fetchFeed = async (isRefresh = false) => {
+    if (!homeFeedEnabled) {
+      requestSequenceRef.current += 1;
+      setVideos([]);
+      videosRef.current = [];
+      setLoading(false);
+      setRefreshing(false);
+      setLoadingMore(false);
+      return;
+    }
+
     const requestId = ++requestSequenceRef.current;
     let renderedInitialFeed = false;
     initialDiscoverHydratingRef.current = activeTab === "discover";
@@ -1424,12 +1439,18 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
   }, [videos]);
 
   useEffect(() => {
-    if (didRequestInitialFeedRef.current) {
+    if (!homeFeedEnabled) {
+      requestSequenceRef.current += 1;
+      initialDiscoverHydratingRef.current = false;
+      setVideos([]);
+      videosRef.current = [];
+      setLoading(false);
+      setLoadingMore(false);
       return;
     }
-    didRequestInitialFeedRef.current = true;
+
     void fetchFeed();
-  }, [activeTab]);
+  }, [activeTab, homeFeedEnabled, hideWatchedVideos]);
 
   useEffect(() => {
     if (loading || videos.length === 0) {
@@ -1457,6 +1478,7 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
   useEffect(() => {
     if (
       activeTab !== "discover" ||
+      !homeFeedEnabled ||
       loading ||
       loadingMore ||
       !hasMoreDiscover ||
@@ -1487,10 +1509,10 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
 
     observer.observe(target);
     return () => observer.disconnect();
-  }, [activeTab, hasMoreDiscover, loading, loadingMore, videos.length]);
+  }, [activeTab, hasMoreDiscover, homeFeedEnabled, loading, loadingMore, videos.length]);
 
   useEffect(() => {
-    if (activeTab !== "discover" || loading || loadingMore || videos.length > 0) {
+    if (activeTab !== "discover" || !homeFeedEnabled || loading || loadingMore || videos.length > 0) {
       return;
     }
 
@@ -1499,7 +1521,7 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
     }, 500);
 
     return () => window.clearTimeout(retry);
-  }, [activeTab, loading, loadingMore, videos.length]);
+  }, [activeTab, homeFeedEnabled, loading, loadingMore, videos.length]);
 
   const handlePlayVideo = async (video: VideoSummary) => {
     onPlay(video);
@@ -1526,7 +1548,14 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
   return (
     <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-8 py-6 space-y-6">
       {/* Grid List layout */}
-      {loading ? (
+      {!homeFeedEnabled ? (
+        <div className="flex flex-col items-center justify-center py-24 text-center border border-dashed border-zinc-800 rounded-3xl p-8 bg-zinc-900/10">
+          <h3 className="font-bold text-zinc-300">{getString("home_feed_disabled_title")}</h3>
+          <p className="text-zinc-500 text-xs mt-1 max-w-sm">
+            {getString("home_feed_disabled_body")}
+          </p>
+        </div>
+      ) : loading ? (
         <VideoGrid loading={true} onPlay={handlePlayVideo} />
       ) : visibleVideos.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-24 text-center border border-dashed border-zinc-800 rounded-3xl p-8 bg-zinc-900/10">

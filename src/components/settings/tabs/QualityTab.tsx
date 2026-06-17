@@ -4,6 +4,7 @@ import { Select } from '../../ui/Select';
 import { usePreference } from '../../../lib/usePreference';
 import { getString } from '../../../lib/i18n/index';
 import { SETTINGS } from '../../../lib/settings/schema';
+import { isSettingDisabledUntilWired } from '../../../lib/settings/values';
 
 const QUALITY_OPTIONS = [
   { value: 'Auto', label: getString('quality_auto') }, { value: '2160p', label: '2160p (4K)' },
@@ -67,14 +68,14 @@ export function QualityTab() {
       </SettingsGroup>
 
       <SettingsGroup title={getString('settings_group_shorts_quality')}>
-        <SettingItem title={getString('settings_shorts_resolution')} description={getString('settings_shorts_resolution_desc')}>
-          <Select value={shortsQuality} onChange={setShortsQuality} options={QUALITY_OPTIONS} />
+        <SettingItem title={getString('settings_shorts_resolution')} description={getString('settings_shorts_resolution_desc')} disabled={isSettingDisabledUntilWired(SETTINGS.SHORTS_QUALITY_WIFI)}>
+          <Select value={shortsQuality} onChange={setShortsQuality} options={QUALITY_OPTIONS} disabled={isSettingDisabledUntilWired(SETTINGS.SHORTS_QUALITY_WIFI)} />
         </SettingItem>
       </SettingsGroup>
 
       <SettingsGroup title={getString('settings_group_audio')}>
-        <SettingItem title={getString('settings_music_audio_quality')} description={getString('settings_music_audio_quality_desc')}>
-          <Select value={audioQuality} onChange={setAudioQuality} options={[
+        <SettingItem title={getString('settings_music_audio_quality')} description={getString('settings_music_audio_quality_desc')} disabled={isSettingDisabledUntilWired(SETTINGS.MUSIC_AUDIO_QUALITY)}>
+          <Select value={audioQuality} onChange={setAudioQuality} disabled={isSettingDisabledUntilWired(SETTINGS.MUSIC_AUDIO_QUALITY)} options={[
             { value: 'Auto', label: getString('quality_auto') }, { value: 'High', label: getString('settings_option_high') },
             { value: 'Medium', label: getString('settings_option_medium') }, { value: 'Low', label: getString('settings_option_low') },
           ]} />

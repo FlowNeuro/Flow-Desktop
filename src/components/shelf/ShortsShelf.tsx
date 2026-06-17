@@ -1,6 +1,8 @@
 import React, { useRef, useState, useEffect } from "react";
 import { ChevronLeft, ChevronRight, Play } from "lucide-react";
 import type { ShortVideoSummary, VideoSummary } from "../../types/video";
+import { useAppSettingsStore } from "../../store/useAppSettingsStore";
+import { SETTINGS } from "../../lib/settings/schema";
 
 interface ShortsShelfProps {
   title: string;
@@ -13,6 +15,7 @@ export const ShortsShelf: React.FC<ShortsShelfProps> = ({
   shorts,
   onPlay,
 }) => {
+  const shortsShelfEnabled = useAppSettingsStore((state) => state.values[SETTINGS.SHORTS_SHELF_ENABLED] !== "false");
   const scrollRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
@@ -67,7 +70,7 @@ export const ShortsShelf: React.FC<ShortsShelfProps> = ({
     onPlay(summary);
   };
 
-  if (!shorts || shorts.length === 0) return null;
+  if (!shortsShelfEnabled || !shorts || shorts.length === 0) return null;
 
   return (
     <div className="relative group/shelf flex flex-col gap-4 py-4 border-b border-zinc-900 last:border-0">

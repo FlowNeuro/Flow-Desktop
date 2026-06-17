@@ -174,16 +174,16 @@ export const useFeedActionsStore = create<FeedActionsState>((set, get) => {
 
 /// Reactive predicate for feeds: true when a video should be hidden (dismissed, watched, or its
 /// channel blocked). Subscribes to the sets so feeds re-filter the instant an action fires.
-export function useFeedHiddenFilter() {
+export function useFeedHiddenFilter({ hideWatched = true }: { hideWatched?: boolean } = {}) {
   const dismissed = useFeedActionsStore((s) => s.dismissedVideoIds);
   const blocked = useFeedActionsStore((s) => s.blockedChannelIds);
   const watched = useFeedActionsStore((s) => s.watchedVideoIds);
   return useCallback(
     (video: VideoSummary) => {
-      if (dismissed.has(video.id) || watched.has(video.id)) return true;
+      if (dismissed.has(video.id) || (hideWatched && watched.has(video.id))) return true;
       const channelId = video.channelId ?? "";
       return channelId.length > 0 && blocked.has(channelId);
     },
-    [dismissed, blocked, watched],
+    [dismissed, blocked, watched, hideWatched],
   );
 }

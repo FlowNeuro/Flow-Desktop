@@ -7,6 +7,7 @@ import { TextInput } from '../../ui/TextInput';
 import { useBoolPref, usePreference, useNumberPref } from '../../../lib/usePreference';
 import { getString } from '../../../lib/i18n/index';
 import { SETTINGS } from '../../../lib/settings/schema';
+import { isSettingDisabledUntilWired } from '../../../lib/settings/values';
 
 export function NetworkTab() {
   const [bufferProfile, setBufferProfile] = usePreference(SETTINGS.BUFFER_PROFILE, 'STABLE');
@@ -65,8 +66,8 @@ export function NetworkTab() {
       )}
 
       <SettingsGroup title={getString('settings_group_cache')}>
-        <SettingItem title={getString('settings_media_cache_limit')} description={getString('settings_media_cache_limit_desc')}>
-          <Select value={String(cacheSize)} onChange={(v) => setCacheSize(Number(v))} options={[
+        <SettingItem title={getString('settings_media_cache_limit')} description={getString('settings_media_cache_limit_desc')} disabled={isSettingDisabledUntilWired(SETTINGS.MEDIA_CACHE_SIZE_MB)}>
+          <Select value={String(cacheSize)} onChange={(v) => setCacheSize(Number(v))} disabled={isSettingDisabledUntilWired(SETTINGS.MEDIA_CACHE_SIZE_MB)} options={[
             { value: '100', label: '100 MB' }, { value: '200', label: '200 MB' }, { value: '500', label: '500 MB' },
             { value: '1000', label: '1 GB' }, { value: '2000', label: '2 GB' }, { value: '0', label: getString('settings_option_unlimited') },
           ]} />
@@ -74,27 +75,27 @@ export function NetworkTab() {
       </SettingsGroup>
 
       <SettingsGroup title={getString('settings_group_proxy')}>
-        <SettingItem title={getString('settings_enable_proxy')} description={getString('settings_enable_proxy_desc')}>
-          <ToggleSwitch checked={proxyEnabled} onChange={setProxyEnabled} />
+        <SettingItem title={getString('settings_enable_proxy')} description={getString('settings_enable_proxy_desc')} disabled={isSettingDisabledUntilWired(SETTINGS.PROXY_ENABLED)}>
+          <ToggleSwitch checked={proxyEnabled} onChange={setProxyEnabled} disabled={isSettingDisabledUntilWired(SETTINGS.PROXY_ENABLED)} />
         </SettingItem>
         {proxyEnabled && (
           <>
-            <SettingItem title={getString('settings_proxy_protocol')}>
-              <Select value={proxyType} onChange={setProxyType} options={[
+            <SettingItem title={getString('settings_proxy_protocol')} disabled={isSettingDisabledUntilWired(SETTINGS.PROXY_TYPE)}>
+              <Select value={proxyType} onChange={setProxyType} disabled={isSettingDisabledUntilWired(SETTINGS.PROXY_TYPE)} options={[
                 { value: 'http', label: 'HTTP' }, { value: 'socks5', label: 'SOCKS5' }, { value: 'socks4', label: 'SOCKS4' },
               ]} />
             </SettingItem>
-            <SettingItem title={getString('settings_proxy_host')}>
-              <TextInput value={localHost} onChange={setLocalHost} onBlur={() => setProxyHost(localHost)} placeholder="127.0.0.1" className="w-48" />
+            <SettingItem title={getString('settings_proxy_host')} disabled={isSettingDisabledUntilWired(SETTINGS.PROXY_HOST)}>
+              <TextInput value={localHost} onChange={setLocalHost} onBlur={() => setProxyHost(localHost)} placeholder="127.0.0.1" className="w-48" disabled={isSettingDisabledUntilWired(SETTINGS.PROXY_HOST)} />
             </SettingItem>
-            <SettingItem title={getString('settings_proxy_port')}>
-              <TextInput value={localPort} onChange={setLocalPort} onBlur={() => setProxyPort(localPort)} placeholder="8080" className="w-24" />
+            <SettingItem title={getString('settings_proxy_port')} disabled={isSettingDisabledUntilWired(SETTINGS.PROXY_PORT)}>
+              <TextInput value={localPort} onChange={setLocalPort} onBlur={() => setProxyPort(localPort)} placeholder="8080" className="w-24" disabled={isSettingDisabledUntilWired(SETTINGS.PROXY_PORT)} />
             </SettingItem>
-            <SettingItem title={getString('settings_proxy_username')} description={getString('settings_proxy_username_desc')}>
-              <TextInput value={proxyUser} onChange={setProxyUser} placeholder={getString('settings_proxy_username')} className="w-48" />
+            <SettingItem title={getString('settings_proxy_username')} description={getString('settings_proxy_username_desc')} disabled={isSettingDisabledUntilWired(SETTINGS.PROXY_USERNAME)}>
+              <TextInput value={proxyUser} onChange={setProxyUser} placeholder={getString('settings_proxy_username')} className="w-48" disabled={isSettingDisabledUntilWired(SETTINGS.PROXY_USERNAME)} />
             </SettingItem>
-            <SettingItem title={getString('settings_proxy_password')}>
-              <TextInput value={proxyPass} onChange={setProxyPass} placeholder={getString('settings_proxy_password')} type="password" className="w-48" />
+            <SettingItem title={getString('settings_proxy_password')} disabled={isSettingDisabledUntilWired(SETTINGS.PROXY_PASSWORD)}>
+              <TextInput value={proxyPass} onChange={setProxyPass} placeholder={getString('settings_proxy_password')} type="password" className="w-48" disabled={isSettingDisabledUntilWired(SETTINGS.PROXY_PASSWORD)} />
             </SettingItem>
           </>
         )}

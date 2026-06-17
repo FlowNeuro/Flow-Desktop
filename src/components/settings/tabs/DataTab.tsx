@@ -13,6 +13,7 @@ import { confirmAction, pickSaveFile } from '../../../lib/dialogs';
 import { isTauriEnv } from '../../../lib/api/env';
 import { getString } from '../../../lib/i18n/index';
 import { SETTINGS } from '../../../lib/settings/schema';
+import { isSettingDisabledUntilWired } from '../../../lib/settings/values';
 import { useUiStore } from '../../../store/useUiStore';
 
 export function DataTab() {
@@ -82,8 +83,8 @@ export function DataTab() {
   return (
     <div className="space-y-6 pb-8">
       <SettingsGroup title={getString('settings_group_auto_backup')}>
-        <SettingItem title={getString('settings_backup_frequency')} description={getString('settings_backup_frequency_desc')}>
-          <Select value={backupFrequency} onChange={setBackupFrequency} options={[
+        <SettingItem title={getString('settings_backup_frequency')} description={getString('settings_backup_frequency_desc')} disabled={isSettingDisabledUntilWired(SETTINGS.AUTO_BACKUP_FREQUENCY)}>
+          <Select value={backupFrequency} onChange={setBackupFrequency} disabled={isSettingDisabledUntilWired(SETTINGS.AUTO_BACKUP_FREQUENCY)} options={[
             { value: 'NONE', label: getString('settings_option_disabled') }, { value: 'DAILY', label: getString('settings_backup_daily') },
             { value: 'WEEKLY', label: getString('settings_backup_weekly') }, { value: 'MONTHLY', label: getString('settings_backup_monthly') },
           ]} />
