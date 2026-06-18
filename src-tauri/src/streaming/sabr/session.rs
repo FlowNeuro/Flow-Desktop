@@ -3,8 +3,7 @@
 use std::collections::{HashMap, HashSet};
 
 use super::messages::{
-    BufferedRange, ClientAbrState, ClientInfo, FormatId, SabrContext, StreamerContext, TimeRange,
-    VideoPlaybackAbrRequest,
+    ClientAbrState, ClientInfo, FormatId, SabrContext, StreamerContext, VideoPlaybackAbrRequest,
 };
 use super::selector::SelectedFormats;
 use super::ClientProfile;
@@ -116,39 +115,14 @@ impl SabrState {
         }
     }
 
-    fn buffered_range_for(&self, track: &TrackState) -> Option<BufferedRange> {
-        if track.max_segment < 0 {
-            return None;
-        }
-        Some(BufferedRange {
-            format_id: track.format_id.clone(),
-            start_time_ms: 0,
-            duration_ms: track.downloaded_ms,
-            start_segment_index: 0,
-            end_segment_index: track.max_segment,
-            time_range: Some(TimeRange {
-                start_ticks: 0,
-                duration_ticks: track.downloaded_ms,
-                timescale: 1000,
-            }),
-        })
-    }
 
-    // A buffered range that tells the server "this track is fully buffered" —
-    // used to discard video in audio-only mode.
-    fn discard_range(track: &TrackState) -> BufferedRange {
-        BufferedRange {
-            format_id: track.format_id.clone(),
-            start_time_ms: 0,
-            duration_ms: i64::from(i32::MAX),
-            start_segment_index: i32::MAX,
-            end_segment_index: i32::MAX,
-            time_range: Some(TimeRange {
-                start_ticks: 0,
-                duration_ticks: i64::from(i32::MAX),
-                timescale: 1000,
-            }),
+    fn effective_player_time(&self) -> i64 {
+        let audio = self.audio.downloaded_ms;
+        match self.mode {
+            RequestMode::AudioVideo => audio.min(self.video.downloaded_ms),
+            RequestMode::AudioOnly => audio,
         }
+        .max(self.playhead_ms)
     }
 
     // Build the next `VideoPlaybackAbrRequest` from current state.
@@ -182,32 +156,29 @@ impl SabrState {
             unsent_sabr_contexts: Vec::new(),
         };
 
-        let mut buffered_ranges = Vec::new();
         let mut selected_format_ids = Vec::new();
 
         match self.mode {
             RequestMode::AudioVideo => {
-                selected_format_ids.push(self.video.format_id.clone());
-                selected_format_ids.push(self.audio.format_id.clone());
-                if let Some(r) = self.buffered_range_for(&self.audio) {
-                    buffered_ranges.push(r);
+                if self.video.initialized {
+                    selected_format_ids.push(self.video.format_id.clone());
                 }
-                if let Some(r) = self.buffered_range_for(&self.video) {
-                    buffered_ranges.push(r);
+                if self.audio.initialized {
+                    selected_format_ids.push(self.audio.format_id.clone());
                 }
             }
             RequestMode::AudioOnly => {
-                selected_format_ids.push(self.video.format_id.clone());
-                selected_format_ids.push(self.audio.format_id.clone());
-                if let Some(r) = self.buffered_range_for(&self.audio) {
-                    buffered_ranges.push(r);
+                if self.audio.initialized {
+                    selected_format_ids.push(self.audio.format_id.clone());
                 }
-                buffered_ranges.push(Self::discard_range(&self.video));
             }
         }
+        let want_video = self.mode == RequestMode::AudioVideo;
+
+        let player_time = self.effective_player_time();
 
         let client_abr_state = ClientAbrState {
-            player_time_ms: self.playhead_ms,
+            player_time_ms: player_time,
             bandwidth_estimate: self.bandwidth_estimate,
             visibility: 0,
             playback_rate: 1.0,
@@ -224,11 +195,15 @@ impl SabrState {
         VideoPlaybackAbrRequest {
             client_abr_state,
             selected_format_ids,
-            buffered_ranges,
-            player_time_ms: self.playhead_ms,
+            buffered_ranges: Vec::new(),
+            player_time_ms: player_time,
             video_playback_ustreamer_config: self.ustreamer_config.clone(),
             preferred_audio_format_ids: vec![self.audio.format_id.clone()],
-            preferred_video_format_ids: vec![self.video.format_id.clone()],
+            preferred_video_format_ids: if want_video {
+                vec![self.video.format_id.clone()]
+            } else {
+                Vec::new()
+            },
             streamer_context,
         }
     }
@@ -320,7 +295,20 @@ impl SabrState {
         }
     }
 
+    // Switch the active audio format (language). Resets only audio progress so the
+    // next request re-initializes and fetches the new track; video is untouched.
+    pub fn set_audio_format(&mut self, format_id: FormatId, mime_type: String) {
+        self.audio = TrackState::new(format_id, mime_type);
+    }
+
+    pub fn seek_audio_to(&mut self, target_ms: i64) {
+        self.playhead_ms = target_ms.max(0);
+        self.audio.max_segment = -1;
+        self.audio.downloaded_ms = target_ms.max(0);
+    }
+
     // Seek: reset progress so the next request starts fetching at `target_ms`.
+    #[allow(dead_code)]
     pub fn seek_to(&mut self, target_ms: i64) {
         self.playhead_ms = target_ms.max(0);
         self.audio.max_segment = -1;
@@ -342,26 +330,21 @@ mod tests {
             audio: SabrFormat {
                 itag: 251,
                 last_modified: 100,
-                xtags: None,
                 mime_type: "audio/webm; codecs=\"opus\"".into(),
                 bitrate: 140_000,
-                width: 0,
-                height: 0,
-                fps: 0,
-                approx_duration_ms: 0,
                 is_audio: true,
+                ..Default::default()
             },
             video: SabrFormat {
                 itag: 137,
                 last_modified: 200,
-                xtags: None,
                 mime_type: "video/mp4; codecs=\"avc1.640028\"".into(),
                 bitrate: 4_000_000,
                 width: 1920,
                 height: 1080,
                 fps: 30,
-                approx_duration_ms: 0,
                 is_audio: false,
+                ..Default::default()
             },
         }
     }
@@ -388,13 +371,19 @@ mod tests {
         let encoded = state.build_request().encode();
         let counts = count_top_fields(&encoded);
         assert_eq!(counts.get(&3).copied().unwrap_or(0), 0, "no buffered_ranges initially");
-        assert_eq!(counts.get(&2).copied().unwrap_or(0), 2, "two selected formats");
+        assert_eq!(
+            counts.get(&2).copied().unwrap_or(0),
+            0,
+            "no selected formats until initialized"
+        );
+        assert_eq!(counts.get(&16).copied().unwrap_or(0), 1, "preferred audio format");
+        assert_eq!(counts.get(&17).copied().unwrap_or(0), 1, "preferred video format");
         assert!(counts.contains_key(&5), "ustreamer config present");
         assert!(counts.contains_key(&19), "streamer context present");
     }
 
     #[test]
-    fn followup_reports_buffered_ranges() {
+    fn never_reports_buffered_ranges_and_advances_playhead() {
         let mut state = SabrState::new(
             "https://example/sabr".into(),
             &selected(),
@@ -405,13 +394,15 @@ mod tests {
         );
         state.record_segment(true, 0, 0, 5000);
         state.record_segment(false, 0, 0, 5000);
-        let encoded = state.build_request().encode();
-        let counts = count_top_fields(&encoded);
-        assert_eq!(counts.get(&3).copied().unwrap_or(0), 2, "two buffered ranges");
+        let req = state.build_request();
+        assert!(req.buffered_ranges.is_empty(), "buffered_ranges always empty");
+        assert_eq!(req.player_time_ms, 5000, "playhead follows downloaded duration");
+        let counts = count_top_fields(&req.encode());
+        assert_eq!(counts.get(&3).copied().unwrap_or(0), 0, "no buffered_ranges on the wire");
     }
 
     #[test]
-    fn audio_only_discards_video() {
+    fn audio_only_requests_audio_only() {
         let mut state = SabrState::new(
             "https://example/sabr".into(),
             &selected(),
@@ -422,8 +413,9 @@ mod tests {
         );
         state.record_segment(true, 0, 0, 5000);
         let req = state.build_request();
-        // audio range + discard video range = 2 ranges
-        assert_eq!(req.buffered_ranges.len(), 2);
+        assert!(req.buffered_ranges.is_empty());
+        assert!(req.preferred_video_format_ids.is_empty());
+        assert_eq!(req.preferred_audio_format_ids.len(), 1);
         assert_eq!(req.client_abr_state.enabled_track_types_bitfield, Some(1));
     }
 

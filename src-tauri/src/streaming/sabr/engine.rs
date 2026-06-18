@@ -8,7 +8,7 @@
 //! a timeout) for the bytes to arrive while nudging the loop forward.
 
 use std::collections::BTreeMap;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -21,10 +21,17 @@ use super::messages::{
     FormatInitializationMetadata, MediaHeader, NextRequestPolicy, SabrContextSendingPolicy,
     SabrContextUpdate, SabrError as SabrErrorMsg, SabrRedirect, StreamProtectionStatus,
 };
-use super::selector::SelectedFormats;
+use super::messages::FormatId;
+use super::selector::{derive_audio_tracks, SabrAudioTrack, SelectedFormats};
 use super::session::{RequestMode, SabrState};
 use super::ump::{self, UmpParser};
 use super::{SabrError, SabrResult, SabrSessionDescriptor, SabrTrack};
+
+const SABR_STREAM_IDLE: Duration = Duration::from_millis(2500);
+
+// How many times we re-mint the PO token and retry when the server escalates to
+// ATTESTATION_REQUIRED before giving up on the session.
+const MAX_ATTESTATION_REFRESHES: u32 = 3;
 
 #[derive(Debug, Clone)]
 pub struct SabrEngineConfig {
@@ -147,6 +154,9 @@ pub struct SabrEngine {
     pub session_id: String,
     pub descriptor: SabrSessionDescriptor,
     selected: SelectedFormats,
+    audio_tracks: Vec<SabrAudioTrack>,
+    active_audio_key: Mutex<String>,
+    active_audio_itag: AtomicI32,
     config: SabrEngineConfig,
     client: reqwest::Client,
     state: Mutex<SabrState>,
@@ -157,6 +167,7 @@ pub struct SabrEngine {
     cancelled: AtomicBool,
     started: AtomicBool,
     request_counter: AtomicU64,
+    restart_request: AtomicBool,
 }
 
 impl SabrEngine {
@@ -167,7 +178,7 @@ impl SabrEngine {
         config: SabrEngineConfig,
     ) -> Self {
         let po_token = descriptor.po_token.as_ref().and_then(|t| decode_b64_loose(t));
-        let state = SabrState::new(
+        let mut state = SabrState::new(
             descriptor.server_abr_streaming_url.clone(),
             &selected,
             descriptor.ustreamer_config.clone(),
@@ -175,6 +186,24 @@ impl SabrEngine {
             descriptor.client_profile.clone(),
             config.mode,
         );
+
+        // Per-language audio tracks; the default (or first) is initially active.
+        let audio_tracks = derive_audio_tracks(&descriptor.formats);
+        let initial = audio_tracks
+            .iter()
+            .find(|t| t.is_default)
+            .or_else(|| audio_tracks.first());
+        let (active_key, active_itag) = match initial {
+            Some(t) => {
+                state.set_audio_format(
+                    FormatId::new(t.format.itag, t.format.last_modified, t.format.xtags.clone()),
+                    t.format.mime_type.clone(),
+                );
+                (t.key.clone(), t.format.itag)
+            }
+            None => (String::new(), selected.audio.itag),
+        };
+
         let client = reqwest::Client::builder()
             .pool_idle_timeout(Duration::from_secs(60))
             .build()
@@ -184,6 +213,9 @@ impl SabrEngine {
             session_id,
             descriptor,
             selected,
+            audio_tracks,
+            active_audio_key: Mutex::new(active_key),
+            active_audio_itag: AtomicI32::new(active_itag),
             config,
             client,
             state: Mutex::new(state),
@@ -198,6 +230,7 @@ impl SabrEngine {
             cancelled: AtomicBool::new(false),
             started: AtomicBool::new(false),
             request_counter: AtomicU64::new(0),
+            restart_request: AtomicBool::new(false),
         }
     }
 
@@ -231,6 +264,7 @@ impl SabrEngine {
     async fn run(self: Arc<Self>) {
         info!(session = %self.session_id, video = %self.descriptor.video_id, "sabr_session_created");
         let mut consecutive_errors: u32 = 0;
+        let mut attestation_refreshes: u32 = 0;
 
         loop {
             if self.is_cancelled() {
@@ -254,6 +288,29 @@ impl SabrEngine {
                     if !should_continue {
                         break;
                     }
+                }
+                // The server grants a short grace window then demands fresh
+                // attestation. Re-mint the PO token and retry rather than killing
+                // the session (mirrors the reference client's refresh-on-required).
+                Err(SabrError::AttestationRequired)
+                    if attestation_refreshes < MAX_ATTESTATION_REFRESHES =>
+                {
+                    attestation_refreshes += 1;
+                    let refreshed = self.refresh_po_token().await;
+                    warn!(
+                        session = %self.session_id,
+                        attempt = attestation_refreshes,
+                        refreshed,
+                        "sabr_attestation_refresh"
+                    );
+                    if !refreshed {
+                        let mut store = self.store.lock().await;
+                        store.last_error = Some(SabrError::AttestationRequired);
+                        self.notify_data.notify_waiters();
+                        break;
+                    }
+                    tokio::time::sleep(Duration::from_millis(300)).await;
+                    continue;
                 }
                 Err(err) => {
                     warn!(session = %self.session_id, code = err.code(), error = %err, "sabr_error");
@@ -333,11 +390,38 @@ impl SabrEngine {
         let mut accums: std::collections::HashMap<u32, Vec<u8>> = std::collections::HashMap::new();
         let mut stream = resp.bytes_stream();
 
-        while let Some(chunk) = stream.next().await {
+        let mut chunk_count = 0u64;
+        let mut byte_count = 0u64;
+        loop {
+            let over_cap = { self.store.lock().await.bytes_used > self.config.max_buffer_bytes };
+            if over_cap {
+                debug!(session = %self.session_id, rn, byte_count, "sabr_buffer_full");
+                break;
+            }
+            // An audio-language switch ends this cycle so the next one re-requests
+            // with the newly-selected track.
+            if self.restart_request.swap(false, Ordering::SeqCst) {
+                debug!(session = %self.session_id, rn, "sabr_restart_for_audio_switch");
+                break;
+            }
+            let next = tokio::time::timeout(SABR_STREAM_IDLE, stream.next()).await;
+            let chunk = match next {
+                Ok(Some(chunk)) => chunk,
+                Ok(None) => {
+                    debug!(session = %self.session_id, rn, chunk_count, byte_count, "sabr_stream_eof");
+                    break;
+                }
+                Err(_) => {
+                    debug!(session = %self.session_id, rn, chunk_count, byte_count, "sabr_idle_break");
+                    break;
+                }
+            };
             if self.is_cancelled() {
                 return Ok(false);
             }
             let chunk = chunk.map_err(|_| SabrError::RemoteReset)?;
+            chunk_count += 1;
+            byte_count += chunk.len() as u64;
             parser.push(&chunk);
             while let Some(part) = parser.next_part() {
                 if let Some(action) = self
@@ -353,6 +437,11 @@ impl SabrEngine {
         }
 
         let done = { self.state.lock().await.both_complete() };
+        debug!(
+            session = %self.session_id,
+            rn, byte_count, done,
+            "sabr_request_stream_ended"
+        );
         if done {
             return Ok(false);
         }
@@ -564,7 +653,106 @@ impl SabrEngine {
     }
 
     fn track_itags(&self) -> (i32, i32) {
-        (self.selected.audio.itag, self.selected.video.itag)
+        (
+            self.active_audio_itag.load(Ordering::Relaxed),
+            self.selected.video.itag,
+        )
+    }
+
+    // The selectable audio languages for this session (for manifest generation).
+    pub fn audio_tracks(&self) -> &[SabrAudioTrack] {
+        &self.audio_tracks
+    }
+
+    // Re-mint the PO token (bound to the session visitor data) and install it for
+    // subsequent requests. Returns whether a token was obtained.
+    async fn refresh_po_token(&self) -> bool {
+        let binding = self
+            .descriptor
+            .visitor_data
+            .clone()
+            .filter(|v| !v.is_empty())
+            .unwrap_or_else(|| self.descriptor.video_id.clone());
+        match crate::api::innertube::core::botguard::generate_po_token(&binding).await {
+            Some(token) => match decode_b64_loose(&token) {
+                Some(bytes) => {
+                    self.state.lock().await.po_token = Some(bytes);
+                    true
+                }
+                None => false,
+            },
+            None => false,
+        }
+    }
+
+    // Switch the active audio language. Resets audio progress + buffer so the new
+    // track re-initializes; video is untouched. No-op if `key` is already active
+    // or unknown. Returns whether `key` is a known track.
+    pub async fn set_active_audio(&self, key: &str) -> bool {
+        let Some(track) = self.audio_tracks.iter().find(|t| t.key == key).cloned() else {
+            return false;
+        };
+        {
+            let mut cur = self.active_audio_key.lock().await;
+            if *cur == key {
+                return true;
+            }
+            *cur = key.to_string();
+        }
+        self.active_audio_itag
+            .store(track.format.itag, Ordering::Relaxed);
+        {
+            let mut st = self.state.lock().await;
+            st.set_audio_format(
+                FormatId::new(
+                    track.format.itag,
+                    track.format.last_modified,
+                    track.format.xtags.clone(),
+                ),
+                track.format.mime_type.clone(),
+            );
+        }
+        {
+            let mut store = self.store.lock().await;
+            let freed = store.audio.init.as_ref().map_or(0, Vec::len)
+                + store.audio.segments.values().map(Vec::len).sum::<usize>();
+            store.audio = TrackBuffer::new();
+            store.bytes_used = store.bytes_used.saturating_sub(freed);
+        }
+        self.restart_request.store(true, Ordering::SeqCst);
+        info!(session = %self.session_id, key, itag = track.format.itag, "sabr_audio_switched");
+        self.notify_demand.notify_one();
+        true
+    }
+
+    pub async fn ensure_audio_segment(&self, segment: i32) {
+        let (needs_seek, seg_dur) = {
+            let store = self.store.lock().await;
+            let a = &store.audio;
+            let have = a.segments.contains_key(&segment);
+            let far_ahead = segment > a.max_seq.saturating_add(4) || (a.max_seq < 0 && segment > 2);
+            let seg_dur = if a.end_seq > 0 && a.total_ms > 0 {
+                a.total_ms / a.end_seq
+            } else if self.descriptor.duration_ms > 0 {
+                // Fall back to the audio segment cadence from the descriptor duration.
+                (self.descriptor.duration_ms as i64 / 300).max(1000)
+            } else {
+                5000
+            };
+            (!have && far_ahead, seg_dur)
+        };
+        if needs_seek {
+            let target = i64::from(segment.saturating_sub(1)).max(0) * seg_dur;
+            {
+                let mut st = self.state.lock().await;
+                st.seek_audio_to(target);
+            }
+            // Interrupt the in-flight cycle so the next request fetches from the
+            // seek target instead of continuing the sequential stream.
+            self.restart_request.store(true, Ordering::SeqCst);
+            debug!(session = %self.session_id, segment, target_ms = target, "sabr_audio_seek");
+            self.notify_demand.notify_one();
+        }
     }
 
     // --- consumer API ---------------------------------------------------------

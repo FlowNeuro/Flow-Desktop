@@ -3,7 +3,7 @@
 // build. Made for maximum compatibility (MP4/H.264 video, Opus/AAC
 // audio) unless the frontend tells us a richer codec is supported and stable.
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct SabrFormat {
     pub itag: i32,
     pub last_modified: u64,
@@ -15,6 +15,9 @@ pub struct SabrFormat {
     pub fps: u64,
     pub approx_duration_ms: u64,
     pub is_audio: bool,
+    pub audio_track_id: Option<String>,
+    pub audio_track_name: Option<String>,
+    pub audio_is_default: bool,
 }
 
 impl SabrFormat {
@@ -80,6 +83,109 @@ impl CodecSupport {
 pub struct SelectedFormats {
     pub audio: SabrFormat,
     pub video: SabrFormat,
+}
+
+#[derive(Debug, Clone)]
+pub struct SabrAudioTrack {
+    pub key: String,
+    pub lang: String,
+    pub label: String,
+    pub is_default: bool,
+    pub format: SabrFormat,
+}
+
+fn lang_from_track_id(id: &str) -> String {
+    id.rsplit_once('.').map(|(pre, _)| pre).unwrap_or(id).to_string()
+}
+
+fn sanitize_key(s: &str) -> String {
+    s.chars()
+        .map(|c| if c.is_ascii_alphanumeric() || c == '-' { c.to_ascii_lowercase() } else { '-' })
+        .collect()
+}
+
+fn lang_label(code: &str) -> String {
+    let base = code.split('-').next().unwrap_or(code);
+    let name = match base {
+        "en" => "English", "ar" => "Arabic", "bn" => "Bengali", "zh" => "Chinese",
+        "fr" => "French", "de" => "German", "hi" => "Hindi", "id" => "Indonesian",
+        "it" => "Italian", "ja" => "Japanese", "ko" => "Korean", "ml" => "Malayalam",
+        "mr" => "Marathi", "pl" => "Polish", "pa" => "Punjabi", "ru" => "Russian",
+        "es" => "Spanish", "ta" => "Tamil", "te" => "Telugu", "th" => "Thai",
+        "tr" => "Turkish", "vi" => "Vietnamese", "pt" => "Portuguese", "nl" => "Dutch",
+        "uk" => "Ukrainian", "ro" => "Romanian", "hu" => "Hungarian", "cs" => "Czech",
+        _ => return code.to_string(),
+    };
+    name.to_string()
+}
+
+pub fn derive_audio_tracks(formats: &[SabrFormat]) -> Vec<SabrAudioTrack> {
+    use std::collections::HashMap;
+    let mut by_lang: HashMap<String, SabrFormat> = HashMap::new();
+    let mut order: Vec<String> = Vec::new();
+
+    for f in formats.iter().filter(|f| f.is_audio) {
+        let lang = match f.audio_track_id.as_deref() {
+            Some(id) if !id.is_empty() => lang_from_track_id(id),
+            _ => "und".to_string(),
+        };
+        let better = |a: &SabrFormat, b: &SabrFormat| {
+            let rank = |x: &SabrFormat| PREFERRED_AUDIO_ITAGS.iter().position(|i| *i == x.itag);
+            match (rank(a), rank(b)) {
+                (Some(ra), Some(rb)) => ra <= rb,
+                (Some(_), None) => true,
+                (None, Some(_)) => false,
+                (None, None) => a.bitrate >= b.bitrate,
+            }
+        };
+        match by_lang.get(&lang) {
+            Some(existing) if better(existing, f) => {}
+            _ => {
+                if !by_lang.contains_key(&lang) {
+                    order.push(lang.clone());
+                }
+                by_lang.insert(lang.clone(), f.clone());
+            }
+        }
+    }
+
+    let mut tracks: Vec<SabrAudioTrack> = order
+        .into_iter()
+        .map(|lang| {
+            let format = by_lang.remove(&lang).unwrap();
+            let is_default = format.audio_is_default;
+            let label = format
+                .audio_track_name
+                .clone()
+                .filter(|s| !s.is_empty())
+                .unwrap_or_else(|| {
+                    if is_default {
+                        format!("{} (original)", lang_label(&lang))
+                    } else {
+                        lang_label(&lang)
+                    }
+                });
+            SabrAudioTrack {
+                key: sanitize_key(&lang),
+                label,
+                lang: lang.clone(),
+                is_default,
+                format,
+            }
+        })
+        .collect();
+
+    // De-duplicate keys (two langs sanitizing to the same key) by suffixing.
+    let mut seen = std::collections::HashSet::new();
+    for (idx, t) in tracks.iter_mut().enumerate() {
+        if !seen.insert(t.key.clone()) {
+            t.key = format!("{}-{idx}", t.key);
+            seen.insert(t.key.clone());
+        }
+    }
+
+    tracks.sort_by(|a, b| b.is_default.cmp(&a.is_default).then_with(|| a.label.cmp(&b.label)));
+    tracks
 }
 
 // Preferred audio itags, best first: Opus/WebM (251/250/249) then AAC (140/141).
@@ -180,28 +286,23 @@ mod tests {
         SabrFormat {
             itag,
             last_modified: 1,
-            xtags: None,
             mime_type: mime.into(),
             bitrate,
-            width: 0,
-            height: 0,
-            fps: 0,
-            approx_duration_ms: 0,
             is_audio: true,
+            ..Default::default()
         }
     }
     fn video(itag: i32, mime: &str, height: u64, bitrate: u64) -> SabrFormat {
         SabrFormat {
             itag,
             last_modified: 1,
-            xtags: None,
             mime_type: mime.into(),
             bitrate,
             width: height * 16 / 9,
             height,
             fps: 30,
-            approx_duration_ms: 0,
             is_audio: false,
+            ..Default::default()
         }
     }
 

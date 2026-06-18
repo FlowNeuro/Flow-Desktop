@@ -949,30 +949,40 @@ export const FlowPlayerControls: React.FC<FlowPlayerControlsProps> = ({
                 Original audio
               </div>
             ) : (
-              audioTracks.map((track) => (
-                <button
-                  key={track.id}
-                  type="button"
-                  onClick={() => {
-                    setSelectedAudioTrackId(track.id);
-                    setSettingsPane("root");
-                  }}
-                  className="flex min-h-10 w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-sm font-medium hover:bg-white/10"
-                >
-                  <span className="text-left">
-                    {track.label}
-                    {track.languageCode && (
-                      <span className="ml-1 text-xs text-zinc-400">
-                        {track.languageCode}
-                      </span>
+              audioTracks.map((track) => {
+                const unavailable = track.available === false;
+                return (
+                  <button
+                    key={track.id}
+                    type="button"
+                    disabled={unavailable}
+                    title={unavailable ? "This audio track isn't available for this video" : undefined}
+                    onClick={() => {
+                      if (unavailable) return;
+                      setSelectedAudioTrackId(track.id);
+                      setSettingsPane("root");
+                    }}
+                    className={`flex min-h-10 w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-sm font-medium ${
+                      unavailable ? "cursor-not-allowed opacity-40" : "hover:bg-white/10"
+                    }`}
+                  >
+                    <span className="text-left">
+                      {track.label}
+                      {track.languageCode && (
+                        <span className="ml-1 text-xs text-zinc-400">
+                          {track.languageCode}
+                        </span>
+                      )}
+                    </span>
+                    {unavailable ? (
+                      <span className="text-xs text-zinc-500">Unavailable</span>
+                    ) : (
+                      (selectedAudioTrackId === track.id ||
+                        (!selectedAudioTrackId && track.isDefault)) && <Check size={17} />
                     )}
-                  </span>
-                  {(selectedAudioTrackId === track.id ||
-                    (!selectedAudioTrackId && track.isDefault)) && (
-                    <Check size={17} />
-                  )}
-                </button>
-              ))
+                  </button>
+                );
+              })
             )}
           </div>
         )}

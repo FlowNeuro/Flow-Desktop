@@ -52,6 +52,36 @@ Access-Control-Allow-Methods: GET, HEAD, OPTIONS\r\n\
 Access-Control-Allow-Headers: Range, Content-Type, Origin, Accept\r\n\
 Access-Control-Expose-Headers: Content-Length, Content-Range, Accept-Ranges\r\n";
 
+// Per-client media User-Agents. googlevideo validates that the UA fetching a
+// stream matches the client (`c=`) that minted the URL; a mismatch (e.g. a web
+// UA on a `c=IOS` URL) is a known cause of 403s.
+const MEDIA_UA_ANDROID_VR: &str = "com.google.android.apps.youtube.vr.oculus/1.61.48 (Linux; U; Android 12; en_US; Quest 3; Build/SQ3A.220605.009.A1; Cronet/132.0.6808.3)";
+const MEDIA_UA_IOS: &str =
+    "com.google.ios.youtube/19.29.1 (iPhone14,5; U; CPU iOS 17_5_1 like Mac OS X; en_US)";
+const MEDIA_UA_ANDROID: &str = "com.google.android.youtube/19.29.37 (Linux; U; Android 14) gzip";
+const MEDIA_UA_WEB: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+
+// Resolve the upstream User-Agent from a googlevideo URL's `c=` client param,
+// mirroring the mobile player's `YouTubeHttpDataSource.resolveYouTubeUserAgent`.
+// Falls back to the session UA when the URL carries no recognizable `c=` (e.g.
+// manifest/caption proxy URLs).
+fn user_agent_for_media_url(url: &str, fallback: &str) -> String {
+    let client = reqwest::Url::parse(url).ok().and_then(|parsed| {
+        parsed
+            .query_pairs()
+            .find(|(key, _)| key == "c")
+            .map(|(_, value)| value.into_owned())
+    });
+    match client.as_deref() {
+        Some("ANDROID_VR") => MEDIA_UA_ANDROID_VR.to_string(),
+        Some("IOS") => MEDIA_UA_IOS.to_string(),
+        Some("ANDROID") | Some("ANDROID_CREATOR") => MEDIA_UA_ANDROID.to_string(),
+        Some("WEB") | Some("MWEB") | Some("WEB_REMIX") | Some("WEB_CREATOR")
+        | Some("TVHTML5") | Some("TVHTML5_SIMPLY_EMBEDDED_PLAYER") => MEDIA_UA_WEB.to_string(),
+        _ => fallback.to_string(),
+    }
+}
+
 impl StreamingManager {
     pub fn new() -> (Self, std::net::TcpListener) {
         let listener =
@@ -192,25 +222,31 @@ struct RequestHead {
     // Path + query as received.
     target: String,
     range: Option<String>,
+    content_length: Option<usize>,
 }
 
 fn find_header_end(buf: &[u8]) -> Option<usize> {
     buf.windows(4).position(|w| w == b"\r\n\r\n")
 }
 
-async fn read_request_head(socket: &mut TcpStream) -> std::io::Result<Option<RequestHead>> {
+// Returns the parsed head plus any body bytes already read past the header
+// terminator (so a POST body can be drained by the caller).
+async fn read_request_head(
+    socket: &mut TcpStream,
+) -> std::io::Result<Option<(RequestHead, Vec<u8>)>> {
     let mut buf = Vec::with_capacity(2048);
     let mut tmp = [0u8; 4096];
     loop {
         if let Some(end) = find_header_end(&buf) {
-            return Ok(parse_head(&buf[..end]));
+            let leftover = buf[end + 4..].to_vec();
+            return Ok(parse_head(&buf[..end]).map(|head| (head, leftover)));
         }
         if buf.len() > MAX_HEADER_BYTES {
             return Ok(None);
         }
         let n = socket.read(&mut tmp).await?;
         if n == 0 {
-            return Ok(parse_head(&buf));
+            return Ok(parse_head(&buf).map(|head| (head, Vec::new())));
         }
         buf.extend_from_slice(&tmp[..n]);
     }
@@ -225,10 +261,14 @@ fn parse_head(bytes: &[u8]) -> Option<RequestHead> {
     let target = parts.next()?.to_string();
 
     let mut range = None;
+    let mut content_length = None;
     for line in lines {
         if let Some((name, value)) = line.split_once(':') {
-            if name.trim().eq_ignore_ascii_case("range") {
+            let name = name.trim();
+            if name.eq_ignore_ascii_case("range") {
                 range = Some(value.trim().to_string());
+            } else if name.eq_ignore_ascii_case("content-length") {
+                content_length = value.trim().parse::<usize>().ok();
             }
         }
     }
@@ -236,6 +276,7 @@ fn parse_head(bytes: &[u8]) -> Option<RequestHead> {
         method,
         target,
         range,
+        content_length,
     })
 }
 
@@ -355,8 +396,8 @@ async fn handle_connection(
     manager: StreamingManager,
     client: reqwest::Client,
 ) -> std::io::Result<()> {
-    let head = match read_request_head(&mut socket).await? {
-        Some(h) => h,
+    let (head, body_prefix) = match read_request_head(&mut socket).await? {
+        Some(value) => value,
         None => {
             write_status_only(&mut socket, 400, "Bad Request", "Malformed request").await?;
             return Ok(());
@@ -367,7 +408,9 @@ async fn handle_connection(
     if method == "OPTIONS" {
         return write_options(&mut socket).await;
     }
-    if method != "GET" && method != "HEAD" {
+    // POST is permitted for the in-page extraction sink (`/ytresult`); media
+    // routes ignore the body and behave as GET.
+    if method != "GET" && method != "HEAD" && method != "POST" {
         write_status_only(&mut socket, 405, "Method Not Allowed", "Unsupported method").await?;
         return Ok(());
     }
@@ -381,6 +424,66 @@ async fn handle_connection(
         }
     };
     let path = request_url.path().to_string();
+
+    // WebView poToken minter (see api::innertube::core::webview_pot). `/potmint`
+    // serves the in-browser mint page; `/potresult` receives the minted token.
+    if path == "/potmint" {
+        return write_full_body(
+            &mut socket,
+            "text/html; charset=utf-8",
+            "no-store",
+            crate::api::innertube::core::webview_pot::MINT_PAGE_HTML.as_bytes(),
+            head_only,
+        )
+        .await;
+    }
+    if path == "/potresult" {
+        let query: HashMap<String, String> = request_url
+            .query_pairs()
+            .map(|(key, value)| (key.into_owned(), value.into_owned()))
+            .collect();
+        if let Some(id) = query.get("id") {
+            crate::api::innertube::core::webview_pot::resolve_from_query(
+                id,
+                query.get("poToken").map(String::as_str),
+                query.get("ttl").and_then(|value| value.parse::<u64>().ok()),
+                query.get("error").map(String::as_str),
+            );
+        }
+        return write_full_body(&mut socket, "text/plain", "no-store", b"ok", head_only).await;
+    }
+    // In-page WebView player-response exfil (see webview_player). The youtube.com
+    // page POSTs its ytInitialPlayerResponse here (its CSP has no connect-src, so
+    // a cross-origin fetch to the loopback proxy is allowed).
+    if path == "/ytresult" {
+        let id = request_url
+            .query_pairs()
+            .find(|(key, _)| key == "id")
+            .map(|(_, value)| value.into_owned());
+        let want = head.content_length.unwrap_or(0);
+        let mut body = body_prefix;
+        while body.len() < want {
+            let mut tmp = [0u8; 16384];
+            let n = socket.read(&mut tmp).await.unwrap_or(0);
+            if n == 0 {
+                break;
+            }
+            body.extend_from_slice(&tmp[..n]);
+        }
+        if let Some(id) = id {
+            crate::api::innertube::core::webview_player::resolve(
+                &id,
+                &String::from_utf8_lossy(&body),
+            );
+        }
+        return write_full_body(&mut socket, "text/plain", "no-store", b"ok", head_only).await;
+    }
+    if path == "/ytdiag" {
+        if let Some((_, msg)) = request_url.query_pairs().find(|(key, _)| key == "msg") {
+            info!(msg = %msg, "yt extract diag");
+        }
+        return write_full_body(&mut socket, "text/plain", "no-store", b"ok", head_only).await;
+    }
 
     if path.starts_with("/sabr/") {
         return handle_sabr_route(&mut socket, &manager, &path, head_only).await;
@@ -468,6 +571,9 @@ async fn relay_remote(
     head_only: bool,
 ) -> std::io::Result<()> {
     let (range_start, range_end) = parse_range_spec(client_range);
+    // Match the fetch UA to the URL's `c=` client (mobile parity); the target URL
+    // is stable across recovery attempts, so resolve it once.
+    let upstream_user_agent = user_agent_for_media_url(target_url, &session.user_agent);
     let range_key = match (range_start, range_end) {
         (s, Some(e)) => format!("{s}-{e}"),
         (s, None) if client_range.is_some() => format!("{s}-"),
@@ -505,7 +611,7 @@ async fn relay_remote(
 
         let mut req = client
             .get(target_url)
-            .header("User-Agent", &session.user_agent)
+            .header("User-Agent", &upstream_user_agent)
             .header("Accept-Encoding", "identity");
         if let Some(rh) = &range_header {
             req = req.header("Range", rh);
@@ -528,6 +634,15 @@ async fn relay_remote(
             let status = response.status();
             status_code_value = status.as_u16();
             reason_value = status.canonical_reason().unwrap_or("OK").to_string();
+            if !status.is_success() && !status.is_redirection() {
+                warn!(
+                    status = status.as_u16(),
+                    range = ?range_header,
+                    ua = %upstream_user_agent,
+                    url = %target_url,
+                    "Upstream rejected stream relay"
+                );
+            }
             let headers = response.headers();
             content_type_value = headers
                 .get("Content-Type")
@@ -628,7 +743,7 @@ async fn relay_remote(
                     warn!(
                         "Upstream stream chunk error after {bytes_relayed} bytes (attempt {attempt}): {e}"
                     );
-                    cached_body = None; 
+                    cached_body = None;
                     break;
                 }
             }
@@ -721,6 +836,18 @@ async fn handle_sabr_route(
     };
     let engine = handle.engine.clone();
 
+    // Resolve the content-type of an audio track by its manifest key.
+    let audio_ct = |key: &str| -> &'static str {
+        let mime = engine
+            .audio_tracks()
+            .iter()
+            .find(|t| t.key == key)
+            .map(|t| t.format.mime_type.as_str())
+            .unwrap_or("audio/mp4");
+        sabr_track_content_type(mime, true)
+    };
+    let video_ct = sabr_track_content_type(&engine.selected().video.mime_type, false);
+
     match segments[2..] {
         ["manifest.mpd"] => {
             let timing = match engine.wait_timing(std::time::Duration::from_secs(8)).await {
@@ -732,25 +859,46 @@ async fn handle_sabr_route(
                         .await;
                 }
             };
-            let base = format!(
-                "http://127.0.0.1:{}/sabr/{}",
-                manager.get_port(),
-                session_id
+            let base = format!("http://127.0.0.1:{}/sabr/{}", manager.get_port(), session_id);
+            let xml = super::sabr::manifest::build_dash_manifest(
+                &base,
+                engine.audio_tracks(),
+                &engine.selected().video,
+                &timing,
             );
-            let xml = super::sabr::manifest::build_dash_manifest(&base, engine.selected(), &timing);
-            info!(session = %session_id, "sabr_manifest_served");
+            info!(session = %session_id, tracks = engine.audio_tracks().len(), "sabr_manifest_served");
             write_full_body(socket, "application/dash+xml", "no-store", xml.as_bytes(), head_only)
                 .await
         }
-        [track, "init"] => {
-            let Some(track) = SabrTrack::parse(track) else {
-                return write_status_only(socket, 404, "Not Found", "Unknown track").await;
+        ["video", "init"] => match engine.get_init(SabrTrack::Video).await {
+            Ok(bytes) => {
+                write_full_body(socket, video_ct, "private, max-age=3600", &bytes, head_only).await
+            }
+            Err(e) => {
+                let (code, reason) = sabr_error_status(&e);
+                write_status_only(socket, code, reason, &format!("SABR init: {e}")).await
+            }
+        },
+        ["video", "seg", number] => {
+            let Ok(sequence) = number.parse::<i32>() else {
+                return write_status_only(socket, 400, "Bad Request", "Bad segment number").await;
             };
-            match engine.get_init(track).await {
+            match engine.get_segment(SabrTrack::Video, sequence).await {
+                Ok(bytes) => write_full_body(socket, video_ct, "no-store", &bytes, head_only).await,
+                Err(e) => {
+                    let (code, reason) = sabr_error_status(&e);
+                    debug!(session = %session_id, seq = sequence, error = %e, "sabr_segment_unavailable");
+                    write_status_only(socket, code, reason, &format!("SABR seg: {e}")).await
+                }
+            }
+        }
+        ["audio", key, "init"] => {
+            if !engine.set_active_audio(key).await {
+                return write_status_only(socket, 404, "Not Found", "Unknown audio track").await;
+            }
+            match engine.get_init(SabrTrack::Audio).await {
                 Ok(bytes) => {
-                    let mime = track_mime(engine.selected(), track);
-                    let ct = sabr_track_content_type(&mime, track == SabrTrack::Audio);
-                    write_full_body(socket, ct, "private, max-age=3600", &bytes, head_only).await
+                    write_full_body(socket, audio_ct(key), "private, max-age=3600", &bytes, head_only).await
                 }
                 Err(e) => {
                     let (code, reason) = sabr_error_status(&e);
@@ -758,22 +906,19 @@ async fn handle_sabr_route(
                 }
             }
         }
-        [track, "seg", number] => {
-            let Some(track) = SabrTrack::parse(track) else {
-                return write_status_only(socket, 404, "Not Found", "Unknown track").await;
-            };
+        ["audio", key, "seg", number] => {
+            if !engine.set_active_audio(key).await {
+                return write_status_only(socket, 404, "Not Found", "Unknown audio track").await;
+            }
             let Ok(sequence) = number.parse::<i32>() else {
                 return write_status_only(socket, 400, "Bad Request", "Bad segment number").await;
             };
-            match engine.get_segment(track, sequence).await {
-                Ok(bytes) => {
-                    let mime = track_mime(engine.selected(), track);
-                    let ct = sabr_track_content_type(&mime, track == SabrTrack::Audio);
-                    write_full_body(socket, ct, "no-store", &bytes, head_only).await
-                }
+            engine.ensure_audio_segment(sequence).await;
+            match engine.get_segment(SabrTrack::Audio, sequence).await {
+                Ok(bytes) => write_full_body(socket, audio_ct(key), "no-store", &bytes, head_only).await,
                 Err(e) => {
                     let (code, reason) = sabr_error_status(&e);
-                    debug!(session = %session_id, seq = sequence, error = %e, "sabr_segment_unavailable");
+                    debug!(session = %session_id, key, seq = sequence, error = %e, "sabr_segment_unavailable");
                     write_status_only(socket, code, reason, &format!("SABR seg: {e}")).await
                 }
             }
@@ -785,12 +930,5 @@ async fn handle_sabr_route(
                 .await
         }
         _ => write_status_only(socket, 404, "Not Found", "Unknown SABR route").await,
-    }
-}
-
-fn track_mime(selected: &super::sabr::SelectedFormats, track: SabrTrack) -> String {
-    match track {
-        SabrTrack::Audio => selected.audio.mime_type.clone(),
-        SabrTrack::Video => selected.video.mime_type.clone(),
     }
 }

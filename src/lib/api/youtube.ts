@@ -160,6 +160,7 @@ export async function getStreamInfo(videoId: string): Promise<StreamInfo> {
           mimeType: "audio/mp4",
           bitrate: null,
           isDefault: true,
+          available: true,
         },
       ],
       hlsManifestUrl: null,

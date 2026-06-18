@@ -211,6 +211,14 @@ fn format_duration_xml(duration_ms: u64) -> String {
     output
 }
 
+fn escape_xml_attr(value: &str) -> String {
+    value
+        .replace('&', "&amp;")
+        .replace('"', "&quot;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+}
+
 fn build_synthetic_dash_manifest(stream_info: &StreamInfo) -> Option<String> {
     let has_segment_ranges = |init_s: Option<u64>,
                               init_e: Option<u64>,
@@ -220,12 +228,13 @@ fn build_synthetic_dash_manifest(stream_info: &StreamInfo) -> Option<String> {
     };
     let is_mp4 = |mime: Option<&str>| mime.map(|m| m.contains("mp4")).unwrap_or(false);
 
-    let audio_track = stream_info
+    let audio_tracks: Vec<_> = stream_info
         .audio_tracks
         .iter()
-        .find(|track| {
-            !track.local_url.is_empty()
-                && is_mp4(track.mime_type.as_deref())
+        .filter(|track| {
+            // Only the original (default) audio is offered; carry it in the manifest.
+            track.is_default
+                && !track.local_url.is_empty()
                 && has_segment_ranges(
                     track.init_range_start,
                     track.init_range_end,
@@ -233,17 +242,23 @@ fn build_synthetic_dash_manifest(stream_info: &StreamInfo) -> Option<String> {
                     track.index_range_end,
                 )
         })
-        .or_else(|| {
-            stream_info.audio_tracks.iter().find(|track| {
-                !track.local_url.is_empty()
-                    && has_segment_ranges(
-                        track.init_range_start,
-                        track.init_range_end,
-                        track.index_range_start,
-                        track.index_range_end,
-                    )
-            })
-        })?;
+        .collect();
+
+    let mp4_audio_tracks: Vec<_> = audio_tracks
+        .iter()
+        .copied()
+        .filter(|track| is_mp4(track.mime_type.as_deref()))
+        .collect();
+
+    let audio_tracks = if mp4_audio_tracks.is_empty() {
+        audio_tracks
+    } else {
+        mp4_audio_tracks
+    };
+
+    if audio_tracks.is_empty() {
+        return None;
+    }
 
     let all_video_variants: Vec<_> = stream_info
         .variants
@@ -280,13 +295,8 @@ fn build_synthetic_dash_manifest(stream_info: &StreamInfo) -> Option<String> {
     let duration_ms = video_variants
         .iter()
         .filter_map(|variant| variant.approx_duration_ms)
-        .chain(audio_track.approx_duration_ms)
+        .chain(audio_tracks.iter().filter_map(|track| track.approx_duration_ms))
         .max()?;
-
-    let audio_mime_type =
-        extract_base_mime_type(audio_track.mime_type.as_deref()).unwrap_or("audio/mp4");
-    let audio_codecs =
-        extract_codecs(audio_track.mime_type.as_deref()).unwrap_or_else(|| "mp4a.40.2".to_string());
     let mut video_groups: Vec<(String, Vec<_>)> = Vec::new();
     for variant in &video_variants {
         let mime_type = extract_base_mime_type(variant.mime_type.as_deref())
@@ -310,31 +320,56 @@ fn build_synthetic_dash_manifest(stream_info: &StreamInfo) -> Option<String> {
         format_duration_xml(duration_ms)
     ));
     manifest.push_str("  <Period id=\"flow-period-0\" start=\"PT0S\">\n");
-    manifest.push_str(&format!(
-        "    <AdaptationSet id=\"audio\" contentType=\"audio\" mimeType=\"{}\" codecs=\"{}\" startWithSAP=\"1\" subsegmentAlignment=\"true\">\n",
-        audio_mime_type,
-        audio_codecs
-    ));
-    manifest.push_str(&format!(
-        "      <Representation id=\"{}\" bandwidth=\"{}\">\n",
-        audio_track.id,
-        audio_track.bitrate.unwrap_or(128_000)
-    ));
-    manifest.push_str(&format!(
-        "        <BaseURL>{}</BaseURL>\n",
-        audio_track.local_url
-    ));
-    manifest.push_str(&format!(
-        "        <SegmentBase indexRange=\"{}-{}\">\n",
-        audio_track.index_range_start?, audio_track.index_range_end?
-    ));
-    manifest.push_str(&format!(
-        "          <Initialization range=\"{}-{}\" />\n",
-        audio_track.init_range_start?, audio_track.init_range_end?
-    ));
-    manifest.push_str("        </SegmentBase>\n");
-    manifest.push_str("      </Representation>\n");
-    manifest.push_str("    </AdaptationSet>\n");
+    for audio_track in audio_tracks.iter() {
+        let audio_mime_type =
+            extract_base_mime_type(audio_track.mime_type.as_deref()).unwrap_or("audio/mp4");
+        let audio_codecs = extract_codecs(audio_track.mime_type.as_deref())
+            .unwrap_or_else(|| "mp4a.40.2".to_string());
+        let audio_id = escape_xml_attr(&audio_track.id);
+        let lang = escape_xml_attr(audio_track.language_code.as_deref().unwrap_or("und"));
+        let label = escape_xml_attr(&audio_track.label);
+        let role = if audio_track.is_default {
+            "main"
+        } else {
+            "alternate"
+        };
+
+        manifest.push_str(&format!(
+            "    <AdaptationSet id=\"audio-{}\" contentType=\"audio\" lang=\"{}\" mimeType=\"{}\" codecs=\"{}\" startWithSAP=\"1\" subsegmentAlignment=\"true\">\n",
+            audio_id,
+            lang,
+            audio_mime_type,
+            audio_codecs
+        ));
+        manifest.push_str(&format!(
+            "      <Role schemeIdUri=\"urn:mpeg:dash:role:2011\" value=\"{}\" />\n",
+            role
+        ));
+        manifest.push_str(&format!(
+            "      <Label>{}</Label>\n",
+            label
+        ));
+        manifest.push_str(&format!(
+            "      <Representation id=\"{}\" bandwidth=\"{}\" audioSamplingRate=\"48000\">\n",
+            audio_id,
+            audio_track.bitrate.unwrap_or(128_000)
+        ));
+        manifest.push_str(&format!(
+            "        <BaseURL>{}</BaseURL>\n",
+            audio_track.local_url
+        ));
+        manifest.push_str(&format!(
+            "        <SegmentBase indexRange=\"{}-{}\">\n",
+            audio_track.index_range_start?, audio_track.index_range_end?
+        ));
+        manifest.push_str(&format!(
+            "          <Initialization range=\"{}-{}\" />\n",
+            audio_track.init_range_start?, audio_track.init_range_end?
+        ));
+        manifest.push_str("        </SegmentBase>\n");
+        manifest.push_str("      </Representation>\n");
+        manifest.push_str("    </AdaptationSet>\n");
+    }
     for (group_index, (video_mime_type, variants)) in video_groups.iter().enumerate() {
         manifest.push_str(&format!(
             "    <AdaptationSet id=\"video-{}\" contentType=\"video\" mimeType=\"{}\" startWithSAP=\"1\" subsegmentAlignment=\"true\">\n",
@@ -547,10 +582,26 @@ pub async fn get_stream_info(
             audio_token.clone(),
             audio_track.local_url.clone(),
             mime_type,
-            dynamic_user_agent.clone(),
+            audio_track
+                .user_agent
+                .clone()
+                .unwrap_or_else(|| dynamic_user_agent.clone()),
         );
 
         audio_track.local_url = format!("http://127.0.0.1:{}/stream/{}", proxy_port, audio_token);
+    }
+
+    if let Some(descriptor) = stream_info.sabr_descriptor.take() {
+        let session_id = streaming_manager
+            .sabr()
+            .prepare(descriptor, crate::streaming::sabr::CodecSupport::default());
+        if let Some(sabr) = stream_info.sabr.as_mut() {
+            sabr.manifest_url = Some(format!(
+                "http://127.0.0.1:{}/sabr/{}/manifest.mpd",
+                proxy_port, session_id
+            ));
+        }
+        info!(video_id = %video_id, session = %session_id, "Prepared lazy SABR session (debug/future use)");
     }
 
     if stream_info
@@ -572,24 +623,6 @@ pub async fn get_stream_info(
             ));
             info!(video_id = %video_id, "Generated synthetic DASH manifest for fallback playback");
         }
-    }
-
-    if let Some(descriptor) = stream_info.sabr_descriptor.take() {
-        let session_id = streaming_manager
-            .sabr()
-            .prepare(descriptor, crate::streaming::sabr::CodecSupport::default());
-        let manifest_url = format!(
-            "http://127.0.0.1:{}/sabr/{}/manifest.mpd",
-            proxy_port, session_id
-        );
-        if let Some(sabr) = stream_info.sabr.as_mut() {
-            sabr.manifest_url = Some(manifest_url);
-        }
-        info!(
-            video_id = %video_id,
-            session = %session_id,
-            "Prepared lazy SABR session"
-        );
     }
 
     // Rewrite to clean expires_at for frontend consumption

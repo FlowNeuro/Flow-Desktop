@@ -146,6 +146,8 @@ export interface AudioTrack {
   mimeType?: string | null;
   bitrate?: number | null;
   isDefault: boolean;
+  /** Whether this track has a playable direct URL. Only the original track is offered, so this is always true. */
+  available: boolean;
   initRangeStart?: number | null;
   initRangeEnd?: number | null;
   indexRangeStart?: number | null;

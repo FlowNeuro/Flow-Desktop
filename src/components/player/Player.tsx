@@ -59,6 +59,16 @@ type DashRepresentationInfo = {
   width?: number;
 };
 
+type DashTrackInfo = {
+  id?: string;
+  index?: number;
+  lang?: string;
+  labels?: Array<{ text?: string; lang?: string }>;
+  roles?: Array<{ value?: string }>;
+  audioChannelConfiguration?: Array<{ audioChannelConfiguration?: string }>;
+  [key: string]: unknown;
+};
+
 type DashPlayerController = {
   initialize: (element: HTMLMediaElement, source: string, autoPlay: boolean) => void;
   destroy: () => void;
@@ -71,6 +81,8 @@ type DashPlayerController = {
   extend?: (parentNameString: string, childInstance: () => unknown, override: boolean) => void;
   getQualityFor: (type: string) => number;
   getCurrentRepresentationForType: (type: string) => DashRepresentationInfo | null;
+  getTracksFor?: (type: string) => DashTrackInfo[];
+  setCurrentTrack?: (track: DashTrackInfo) => void;
 };
 
 type QualitySwitchSnapshot = {
@@ -316,7 +328,14 @@ export const Player: React.FC<PlayerProps> = ({
     || audioTracks[0]
     || null;
 
-  const usesExternalAudio = !isDashPlayback && !isHlsPlayback && !!selectedQuality && !selectedQuality.hasAudio && !!selectedAudioTrack?.localUrl;
+  const hasSelectedAlternateAudio =
+    !!selectedAudioTrackId && !!selectedAudioTrack && !selectedAudioTrack.isDefault;
+  const usesExternalAudio =
+    !!selectedAudioTrack?.localUrl &&
+    selectedAudioTrack.available !== false &&
+    !isDashPlayback &&
+    !isHlsPlayback &&
+    (hasSelectedAlternateAudio || (!!selectedQuality && !selectedQuality.hasAudio));
 
   const shouldShowControls = controlsVisible || !isPlaying || settingsOpen || isScrubbing;
   const showAmbient = ambientMode && !!poster && !error;
@@ -436,6 +455,56 @@ export const Player: React.FC<PlayerProps> = ({
   }, [logPlayerEvent, selectedQuality, selectedQualityId]);
   const applyDashQualitySelectionRef = useRef(applyDashQualitySelection);
 
+  const applyDashAudioSelection = useCallback(() => {
+    const player = dashPlayerRef.current;
+    if (!player?.getTracksFor || !player.setCurrentTrack) return;
+
+    const dashAudioTracks = player.getTracksFor("audio") || [];
+    if (dashAudioTracks.length === 0) return;
+
+    const normalizedSelectedId = (selectedAudioTrack?.id || "").toLowerCase();
+    const normalizedSelectedLang = (selectedAudioTrack?.languageCode || "").toLowerCase();
+    const normalizedSelectedLabel = (selectedAudioTrack?.label || "").toLowerCase();
+
+    const trackLabel = (track: DashTrackInfo) =>
+      (track.labels || [])
+        .map((label) => label.text || "")
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+    const targetTrack = selectedAudioTrack
+      ? dashAudioTracks.find((track) => String(track.id || "").toLowerCase().includes(normalizedSelectedId))
+        || dashAudioTracks.find((track) => normalizedSelectedLang && String(track.lang || "").toLowerCase() === normalizedSelectedLang)
+        || dashAudioTracks.find((track) => normalizedSelectedLabel && trackLabel(track).includes(normalizedSelectedLabel))
+      : dashAudioTracks.find((track) => (track.roles || []).some((role) => role.value === "main"))
+        || dashAudioTracks[0];
+
+    if (!targetTrack) return;
+
+    player.setCurrentTrack(targetTrack);
+    logPlayerEvent("dash-audio-track-selected", {
+      selectedAudioTrackId,
+      selectedAudioLabel: selectedAudioTrack?.label,
+      selectedAudioLanguage: selectedAudioTrack?.languageCode,
+      dashTrack: {
+        id: targetTrack.id,
+        index: targetTrack.index,
+        lang: targetTrack.lang,
+        labels: targetTrack.labels,
+        roles: targetTrack.roles,
+      },
+      availableDashAudioTracks: dashAudioTracks.map((track) => ({
+        id: track.id,
+        index: track.index,
+        lang: track.lang,
+        labels: track.labels,
+        roles: track.roles,
+      })),
+    });
+  }, [logPlayerEvent, selectedAudioTrack, selectedAudioTrackId]);
+  const applyDashAudioSelectionRef = useRef(applyDashAudioSelection);
+
   useEffect(() => {
     loadSettings();
   }, [loadSettings]);
@@ -519,6 +588,15 @@ export const Player: React.FC<PlayerProps> = ({
   useEffect(() => {
     applyDashQualitySelectionRef.current = applyDashQualitySelection;
   }, [applyDashQualitySelection]);
+
+  useEffect(() => {
+    applyDashAudioSelectionRef.current = applyDashAudioSelection;
+  }, [applyDashAudioSelection]);
+
+  useEffect(() => {
+    if (!isDashPlayback) return;
+    applyDashAudioSelection();
+  }, [applyDashAudioSelection, isDashPlayback, selectedAudioTrackId]);
 
   useEffect(() => {
     logPlayerEventRef.current = logPlayerEvent;
@@ -870,6 +948,7 @@ export const Player: React.FC<PlayerProps> = ({
         })),
       });
       applyDashQualitySelectionRef.current();
+      applyDashAudioSelectionRef.current();
 
       const currentRep = player.getCurrentRepresentationForType("video");
       if (currentRep && currentRep.height) {

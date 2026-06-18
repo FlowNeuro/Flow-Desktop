@@ -65,6 +65,7 @@ export function selectPreferredAudioTrackId(
   tracks: AudioTrack[],
   preferredLanguage: string,
 ): string | null {
+  tracks = tracks.filter((track) => track.available !== false);
   const normalizedLanguage = preferredLanguage.trim().toLowerCase();
   if (!normalizedLanguage || normalizedLanguage === "original" || tracks.length === 0) return null;
 

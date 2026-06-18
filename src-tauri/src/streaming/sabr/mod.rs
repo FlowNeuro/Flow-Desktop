@@ -83,6 +83,22 @@ impl ClientProfile {
         }
     }
 
+    // The iPadOS profile (IOS client id 5, iPad build) — the client that reliably
+    // exposes multi-language (dubbed) audio formats plus a SABR streaming URL.
+    pub fn ipados() -> Self {
+        Self {
+            client_name_id: 5,
+            client_version: "21.03.3".into(),
+            user_agent:
+                "com.google.ios.youtube/21.03.3 (iPad7,6; U; CPU iPadOS 17_7_10 like Mac OS X; en-US)"
+                    .into(),
+            device_make: "Apple".into(),
+            device_model: "iPad7,6".into(),
+            os_name: "iPadOS".into(),
+            os_version: "17.7.10.21H450".into(),
+        }
+    }
+
     pub fn android_vr() -> Self {
         Self {
             client_name_id: 28,
@@ -204,6 +220,28 @@ impl SabrSessionManager {
     // Register a descriptor for lazy activation. Returns the session id to embed
     // in the manifest URL. No engine is started yet.
     pub fn prepare(&self, descriptor: SabrSessionDescriptor, support: CodecSupport) -> String {
+        // Reuse an existing session for the same video. The frontend may resolve a
+        // stream more than once (re-mount / double-fetch); two concurrent SABR
+        // sessions for one video share a pot/visitor and trip YouTube's attestation.
+        {
+            let prepared = self.prepared.lock().unwrap();
+            if let Some((id, _)) = prepared
+                .iter()
+                .find(|(_, (d, _))| d.video_id == descriptor.video_id)
+            {
+                return id.clone();
+            }
+        }
+        {
+            let sessions = self.sessions.lock().unwrap();
+            if let Some(handle) = sessions
+                .values()
+                .find(|h| h.video_id == descriptor.video_id)
+            {
+                return handle.session_id.clone();
+            }
+        }
+
         let id = format!("s{}", self.counter.fetch_add(1, Ordering::Relaxed));
         let mut prepared = self.prepared.lock().unwrap();
         if prepared.len() >= self.max_prepared {
@@ -231,7 +269,8 @@ impl SabrSessionManager {
         }
         .ok_or(SabrError::Cancelled)?;
 
-        let selected = selector::select_formats(&descriptor.formats, None, support)
+
+        let selected = selector::select_formats(&descriptor.formats, Some(480), support)
             .ok_or(SabrError::NoPlayableFormats)?;
 
         let engine = Arc::new(SabrEngine::new(

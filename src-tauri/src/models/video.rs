@@ -160,11 +160,14 @@ pub struct AudioTrack {
     pub mime_type: Option<String>,
     pub bitrate: Option<u64>,
     pub is_default: bool,
+    pub available: bool,
     pub init_range_start: Option<u64>,
     pub init_range_end: Option<u64>,
     pub index_range_start: Option<u64>,
     pub index_range_end: Option<u64>,
     pub approx_duration_ms: Option<u64>,
+    #[serde(skip)]
+    pub user_agent: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

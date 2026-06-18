@@ -45,11 +45,14 @@ impl InnertubeClient {
         client_version: &str,
         payload: &mut Value,
     ) -> AppResult<Value> {
-        let user_agent = match client_name {
-            "IOS" => {
+        let user_agent = match (client_name, client_version) {
+            ("IOS", "21.03.3") => {
+                "com.google.ios.youtube/21.03.3 (iPad7,6; U; CPU iPadOS 17_7_10 like Mac OS X; en-US)"
+            }
+            ("IOS", _) => {
                 "com.google.ios.youtube/19.29.1 (iPhone14,5; U; CPU iOS 17_5_1 like Mac OS X; en_US)"
             }
-            "ANDROID_VR" => {
+            ("ANDROID_VR", _) => {
                 "com.google.android.apps.youtube.vr.oculus/1.61.48 (Linux; U; Android 12; en_US; Quest 3; Build/SQ3A.220605.009.A1; Cronet/132.0.6808.3)"
             }
             _ => {

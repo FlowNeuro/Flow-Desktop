@@ -32,8 +32,8 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "externalBin": [
-      "binaries/rustypipe-botguard"
+    "resources": [
+      "sidecar/integrity.cjs"
     ]
   }
 }

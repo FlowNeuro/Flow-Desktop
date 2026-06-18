@@ -40,11 +40,11 @@ use commands::music::{
 use commands::youtube::{
     fetch_subtitles, get_channel_details, get_channel_tab, get_comments, get_dearrow_override,
     get_music_album, get_music_artist, get_music_charts, get_music_explore, get_music_home,
-    get_music_lyrics, get_music_related, get_personalized_music_recommendations,
-    get_live_chat, get_playlist_details, get_related_videos, get_sabr_debug_state,
-    get_search_suggestions, get_sponsorblock_segments, get_stream_info,
-    get_subscription_rotation_feed, get_subscription_rss_feed, get_trending_videos,
-    get_video_details, parse_subscription_export, refresh_music_home, search_music, search_videos,
+    get_music_lyrics, get_music_related, get_personalized_music_recommendations, get_live_chat,
+    get_playlist_details, get_related_videos, get_sabr_debug_state, get_search_suggestions,
+    get_sponsorblock_segments, get_stream_info, get_subscription_rotation_feed,
+    get_subscription_rss_feed, get_trending_videos, get_video_details, parse_subscription_export,
+    refresh_music_home, search_music, search_videos,
 };
 use services::music_service::MusicService;
 use services::recommendation_service::RecommendationService;
@@ -59,6 +59,10 @@ pub fn run() {
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
+            // Let the BotGuard minter open a hidden WebView for a real-browser
+            // poToken (falls back to the headless Node sidecar without this).
+            api::innertube::core::webview_pot::set_app_handle(app.handle().clone());
+
             // Resolve app data directory
             let app_data_dir = app.path().app_data_dir().map_err(|error| {
                 Box::new(std::io::Error::new(
