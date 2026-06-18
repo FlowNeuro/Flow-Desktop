@@ -8,15 +8,24 @@ import { findCurrentLineIndex } from "../../lib/lyrics/lyricsUtils";
 import { musicAudioEngine } from "../../lib/audio/musicAudioEngine";
 import { getString } from "../../lib/i18n/index";
 
-const ANCHOR_RATIO = 0.42;
-const LINE_SPACING = 1.26;
+const ANCHOR_RATIO = 0.35;
+const LINE_SPACING = 1.18;
 const LINE_GAP = 16;
-const GAP_BLOCK_H = 88;
+const LINE_BLOCK_PAD = 8;
+const GAP_BLOCK_H = 72;
 const BASE_FONT_PX = 40;
 const FOCUSED_ALPHA = 0.45;
 const PREVIEW_RESYNC_MS = 8000;
+const SCROLL_LERP = 0.2;
+const VISUAL_LERP = 0.28;
+const GAP_LERP = 0.24;
+const POSITION_LERP = 0.42;
+const SEEK_SNAP_MS = 1200;
 
 const rgba = (c: Rgb, a: number) => `rgba(${c.r},${c.g},${c.b},${a})`;
+const clamp = (v: number, min = 0, max = 1) => Math.min(max, Math.max(min, v));
+const easeOutCubic = (t: number) => 1 - Math.pow(1 - clamp(t), 3);
+const easeInOutSine = (t: number) => -(Math.cos(Math.PI * clamp(t)) - 1) / 2;
 
 interface GraphemeSegmenter {
   segment(input: string): Iterable<{ segment: string }>;
@@ -54,6 +63,16 @@ interface Row {
   width: number;
   text: string;
 }
+interface LineVisual {
+  scale: number;
+  alpha: number;
+  blur: number;
+  y: number;
+}
+interface GapVisual {
+  height: number;
+  alpha: number;
+}
 type Item =
   | {
       kind: "line";
@@ -79,16 +98,22 @@ const displayText = (entry: LyricsEntry): string =>
 const fontFor = (fontPx: number, isBg: boolean): string =>
   `${isBg ? "italic " : ""}800 ${fontPx}px Inter, system-ui, sans-serif`;
 
+function gapBetween(current: Item, next: Item): number {
+  if (current.kind === "gap" || next.kind === "gap") return 0;
+  if (current.isBackground || next.isBackground) return 0;
+  return LINE_GAP;
+}
+
+function isGapVisible(item: Extract<Item, { kind: "gap" }>, pos: number, manual: boolean): boolean {
+  return !manual && pos >= item.start && pos <= item.end - 650;
+}
+
 function measure(ctx: CanvasRenderingContext2D, lines: LyricsEntry[], maxWidth: number): Layout {
   const items: Item[] = [];
-  const tops: number[] = [];
   const lineToItem: number[] = [];
-  let y = 0;
 
-  const push = (item: Item, h: number) => {
-    tops.push(y);
+  const push = (item: Item) => {
     items.push(item);
-    y += h + LINE_GAP;
   };
 
   lines.forEach((entry, lineIndex) => {
@@ -99,7 +124,7 @@ function measure(ctx: CanvasRenderingContext2D, lines: LyricsEntry[], maxWidth: 
     lineToItem[lineIndex] = items.length;
 
     if (text.trim().length === 0) {
-      push({ kind: "line", lineIndex, rows: [], blockHeight: 6, fontPx, font, isBackground: isBg, words: null, empty: true }, 6);
+      push({ kind: "line", lineIndex, rows: [], blockHeight: 6, fontPx, font, isBackground: isBg, words: null, empty: true });
     } else {
       ctx.font = font;
       const spaceW = ctx.measureText(" ").width;
@@ -136,8 +161,8 @@ function measure(ctx: CanvasRenderingContext2D, lines: LyricsEntry[], maxWidth: 
         });
       });
       if (cur.length > 0) rows.push({ clusters: cur, width: curW, text: cur.map((c) => c.ch).join("") });
-      const blockHeight = Math.max(1, rows.length) * fontPx * LINE_SPACING;
-      push({ kind: "line", lineIndex, rows, blockHeight, fontPx, font, isBackground: isBg, words, empty: false }, blockHeight);
+      const blockHeight = Math.max(1, rows.length) * fontPx * LINE_SPACING + LINE_BLOCK_PAD * 2;
+      push({ kind: "line", lineIndex, rows, blockHeight, fontPx, font, isBackground: isBg, words, empty: false });
     }
 
     // Instrumental gap → a breathing slot with a converging indicator.
@@ -149,9 +174,17 @@ function measure(ctx: CanvasRenderingContext2D, lines: LyricsEntry[], maxWidth: 
           ? entry.time
           : null;
       if (curEnd != null && next.time - curEnd > 4000) {
-        push({ kind: "gap", blockHeight: GAP_BLOCK_H, start: curEnd, end: next.time }, GAP_BLOCK_H);
+        push({ kind: "gap", blockHeight: GAP_BLOCK_H, start: curEnd, end: next.time });
       }
     }
+  });
+
+  const tops: number[] = [];
+  let y = 0;
+  items.forEach((item, idx) => {
+    tops[idx] = y;
+    const next = items[idx + 1];
+    y += item.blockHeight + (next ? gapBetween(item, next) : 0);
   });
 
   return { items, tops, lineToItem };
@@ -173,10 +206,14 @@ export function LyricsCanvas({
   const layoutRef = useRef<Layout | null>(null);
   const sizeRef = useRef({ w: 0, h: 0 });
   const offsetRef = useRef(0);
+  const currentTopsRef = useRef<number[]>([]);
+  const currentHeightsRef = useRef<number[]>([]);
   const initializedRef = useRef(false);
   const modeRef = useRef<"auto" | "manual">("auto");
   const resyncTimer = useRef<number | null>(null);
-  const animRef = useRef<Map<number, { scale: number; alpha: number; blur: number }>>(new Map());
+  const smoothPositionRef = useRef(0);
+  const animRef = useRef<Map<number, LineVisual>>(new Map());
+  const gapAnimRef = useRef<Map<number, GapVisual>>(new Map());
   const [manual, setManual] = useState(false);
 
   const relayout = () => {
@@ -197,6 +234,9 @@ export function LyricsCanvas({
     sizeRef.current = { w: cssW, h: cssH };
     layoutRef.current = measure(ctx, lines, cssW * 0.84);
     animRef.current.clear();
+    gapAnimRef.current.clear();
+    currentTopsRef.current = [];
+    currentHeightsRef.current = [];
     initializedRef.current = false;
   };
 
@@ -227,6 +267,39 @@ export function LyricsCanvas({
     [],
   );
 
+  function computeTops(layout: Layout, pos: number, isManual: boolean): { tops: number[]; heights: number[] } {
+    const tops: number[] = [];
+    const heights: number[] = [];
+    let y = 0;
+
+    layout.items.forEach((item, idx) => {
+      tops[idx] = y;
+      let height = item.blockHeight;
+      if (item.kind === "gap") {
+        const visible = isGapVisible(item, pos, isManual);
+        let g = gapAnimRef.current.get(idx);
+        if (!g) {
+          g = { height: 0, alpha: 0 };
+          gapAnimRef.current.set(idx, g);
+        }
+        const targetHeight = visible || g.alpha > 0.05 ? item.blockHeight : 0;
+        const targetAlpha = visible && g.height > item.blockHeight * 0.82 ? 1 : 0;
+        g.height += (targetHeight - g.height) * GAP_LERP;
+        g.alpha += (targetAlpha - g.alpha) * GAP_LERP;
+        if (Math.abs(g.height - targetHeight) < 0.35) g.height = targetHeight;
+        if (Math.abs(g.alpha - targetAlpha) < 0.01) g.alpha = targetAlpha;
+        height = g.height;
+      }
+      heights[idx] = height;
+      const next = layout.items[idx + 1];
+      y += height + (next ? gapBetween(item, next) : 0);
+    });
+
+    currentTopsRef.current = tops;
+    currentHeightsRef.current = heights;
+    return { tops, heights };
+  }
+
   function draw() {
     const canvas = canvasRef.current;
     const layout = layoutRef.current;
@@ -234,12 +307,20 @@ export function LyricsCanvas({
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     const { w: cssW, h: cssH } = sizeRef.current;
-    const pos = musicAudioEngine.getCurrentTime() * 1000;
+    const rawPos = musicAudioEngine.getCurrentTime() * 1000;
+    if (!initializedRef.current || Math.abs(rawPos - smoothPositionRef.current) > SEEK_SNAP_MS) {
+      smoothPositionRef.current = rawPos;
+    } else {
+      smoothPositionRef.current += (rawPos - smoothPositionRef.current) * POSITION_LERP;
+    }
+    const pos = smoothPositionRef.current;
     const anchorY = cssH * ANCHOR_RATIO;
-    const active = Math.max(0, findCurrentLineIndex(lines, pos));
+    const isManual = modeRef.current === "manual";
+    const active = Math.max(0, findCurrentLineIndex(lines, rawPos));
+    const { tops, heights } = computeTops(layout, rawPos, isManual);
     const activeItem = layout.lineToItem[active] ?? 0;
-    const activeTop = layout.tops[activeItem] ?? 0;
-    const activeBlock = layout.items[activeItem]?.blockHeight ?? 0;
+    const activeTop = tops[activeItem] ?? 0;
+    const activeBlock = heights[activeItem] || layout.items[activeItem]?.blockHeight || 0;
 
     const target = activeTop + activeBlock / 2 - anchorY;
     if (modeRef.current === "auto") {
@@ -247,7 +328,7 @@ export function LyricsCanvas({
         offsetRef.current = target;
         initializedRef.current = true;
       } else {
-        offsetRef.current += (target - offsetRef.current) * 0.16;
+        offsetRef.current += (target - offsetRef.current) * SCROLL_LERP;
       }
     }
     const offset = offsetRef.current;
@@ -255,14 +336,15 @@ export function LyricsCanvas({
     ctx.clearRect(0, 0, cssW, cssH);
     ctx.textBaseline = "middle";
     const now = Date.now();
-    const isManual = modeRef.current === "manual";
 
     layout.items.forEach((item, idx) => {
-      const top = layout.tops[idx]! - offset;
-      if (top + item.blockHeight < -60 || top > cssH + 60) return;
+      const itemHeight = heights[idx] ?? item.blockHeight;
+      const targetTop = (tops[idx] ?? 0) - offset;
+      if (targetTop + itemHeight < -80 || targetTop > cssH + 80) return;
 
       if (item.kind === "gap") {
-        if (!isManual) drawGap(ctx, item, cssW, top, pos);
+        const g = gapAnimRef.current.get(idx);
+        if (g && g.height > 0.5 && g.alpha > 0.01) drawGap(ctx, item, cssW, targetTop, itemHeight, rawPos, g.alpha);
         return;
       }
       if (item.empty) return;
@@ -270,22 +352,26 @@ export function LyricsCanvas({
       const dist = Math.abs(item.lineIndex - active);
       // While manually scrolling: everything readable (no blur, no emphasis).
       const isActive = !isManual && item.lineIndex === active;
-      const tScale = isManual ? 0.96 : isActive ? 1.05 : 0.92;
+      const tScale = isManual ? 0.965 : isActive ? 1.075 : 0.92;
       const tBlur = isManual || isActive || item.isBackground ? 0 : Math.min(dist * 4, 16);
       const tAlpha = isManual ? 0.85 : isActive ? 1 : dist === 1 ? 0.5 : dist === 2 ? 0.42 : dist === 3 ? 0.34 : 0.25;
 
       // Ease toward the targets (≈500ms feel) so scale/blur/alpha never snap.
       let a = animRef.current.get(item.lineIndex);
       if (!a) {
-        a = { scale: tScale, alpha: tAlpha, blur: tBlur };
+        a = { scale: tScale, alpha: tAlpha, blur: tBlur, y: targetTop };
         animRef.current.set(item.lineIndex, a);
       } else {
-        a.scale += (tScale - a.scale) * 0.16;
-        a.alpha += (tAlpha - a.alpha) * 0.16;
-        a.blur += (tBlur - a.blur) * 0.16;
+        const distanceDelay = Math.min(dist * 0.012, 0.08);
+        const lerp = isActive ? 0.42 : Math.max(0.12, VISUAL_LERP - distanceDelay);
+        a.scale += (tScale - a.scale) * lerp;
+        a.alpha += (tAlpha - a.alpha) * lerp;
+        a.blur += (tBlur - a.blur) * lerp;
+        a.y += (targetTop - a.y) * Math.max(0.2, lerp);
       }
 
       const rowH = item.fontPx * LINE_SPACING;
+      const top = a.y;
       const centerYBlock = top + item.blockHeight / 2;
 
       ctx.save();
@@ -297,7 +383,7 @@ export function LyricsCanvas({
       ctx.font = item.font;
 
       item.rows.forEach((row, ri) => {
-        const rowCenterY = top + ri * rowH + rowH / 2;
+        const rowCenterY = top + LINE_BLOCK_PAD + ri * rowH + rowH / 2;
         if (isActive && item.words) {
           drawActiveRow(ctx, row, item.words, item.fontPx, cssW, rowCenterY, pos, now);
         } else {
@@ -311,15 +397,25 @@ export function LyricsCanvas({
     });
   }
 
-  function drawGap(ctx: CanvasRenderingContext2D, item: Extract<Item, { kind: "gap" }>, cssW: number, top: number, pos: number) {
-    const visible = pos >= item.start && pos <= item.end - 650;
-    if (!visible) return;
-    const progress = item.end > item.start ? Math.min(1, Math.max(0, (pos - item.start) / (item.end - item.start))) : 0;
-    const cy = top + item.blockHeight / 2;
-    const trackW = Math.min(360, cssW * 0.4);
+  function drawGap(
+    ctx: CanvasRenderingContext2D,
+    item: Extract<Item, { kind: "gap" }>,
+    cssW: number,
+    top: number,
+    height: number,
+    pos: number,
+    alpha: number,
+  ) {
+    const end = item.end - 650;
+    const rawProgress = end > item.start ? clamp((pos - item.start) / (end - item.start)) : 0;
+    const progress = easeInOutSine(rawProgress);
+    const fade = alpha * clamp((pos - item.start) / 180);
+    const cy = top + height / 2;
+    const trackW = Math.min(360, cssW * 0.5);
     const left = cssW / 2 - trackW / 2;
 
     ctx.save();
+    ctx.globalAlpha = fade;
     ctx.textAlign = "center";
     ctx.font = "700 13px Inter, system-ui, sans-serif";
     ctx.fillStyle = rgba(accent, 0.85 * (1 - progress));
@@ -334,6 +430,7 @@ export function LyricsCanvas({
     ctx.fillStyle = rgba(accent, 0.95);
     roundRect(ctx, cssW / 2 - segHalf, cy - 2, segHalf * 2, 4, 2);
     ctx.fill();
+    ctx.fillStyle = `rgba(255,255,255,${0.8 * (1 - progress)})`;
     ctx.beginPath();
     ctx.arc(cssW / 2 - segHalf, cy, 4, 0, Math.PI * 2);
     ctx.arc(cssW / 2 + segHalf, cy, 4, 0, Math.PI * 2);
@@ -362,37 +459,60 @@ export function LyricsCanvas({
     liquid.addColorStop(0.5, "rgba(255,255,255,0.85)");
     liquid.addColorStop(1, rgba(accent, 1));
 
-    for (const c of row.clusters) {
-      if (c.word < 0) continue;
-      const w = words[c.word];
-      if (!w) continue;
-      const x = rowOffsetX + c.x;
+    const visual = row.clusters.map((c) => {
+      const w = c.word >= 0 ? words[c.word] : undefined;
+      if (!w) return { cluster: c, word: undefined, sung: false, sungFactor: 0, charLp: 0, sx: 1, sy: 1, y: 0 };
       const dur = Math.max(100, w.endTime - w.startTime);
+      const wordProgress = (pos - w.startTime) / dur;
       const sung = pos > w.endTime;
-      const sungFactor = sung ? 1 : pos >= w.startTime ? Math.min(1, (pos - w.startTime) / dur) : 0;
-      const charLp = Math.min(
-        1,
-        Math.max(0, ((pos - w.startTime) / dur - c.charInWord / c.wordLen) * c.wordLen),
-      );
+      const sungFactor = sung ? 1 : pos >= w.startTime ? easeInOutSine((pos - w.startTime) / dur) : 0;
+      const charLp = clamp((wordProgress - c.charInWord / c.wordLen) * c.wordLen);
       const since = pos - w.startTime;
-      const sx = since >= 0 && since < 170 ? 1 + 0.05 * Math.sin((since / 170) * Math.PI) : 1;
+      const anticipation = since >= -70 && since < 0 ? -0.008 * Math.sin(((since + 70) / 70) * Math.PI) : 0;
+      const impact = since >= 0 && since < 680 ? Math.sin(clamp(since / 680) * Math.PI) * Math.exp(-since / 950) : 0;
+      const nudge = !sung && charLp > 0 ? 0.034 * Math.sin(charLp * Math.PI) * Math.exp(-2.6 * charLp) : 0;
+      return {
+        cluster: c,
+        word: w,
+        sung,
+        sungFactor,
+        charLp,
+        sx: 1 + anticipation + impact * 0.026 + nudge * 0.28,
+        sy: 1 + anticipation + impact * 0.018 + nudge,
+        y: since >= 0 && since < 420 ? -Math.sin(clamp(since / 420) * Math.PI) * 1.8 : 0,
+      };
+    });
+    const totalPush = visual.reduce((sum, v) => sum + v.cluster.w * (v.sx - 1), 0);
+    let pushX = -totalPush / 2;
+
+    for (const v of visual) {
+      const c = v.cluster;
+      if (!v.word) {
+        pushX += c.w * (v.sx - 1);
+        continue;
+      }
+      const x = rowOffsetX + c.x + pushX;
+      const sung = v.sung;
+      const sungFactor = v.sungFactor;
+      const charLp = v.charLp;
+      const y = rowCenterY + v.y;
 
       ctx.save();
-      ctx.translate(x + c.w / 2, rowCenterY);
-      ctx.scale(sx, sx);
-      ctx.translate(-(x + c.w / 2), -rowCenterY);
+      ctx.translate(x + c.w / 2, y + fontPx * 0.24);
+      ctx.scale(v.sx, v.sy);
+      ctx.translate(-(x + c.w / 2), -(y + fontPx * 0.24));
 
       if (sung || charLp >= 0.999) {
         ctx.fillStyle = liquid;
-        ctx.fillText(c.ch, x, rowCenterY);
+        ctx.fillText(c.ch, x, y);
       } else {
         ctx.fillStyle = rgba(accent, FOCUSED_ALPHA + (1 - FOCUSED_ALPHA) * sungFactor);
-        ctx.fillText(c.ch, x, rowCenterY);
+        ctx.fillText(c.ch, x, y);
         if (charLp > 0) {
-          const fillX = c.w * charLp;
+          const fillX = c.w * easeOutCubic(charLp);
           const edge = Math.max(1, c.w * 0.45);
           const solid = Math.max(0, fillX - edge);
-          const clipTop = rowCenterY - fontPx * 0.75;
+          const clipTop = y - fontPx * 0.75;
           const clipH = fontPx * 1.5;
           if (solid > 0) {
             ctx.save();
@@ -402,7 +522,7 @@ export function LyricsCanvas({
             ctx.shadowColor = rgba(accent, 0.4);
             ctx.shadowBlur = fontPx * 0.3;
             ctx.fillStyle = liquid;
-            ctx.fillText(c.ch, x, rowCenterY);
+            ctx.fillText(c.ch, x, y);
             ctx.restore();
           }
           for (let j = 0; j < 12; j++) {
@@ -414,12 +534,13 @@ export function LyricsCanvas({
             ctx.rect(x + s, clipTop, e - s, clipH);
             ctx.clip();
             ctx.fillStyle = rgba(accent, 1 - (j + 0.5) / 12);
-            ctx.fillText(c.ch, x, rowCenterY);
+            ctx.fillText(c.ch, x, y);
             ctx.restore();
           }
         }
       }
       ctx.restore();
+      pushX += c.w * (v.sx - 1);
     }
   }
 
@@ -437,7 +558,9 @@ export function LyricsCanvas({
     const { h } = sizeRef.current;
     const anchorY = h * ANCHOR_RATIO;
     const lastIdx = layout.items.length - 1;
-    const contentBottom = (layout.tops[lastIdx] ?? 0) + (layout.items[lastIdx]?.blockHeight ?? 0);
+    const tops = currentTopsRef.current.length ? currentTopsRef.current : layout.tops;
+    const heights = currentHeightsRef.current;
+    const contentBottom = (tops[lastIdx] ?? 0) + (heights[lastIdx] ?? layout.items[lastIdx]?.blockHeight ?? 0);
     // offset = top_i - anchorY puts line i at the anchor; allow first→last + slack.
     const min = -anchorY - 120;
     const max = contentBottom - anchorY + 120;
@@ -453,11 +576,14 @@ export function LyricsCanvas({
     if (!layout || !wrap) return;
     const rect = wrap.getBoundingClientRect();
     const contentY = e.clientY - rect.top + offsetRef.current;
+    const tops = currentTopsRef.current.length ? currentTopsRef.current : layout.tops;
+    const heights = currentHeightsRef.current;
     for (let i = 0; i < layout.items.length; i++) {
       const item = layout.items[i]!;
       if (item.kind !== "line" || item.empty) continue;
-      const top = layout.tops[i]!;
-      if (contentY >= top && contentY <= top + item.blockHeight) {
+      const top = tops[i]!;
+      const height = heights[i] ?? item.blockHeight;
+      if (contentY >= top && contentY <= top + height) {
         onSeek(Math.max(0, lines[item.lineIndex]!.time / 1000));
         modeRef.current = "auto";
         setManual(false);
