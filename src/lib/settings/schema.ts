@@ -50,6 +50,8 @@ export const SETTINGS = {
   ADAPTIVE_PLAYER_SIZE_ENABLED: "adaptive_player_size_enabled",
   AUTO_PIP_ENABLED: "auto_pip_enabled",
   MANUAL_PIP_BUTTON_ENABLED: "manual_pip_button_enabled",
+  LYRICS_PROVIDER_ORDER: "lyrics_provider_order",
+  LYRICS_PROVIDER_ENABLED_STATES: "lyrics_provider_enabled_states",
 
   VIDEO_TITLE_MAX_LINES: "video_title_max_lines",
   DOWNLOAD_DIALOG_STYLE: "download_dialog_style",
@@ -222,6 +224,8 @@ export const SETTING_DEFINITIONS = [
   bool(SETTINGS.ADAPTIVE_PLAYER_SIZE_ENABLED, "player", true, "persisted-only"),
   bool(SETTINGS.AUTO_PIP_ENABLED, "player", false, "wired"),
   bool(SETTINGS.MANUAL_PIP_BUTTON_ENABLED, "player", true, "wired"),
+  str(SETTINGS.LYRICS_PROVIDER_ORDER, "player", "", "wired"),
+  json(SETTINGS.LYRICS_PROVIDER_ENABLED_STATES, "player", "{}", "wired"),
 
   num(SETTINGS.VIDEO_TITLE_MAX_LINES, "content", 1, "wired", 0, 3),
   str(SETTINGS.DOWNLOAD_DIALOG_STYLE, "content", "FULL", "deferred", ["FULL", "COMPACT"], "disabled-until-wired", "app-data", "settings_note_download_modal_required"),

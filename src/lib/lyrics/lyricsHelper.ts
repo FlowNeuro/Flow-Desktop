@@ -1,5 +1,5 @@
 import type { LyricsEntry, LyricsResult } from "./types";
-import { PROVIDERS } from "./registry";
+import { getEnabledProviders, parseProviderEnabledStates } from "./registry";
 import {
   cleanTitle,
   cleanArtist,
@@ -9,6 +9,8 @@ import {
 } from "./lyricsUtils";
 import { entriesAreSynced, hasWordSync, hasReasonableTimestamps } from "./sync";
 import * as cache from "./cache";
+import { getSettingValue } from "../../store/useAppSettingsStore";
+import { SETTINGS } from "../settings/schema";
 
 const PROVIDER_TIMEOUT_MS = 8000;
 const TOTAL_TIMEOUT_MS = 25000;
@@ -80,8 +82,10 @@ export async function getLyrics(
   const cleanedTitle = cleanTitle(title);
   const cleanedArtist = cleanArtist(artist);
   const startedAt = Date.now();
+  const enabledStates = parseProviderEnabledStates(getSettingValue(SETTINGS.LYRICS_PROVIDER_ENABLED_STATES));
+  const providers = getEnabledProviders(getSettingValue(SETTINGS.LYRICS_PROVIDER_ORDER), enabledStates);
 
-  for (const provider of PROVIDERS) {
+  for (const provider of providers) {
     if (Date.now() - startedAt > TOTAL_TIMEOUT_MS) break;
     const cd = cooldowns.get(provider.name) ?? 0;
     if (cd > Date.now()) continue;

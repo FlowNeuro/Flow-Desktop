@@ -217,6 +217,12 @@
   "settings_preferred_language": "Preferred Language",
   "settings_font_size": "Font Size",
   "settings_bold_subtitles": "Bold Subtitles",
+  "settings_group_lyrics": "Lyrics",
+  "settings_lyrics_providers": "Lyrics Providers",
+  "settings_lyrics_providers_enabled": "providers enabled",
+  "settings_lyrics_ordered": "Tried in order",
+  "settings_lyrics_provider_enabled": "Enabled for lyric lookup",
+  "settings_lyrics_provider_disabled": "Skipped during lyric lookup",
 
   "settings_group_mini_player": "Mini Player",
   "settings_skip_controls": "Skip Controls",

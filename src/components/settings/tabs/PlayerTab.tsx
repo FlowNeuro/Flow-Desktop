@@ -7,6 +7,11 @@ import { useBoolPref, usePreference, useNumberPref } from '../../../lib/usePrefe
 import { getString } from '../../../lib/i18n/index';
 import { SETTINGS } from '../../../lib/settings/schema';
 import { isSettingDisabledUntilWired } from '../../../lib/settings/values';
+import {
+  getOrderedProviders,
+  parseProviderEnabledStates,
+  serializeProviderEnabledStates,
+} from '../../../lib/lyrics/registry';
 
 export function PlayerTab() {
   const [autoplay, setAutoplay] = useBoolPref(SETTINGS.AUTOPLAY_ENABLED, true);
@@ -28,6 +33,14 @@ export function PlayerTab() {
   const [subtitleLang, setSubtitleLang] = usePreference(SETTINGS.PREFERRED_SUBTITLE_LANGUAGE, 'en');
   const [subtitleSize, setSubtitleSize] = usePreference(SETTINGS.SUBTITLE_FONT_SIZE, '14');
   const [subtitleBold, setSubtitleBold] = useBoolPref(SETTINGS.SUBTITLE_BOLD, true);
+  const [lyricsProviderOrder] = usePreference(SETTINGS.LYRICS_PROVIDER_ORDER, '');
+  const [lyricsEnabledRaw, setLyricsEnabledRaw] = usePreference(SETTINGS.LYRICS_PROVIDER_ENABLED_STATES, '{}');
+  const lyricsProviders = getOrderedProviders(lyricsProviderOrder);
+  const lyricsEnabledStates = parseProviderEnabledStates(lyricsEnabledRaw);
+  const lyricsEnabledCount = lyricsProviders.filter((provider) => lyricsEnabledStates[provider.name] !== false).length;
+  const setLyricsProviderEnabled = (providerName: string, enabled: boolean) => {
+    setLyricsEnabledRaw(serializeProviderEnabledStates({ ...lyricsEnabledStates, [providerName]: enabled }));
+  };
 
   const [miniSkip, setMiniSkip] = useBoolPref(SETTINGS.MINI_PLAYER_SHOW_SKIP_CONTROLS, false);
   const [miniNextPrev, setMiniNextPrev] = useBoolPref(SETTINGS.MINI_PLAYER_SHOW_NEXT_PREV_CONTROLS, false);
@@ -121,6 +134,29 @@ export function PlayerTab() {
         <SettingItem title={getString('settings_bold_subtitles')}>
           <ToggleSwitch checked={subtitleBold} onChange={setSubtitleBold} />
         </SettingItem>
+      </SettingsGroup>
+
+      <SettingsGroup title={getString('settings_group_lyrics')}>
+        <SettingItem
+          title={getString('settings_lyrics_providers')}
+          description={`${lyricsEnabledCount} / ${lyricsProviders.length} ${getString('settings_lyrics_providers_enabled')}`}
+        >
+          <span className="text-xs font-medium text-neutral-400">
+            {getString('settings_lyrics_ordered')}
+          </span>
+        </SettingItem>
+        {lyricsProviders.map((provider, index) => {
+          const enabled = lyricsEnabledStates[provider.name] !== false;
+          return (
+            <SettingItem
+              key={provider.name}
+              title={`${index + 1}. ${provider.name}`}
+              description={enabled ? getString('settings_lyrics_provider_enabled') : getString('settings_lyrics_provider_disabled')}
+            >
+              <ToggleSwitch checked={enabled} onChange={(next) => setLyricsProviderEnabled(provider.name, next)} />
+            </SettingItem>
+          );
+        })}
       </SettingsGroup>
 
       <SettingsGroup title={getString('settings_group_mini_player')}>
