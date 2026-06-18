@@ -11,13 +11,13 @@ use crate::flow_neuro::scoring::{
     CHANNEL_KEEP_HIGH, CHANNEL_KEEP_LOW, CHANNEL_PROFILE_LEARNING_RATE,
     CHANNEL_PROFILE_MAX_CHANNELS, CHANNEL_PROFILE_MAX_TOPICS, CHANNEL_PROFILE_PRUNE_THRESHOLD,
     CHANNEL_SUPPRESSION_DAYS, ChannelStrike, ContentVector, IDF_KEEP_KEYS, IDF_MAX_KEYS,
-    IdfSnapshot, MAX_CHANNEL_SCORES,
-    MAX_CHANNEL_STRIKES, MAX_CONSECUTIVE_SKIPS, MAX_SUPPRESSED_CHANNELS, MAX_SUPPRESSED_VIDEOS,
-    NOT_INTERESTED_SKIP_INCREMENT, PERSONA_MAX_STABILITY, REJECTION_EXPIRY_DAYS,
-    REJECTION_MEMORY_MAX, RejectionSignal, TOPIC_EVIDENCE_MAX_ENTRIES, TOPIC_EVIDENCE_MAX_IDS,
-    TimeBucket, TopicEvidence, UserBrain, VIDEO_SUPPRESSION_DAYS, WATCH_HISTORY_MAX,
-    WATCHED_THRESHOLD_FULL, WATCHED_THRESHOLD_SAMPLED, adjust_vector, apply_anchor_decay,
-    classify_persona, extract_features, extract_rejection_keys, strip_domain_tag,
+    IdfSnapshot, MAX_CHANNEL_SCORES, MAX_CHANNEL_STRIKES, MAX_CONSECUTIVE_SKIPS,
+    MAX_SUPPRESSED_CHANNELS, MAX_SUPPRESSED_VIDEOS, NOT_INTERESTED_SKIP_INCREMENT,
+    PERSONA_MAX_STABILITY, REJECTION_EXPIRY_DAYS, REJECTION_MEMORY_MAX, RejectionSignal,
+    TOPIC_EVIDENCE_MAX_ENTRIES, TOPIC_EVIDENCE_MAX_IDS, TimeBucket, TopicEvidence, UserBrain,
+    VIDEO_SUPPRESSION_DAYS, WATCH_HISTORY_MAX, WATCHED_THRESHOLD_FULL, WATCHED_THRESHOLD_SAMPLED,
+    adjust_vector, apply_anchor_decay, classify_persona, extract_features, extract_rejection_keys,
+    strip_domain_tag,
 };
 
 pub const SHORTS_LEARNING_PENALTY: f64 = 0.40;
@@ -224,7 +224,9 @@ pub struct InteractionOutcome {
 
 fn prune_channel_strikes(brain: &mut UserBrain, now_ms: u64) {
     let cutoff = now_ms.saturating_sub(CHANNEL_INFERRED_BLOCK_DAYS * 86_400_000);
-    brain.channel_strikes.retain(|_, strike| strike.last_at >= cutoff);
+    brain
+        .channel_strikes
+        .retain(|_, strike| strike.last_at >= cutoff);
     if brain.channel_strikes.len() > MAX_CHANNEL_STRIKES {
         let mut entries: Vec<(String, u64)> = brain
             .channel_strikes

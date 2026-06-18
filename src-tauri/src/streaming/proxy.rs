@@ -76,8 +76,12 @@ fn user_agent_for_media_url(url: &str, fallback: &str) -> String {
         Some("ANDROID_VR") => MEDIA_UA_ANDROID_VR.to_string(),
         Some("IOS") => MEDIA_UA_IOS.to_string(),
         Some("ANDROID") | Some("ANDROID_CREATOR") => MEDIA_UA_ANDROID.to_string(),
-        Some("WEB") | Some("MWEB") | Some("WEB_REMIX") | Some("WEB_CREATOR")
-        | Some("TVHTML5") | Some("TVHTML5_SIMPLY_EMBEDDED_PLAYER") => MEDIA_UA_WEB.to_string(),
+        Some("WEB")
+        | Some("MWEB")
+        | Some("WEB_REMIX")
+        | Some("WEB_CREATOR")
+        | Some("TVHTML5")
+        | Some("TVHTML5_SIMPLY_EMBEDDED_PLAYER") => MEDIA_UA_WEB.to_string(),
         _ => fallback.to_string(),
     }
 }
@@ -552,10 +556,17 @@ fn parse_range_spec(range: Option<&str>) -> (u64, Option<u64>) {
     };
     let spec = range.split('=').nth(1).unwrap_or(range).trim();
     let mut parts = spec.split('-');
-    let start = parts.next().and_then(|s| s.trim().parse::<u64>().ok()).unwrap_or(0);
-    let end = parts
+    let start = parts
         .next()
-        .and_then(|s| if s.trim().is_empty() { None } else { s.trim().parse::<u64>().ok() });
+        .and_then(|s| s.trim().parse::<u64>().ok())
+        .unwrap_or(0);
+    let end = parts.next().and_then(|s| {
+        if s.trim().is_empty() {
+            None
+        } else {
+            s.trim().parse::<u64>().ok()
+        }
+    });
     (start, end)
 }
 
@@ -625,8 +636,13 @@ async fn relay_remote(
                     return Ok(());
                 }
                 error!("Failed to fetch upstream stream: {:?}", e);
-                return write_status_only(socket, 502, "Bad Gateway", "Failed to proxy media stream")
-                    .await;
+                return write_status_only(
+                    socket,
+                    502,
+                    "Bad Gateway",
+                    "Failed to proxy media stream",
+                )
+                .await;
             }
         };
 
@@ -859,7 +875,11 @@ async fn handle_sabr_route(
                         .await;
                 }
             };
-            let base = format!("http://127.0.0.1:{}/sabr/{}", manager.get_port(), session_id);
+            let base = format!(
+                "http://127.0.0.1:{}/sabr/{}",
+                manager.get_port(),
+                session_id
+            );
             let xml = super::sabr::manifest::build_dash_manifest(
                 &base,
                 engine.audio_tracks(),
@@ -867,8 +887,14 @@ async fn handle_sabr_route(
                 &timing,
             );
             info!(session = %session_id, tracks = engine.audio_tracks().len(), "sabr_manifest_served");
-            write_full_body(socket, "application/dash+xml", "no-store", xml.as_bytes(), head_only)
-                .await
+            write_full_body(
+                socket,
+                "application/dash+xml",
+                "no-store",
+                xml.as_bytes(),
+                head_only,
+            )
+            .await
         }
         ["video", "init"] => match engine.get_init(SabrTrack::Video).await {
             Ok(bytes) => {
@@ -898,7 +924,14 @@ async fn handle_sabr_route(
             }
             match engine.get_init(SabrTrack::Audio).await {
                 Ok(bytes) => {
-                    write_full_body(socket, audio_ct(key), "private, max-age=3600", &bytes, head_only).await
+                    write_full_body(
+                        socket,
+                        audio_ct(key),
+                        "private, max-age=3600",
+                        &bytes,
+                        head_only,
+                    )
+                    .await
                 }
                 Err(e) => {
                     let (code, reason) = sabr_error_status(&e);
@@ -915,7 +948,9 @@ async fn handle_sabr_route(
             };
             engine.ensure_audio_segment(sequence).await;
             match engine.get_segment(SabrTrack::Audio, sequence).await {
-                Ok(bytes) => write_full_body(socket, audio_ct(key), "no-store", &bytes, head_only).await,
+                Ok(bytes) => {
+                    write_full_body(socket, audio_ct(key), "no-store", &bytes, head_only).await
+                }
                 Err(e) => {
                     let (code, reason) = sabr_error_status(&e);
                     debug!(session = %session_id, key, seq = sequence, error = %e, "sabr_segment_unavailable");
@@ -926,8 +961,14 @@ async fn handle_sabr_route(
         ["health"] => {
             let state = engine.debug_state().await;
             let json = serde_json::to_string(&state).unwrap_or_else(|_| "{}".to_string());
-            write_full_body(socket, "application/json", "no-store", json.as_bytes(), head_only)
-                .await
+            write_full_body(
+                socket,
+                "application/json",
+                "no-store",
+                json.as_bytes(),
+                head_only,
+            )
+            .await
         }
         _ => write_status_only(socket, 404, "Not Found", "Unknown SABR route").await,
     }

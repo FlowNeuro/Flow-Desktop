@@ -22,6 +22,8 @@ import type {
   SongContinuation,
 } from "../../types/music";
 
+export type MusicAudioQuality = "Auto" | "High" | "Medium" | "Low";
+
 // --- Browse ---------------------------------------------------------------
 
 export function getMusicHomePage(continuation?: string): Promise<MusicHomePage> {
@@ -134,6 +136,9 @@ export function getMusicLyricsTyped(videoId: string): Promise<string | null> {
  * — feed it straight to an `<audio>` element. `loudnessDb` is for volume
  * normalization.
  */
-export function getMusicStream(videoId: string): Promise<MusicStreamInfo> {
-  return invokeBackend<MusicStreamInfo>("get_music_stream", { videoId });
+export function getMusicStream(
+  videoId: string,
+  audioQuality: MusicAudioQuality = "Auto",
+): Promise<MusicStreamInfo> {
+  return invokeBackend<MusicStreamInfo>("get_music_stream", { videoId, audioQuality });
 }

@@ -9,7 +9,9 @@
 use std::collections::HashSet;
 
 use crate::flow_neuro::ranker::{Candidate, RankInputs, ScoringWeights, score_candidate};
-use crate::flow_neuro::scoring::{ContentVector, UserBrain, calculate_cosine_similarity, strip_domain_tag};
+use crate::flow_neuro::scoring::{
+    ContentVector, UserBrain, calculate_cosine_similarity, strip_domain_tag,
+};
 
 /// A candidate plus its ground-truth relevance label (e.g. derived from how a user actually
 /// engaged with it). Relevance drives the NDCG calculation; it is not seen by the ranker.
@@ -121,10 +123,18 @@ pub fn evaluate(brain: &UserBrain, candidates: &[EvalCandidate], k: usize) -> Ev
         .collect();
 
     let mut order: Vec<usize> = (0..candidates.len()).collect();
-    order.sort_by(|&a, &b| scores[b].partial_cmp(&scores[a]).unwrap_or(std::cmp::Ordering::Equal));
+    order.sort_by(|&a, &b| {
+        scores[b]
+            .partial_cmp(&scores[a])
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
 
     let ranked_relevances: Vec<f64> = order.iter().map(|&i| candidates[i].relevance).collect();
-    let top_k: Vec<&ContentVector> = order.iter().take(k).map(|&i| &candidates[i].vector).collect();
+    let top_k: Vec<&ContentVector> = order
+        .iter()
+        .take(k)
+        .map(|&i| &candidates[i].vector)
+        .collect();
 
     EvalMetrics {
         ndcg: ndcg_at_k(&ranked_relevances, k),

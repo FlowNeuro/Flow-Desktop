@@ -307,7 +307,10 @@ mod tests {
     #[test]
     fn part_names() {
         assert_eq!(part_name(MEDIA), "MEDIA");
-        assert_eq!(part_name(SABR_CONTEXT_SENDING_POLICY), "SABR_CONTEXT_SENDING_POLICY");
+        assert_eq!(
+            part_name(SABR_CONTEXT_SENDING_POLICY),
+            "SABR_CONTEXT_SENDING_POLICY"
+        );
         assert_eq!(part_name(9999), "UNKNOWN");
     }
 }

@@ -1,17 +1,17 @@
+use crate::api::innertube::InnertubeClient;
 use crate::api::innertube::core::botguard::generate_po_token;
 use crate::api::innertube::core::context::{get_android_vr_context, get_ios_context};
 use crate::api::innertube::core::utils::{
     collect_related_content_items, dedupe_related_content_items,
     extract_channel_id_from_video_renderer, extract_text_from_value, thumbnail_url_from_array,
 };
-use crate::api::innertube::InnertubeClient;
 use crate::errors::{AppError, AppResult};
 use crate::models::video::{
     AudioTrack, CaptionTrack, RelatedContentItem, SabrStreamInfo, StreamInfo, StreamVariant,
     VideoChapter, VideoDetails,
 };
 use crate::streaming::sabr::engine::decode_b64_loose;
-use crate::streaming::sabr::selector::{select_formats, CodecSupport, SabrFormat};
+use crate::streaming::sabr::selector::{CodecSupport, SabrFormat, select_formats};
 use crate::streaming::sabr::{ClientProfile, SabrSessionDescriptor};
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
@@ -847,8 +847,9 @@ fn parse_sabr_formats(streaming_data: &Value) -> Vec<SabrFormat> {
         let audio_track = &format["audioTrack"];
         let audio_track_id = audio_track["id"].as_str().map(ToOwned::to_owned);
         let audio_track_name = audio_track["displayName"].as_str().map(ToOwned::to_owned);
-        let audio_is_default =
-            audio_track["audioIsDefault"].as_bool().unwrap_or(audio_track.is_null() && is_audio);
+        let audio_is_default = audio_track["audioIsDefault"]
+            .as_bool()
+            .unwrap_or(audio_track.is_null() && is_audio);
 
         formats.push(SabrFormat {
             itag: itag as i32,
@@ -1113,9 +1114,9 @@ impl InnertubeClient {
         {
             let mut primary_info = &serde_json::Value::Null;
             let mut secondary_info = &serde_json::Value::Null;
-            if let Some(contents) = next_res["contents"]["twoColumnWatchNextResults"]["results"]
-                ["results"]["contents"]
-                .as_array()
+            if let Some(contents) =
+                next_res["contents"]["twoColumnWatchNextResults"]["results"]["results"]["contents"]
+                    .as_array()
             {
                 for c in contents {
                     if c.get("videoPrimaryInfoRenderer").is_some() {
@@ -1145,24 +1146,24 @@ impl InnertubeClient {
 
             if !primary_info.is_null() {
                 // Extract views
-                if let Some(views) = primary_info["viewCount"]["videoViewCountRenderer"]
-                    ["viewCount"]["simpleText"]
-                    .as_str()
-                    .or_else(|| {
-                        primary_info["viewCount"]["videoViewCountRenderer"]["viewCount"]["runs"][0]
-                            ["text"]
-                            .as_str()
-                    })
-                    .or_else(|| {
-                        primary_info["viewCount"]["videoViewCountRenderer"]["shortViewCount"]
+                if let Some(views) =
+                    primary_info["viewCount"]["videoViewCountRenderer"]["viewCount"]["simpleText"]
+                        .as_str()
+                        .or_else(|| {
+                            primary_info["viewCount"]["videoViewCountRenderer"]["viewCount"]["runs"]
+                                [0]["text"]
+                                .as_str()
+                        })
+                        .or_else(|| {
+                            primary_info["viewCount"]["videoViewCountRenderer"]["shortViewCount"]
                             ["simpleText"]
                             .as_str()
-                    })
-                    .or_else(|| {
-                        primary_info["viewCount"]["videoViewCountRenderer"]["shortViewCount"]
+                        })
+                        .or_else(|| {
+                            primary_info["viewCount"]["videoViewCountRenderer"]["shortViewCount"]
                             ["runs"][0]["text"]
                             .as_str()
-                    })
+                        })
                 {
                     view_count_text = Some(views.to_string());
                 }
@@ -1183,9 +1184,8 @@ impl InnertubeClient {
                 {
                     for btn in top_level_buttons {
                         if let Some(view_model) = btn.get("segmentedLikeDislikeButtonViewModel") {
-                            let button_vm = &view_model["likeButtonViewModel"]
-                                ["likeButtonViewModel"]["toggleButtonViewModel"]
-                                ["toggleButtonViewModel"]["defaultButtonViewModel"]
+                            let button_vm = &view_model["likeButtonViewModel"]["likeButtonViewModel"]
+                                ["toggleButtonViewModel"]["toggleButtonViewModel"]["defaultButtonViewModel"]
                                 ["buttonViewModel"];
                             if let Some(title) = button_vm["title"]["runs"][0]["text"]
                                 .as_str()
@@ -1578,7 +1578,7 @@ mod sabr_live_smoke {
     use super::*;
     use crate::api::innertube::core::context::get_ipados_context;
     use crate::streaming::sabr::engine::{SabrEngine, SabrEngineConfig};
-    use crate::streaming::sabr::selector::{select_formats, CodecSupport};
+    use crate::streaming::sabr::selector::{CodecSupport, select_formats};
     use crate::streaming::sabr::session::RequestMode;
     use crate::streaming::sabr::{ClientProfile, SabrSessionDescriptor, SabrTrack};
     use std::sync::Arc;
@@ -1725,7 +1725,10 @@ mod sabr_live_smoke {
             st.request_count, st.bytes_used, st.audio_segments, st.audio_max_seq, st.last_error
         );
         assert!(!a_init.is_empty(), "audio init segment");
-        assert!(a_seg1.is_ok() && a_seg2.is_ok(), "audio media segments must finalize");
+        assert!(
+            a_seg1.is_ok() && a_seg2.is_ok(),
+            "audio media segments must finalize"
+        );
         println!("SABR SMOKE OK (audio-only media flowing)");
 
         // Multi-audio: switch to a dubbed language and verify its audio flows,
@@ -1734,10 +1737,16 @@ mod sabr_live_smoke {
         println!(
             "audio tracks ({}): {:?}",
             tracks.len(),
-            tracks.iter().map(|t| format!("{}={}", t.key, t.label)).collect::<Vec<_>>()
+            tracks
+                .iter()
+                .map(|t| format!("{}={}", t.key, t.label))
+                .collect::<Vec<_>>()
         );
         if let Some(dubbed) = tracks.iter().find(|t| !t.is_default) {
-            println!("switching to dubbed: key={} lang={} label={}", dubbed.key, dubbed.lang, dubbed.label);
+            println!(
+                "switching to dubbed: key={} lang={} label={}",
+                dubbed.key, dubbed.lang, dubbed.label
+            );
             assert!(engine.set_active_audio(&dubbed.key).await, "known track");
             let d_init = engine.get_init(SabrTrack::Audio).await;
             let d_seg1 = engine.get_segment(SabrTrack::Audio, 1).await;
@@ -1750,7 +1759,10 @@ mod sabr_live_smoke {
                 d_seg1.as_ref().map(|b| b.len()),
                 d_seg20.as_ref().map(|b| b.len()),
             );
-            assert!(d_init.is_ok() && d_seg1.is_ok(), "dubbed audio must flow after switch");
+            assert!(
+                d_init.is_ok() && d_seg1.is_ok(),
+                "dubbed audio must flow after switch"
+            );
             println!("MULTI-AUDIO SWITCH OK");
         } else {
             println!("NOTE: no dubbed track found on this video");
@@ -1768,7 +1780,7 @@ mod sabr_client_probe {
     use super::*;
     use crate::api::innertube::core::context::get_ipados_context;
     use crate::streaming::sabr::engine::{SabrEngine, SabrEngineConfig};
-    use crate::streaming::sabr::selector::{derive_audio_tracks, select_formats, CodecSupport};
+    use crate::streaming::sabr::selector::{CodecSupport, derive_audio_tracks, select_formats};
     use crate::streaming::sabr::session::RequestMode;
     use crate::streaming::sabr::{ClientProfile, SabrSessionDescriptor, SabrTrack};
     use std::collections::BTreeSet;
@@ -1819,7 +1831,10 @@ mod sabr_client_probe {
             .header("Origin", "https://www.youtube.com")
             .header("Referer", "https://www.youtube.com")
             .header("Cookie", "SOCS=CAE=")
-            .json(&payload).send().await.ok()?;
+            .json(&payload)
+            .send()
+            .await
+            .ok()?;
         r.json::<Value>().await.ok()
     }
 
@@ -1864,24 +1879,44 @@ mod sabr_client_probe {
         // (candidate, send_pot) — the GVS/SABR endpoint validates the web pot
         // regardless of client, so the question is which client+pot combination
         // sustains a SABR stream past the attestation grace window.
-        let android = Candidate { label: "ANDROID", client_name: "ANDROID", client_version: "21.03.38", client_name_id: 3,
-            user_agent: "com.google.android.youtube/21.03.38 (Linux; U; Android 14) gzip" };
-        let ipados = Candidate { label: "iPadOS", client_name: "IOS", client_version: "21.03.3", client_name_id: 5,
-            user_agent: "com.google.ios.youtube/21.03.3 (iPad7,6; U; CPU iPadOS 17_7_10 like Mac OS X; en-US)" };
+        let android = Candidate {
+            label: "ANDROID",
+            client_name: "ANDROID",
+            client_version: "21.03.38",
+            client_name_id: 3,
+            user_agent: "com.google.android.youtube/21.03.38 (Linux; U; Android 14) gzip",
+        };
+        let ipados = Candidate {
+            label: "iPadOS",
+            client_name: "IOS",
+            client_version: "21.03.3",
+            client_name_id: 5,
+            user_agent: "com.google.ios.youtube/21.03.3 (iPad7,6; U; CPU iPadOS 17_7_10 like Mac OS X; en-US)",
+        };
         let candidates: [(&Candidate, bool); 4] = [
-            (&android, true), (&android, false), (&ipados, true), (&ipados, false),
+            (&android, true),
+            (&android, false),
+            (&ipados, true),
+            (&ipados, false),
         ];
 
         for (c, send_pot) in candidates {
             let use_pot = if send_pot { pot.clone() } else { None };
-            println!("==== {} ({} v{}) pot={} ====", c.label, c.client_name, c.client_version, send_pot);
+            println!(
+                "==== {} ({} v{}) pot={} ====",
+                c.label, c.client_name, c.client_version, send_pot
+            );
             let ctx = if c.client_name == "ANDROID" {
                 let mut client_obj = serde_json::json!({
                     "clientName": "ANDROID", "clientVersion": c.client_version, "hl": "en", "gl": "US", "utcOffsetMinutes": 0
                 });
-                if let Some(vd) = visitor_data.clone() { client_obj["visitorData"] = Value::String(vd); }
+                if let Some(vd) = visitor_data.clone() {
+                    client_obj["visitorData"] = Value::String(vd);
+                }
                 let mut ctx = serde_json::json!({ "client": client_obj });
-                if let Some(t) = &use_pot { ctx["serviceIntegrityDimensions"] = serde_json::json!({ "poToken": t }); }
+                if let Some(t) = &use_pot {
+                    ctx["serviceIntegrityDimensions"] = serde_json::json!({ "poToken": t });
+                }
                 ctx
             } else {
                 context_for(c, visitor_data.clone(), use_pot.clone())
@@ -1895,7 +1930,10 @@ mod sabr_client_probe {
             };
             let status = res["playabilityStatus"]["status"].as_str().unwrap_or("?");
             if !status.eq_ignore_ascii_case("OK") {
-                println!("  playability={status} reason={:?}\n", res["playabilityStatus"]["reason"].as_str());
+                println!(
+                    "  playability={status} reason={:?}\n",
+                    res["playabilityStatus"]["reason"].as_str()
+                );
                 continue;
             }
             let streaming_data = &res["streamingData"];
@@ -1912,20 +1950,32 @@ mod sabr_client_probe {
             let langs: BTreeSet<String> = formats
                 .iter()
                 .filter(|f| f.is_audio)
-                .filter_map(|f| f.audio_track_id.as_deref().map(|id| id.split('.').next().unwrap_or(id).to_string()))
+                .filter_map(|f| {
+                    f.audio_track_id
+                        .as_deref()
+                        .map(|id| id.split('.').next().unwrap_or(id).to_string())
+                })
                 .collect();
             let tracks = derive_audio_tracks(&formats);
             println!(
                 "  OK formats={} audio_langs={} derived_tracks={} ustreamer={}B sabr_url_has_n={}",
-                formats.len(), langs.len(), tracks.len(), ustreamer_config.len(), has_n
+                formats.len(),
+                langs.len(),
+                tracks.len(),
+                ustreamer_config.len(),
+                has_n
             );
 
             let selected = match select_formats(&formats, None, CodecSupport::default()) {
                 Some(s) => s,
-                None => { println!("  no selectable formats\n"); continue; }
+                None => {
+                    println!("  no selectable formats\n");
+                    continue;
+                }
             };
             let duration_ms = extract_duration_seconds_from_player_response(&res)
-                .map(|s| s * 1000).unwrap_or(0);
+                .map(|s| s * 1000)
+                .unwrap_or(0);
             let descriptor = SabrSessionDescriptor {
                 video_id: video_id.clone(),
                 server_abr_streaming_url: server_url,
@@ -1949,7 +1999,12 @@ mod sabr_client_probe {
                 segment_wait: Duration::from_secs(10),
                 ..Default::default()
             };
-            let engine = Arc::new(SabrEngine::new(video_id.clone(), descriptor, selected, config));
+            let engine = Arc::new(SabrEngine::new(
+                video_id.clone(),
+                descriptor,
+                selected,
+                config,
+            ));
             engine.clone().spawn();
 
             // Drive continuous consumption: walk segments forward, ~realtime-ish,
@@ -1960,17 +2015,26 @@ mod sabr_client_probe {
             let mut next_seq = 1;
             let mut last_seq_ok = 0;
             loop {
-                if start.elapsed() > Duration::from_secs(25) { break; }
+                if start.elapsed() > Duration::from_secs(25) {
+                    break;
+                }
                 let st = engine.debug_state().await;
-                if st.done { break; }
+                if st.done {
+                    break;
+                }
                 if let Some(err) = &st.last_error {
                     if err.contains("Attestation") || st.last_protection_status == 3 {
                         break;
                     }
                 }
                 match engine.get_segment(SabrTrack::Audio, next_seq).await {
-                    Ok(_) => { last_seq_ok = next_seq; next_seq += 1; }
-                    Err(_) => { tokio::time::sleep(Duration::from_millis(300)).await; }
+                    Ok(_) => {
+                        last_seq_ok = next_seq;
+                        next_seq += 1;
+                    }
+                    Err(_) => {
+                        tokio::time::sleep(Duration::from_millis(300)).await;
+                    }
                 }
                 tokio::time::sleep(Duration::from_millis(120)).await;
             }
@@ -1989,8 +2053,13 @@ mod sabr_client_probe {
             };
             println!(
                 "  -> {verdict} | segs_ok={} max_seq={} bytes={} reqs={} protection={} done={} err={:?}",
-                last_seq_ok, st.audio_max_seq, st.bytes_used, st.request_count,
-                st.last_protection_status, st.done, st.last_error
+                last_seq_ok,
+                st.audio_max_seq,
+                st.bytes_used,
+                st.request_count,
+                st.last_protection_status,
+                st.done,
+                st.last_error
             );
             println!();
             engine.cancel();

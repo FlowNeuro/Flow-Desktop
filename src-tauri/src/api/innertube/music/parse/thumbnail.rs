@@ -29,8 +29,8 @@ pub fn thumbnail_url(renderer: &Value) -> Option<String> {
         &renderer["thumbnailRenderer"]["musicThumbnailRenderer"]["thumbnail"]["thumbnails"],
         &renderer["thumbnail"]["croppedSquareThumbnailRenderer"]["thumbnail"]["thumbnails"],
         &renderer["thumbnailRenderer"]["croppedSquareThumbnailRenderer"]["thumbnail"]["thumbnails"],
-        &renderer["thumbnailRenderer"]["musicAnimatedThumbnailRenderer"]["backupRenderer"]
-            ["musicThumbnailRenderer"]["thumbnail"]["thumbnails"],
+        &renderer["thumbnailRenderer"]["musicAnimatedThumbnailRenderer"]["backupRenderer"]["musicThumbnailRenderer"]
+            ["thumbnail"]["thumbnails"],
         &renderer["thumbnail"]["thumbnails"],
         &renderer["background"]["musicThumbnailRenderer"]["thumbnail"]["thumbnails"],
         &renderer["foregroundThumbnail"]["musicThumbnailRenderer"]["thumbnail"]["thumbnails"],

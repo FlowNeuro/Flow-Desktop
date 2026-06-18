@@ -8,8 +8,8 @@
 //! a timeout) for the bytes to arrive while nudging the loop forward.
 
 use std::collections::BTreeMap;
-use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
 use futures_util::StreamExt;
@@ -17,12 +17,12 @@ use serde::Serialize;
 use tokio::sync::{Mutex, Notify};
 use tracing::{debug, info, warn};
 
+use super::messages::FormatId;
 use super::messages::{
     FormatInitializationMetadata, MediaHeader, NextRequestPolicy, SabrContextSendingPolicy,
     SabrContextUpdate, SabrError as SabrErrorMsg, SabrRedirect, StreamProtectionStatus,
 };
-use super::messages::FormatId;
-use super::selector::{derive_audio_tracks, SabrAudioTrack, SelectedFormats};
+use super::selector::{SabrAudioTrack, SelectedFormats, derive_audio_tracks};
 use super::session::{RequestMode, SabrState};
 use super::ump::{self, UmpParser};
 use super::{SabrError, SabrResult, SabrSessionDescriptor, SabrTrack};
@@ -177,7 +177,10 @@ impl SabrEngine {
         selected: SelectedFormats,
         config: SabrEngineConfig,
     ) -> Self {
-        let po_token = descriptor.po_token.as_ref().and_then(|t| decode_b64_loose(t));
+        let po_token = descriptor
+            .po_token
+            .as_ref()
+            .and_then(|t| decode_b64_loose(t));
         let mut state = SabrState::new(
             descriptor.server_abr_streaming_url.clone(),
             &selected,
@@ -196,7 +199,11 @@ impl SabrEngine {
         let (active_key, active_itag) = match initial {
             Some(t) => {
                 state.set_audio_format(
-                    FormatId::new(t.format.itag, t.format.last_modified, t.format.xtags.clone()),
+                    FormatId::new(
+                        t.format.itag,
+                        t.format.last_modified,
+                        t.format.xtags.clone(),
+                    ),
                     t.format.mime_type.clone(),
                 );
                 (t.key.clone(), t.format.itag)
@@ -347,9 +354,17 @@ impl SabrEngine {
         let rn = self.request_counter.fetch_add(1, Ordering::Relaxed);
         let (url, body, visitor) = {
             let st = self.state.lock().await;
-            let sep = if st.effective_url.contains('?') { '&' } else { '?' };
+            let sep = if st.effective_url.contains('?') {
+                '&'
+            } else {
+                '?'
+            };
             let url = format!("{}{}rn={}", st.effective_url, sep, rn);
-            (url, st.build_request().encode(), self.descriptor.visitor_data.clone())
+            (
+                url,
+                st.build_request().encode(),
+                self.descriptor.visitor_data.clone(),
+            )
         };
 
         debug!(session = %self.session_id, rn, bytes = body.len(), "sabr_request_started");
@@ -479,7 +494,10 @@ impl SabrEngine {
                 if let Some((header_id, consumed)) = ump::read_varint(data) {
                     let payload = &data[consumed..];
                     if headers.contains_key(&header_id) {
-                        accums.entry(header_id).or_default().extend_from_slice(payload);
+                        accums
+                            .entry(header_id)
+                            .or_default()
+                            .extend_from_slice(payload);
                     }
                 }
             }
@@ -572,7 +590,11 @@ impl SabrEngine {
         }
         {
             let mut store = self.store.lock().await;
-            let track = store.track_mut(if is_audio { SabrTrack::Audio } else { SabrTrack::Video });
+            let track = store.track_mut(if is_audio {
+                SabrTrack::Audio
+            } else {
+                SabrTrack::Video
+            });
             track.initialized = true;
             if meta.end_segment_number > 0 {
                 track.end_seq = meta.end_segment_number;
@@ -598,7 +620,12 @@ impl SabrEngine {
         {
             let mut st = self.state.lock().await;
             if !info.is_init {
-                st.record_segment(info.is_audio, info.sequence, info.start_ms, info.duration_ms);
+                st.record_segment(
+                    info.is_audio,
+                    info.sequence,
+                    info.start_ms,
+                    info.duration_ms,
+                );
             }
         }
 

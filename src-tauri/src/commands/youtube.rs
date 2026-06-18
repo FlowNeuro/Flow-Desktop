@@ -72,7 +72,10 @@ fn format_relative_published(published: &str) -> Option<String> {
         format!("{years} {} ago", if years == 1 { "year" } else { "years" })
     } else if elapsed.num_days() >= 30 {
         let months = elapsed.num_days() / 30;
-        format!("{months} {} ago", if months == 1 { "month" } else { "months" })
+        format!(
+            "{months} {} ago",
+            if months == 1 { "month" } else { "months" }
+        )
     } else if elapsed.num_days() >= 7 {
         let weeks = elapsed.num_days() / 7;
         format!("{weeks} {} ago", if weeks == 1 { "week" } else { "weeks" })
@@ -84,7 +87,10 @@ fn format_relative_published(published: &str) -> Option<String> {
         format!("{hours} {} ago", if hours == 1 { "hour" } else { "hours" })
     } else if elapsed.num_minutes() >= 1 {
         let minutes = elapsed.num_minutes();
-        format!("{minutes} {} ago", if minutes == 1 { "minute" } else { "minutes" })
+        format!(
+            "{minutes} {} ago",
+            if minutes == 1 { "minute" } else { "minutes" }
+        )
     } else {
         "Just now".to_string()
     };
@@ -220,12 +226,10 @@ fn escape_xml_attr(value: &str) -> String {
 }
 
 fn build_synthetic_dash_manifest(stream_info: &StreamInfo) -> Option<String> {
-    let has_segment_ranges = |init_s: Option<u64>,
-                              init_e: Option<u64>,
-                              idx_s: Option<u64>,
-                              idx_e: Option<u64>| {
-        init_s.is_some() && init_e.is_some() && idx_s.is_some() && idx_e.is_some()
-    };
+    let has_segment_ranges =
+        |init_s: Option<u64>, init_e: Option<u64>, idx_s: Option<u64>, idx_e: Option<u64>| {
+            init_s.is_some() && init_e.is_some() && idx_s.is_some() && idx_e.is_some()
+        };
     let is_mp4 = |mime: Option<&str>| mime.map(|m| m.contains("mp4")).unwrap_or(false);
 
     let audio_tracks: Vec<_> = stream_info
@@ -295,7 +299,11 @@ fn build_synthetic_dash_manifest(stream_info: &StreamInfo) -> Option<String> {
     let duration_ms = video_variants
         .iter()
         .filter_map(|variant| variant.approx_duration_ms)
-        .chain(audio_tracks.iter().filter_map(|track| track.approx_duration_ms))
+        .chain(
+            audio_tracks
+                .iter()
+                .filter_map(|track| track.approx_duration_ms),
+        )
         .max()?;
     let mut video_groups: Vec<(String, Vec<_>)> = Vec::new();
     for variant in &video_variants {
@@ -345,10 +353,7 @@ fn build_synthetic_dash_manifest(stream_info: &StreamInfo) -> Option<String> {
             "      <Role schemeIdUri=\"urn:mpeg:dash:role:2011\" value=\"{}\" />\n",
             role
         ));
-        manifest.push_str(&format!(
-            "      <Label>{}</Label>\n",
-            label
-        ));
+        manifest.push_str(&format!("      <Label>{}</Label>\n", label));
         manifest.push_str(&format!(
             "      <Representation id=\"{}\" bandwidth=\"{}\" audioSamplingRate=\"48000\">\n",
             audio_id,
@@ -815,8 +820,8 @@ pub async fn get_sponsorblock_segments(
 ) -> Result<serde_json::Value, ErrorResponse> {
     validate_video_id(&video_id).map_err(ErrorResponse::from)?;
 
-    let base_url = normalize_sponsorblock_server_url(server_url.as_deref())
-        .map_err(ErrorResponse::from)?;
+    let base_url =
+        normalize_sponsorblock_server_url(server_url.as_deref()).map_err(ErrorResponse::from)?;
     let url = format!(
         "{}/api/skipSegments?videoID={}&categories=[\"sponsor\",\"intro\",\"outro\",\"selfpromo\",\"interaction\",\"filler\",\"music_offtopic\",\"preview\",\"exclusive_access\"]",
         base_url, video_id
@@ -857,8 +862,9 @@ fn normalize_sponsorblock_server_url(server_url: Option<&str>) -> crate::errors:
         .map(str::trim)
         .filter(|value| !value.is_empty())
         .unwrap_or("https://sponsor.ajay.app");
-    let parsed = reqwest::Url::parse(raw)
-        .map_err(|_| crate::errors::AppError::Validation("Invalid SponsorBlock server URL".into()))?;
+    let parsed = reqwest::Url::parse(raw).map_err(|_| {
+        crate::errors::AppError::Validation("Invalid SponsorBlock server URL".into())
+    })?;
 
     match parsed.scheme() {
         "http" | "https" => {}
@@ -982,7 +988,9 @@ async fn populate_video_durations(
         let thumbnail_url = video.thumbnail_url.clone();
         async move {
             // 1. Try cache first
-            if let Ok(Some(cached)) = crate::db::cache::get_cached_video_summary(&pool, &video_id).await {
+            if let Ok(Some(cached)) =
+                crate::db::cache::get_cached_video_summary(&pool, &video_id).await
+            {
                 if cached.duration_seconds.is_some() {
                     return (video_id, cached.duration_seconds);
                 }
@@ -1054,9 +1062,8 @@ pub async fn get_subscription_rss_feed(
         let client = client.clone();
         let channel_id = channel_id.clone();
         async move {
-            let rss_url = format!(
-                "https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}"
-            );
+            let rss_url =
+                format!("https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}");
             let xml = client
                 .get(rss_url)
                 .send()
@@ -1116,12 +1123,8 @@ pub async fn get_subscription_rss_feed(
     // Populate video durations for the top videos (up to 100)
     let num_to_populate = feed_videos.len().min(100);
     if num_to_populate > 0 {
-        populate_video_durations(
-            &mut feed_videos[..num_to_populate],
-            &youtube_service,
-            &pool,
-        )
-        .await;
+        populate_video_durations(&mut feed_videos[..num_to_populate], &youtube_service, &pool)
+            .await;
     }
 
     Ok(SubscriptionRssFeed {

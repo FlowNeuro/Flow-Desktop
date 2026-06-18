@@ -6,7 +6,7 @@
 //! audio URLs. Web clients (which return `signatureCipher`) are excluded from the
 //! direct-audio path but kept available for metadata via `WEB_REMIX`.
 
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 const USER_AGENT_WEB: &str =
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:140.0) Gecko/20100101 Firefox/140.0";

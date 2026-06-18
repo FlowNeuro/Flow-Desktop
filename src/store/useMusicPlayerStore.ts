@@ -1,15 +1,17 @@
 import { create } from "zustand";
 
 import type { SongItem } from "../types/music";
-import { getMusicStream } from "../lib/api/music";
+import { getMusicStream, type MusicAudioQuality } from "../lib/api/music";
 import { getBackendErrorMessage } from "../lib/api/errors";
 import { musicAudioEngine } from "../lib/audio/musicAudioEngine";
+import { SETTINGS } from "../lib/settings/schema";
 import {
   EQ_FLAT,
   EQ_PRESETS,
   normalizeEqGains,
   type EqPresetName,
 } from "../lib/audio/eqBands";
+import { getSettingValue } from "./useAppSettingsStore";
 
 export type MusicViewState = "dock" | "full" | "queue" | "lyrics";
 export type MusicRepeatMode = "none" | "one" | "all";
@@ -87,6 +89,12 @@ const pickRandomIndex = (length: number, exclude: number): number => {
 };
 
 const PLAYBACK_ERROR_FALLBACK = "Playback failed";
+const MUSIC_AUDIO_QUALITY_VALUES = new Set(["Auto", "High", "Medium", "Low"]);
+
+const getMusicAudioQualitySetting = (): MusicAudioQuality => {
+  const value = getSettingValue(SETTINGS.MUSIC_AUDIO_QUALITY);
+  return MUSIC_AUDIO_QUALITY_VALUES.has(value) ? (value as MusicAudioQuality) : "Auto";
+};
 
 interface MusicPlayerState {
   // --- now playing ---
@@ -210,7 +218,7 @@ export const useMusicPlayerStore = create<MusicPlayerState>((set, get) => ({
     });
 
     try {
-      const info = await getMusicStream(videoId);
+      const info = await getMusicStream(videoId, getMusicAudioQualitySetting());
       if (get().loadingStreamId !== videoId) return;
 
       set({ loudnessDb: info.loudnessDb, loadingStreamId: null });

@@ -179,11 +179,13 @@ fn process_search_items(
 
                 let channel_id = extract_channel_id_from_video_renderer(video);
 
-                let channel_avatar_url = video["channelThumbnailSupportedRenderers"]["channelThumbnailWithLinkRenderer"]["thumbnail"]["thumbnails"]
-                    .as_array()
-                    .and_then(|arr| arr.first())
-                    .and_then(|t| t["url"].as_str())
-                    .map(normalize_youtube_image_url);
+                let channel_avatar_url =
+                    video["channelThumbnailSupportedRenderers"]["channelThumbnailWithLinkRenderer"]
+                        ["thumbnail"]["thumbnails"]
+                        .as_array()
+                        .and_then(|arr| arr.first())
+                        .and_then(|t| t["url"].as_str())
+                        .map(normalize_youtube_image_url);
 
                 items.push(VideoSummary {
                     id: video_id,
@@ -410,7 +412,11 @@ mod tests {
             }]
         });
         let (items, token) = parse_innertube_search(val);
-        assert_eq!(items.len(), 1, "video inside itemSectionRenderer must be parsed");
+        assert_eq!(
+            items.len(),
+            1,
+            "video inside itemSectionRenderer must be parsed"
+        );
         assert_eq!(items[0].id, "abc12345678");
         assert_eq!(token.as_deref(), Some("NEXT_TOKEN"));
     }

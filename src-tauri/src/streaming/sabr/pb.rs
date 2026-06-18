@@ -11,7 +11,6 @@
 //! Only the protobuf binary wire format is implemented (varint, 64-bit, 32-bit,
 //! and length-delimited). That is all SABR uses.
 
-
 pub mod wire {
     pub const VARINT: u8 = 0;
     pub const I64: u8 = 1;

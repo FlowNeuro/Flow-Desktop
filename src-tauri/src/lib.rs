@@ -22,12 +22,6 @@ use commands::db::{
     get_watch_history, set_setting,
 };
 use commands::files::write_backup_file;
-use commands::recommendation::{
-    complete_onboarding, generate_discovery_queries, get_brain_snapshot, get_feed_quotas,
-    block_channel, get_flow_persona, get_onboarding_status, get_recommendation_events,
-    log_interaction, mark_not_interested, rank_videos, record_feed_impressions, reset_brain,
-    unblock_channel, unblock_topic,
-};
 use commands::music::{
     get_music_album_continuation, get_music_album_page, get_music_artist_items,
     get_music_artist_page, get_music_charts_page, get_music_explore_page, get_music_home_page,
@@ -37,10 +31,16 @@ use commands::music::{
     get_music_search_summary, get_music_stream, get_music_watch_queue, lyrics_http_get,
     search_music_continuation, search_music_typed,
 };
+use commands::recommendation::{
+    block_channel, complete_onboarding, generate_discovery_queries, get_brain_snapshot,
+    get_feed_quotas, get_flow_persona, get_onboarding_status, get_recommendation_events,
+    log_interaction, mark_not_interested, rank_videos, record_feed_impressions, reset_brain,
+    unblock_channel, unblock_topic,
+};
 use commands::youtube::{
     fetch_subtitles, get_channel_details, get_channel_tab, get_comments, get_dearrow_override,
-    get_music_album, get_music_artist, get_music_charts, get_music_explore, get_music_home,
-    get_music_lyrics, get_music_related, get_personalized_music_recommendations, get_live_chat,
+    get_live_chat, get_music_album, get_music_artist, get_music_charts, get_music_explore,
+    get_music_home, get_music_lyrics, get_music_related, get_personalized_music_recommendations,
     get_playlist_details, get_related_videos, get_sabr_debug_state, get_search_suggestions,
     get_sponsorblock_segments, get_stream_info, get_subscription_rotation_feed,
     get_subscription_rss_feed, get_trending_videos, get_video_details, parse_subscription_export,

@@ -23,7 +23,8 @@ impl InnertubeClient {
     ) -> AppResult<MusicHomePage> {
         let visitor = self.music_visitor_data().await;
         let res = if let Some(c) = continuation_token {
-            self.music_browse(None, None, Some(c), visitor.as_deref()).await?
+            self.music_browse(None, None, Some(c), visitor.as_deref())
+                .await?
         } else {
             self.music_browse(Some(endpoints::BROWSE_HOME), None, None, visitor.as_deref())
                 .await?
@@ -53,8 +54,8 @@ impl InnertubeClient {
             }
         }
 
-        let section_list = &res["contents"]["singleColumnBrowseResultsRenderer"]["tabs"][0]
-            ["tabRenderer"]["content"]["sectionListRenderer"];
+        let section_list = &res["contents"]["singleColumnBrowseResultsRenderer"]["tabs"][0]["tabRenderer"]
+            ["content"]["sectionListRenderer"];
         let cont_node = &res["continuationContents"]["sectionListContinuation"];
         let next = continuation::from_continuations(section_list)
             .or_else(|| continuation::from_continuations(cont_node))
@@ -62,13 +63,15 @@ impl InnertubeClient {
             .or_else(|| continuation::from_items(&section_list["contents"]))
             .or_else(|| continuation::from_items(&cont_node["contents"]))
             .or_else(|| {
-                res["onResponseReceivedActions"].as_array().and_then(|actions| {
-                    actions.iter().find_map(|a| {
-                        continuation::from_items(
-                            &a["appendContinuationItemsAction"]["continuationItems"],
-                        )
+                res["onResponseReceivedActions"]
+                    .as_array()
+                    .and_then(|actions| {
+                        actions.iter().find_map(|a| {
+                            continuation::from_items(
+                                &a["appendContinuationItemsAction"]["continuationItems"],
+                            )
+                        })
                     })
-                })
             });
 
         Ok(MusicHomePage {
@@ -92,7 +95,12 @@ impl InnertubeClient {
     pub(crate) async fn music_new_releases(&self) -> AppResult<Vec<AlbumItem>> {
         let visitor = self.music_visitor_data().await;
         let res = self
-            .music_browse(Some(endpoints::BROWSE_NEW_RELEASES), None, None, visitor.as_deref())
+            .music_browse(
+                Some(endpoints::BROWSE_NEW_RELEASES),
+                None,
+                None,
+                visitor.as_deref(),
+            )
             .await?;
         let mut albums = Vec::new();
         for section in shelves::section_list_contents(&res) {
@@ -111,7 +119,12 @@ impl InnertubeClient {
     pub(crate) async fn music_moods(&self) -> AppResult<Vec<MoodAndGenreItem>> {
         let visitor = self.music_visitor_data().await;
         let res = self
-            .music_browse(Some(endpoints::BROWSE_MOODS), None, None, visitor.as_deref())
+            .music_browse(
+                Some(endpoints::BROWSE_MOODS),
+                None,
+                None,
+                visitor.as_deref(),
+            )
             .await?;
         let mut moods = Vec::new();
         for section in shelves::section_list_contents(&res) {
@@ -138,7 +151,8 @@ impl InnertubeClient {
     ) -> AppResult<MoodGenrePage> {
         let visitor = self.music_visitor_data().await;
         let res = if let Some(c) = continuation_token {
-            self.music_browse(None, None, Some(c), visitor.as_deref()).await?
+            self.music_browse(None, None, Some(c), visitor.as_deref())
+                .await?
         } else {
             self.music_browse(Some(browse_id_str), params, None, visitor.as_deref())
                 .await?
@@ -172,8 +186,7 @@ impl InnertubeClient {
         if next.is_none() {
             next = continuation::any(grid, &grid["items"]);
         }
-        let append = &res["onResponseReceivedActions"][0]["appendContinuationItemsAction"]
-            ["continuationItems"];
+        let append = &res["onResponseReceivedActions"][0]["appendContinuationItemsAction"]["continuationItems"];
         items.extend(shelves::collect_items(append));
         if next.is_none() {
             next = continuation::from_items(append);
@@ -202,7 +215,8 @@ impl InnertubeClient {
     ) -> AppResult<ChartsPage> {
         let visitor = self.music_visitor_data().await;
         let res = if let Some(c) = continuation_token {
-            self.music_browse(None, None, Some(c), visitor.as_deref()).await?
+            self.music_browse(None, None, Some(c), visitor.as_deref())
+                .await?
         } else {
             self.music_browse(
                 Some(endpoints::BROWSE_CHARTS),
@@ -242,7 +256,11 @@ impl InnertubeClient {
 }
 
 fn section_shelf_continuation(section: &Value) -> Option<String> {
-    for key in ["gridRenderer", "musicPlaylistShelfRenderer", "musicShelfRenderer"] {
+    for key in [
+        "gridRenderer",
+        "musicPlaylistShelfRenderer",
+        "musicShelfRenderer",
+    ] {
         let node = &section[key];
         if node.is_null() {
             continue;

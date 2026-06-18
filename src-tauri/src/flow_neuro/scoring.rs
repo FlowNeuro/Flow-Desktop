@@ -1517,7 +1517,10 @@ pub fn calculate_channel_profile_boost(
     let mut entries: Vec<(String, f64)> = profile.iter().map(|(k, v)| (k.clone(), *v)).collect();
     entries.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
     let profile_vector = ContentVector {
-        topics: entries.into_iter().take(CHANNEL_PROFILE_MAX_TOPICS).collect(),
+        topics: entries
+            .into_iter()
+            .take(CHANNEL_PROFILE_MAX_TOPICS)
+            .collect(),
         ..ContentVector::default()
     };
 
@@ -1874,7 +1877,10 @@ mod tests {
         content.topics.insert("welding".to_string(), 1.0);
         // Identical scalar features, zero topic overlap → must not clear the relevance floor.
         let sim = calculate_cosine_similarity(&user, &content);
-        assert!(sim < RELEVANCE_FLOOR_MODERATE_THRESHOLD, "similarity was {sim}");
+        assert!(
+            sim < RELEVANCE_FLOOR_MODERATE_THRESHOLD,
+            "similarity was {sim}"
+        );
     }
 
     #[test]
@@ -1886,8 +1892,7 @@ mod tests {
         let mut diff = ContentVector::default();
         diff.topics.insert("welding".to_string(), 1.0);
         assert!(
-            calculate_cosine_similarity(&user, &same)
-                > calculate_cosine_similarity(&user, &diff)
+            calculate_cosine_similarity(&user, &same) > calculate_cosine_similarity(&user, &diff)
         );
     }
 
@@ -1922,7 +1927,10 @@ mod tests {
         }
         let ordered = apply_smart_diversity(candidates);
         assert_eq!(ordered.first(), Some(&"v0".to_string()));
-        assert!(ordered.len() < 6, "one channel should not fill the whole window");
+        assert!(
+            ordered.len() < 6,
+            "one channel should not fill the whole window"
+        );
     }
 
     #[test]

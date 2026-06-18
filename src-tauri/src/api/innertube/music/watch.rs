@@ -1,7 +1,7 @@
 //! Watch-surface extractors: the `next` queue/radio, typed related, lyrics, and
 //! `music/get_queue`.
 
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use super::clients;
 use super::parse::runs::{parse_artists_and_year, parse_duration, runs_text};
@@ -33,7 +33,13 @@ impl InnertubeClient {
             payload["params"] = json!(p);
         }
         let res = self
-            .post_music("next", &clients::WEB_REMIX, &mut payload, visitor.as_deref(), None)
+            .post_music(
+                "next",
+                &clients::WEB_REMIX,
+                &mut payload,
+                visitor.as_deref(),
+                None,
+            )
             .await?;
         Ok(parse_next_queue(&res))
     }
@@ -43,7 +49,13 @@ impl InnertubeClient {
         let visitor = self.music_visitor_data().await;
         let mut payload = json!({ "continuation": token });
         let res = self
-            .post_music("next", &clients::WEB_REMIX, &mut payload, visitor.as_deref(), None)
+            .post_music(
+                "next",
+                &clients::WEB_REMIX,
+                &mut payload,
+                visitor.as_deref(),
+                None,
+            )
             .await?;
         let panel = &res["continuationContents"]["playlistPanelContinuation"];
         let items = collect_panel_items(panel);
@@ -143,13 +155,18 @@ impl InnertubeClient {
         };
         let visitor = self.music_visitor_data().await;
         let res = self
-            .music_browse(Some(&browse), queue.lyrics_params.as_deref(), None, visitor.as_deref())
+            .music_browse(
+                Some(&browse),
+                queue.lyrics_params.as_deref(),
+                None,
+                visitor.as_deref(),
+            )
             .await?;
 
         let mut text = String::new();
         for section in shelves::section_list_contents(&res) {
-            if let Some(runs) = section["musicDescriptionShelfRenderer"]["description"]["runs"]
-                .as_array()
+            if let Some(runs) =
+                section["musicDescriptionShelfRenderer"]["description"]["runs"].as_array()
             {
                 for run in runs {
                     if let Some(t) = run["text"].as_str() {
@@ -163,14 +180,15 @@ impl InnertubeClient {
 }
 
 fn parse_next_queue(res: &Value) -> QueuePage {
-    let tabs = &res["contents"]["singleColumnMusicWatchNextResultsRenderer"]["tabbedRenderer"]
-        ["watchNextTabbedResultsRenderer"]["tabs"];
+    let tabs = &res["contents"]["singleColumnMusicWatchNextResultsRenderer"]["tabbedRenderer"]["watchNextTabbedResultsRenderer"]
+        ["tabs"];
 
-    let panel = &tabs[0]["tabRenderer"]["content"]["musicQueueRenderer"]["content"]
-        ["playlistPanelRenderer"];
+    let panel = &tabs[0]["tabRenderer"]["content"]["musicQueueRenderer"]["content"]["playlistPanelRenderer"];
 
     let items = collect_panel_items(panel);
-    let current_index = panel["currentIndex"].as_i64().and_then(|v| i32::try_from(v).ok());
+    let current_index = panel["currentIndex"]
+        .as_i64()
+        .and_then(|v| i32::try_from(v).ok());
     let radio_playlist_id = panel["playlistId"].as_str().map(ToOwned::to_owned);
 
     let lyrics_endpoint = &tabs[1]["tabRenderer"]["endpoint"]["browseEndpoint"];

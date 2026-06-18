@@ -7,9 +7,7 @@
 
 use serde_json::Value;
 
-use super::endpoint::{
-    browse_id, has_explicit, music_video_type, page_type, video_id,
-};
+use super::endpoint::{browse_id, has_explicit, music_video_type, page_type, video_id};
 use super::runs::{flex_text, parse_artists_and_year, parse_song_meta, runs_text};
 use super::thumbnail::thumbnail_url;
 use crate::api::innertube::music::endpoints;
@@ -141,7 +139,9 @@ pub fn parse_two_row_item(r: &Value) -> Option<YTItem> {
             thumbnail: thumbnail.unwrap_or_default(),
             explicit: has_explicit(r),
             video_id: Some(vid.to_string()),
-            playlist_id: nav["watchEndpoint"]["playlistId"].as_str().map(ToOwned::to_owned),
+            playlist_id: nav["watchEndpoint"]["playlistId"]
+                .as_str()
+                .map(ToOwned::to_owned),
             params: None,
         }));
     }

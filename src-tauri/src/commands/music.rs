@@ -13,7 +13,7 @@ use crate::models::music_pages::{
     AlbumPage, MoodGenrePage, MusicHomePage, MusicPlaylistPage, MusicSearchResponse,
     MusicSearchSuggestions, QueuePage, RelatedPage, SearchSummaryPage,
 };
-use crate::models::music_stream::MusicStreamInfo;
+use crate::models::music_stream::{MusicAudioQuality, MusicStreamInfo};
 use crate::security::validation::{validate_search_query, validate_video_id};
 use crate::services::music_service::MusicService;
 use crate::streaming::proxy::StreamingManager;
@@ -255,12 +255,22 @@ pub async fn lyrics_http_get(
 #[tauri::command]
 pub async fn get_music_stream(
     video_id: String,
+    audio_quality: Option<String>,
     music: State<'_, MusicService>,
     streaming_manager: State<'_, StreamingManager>,
 ) -> CmdResult<MusicStreamInfo> {
     validate_video_id(&video_id).map_err(ErrorResponse::from)?;
+    let audio_quality = audio_quality
+        .as_deref()
+        .map(str::parse::<MusicAudioQuality>)
+        .transpose()
+        .map_err(|message| ErrorResponse::from(AppError::Validation(message)))?
+        .unwrap_or_default();
 
-    let mut info = music.resolve_stream(&video_id).await.map_err(ErrorResponse::from)?;
+    let mut info = music
+        .resolve_stream(&video_id, audio_quality)
+        .await
+        .map_err(ErrorResponse::from)?;
 
     // Register the upstream audio URL with the shared proxy and rewrite to a
     // loopback URL — identical mechanism to the video `get_stream_info`.

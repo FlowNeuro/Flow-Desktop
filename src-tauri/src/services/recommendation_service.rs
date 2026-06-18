@@ -1603,7 +1603,6 @@ impl RecommendationService {
         )
         .await?;
 
-
         if matches!(
             interaction_type,
             InteractionType::Click | InteractionType::Watched

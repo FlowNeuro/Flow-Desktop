@@ -18,7 +18,7 @@ use super::clients;
 use crate::api::innertube::core::botguard::generate_po_token;
 use crate::api::innertube::InnertubeClient;
 use crate::errors::{AppError, AppResult};
-use crate::models::music_stream::MusicStreamInfo;
+use crate::models::music_stream::{MusicAudioQuality, MusicStreamInfo};
 
 /// Desktop iOS/Android signed-client signature timestamp (matches the value the
 /// working video path uses for `IOS`).
@@ -28,7 +28,11 @@ impl InnertubeClient {
     /// Resolve a playable, audio-only stream for a music `video_id` by trying
     /// each direct-audio client in turn. Returns the raw upstream URL + the
     /// User-Agent that must fetch it; the command layer proxies it.
-    pub(crate) async fn resolve_music_stream(&self, video_id: &str) -> AppResult<MusicStreamInfo> {
+    pub(crate) async fn resolve_music_stream(
+        &self,
+        video_id: &str,
+        audio_quality: MusicAudioQuality,
+    ) -> AppResult<MusicStreamInfo> {
         let video_id = video_id.trim();
         if video_id.is_empty() {
             return Err(AppError::Validation("Video ID cannot be empty".into()));
@@ -73,7 +77,7 @@ impl InnertubeClient {
             }
 
             let streaming = &res["streamingData"];
-            let Some((format, url)) = pick_audio_format(streaming) else {
+            let Some((format, url)) = pick_audio_format(streaming, audio_quality) else {
                 debug!(client = client.name, "no clean direct audio format");
                 continue;
             };
@@ -101,6 +105,7 @@ impl InnertubeClient {
                 client = client.name,
                 itag,
                 ?bitrate,
+                audio_quality = audio_quality.as_str(),
                 "music stream resolved"
             );
 
@@ -135,31 +140,117 @@ fn url_is_clean(url: &str) -> bool {
         .unwrap_or(false)
 }
 
+#[derive(Debug, Clone)]
+struct AudioCandidate {
+    format: Value,
+    url: String,
+    bitrate: u64,
+    score: i64,
+    is_original: bool,
+}
+
+fn format_bitrate(format: &Value) -> u64 {
+    format["averageBitrate"]
+        .as_u64()
+        .filter(|b| *b > 0)
+        .or_else(|| format["bitrate"].as_u64())
+        .unwrap_or(0)
+}
+
+fn format_is_original_audio(format: &Value) -> bool {
+    let track = &format["audioTrack"];
+    track.is_null() || track["audioIsDefault"].as_bool() == Some(true)
+}
+
+fn codec_bonus(format: &Value) -> i64 {
+    let mime = format["mimeType"].as_str().unwrap_or("");
+    if mime.contains("webm") || mime.contains("opus") {
+        10_240
+    } else {
+        0
+    }
+}
+
 /// Quality score: bitrate, with a bonus for Opus/WebM and a large bonus for the
 /// original (non-dubbed) track. Mirrors mobile's `audioQualityScore` plus an
 /// original-language preference.
 fn audio_score(format: &Value) -> i64 {
-    let mime = format["mimeType"].as_str().unwrap_or("");
-    let bitrate = format["averageBitrate"]
-        .as_i64()
-        .filter(|b| *b > 0)
-        .or_else(|| format["bitrate"].as_i64())
-        .unwrap_or(0);
-    let codec_bonus = if mime.contains("webm") || mime.contains("opus") {
-        10_240
+    let bitrate = i64::try_from(format_bitrate(format)).unwrap_or(0);
+    let original_bonus = if format_is_original_audio(format) {
+        1_000_000
     } else {
         0
     };
-    let track = &format["audioTrack"];
-    let is_original = track.is_null() || track["audioIsDefault"].as_bool() == Some(true);
-    let original_bonus = if is_original { 1_000_000 } else { 0 };
-    bitrate + codec_bonus + original_bonus
+    bitrate + codec_bonus(format) + original_bonus
 }
 
-/// Choose the best directly-playable audio-only format. Returns `(format, url)`.
-fn pick_audio_format(streaming: &Value) -> Option<(Value, String)> {
+fn better_targeted_candidate(
+    candidate: &AudioCandidate,
+    current: &AudioCandidate,
+    target_bitrate: u64,
+    max_preferred_bitrate: u64,
+) -> bool {
+    let candidate_in_cap = candidate.bitrate > 0 && candidate.bitrate <= max_preferred_bitrate;
+    let current_in_cap = current.bitrate > 0 && current.bitrate <= max_preferred_bitrate;
+
+    match (candidate_in_cap, current_in_cap) {
+        (true, false) => true,
+        (false, true) => false,
+        (false, false) => {
+            if candidate.bitrate == current.bitrate {
+                candidate.score > current.score
+            } else if candidate.bitrate == 0 {
+                false
+            } else if current.bitrate == 0 {
+                true
+            } else {
+                candidate.bitrate < current.bitrate
+            }
+        }
+        (true, true) => {
+            let candidate_distance = candidate.bitrate.abs_diff(target_bitrate);
+            let current_distance = current.bitrate.abs_diff(target_bitrate);
+            candidate_distance < current_distance
+                || (candidate_distance == current_distance && candidate.score > current.score)
+        }
+    }
+}
+
+fn pick_targeted_quality(
+    candidates: &[AudioCandidate],
+    target_bitrate: u64,
+    max_preferred_bitrate: u64,
+) -> Option<&AudioCandidate> {
+    let mut preferred: Vec<&AudioCandidate> = candidates.iter().filter(|c| c.is_original).collect();
+    if preferred.is_empty() {
+        preferred = candidates.iter().collect();
+    }
+
+    preferred
+        .into_iter()
+        .fold(None, |best, candidate| match best {
+            None => Some(candidate),
+            Some(current)
+                if better_targeted_candidate(
+                    candidate,
+                    current,
+                    target_bitrate,
+                    max_preferred_bitrate,
+                ) =>
+            {
+                Some(candidate)
+            }
+            Some(current) => Some(current),
+        })
+}
+
+/// Choose a directly-playable audio-only format. Returns `(format, url)`.
+fn pick_audio_format(
+    streaming: &Value,
+    audio_quality: MusicAudioQuality,
+) -> Option<(Value, String)> {
     let formats = streaming["adaptiveFormats"].as_array()?;
-    let mut best: Option<(&Value, String, i64)> = None;
+    let mut candidates: Vec<AudioCandidate> = Vec::new();
 
     for format in formats {
         let mime = format["mimeType"].as_str().unwrap_or("");
@@ -172,13 +263,32 @@ fn pick_audio_format(streaming: &Value) -> Option<(Value, String)> {
         if !url_is_clean(url) {
             continue;
         }
-        let score = audio_score(format);
-        if best.as_ref().map_or(true, |(_, _, best_score)| score > *best_score) {
-            best = Some((format, url.to_string(), score));
-        }
+
+        candidates.push(AudioCandidate {
+            format: format.clone(),
+            url: url.to_string(),
+            bitrate: format_bitrate(format),
+            score: audio_score(format),
+            is_original: format_is_original_audio(format),
+        });
     }
 
-    best.map(|(format, url, _)| (format.clone(), url))
+    let selected = match audio_quality {
+        MusicAudioQuality::Auto => candidates.iter().max_by_key(|candidate| candidate.score),
+        MusicAudioQuality::High => candidates
+            .iter()
+            .filter(|candidate| candidate.is_original)
+            .max_by_key(|candidate| (candidate.bitrate, candidate.score))
+            .or_else(|| {
+                candidates
+                    .iter()
+                    .max_by_key(|candidate| (candidate.bitrate, candidate.score))
+            }),
+        MusicAudioQuality::Medium => pick_targeted_quality(&candidates, 128_000, 160_000),
+        MusicAudioQuality::Low => pick_targeted_quality(&candidates, 64_000, 96_000),
+    }?;
+
+    Some((selected.format.clone(), selected.url.clone()))
 }
 
 fn map_music_playability(status: &str, reason: Option<&str>) -> AppError {

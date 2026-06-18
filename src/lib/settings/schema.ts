@@ -247,8 +247,8 @@ export const SETTING_DEFINITIONS = [
   str(SETTINGS.DEFAULT_QUALITY_WIFI, "quality", "1080p", "wired", QUALITY_VALUES),
   str(SETTINGS.DEFAULT_VIDEO_CODEC, "quality", "H.264", "wired", ["Auto", "H.264", "VP9", "AV1"]),
   str(SETTINGS.SHORTS_QUALITY_WIFI, "quality", "720p", "deferred", QUALITY_VALUES, "disabled-until-wired", "app-data", "settings_note_shorts_playback_path_missing"),
-  str(SETTINGS.MUSIC_AUDIO_QUALITY, "quality", "Auto", "persisted-only", ["Auto", "High", "Medium", "Low"]),
-  str(SETTINGS.PREFERRED_AUDIO_LANGUAGE, "quality", "original", "wired"),
+  str(SETTINGS.MUSIC_AUDIO_QUALITY, "quality", "Auto", "wired", ["Auto", "High", "Medium", "Low"]),
+  str(SETTINGS.PREFERRED_AUDIO_LANGUAGE, "quality", "original", "persisted-only"),
 
   str(SETTINGS.BUFFER_PROFILE, "network", "STABLE", "wired", ["AGGRESSIVE", "STABLE", "DATASAVER", "CUSTOM"]),
   num(SETTINGS.MIN_BUFFER_MS, "network", 30000, "wired", 5000, 120000),

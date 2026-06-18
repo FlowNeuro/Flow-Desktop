@@ -115,7 +115,9 @@ fn extract_playlist_title(res: &Value) -> String {
     let header = &res["header"];
 
     let title_candidates = [
-        header.get("playlistHeaderRenderer").and_then(|h| h.get("title")),
+        header
+            .get("playlistHeaderRenderer")
+            .and_then(|h| h.get("title")),
         header
             .get("pageHeaderRenderer")
             .and_then(|h| h.get("pageTitle")),

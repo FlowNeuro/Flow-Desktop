@@ -80,8 +80,8 @@ export function QualityTab() {
             { value: 'Medium', label: getString('settings_option_medium') }, { value: 'Low', label: getString('settings_option_low') },
           ]} />
         </SettingItem>
-        <SettingItem title={getString('settings_audio_track_language')} description={getString('settings_audio_track_language_desc')}>
-          <Select value={audioLang} onChange={setAudioLang} options={LANGUAGE_OPTIONS} />
+        <SettingItem title={getString('settings_audio_track_language')} description={getString('settings_audio_track_language_desc')} disabled={isSettingDisabledUntilWired(SETTINGS.PREFERRED_AUDIO_LANGUAGE)}>
+          <Select value={audioLang} onChange={setAudioLang} options={LANGUAGE_OPTIONS} disabled={isSettingDisabledUntilWired(SETTINGS.PREFERRED_AUDIO_LANGUAGE)} />
         </SettingItem>
       </SettingsGroup>
     </div>

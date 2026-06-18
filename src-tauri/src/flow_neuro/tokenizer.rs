@@ -435,9 +435,11 @@ pub fn get_polysemous_words() -> &'static HashSet<&'static str> {
 fn short_topic_allowlist() -> &'static HashSet<&'static str> {
     static INSTANCE: OnceLock<HashSet<&'static str>> = OnceLock::new();
     INSTANCE.get_or_init(|| {
-        ["ai", "ml", "ar", "vr", "ui", "ux", "dj", "f1", "3d", "4k", "8k", "dc", "ev", "nft"]
-            .into_iter()
-            .collect()
+        [
+            "ai", "ml", "ar", "vr", "ui", "ux", "dj", "f1", "3d", "4k", "8k", "dc", "ev", "nft",
+        ]
+        .into_iter()
+        .collect()
     })
 }
 

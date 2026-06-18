@@ -116,9 +116,9 @@ pub fn parse_song_meta(r: &Value) -> (Vec<Artist>, Option<Album>, Option<u64>) {
 
     // Fixed-column duration (album/playlist track tables).
     if duration.is_none() {
-        if let Some(t) = first_run(
-            &r["fixedColumns"][0]["musicResponsiveListItemFixedColumnRenderer"]["text"],
-        ) {
+        if let Some(t) =
+            first_run(&r["fixedColumns"][0]["musicResponsiveListItemFixedColumnRenderer"]["text"])
+        {
             if looks_like_duration(&t) {
                 duration = parse_duration(&t);
             }

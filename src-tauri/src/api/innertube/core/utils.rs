@@ -4,7 +4,9 @@ use serde_json::Value;
 pub fn detect_video_is_live(video: &Value) -> bool {
     if let Some(badges) = video["badges"].as_array() {
         for badge in badges {
-            let style = badge["metadataBadgeRenderer"]["style"].as_str().unwrap_or_default();
+            let style = badge["metadataBadgeRenderer"]["style"]
+                .as_str()
+                .unwrap_or_default();
             if style == "BADGE_STYLE_TYPE_LIVE_NOW" {
                 return true;
             }
@@ -24,7 +26,10 @@ pub fn detect_video_is_live(video: &Value) -> bool {
 
     video["viewCountText"]["runs"]
         .as_array()
-        .map(|runs| runs.iter().any(|run| run["text"].as_str().is_some_and(|t| t.contains("watching"))))
+        .map(|runs| {
+            runs.iter()
+                .any(|run| run["text"].as_str().is_some_and(|t| t.contains("watching")))
+        })
         .unwrap_or(false)
 }
 
@@ -39,7 +44,9 @@ pub fn detect_lockup_is_live(lockup: &Value) -> bool {
                 .or_else(|| overlay["thumbnailBottomOverlayViewModel"]["badges"].as_array());
             if let Some(badges) = badges {
                 for badge in badges {
-                    let text = badge["thumbnailBadgeViewModel"]["text"].as_str().unwrap_or_default();
+                    let text = badge["thumbnailBadgeViewModel"]["text"]
+                        .as_str()
+                        .unwrap_or_default();
                     let icon = badge["thumbnailBadgeViewModel"]["icon"]["sources"][0]["clientResource"]
                         ["imageName"]
                         .as_str()

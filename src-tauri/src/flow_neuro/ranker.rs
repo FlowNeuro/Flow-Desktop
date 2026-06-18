@@ -75,8 +75,8 @@ pub fn score_candidate(inputs: &RankInputs, candidate: &Candidate) -> f64 {
         + novelty * inputs.weights.novelty)
         .clamp(0.0, 1.0);
 
-    let bonus = additive_bonuses(inputs, candidate, personality, context, novelty)
-        .min(ADDITIVE_BONUS_CAP);
+    let bonus =
+        additive_bonuses(inputs, candidate, personality, context, novelty).min(ADDITIVE_BONUS_CAP);
     let penalty = multiplicative_penalties(inputs, candidate, personality);
 
     ((base + bonus) * penalty).max(0.0)
@@ -224,7 +224,11 @@ fn multiplicative_penalties(inputs: &RankInputs, candidate: &Candidate, personal
         &brain.watch_history_map,
         now_ms,
     );
-    mult *= calculate_relevance_floor(personality, brain.total_interactions, candidate.is_subscription);
+    mult *= calculate_relevance_floor(
+        personality,
+        brain.total_interactions,
+        candidate.is_subscription,
+    );
     mult *= calculate_anti_recommendation_penalty(vector, brain);
     mult *= session_fatigue(inputs, vector);
     mult *= impression_fatigue(candidate, now_ms);
@@ -270,7 +274,11 @@ fn watched_penalty(candidate: &Candidate, brain: &UserBrain) -> f64 {
     let Some(&percent) = brain.watch_history_map.get(candidate.video_id) else {
         return 1.0;
     };
-    let is_music = is_music_track(candidate.title, candidate.channel_name, candidate.duration_seconds);
+    let is_music = is_music_track(
+        candidate.title,
+        candidate.channel_name,
+        candidate.duration_seconds,
+    );
     if is_music && percent > WATCHED_THRESHOLD_HALF {
         1.0
     } else if percent > WATCHED_THRESHOLD_FULL {
@@ -313,7 +321,11 @@ mod tests {
         }
     }
 
-    fn candidate_for<'a>(vector: &'a ContentVector, id: &'a str, is_subscription: bool) -> Candidate<'a> {
+    fn candidate_for<'a>(
+        vector: &'a ContentVector,
+        id: &'a str,
+        is_subscription: bool,
+    ) -> Candidate<'a> {
         Candidate {
             video_vector: vector,
             video_id: id,
@@ -337,7 +349,10 @@ mod tests {
         let score = score_candidate(&inputs, &candidate_for(&vector, "v1", true));
         // Upper bound: (1 + cap) * max age boost (1.15 for fresh content).
         assert!(score >= 0.0);
-        assert!(score <= (1.0 + ADDITIVE_BONUS_CAP) * 1.15 + 1e-9, "score was {score}");
+        assert!(
+            score <= (1.0 + ADDITIVE_BONUS_CAP) * 1.15 + 1e-9,
+            "score was {score}"
+        );
     }
 
     #[test]

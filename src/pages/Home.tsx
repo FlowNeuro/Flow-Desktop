@@ -1,7 +1,6 @@
 import React, { useRef, useState, useEffect } from "react";
 import { Loader2, ChevronDown } from "lucide-react";
 import {
-  getTrendingVideos,
   getChannelTab,
   getPersonalizedMusicRecommendations,
   getRelatedVideos,
@@ -744,28 +743,7 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
   };
 
   const fetchTrendingPool = async () => {
-    try {
-      const trending = await getTrendingVideos();
-      if (trending.length > 0) {
-        return trending;
-      }
-    } catch (err: any) {
-      console.warn("Live trending api failed, falling back to search-based viral pool.", err?.message || err);
-    }
-
-    const settled = await Promise.allSettled([
-      searchVideos({ query: "trending" }),
-      searchVideos({ query: "viral videos" }),
-      searchVideos({ query: "popular now" }),
-    ]);
-
-    const fallbackTrending = uniqueByVideoId(
-      settled.flatMap((result) =>
-        result.status === "fulfilled" ? result.value.items : [],
-      ),
-    );
-
-    return fallbackTrending;
+    return [];
   };
 
   const handleLoadMore = async () => {

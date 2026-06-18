@@ -2,11 +2,11 @@
 
 use std::collections::{HashMap, HashSet};
 
+use super::ClientProfile;
 use super::messages::{
     ClientAbrState, ClientInfo, FormatId, SabrContext, StreamerContext, VideoPlaybackAbrRequest,
 };
 use super::selector::SelectedFormats;
-use super::ClientProfile;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RequestMode {
@@ -114,7 +114,6 @@ impl SabrState {
             bandwidth_estimate: 5_000_000,
         }
     }
-
 
     fn effective_player_time(&self) -> i64 {
         let audio = self.audio.downloaded_ms;
@@ -245,12 +244,7 @@ impl SabrState {
         self.contexts_discard.remove(&ctx_type);
     }
 
-    pub fn apply_context_sending_policy(
-        &mut self,
-        start: &[i32],
-        stop: &[i32],
-        discard: &[i32],
-    ) {
+    pub fn apply_context_sending_policy(&mut self, start: &[i32], stop: &[i32], discard: &[i32]) {
         for t in start {
             self.contexts_to_send.insert(*t);
         }
@@ -266,7 +260,11 @@ impl SabrState {
 
     // Update a track's completion bounds from FORMAT_INITIALIZATION_METADATA.
     pub fn apply_format_init(&mut self, is_audio: bool, end_time_ms: i64, end_segment: i64) {
-        let track = if is_audio { &mut self.audio } else { &mut self.video };
+        let track = if is_audio {
+            &mut self.audio
+        } else {
+            &mut self.video
+        };
         track.initialized = true;
         if end_time_ms > 0 {
             track.total_end_ms = end_time_ms;
@@ -277,8 +275,18 @@ impl SabrState {
     }
 
     // Record a completed media segment.
-    pub fn record_segment(&mut self, is_audio: bool, sequence: i32, start_ms: i64, duration_ms: i64) {
-        let track = if is_audio { &mut self.audio } else { &mut self.video };
+    pub fn record_segment(
+        &mut self,
+        is_audio: bool,
+        sequence: i32,
+        start_ms: i64,
+        duration_ms: i64,
+    ) {
+        let track = if is_audio {
+            &mut self.audio
+        } else {
+            &mut self.video
+        };
         if sequence > track.max_segment {
             track.max_segment = sequence;
         }
@@ -370,14 +378,26 @@ mod tests {
         );
         let encoded = state.build_request().encode();
         let counts = count_top_fields(&encoded);
-        assert_eq!(counts.get(&3).copied().unwrap_or(0), 0, "no buffered_ranges initially");
+        assert_eq!(
+            counts.get(&3).copied().unwrap_or(0),
+            0,
+            "no buffered_ranges initially"
+        );
         assert_eq!(
             counts.get(&2).copied().unwrap_or(0),
             0,
             "no selected formats until initialized"
         );
-        assert_eq!(counts.get(&16).copied().unwrap_or(0), 1, "preferred audio format");
-        assert_eq!(counts.get(&17).copied().unwrap_or(0), 1, "preferred video format");
+        assert_eq!(
+            counts.get(&16).copied().unwrap_or(0),
+            1,
+            "preferred audio format"
+        );
+        assert_eq!(
+            counts.get(&17).copied().unwrap_or(0),
+            1,
+            "preferred video format"
+        );
         assert!(counts.contains_key(&5), "ustreamer config present");
         assert!(counts.contains_key(&19), "streamer context present");
     }
@@ -395,10 +415,20 @@ mod tests {
         state.record_segment(true, 0, 0, 5000);
         state.record_segment(false, 0, 0, 5000);
         let req = state.build_request();
-        assert!(req.buffered_ranges.is_empty(), "buffered_ranges always empty");
-        assert_eq!(req.player_time_ms, 5000, "playhead follows downloaded duration");
+        assert!(
+            req.buffered_ranges.is_empty(),
+            "buffered_ranges always empty"
+        );
+        assert_eq!(
+            req.player_time_ms, 5000,
+            "playhead follows downloaded duration"
+        );
         let counts = count_top_fields(&req.encode());
-        assert_eq!(counts.get(&3).copied().unwrap_or(0), 0, "no buffered_ranges on the wire");
+        assert_eq!(
+            counts.get(&3).copied().unwrap_or(0),
+            0,
+            "no buffered_ranges on the wire"
+        );
     }
 
     #[test]

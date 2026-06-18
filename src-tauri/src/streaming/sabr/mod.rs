@@ -32,8 +32,8 @@ pub use selector::{CodecSupport, SabrFormat, SelectedFormats};
 
 use std::collections::HashMap;
 use std::sync::{
-    atomic::{AtomicU64, Ordering},
     Arc, Mutex,
+    atomic::{AtomicU64, Ordering},
 };
 use std::time::{Duration, Instant};
 
@@ -268,7 +268,6 @@ impl SabrSessionManager {
             prepared.get(session_id).cloned()
         }
         .ok_or(SabrError::Cancelled)?;
-
 
         let selected = selector::select_formats(&descriptor.formats, Some(480), support)
             .ok_or(SabrError::NoPlayableFormats)?;

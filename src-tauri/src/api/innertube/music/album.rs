@@ -31,9 +31,8 @@ impl InnertubeClient {
             year = year.or(y);
         }
 
-        let description = runs_text(
-            &header["description"]["musicDescriptionShelfRenderer"]["description"],
-        );
+        let description =
+            runs_text(&header["description"]["musicDescriptionShelfRenderer"]["description"]);
         let second = runs_text(&header["secondSubtitle"]);
         let (song_count, duration_text) = parse_count_and_duration(second.as_deref());
 
@@ -69,7 +68,9 @@ impl InnertubeClient {
         token: &str,
     ) -> AppResult<(Vec<SongItem>, Option<String>)> {
         let visitor = self.music_visitor_data().await;
-        let res = self.music_browse(None, None, Some(token), visitor.as_deref()).await?;
+        let res = self
+            .music_browse(None, None, Some(token), visitor.as_deref())
+            .await?;
         let shelf = &res["continuationContents"]["musicPlaylistShelfContinuation"];
         let mut songs = Vec::new();
         if let Some(arr) = shelf["contents"].as_array() {
@@ -86,8 +87,8 @@ impl InnertubeClient {
 
 /// Locate the album header renderer across the known layouts.
 fn find_album_header(res: &Value) -> &Value {
-    let two_col = &res["contents"]["twoColumnBrowseResultsRenderer"]["tabs"][0]["tabRenderer"]
-        ["content"]["sectionListRenderer"]["contents"][0]["musicResponsiveHeaderRenderer"];
+    let two_col = &res["contents"]["twoColumnBrowseResultsRenderer"]["tabs"][0]["tabRenderer"]["content"]
+        ["sectionListRenderer"]["contents"][0]["musicResponsiveHeaderRenderer"];
     if !two_col.is_null() {
         return two_col;
     }
@@ -122,7 +123,8 @@ fn collect_album_tracks(res: &Value, album: &Album) -> (Vec<SongItem>, Option<St
         };
         if let Some(arr) = shelf["contents"].as_array() {
             for item in arr {
-                if let Some(s) = album_track(&item["musicResponsiveListItemRenderer"], Some(album)) {
+                if let Some(s) = album_track(&item["musicResponsiveListItemRenderer"], Some(album))
+                {
                     songs.push(s);
                 }
             }

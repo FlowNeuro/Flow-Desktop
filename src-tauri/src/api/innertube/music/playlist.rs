@@ -27,15 +27,19 @@ impl InnertubeClient {
         let header = find_playlist_header(&res);
         let title = runs_text(&header["title"]).unwrap_or_default();
         let thumbnail = thumbnail_url(header);
-        let description = runs_text(
-            &header["description"]["musicDescriptionShelfRenderer"]["description"],
-        )
-        .or_else(|| runs_text(&header["description"]));
+        let description =
+            runs_text(&header["description"]["musicDescriptionShelfRenderer"]["description"])
+                .or_else(|| runs_text(&header["description"]));
         let author = parse_artists_and_year(&header["straplineTextOne"])
             .0
             .into_iter()
             .next()
-            .or_else(|| parse_artists_and_year(&header["subtitle"]).0.into_iter().next());
+            .or_else(|| {
+                parse_artists_and_year(&header["subtitle"])
+                    .0
+                    .into_iter()
+                    .next()
+            });
         let song_count_text =
             runs_text(&header["secondSubtitle"]).or_else(|| runs_text(&header["subtitle"]));
 
@@ -59,7 +63,9 @@ impl InnertubeClient {
         token: &str,
     ) -> AppResult<(Vec<SongItem>, Option<String>)> {
         let visitor = self.music_visitor_data().await;
-        let res = self.music_browse(None, None, Some(token), visitor.as_deref()).await?;
+        let res = self
+            .music_browse(None, None, Some(token), visitor.as_deref())
+            .await?;
         let shelf = if !res["continuationContents"]["musicPlaylistShelfContinuation"].is_null() {
             &res["continuationContents"]["musicPlaylistShelfContinuation"]
         } else {

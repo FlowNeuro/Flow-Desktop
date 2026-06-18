@@ -92,7 +92,11 @@ impl TimeRange {
 
     // Convert to milliseconds using the timescale (defaults to 1000).
     pub fn to_ms(&self, ticks: i64) -> i64 {
-        let ts = if self.timescale > 0 { self.timescale } else { 1000 };
+        let ts = if self.timescale > 0 {
+            self.timescale
+        } else {
+            1000
+        };
         (ticks.saturating_mul(1000)) / i64::from(ts)
     }
 }

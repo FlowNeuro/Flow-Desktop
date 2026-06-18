@@ -13,13 +13,17 @@ pub fn page_type(nav: &Value) -> Option<&str> {
 /// `browseId` of a navigation endpoint.
 #[must_use]
 pub fn browse_id(nav: &Value) -> Option<String> {
-    nav["browseEndpoint"]["browseId"].as_str().map(ToOwned::to_owned)
+    nav["browseEndpoint"]["browseId"]
+        .as_str()
+        .map(ToOwned::to_owned)
 }
 
 /// `browseEndpoint.params` of a navigation endpoint.
 #[must_use]
 pub fn browse_params(nav: &Value) -> Option<String> {
-    nav["browseEndpoint"]["params"].as_str().map(ToOwned::to_owned)
+    nav["browseEndpoint"]["params"]
+        .as_str()
+        .map(ToOwned::to_owned)
 }
 
 /// The 4-way `videoId` fallback chain used by every song/episode parser.
@@ -29,8 +33,8 @@ pub fn video_id(r: &Value) -> Option<String> {
         .as_str()
         .or_else(|| r["navigationEndpoint"]["watchEndpoint"]["videoId"].as_str())
         .or_else(|| {
-            r["overlay"]["musicItemThumbnailOverlayRenderer"]["content"]
-                ["musicPlayButtonRenderer"]["playNavigationEndpoint"]["watchEndpoint"]["videoId"]
+            r["overlay"]["musicItemThumbnailOverlayRenderer"]["content"]["musicPlayButtonRenderer"]
+                ["playNavigationEndpoint"]["watchEndpoint"]["videoId"]
                 .as_str()
         })
         .or_else(|| {

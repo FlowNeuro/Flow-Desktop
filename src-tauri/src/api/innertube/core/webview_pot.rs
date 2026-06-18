@@ -57,12 +57,7 @@ pub fn app_handle() -> Option<tauri::AppHandle> {
 }
 
 /// Resolve a pending mint from the proxy's `/potresult` query parameters.
-pub fn resolve_from_query(
-    id: &str,
-    po_token: Option<&str>,
-    ttl: Option<u64>,
-    error: Option<&str>,
-) {
+pub fn resolve_from_query(id: &str, po_token: Option<&str>, ttl: Option<u64>, error: Option<&str>) {
     let Some(sender) = pending().lock().unwrap().remove(id) else {
         return;
     };
@@ -74,7 +69,10 @@ pub fn resolve_from_query(
                 ttl: ttl.unwrap_or(43200),
             });
         }
-        _ => warn!(error = error.unwrap_or("unknown"), "WebView pot mint failed"),
+        _ => warn!(
+            error = error.unwrap_or("unknown"),
+            "WebView pot mint failed"
+        ),
         // Dropping `sender` makes the awaiting `recv` resolve to `Err` → `None`.
     }
 }

@@ -11,6 +11,48 @@
 //! Tauri boundary — exactly mirroring how `get_stream_info` handles video.
 
 use serde::{Deserialize, Serialize};
+use std::str::FromStr;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub enum MusicAudioQuality {
+    Auto,
+    High,
+    Medium,
+    Low,
+}
+
+impl Default for MusicAudioQuality {
+    fn default() -> Self {
+        Self::Auto
+    }
+}
+
+impl MusicAudioQuality {
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Auto => "Auto",
+            Self::High => "High",
+            Self::Medium => "Medium",
+            Self::Low => "Low",
+        }
+    }
+}
+
+impl FromStr for MusicAudioQuality {
+    type Err = String;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value.trim().to_ascii_lowercase().as_str() {
+            "" | "auto" => Ok(Self::Auto),
+            "high" => Ok(Self::High),
+            "medium" => Ok(Self::Medium),
+            "low" => Ok(Self::Low),
+            other => Err(format!("Unsupported music audio quality: {other}")),
+        }
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

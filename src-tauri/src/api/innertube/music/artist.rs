@@ -20,10 +20,9 @@ impl InnertubeClient {
         let header = find_artist_header(&res);
         let title = runs_text(&header["title"]).unwrap_or_default();
         let thumbnail = thumbnail_url(header);
-        let description = runs_text(
-            &header["description"]["musicDescriptionShelfRenderer"]["description"],
-        )
-        .or_else(|| runs_text(&header["description"]));
+        let description =
+            runs_text(&header["description"]["musicDescriptionShelfRenderer"]["description"])
+                .or_else(|| runs_text(&header["description"]));
         let subscriber_count_text = runs_text(
             &header["subscriptionButton2"]["subscribeButtonRenderer"]
                 ["subscriberCountWithSubscribeText"],

@@ -213,7 +213,6 @@ export const Player: React.FC<PlayerProps> = ({
   const autoPipEnabled = useAppSettingsStore((state) => state.values[SETTINGS.AUTO_PIP_ENABLED] === "true");
   const manualPipButtonEnabled = useAppSettingsStore((state) => state.values[SETTINGS.MANUAL_PIP_BUTTON_ENABLED] !== "false");
   const showFullscreenTitle = useAppSettingsStore((state) => state.values[SETTINGS.SHOW_FULLSCREEN_TITLE] === "true");
-  const preferredAudioLanguage = useAppSettingsStore((state) => state.values[SETTINGS.PREFERRED_AUDIO_LANGUAGE] ?? "original");
   const bufferProfile = useAppSettingsStore((state) => state.values[SETTINGS.BUFFER_PROFILE] ?? "STABLE");
   const minBufferSetting = useAppSettingsStore((state) => state.values[SETTINGS.MIN_BUFFER_MS] ?? "30000");
   const maxBufferSetting = useAppSettingsStore((state) => state.values[SETTINGS.MAX_BUFFER_MS] ?? "50000");
@@ -552,8 +551,8 @@ export const Player: React.FC<PlayerProps> = ({
   }, [captions, preferredSubtitleLanguage, subtitlesEnabled]);
 
   useEffect(() => {
-    setSelectedAudioTrackId(selectPreferredAudioTrackId(audioTracks, preferredAudioLanguage));
-  }, [audioTracks, preferredAudioLanguage]);
+    setSelectedAudioTrackId(selectPreferredAudioTrackId(audioTracks, "original"));
+  }, [audioTracks]);
 
   useEffect(() => {
     const video = videoRef.current;

@@ -233,7 +233,12 @@ impl InnertubeClient {
 
         let mut payload = serde_json::json!({ "continuation": token });
         let res = self
-            .post_innertube("live_chat/get_live_chat", "WEB", CLIENT_VERSION, &mut payload)
+            .post_innertube(
+                "live_chat/get_live_chat",
+                "WEB",
+                CLIENT_VERSION,
+                &mut payload,
+            )
             .await?;
         let (messages, next, polling_interval_ms) = parse_live_chat_page(&res);
 

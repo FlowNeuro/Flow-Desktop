@@ -12,7 +12,7 @@ use crate::models::music_pages::{
     AlbumPage, MoodGenrePage, MusicHomePage, MusicPlaylistPage, MusicSearchResponse,
     MusicSearchSuggestions, QueuePage, RelatedPage, SearchSummaryPage,
 };
-use crate::models::music_stream::MusicStreamInfo;
+use crate::models::music_stream::{MusicAudioQuality, MusicStreamInfo};
 
 #[derive(Clone)]
 pub struct MusicService {
@@ -114,7 +114,13 @@ impl MusicService {
     }
 
     // --- Playback ---------------------------------------------------------
-    pub async fn resolve_stream(&self, video_id: &str) -> AppResult<MusicStreamInfo> {
-        self.client.resolve_music_stream(video_id).await
+    pub async fn resolve_stream(
+        &self,
+        video_id: &str,
+        audio_quality: MusicAudioQuality,
+    ) -> AppResult<MusicStreamInfo> {
+        self.client
+            .resolve_music_stream(video_id, audio_quality)
+            .await
     }
 }

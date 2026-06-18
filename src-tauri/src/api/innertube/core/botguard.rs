@@ -69,10 +69,8 @@ fn integrity_script_path() -> Option<PathBuf> {
     }
 
     let rel = std::path::Path::new("sidecar").join("integrity.cjs");
-    let mut candidates: Vec<PathBuf> = vec![
-        rel.clone(),
-        std::path::Path::new("src-tauri").join(&rel),
-    ];
+    let mut candidates: Vec<PathBuf> =
+        vec![rel.clone(), std::path::Path::new("src-tauri").join(&rel)];
 
     if let Ok(cwd) = std::env::current_dir() {
         candidates.push(cwd.join(&rel));
@@ -152,7 +150,10 @@ async fn run_sidecar(content_binding: &str) -> Option<MintedToken> {
         return None;
     }
 
-    debug!(ttl = parsed.ttl.unwrap_or(0), "Minted PO token via BotGuard sidecar");
+    debug!(
+        ttl = parsed.ttl.unwrap_or(0),
+        "Minted PO token via BotGuard sidecar"
+    );
     Some(MintedToken {
         po_token,
         integrity_token: parsed.integrity_token.unwrap_or_default(),
@@ -197,5 +198,7 @@ pub async fn mint_po_token(content_binding: &str) -> Option<MintedToken> {
 /// [`mint_po_token`] kept for existing call sites that only need the token
 /// string.
 pub async fn generate_po_token(content_binding: &str) -> Option<String> {
-    mint_po_token(content_binding).await.map(|token| token.po_token)
+    mint_po_token(content_binding)
+        .await
+        .map(|token| token.po_token)
 }

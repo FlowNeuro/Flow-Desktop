@@ -8,7 +8,7 @@
 //! is shared — but it never modifies the video request path.
 
 use reqwest::header::USER_AGENT;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use super::clients::MusicClient;
 use super::endpoints;
@@ -113,8 +113,14 @@ impl InnertubeClient {
         if let Some(c) = continuation {
             payload["continuation"] = json!(c);
         }
-        self.post_music("browse", &super::clients::WEB_REMIX, &mut payload, visitor_data, None)
-            .await
+        self.post_music(
+            "browse",
+            &super::clients::WEB_REMIX,
+            &mut payload,
+            visitor_data,
+            None,
+        )
+        .await
     }
 
     /// A `player` request for one client, against the main API (mobile clients

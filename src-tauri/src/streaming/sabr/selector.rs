@@ -95,25 +95,55 @@ pub struct SabrAudioTrack {
 }
 
 fn lang_from_track_id(id: &str) -> String {
-    id.rsplit_once('.').map(|(pre, _)| pre).unwrap_or(id).to_string()
+    id.rsplit_once('.')
+        .map(|(pre, _)| pre)
+        .unwrap_or(id)
+        .to_string()
 }
 
 fn sanitize_key(s: &str) -> String {
     s.chars()
-        .map(|c| if c.is_ascii_alphanumeric() || c == '-' { c.to_ascii_lowercase() } else { '-' })
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '-' {
+                c.to_ascii_lowercase()
+            } else {
+                '-'
+            }
+        })
         .collect()
 }
 
 fn lang_label(code: &str) -> String {
     let base = code.split('-').next().unwrap_or(code);
     let name = match base {
-        "en" => "English", "ar" => "Arabic", "bn" => "Bengali", "zh" => "Chinese",
-        "fr" => "French", "de" => "German", "hi" => "Hindi", "id" => "Indonesian",
-        "it" => "Italian", "ja" => "Japanese", "ko" => "Korean", "ml" => "Malayalam",
-        "mr" => "Marathi", "pl" => "Polish", "pa" => "Punjabi", "ru" => "Russian",
-        "es" => "Spanish", "ta" => "Tamil", "te" => "Telugu", "th" => "Thai",
-        "tr" => "Turkish", "vi" => "Vietnamese", "pt" => "Portuguese", "nl" => "Dutch",
-        "uk" => "Ukrainian", "ro" => "Romanian", "hu" => "Hungarian", "cs" => "Czech",
+        "en" => "English",
+        "ar" => "Arabic",
+        "bn" => "Bengali",
+        "zh" => "Chinese",
+        "fr" => "French",
+        "de" => "German",
+        "hi" => "Hindi",
+        "id" => "Indonesian",
+        "it" => "Italian",
+        "ja" => "Japanese",
+        "ko" => "Korean",
+        "ml" => "Malayalam",
+        "mr" => "Marathi",
+        "pl" => "Polish",
+        "pa" => "Punjabi",
+        "ru" => "Russian",
+        "es" => "Spanish",
+        "ta" => "Tamil",
+        "te" => "Telugu",
+        "th" => "Thai",
+        "tr" => "Turkish",
+        "vi" => "Vietnamese",
+        "pt" => "Portuguese",
+        "nl" => "Dutch",
+        "uk" => "Ukrainian",
+        "ro" => "Romanian",
+        "hu" => "Hungarian",
+        "cs" => "Czech",
         _ => return code.to_string(),
     };
     name.to_string()
@@ -184,7 +214,11 @@ pub fn derive_audio_tracks(formats: &[SabrFormat]) -> Vec<SabrAudioTrack> {
         }
     }
 
-    tracks.sort_by(|a, b| b.is_default.cmp(&a.is_default).then_with(|| a.label.cmp(&b.label)));
+    tracks.sort_by(|a, b| {
+        b.is_default
+            .cmp(&a.is_default)
+            .then_with(|| a.label.cmp(&b.label))
+    });
     tracks
 }
 

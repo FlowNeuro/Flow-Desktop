@@ -1,15 +1,15 @@
 //! Search extractors: filtered search (+continuation), no-filter "summary"
 //! (top-result card), and rich search suggestions.
 
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use super::clients;
 use super::endpoints;
 use super::parse::items;
 use super::parse::runs::runs_text;
 use super::parse::{continuation, shelves};
-use crate::api::innertube::core::http::custom_url_encode;
 use crate::api::innertube::InnertubeClient;
+use crate::api::innertube::core::http::custom_url_encode;
 use crate::errors::AppResult;
 use crate::models::music_pages::{
     MusicSearchResponse, MusicSearchSection, MusicSearchSuggestions, SearchSummaryPage,
@@ -29,7 +29,13 @@ impl InnertubeClient {
             payload["params"] = json!(p);
         }
         let res = self
-            .post_music("search", &clients::WEB_REMIX, &mut payload, visitor.as_deref(), None)
+            .post_music(
+                "search",
+                &clients::WEB_REMIX,
+                &mut payload,
+                visitor.as_deref(),
+                None,
+            )
             .await?;
         let (sections, continuation) = parse_search_sections(&res);
         Ok(MusicSearchResponse {
@@ -73,7 +79,13 @@ impl InnertubeClient {
         let visitor = self.music_visitor_data().await;
         let mut payload = json!({ "query": query });
         let res = self
-            .post_music("search", &clients::WEB_REMIX, &mut payload, visitor.as_deref(), None)
+            .post_music(
+                "search",
+                &clients::WEB_REMIX,
+                &mut payload,
+                visitor.as_deref(),
+                None,
+            )
             .await?;
         let (summaries, _) = parse_search_sections(&res);
         Ok(SearchSummaryPage { summaries })
@@ -100,14 +112,12 @@ impl InnertubeClient {
         let mut recommended_items = Vec::new();
         if let Some(contents) = res["contents"].as_array() {
             for section in contents {
-                let Some(list) =
-                    section["searchSuggestionsSectionRenderer"]["contents"].as_array()
+                let Some(list) = section["searchSuggestionsSectionRenderer"]["contents"].as_array()
                 else {
                     continue;
                 };
                 for entry in list {
-                    if let Some(text) =
-                        runs_text(&entry["searchSuggestionRenderer"]["suggestion"])
+                    if let Some(text) = runs_text(&entry["searchSuggestionRenderer"]["suggestion"])
                     {
                         queries.push(text);
                     } else if let Some(item) =
@@ -160,7 +170,7 @@ fn parse_search_sections(res: &Value) -> (Vec<MusicSearchSection>, Option<String
                 sections.push(MusicSearchSection { title, items });
             }
         } else if let Some(isr) = section.get("itemSectionRenderer") {
-           let items = shelves::collect_items(&isr["contents"]);
+            let items = shelves::collect_items(&isr["contents"]);
             if !items.is_empty() {
                 sections.push(MusicSearchSection {
                     title: runs_text(&isr["header"]["itemSectionTabbedHeaderRenderer"]["title"])

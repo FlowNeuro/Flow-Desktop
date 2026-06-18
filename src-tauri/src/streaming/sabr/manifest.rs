@@ -20,7 +20,13 @@ fn extract_codecs(mime_type: &str, fallback: &str) -> String {
                 .map(|v| v.trim_matches('"').to_string())
         })
         .filter(|v| !v.is_empty())
-        .map(|c| if c == "vp9" { "vp09.00.10.08".to_string() } else { c })
+        .map(|c| {
+            if c == "vp9" {
+                "vp09.00.10.08".to_string()
+            } else {
+                c
+            }
+        })
         .unwrap_or_else(|| fallback.to_string())
 }
 
@@ -86,7 +92,11 @@ mediaPresentationDuration=\"{}\">\n",
         let key = escape_xml(&track.key);
         let lang = escape_xml(&track.lang);
         let label = escape_xml(&track.label);
-        let role = if track.is_default { "main" } else { "alternate" };
+        let role = if track.is_default {
+            "main"
+        } else {
+            "alternate"
+        };
         m.push_str(&format!(
             "    <AdaptationSet id=\"audio-{key}\" contentType=\"audio\" lang=\"{lang}\" \
 mimeType=\"{audio_mime}\" startWithSAP=\"1\" subsegmentAlignment=\"true\">\n"
