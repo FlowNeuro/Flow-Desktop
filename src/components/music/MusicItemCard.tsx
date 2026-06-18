@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { MoreVertical, Music2, Play } from 'lucide-react';
 import type { AlbumItem, ArtistItem, EpisodeItem, PlaylistItem, PodcastItem, SongItem } from '../../types/music';
 import { getString } from '../../lib/i18n/index';
+import { upgradeAvatarUrl, upgradeMusicImageUrl } from '../../lib/thumbnails';
 
 type BaseProps = {
   className?: string;
@@ -89,7 +90,9 @@ function Artwork({
   iconSize?: string;
 }) {
   const [failed, setFailed] = useState(false);
-  if (!src || failed) {
+  const upgradedSrc = rounded.includes('full') ? upgradeAvatarUrl(src) : upgradeMusicImageUrl(src);
+  useEffect(() => setFailed(false), [upgradedSrc]);
+  if (!upgradedSrc || failed) {
     return (
       <div
         className={cx(
@@ -105,7 +108,7 @@ function Artwork({
   }
   return (
     <img
-      src={src}
+      src={upgradedSrc}
       alt={alt}
       loading="lazy"
       onError={() => setFailed(true)}

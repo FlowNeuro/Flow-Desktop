@@ -1,12 +1,14 @@
 import type { Rgb } from "../../lib/useDominantColor";
+import { upgradeMusicImageUrl } from "../../lib/thumbnails";
 
 export function AmbientBackdrop({ src, accent }: { src?: string | null; accent?: Rgb | null }) {
+  const imageSrc = upgradeMusicImageUrl(src);
   return (
     <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden bg-neutral-950">
-      {src && (
+      {imageSrc && (
         <img
-          key={src}
-          src={src}
+          key={imageSrc}
+          src={imageSrc}
           alt=""
           aria-hidden
           className="absolute inset-0 h-full w-full scale-125 object-cover opacity-30 blur-[100px] saturate-150"

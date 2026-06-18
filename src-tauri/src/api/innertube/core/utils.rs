@@ -171,15 +171,63 @@ pub fn youtube_video_thumbnail_url(video_id: &str, quality: &str) -> String {
 pub fn best_video_thumbnail_url(video_id: &str, thumbnails: Option<&Value>) -> Option<String> {
     thumbnails
         .and_then(thumbnail_url_from_array)
-        .or_else(|| Some(youtube_video_thumbnail_url(video_id, "hqdefault")))
+        .or_else(|| Some(youtube_video_thumbnail_url(video_id, "hq720")))
+}
+
+fn upgrade_youtube_thumbnail_url(url: String) -> String {
+    let (base, query) = url.split_once('?').map_or((url.as_str(), ""), |(base, query)| {
+        (base, query)
+    });
+
+    if base.ends_with("maxresdefault.jpg")
+        || base.ends_with("maxresdefault.webp")
+        || base.ends_with("hq720.jpg")
+        || base.ends_with("hq720.webp")
+    {
+        return url;
+    }
+
+    for suffix in [
+        "mqdefault.jpg",
+        "hqdefault.jpg",
+        "sddefault.jpg",
+        "default.jpg",
+        "mqdefault.webp",
+        "hqdefault.webp",
+        "sddefault.webp",
+        "default.webp",
+    ] {
+        if let Some(prefix) = base.strip_suffix(suffix) {
+            return if query.is_empty() {
+                format!("{prefix}hq720.jpg")
+            } else {
+                format!("{prefix}hq720.jpg?{query}")
+            };
+        }
+    }
+
+    url
 }
 
 pub fn normalize_youtube_image_url(url: &str) -> String {
-    if url.starts_with("//") {
+    let mut normalized = if url.starts_with("//") {
         format!("https:{url}")
     } else {
         url.to_string()
+    };
+
+    if normalized.contains("i.ytimg.com") || normalized.contains("img.youtube.com") {
+        normalized = upgrade_youtube_thumbnail_url(normalized);
+    } else if normalized.contains("googleusercontent.com") || normalized.contains("ggpht.com") {
+        if let Some(eq_pos) = normalized.find('=') {
+            let base = &normalized[..eq_pos];
+            normalized = format!("{base}=w1080-h1080-p-l90-rj");
+        } else {
+            normalized.push_str("=w1080-h1080-p-l90-rj");
+        }
     }
+
+    normalized
 }
 
 pub fn build_video_summary_from_compact_video(video: &Value) -> Option<VideoSummary> {
@@ -201,7 +249,7 @@ pub fn build_video_summary_from_compact_video(video: &Value) -> Option<VideoSumm
         .as_array()
         .and_then(|thumbnails| thumbnails.last())
         .and_then(|thumb| thumb["url"].as_str())
-        .map(|s| s.to_string());
+        .map(normalize_youtube_image_url);
 
     let duration_seconds = video["lengthText"]["simpleText"]
         .as_str()
@@ -285,7 +333,7 @@ pub fn build_related_content_from_compact_playlist(
         .as_array()
         .and_then(|thumbnails| thumbnails.last())
         .and_then(|thumb| thumb["url"].as_str())
-        .map(|s| s.to_string());
+        .map(normalize_youtube_image_url);
 
     let view_count_text = playlist["videoCountText"]["simpleText"]
         .as_str()

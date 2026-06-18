@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Music2, Loader2 } from "lucide-react";
+import { upgradeMusicImageUrl } from "../../lib/thumbnails";
 
 interface MusicArtworkProps {
   src?: string | null;
@@ -21,7 +22,9 @@ export function MusicArtwork({
   iconClassName = "h-5 w-5",
 }: MusicArtworkProps) {
   const [failed, setFailed] = useState(false);
-  const showImage = !!src && !failed;
+  const imageSrc = upgradeMusicImageUrl(src);
+  const showImage = !!imageSrc && !failed;
+  useEffect(() => setFailed(false), [imageSrc]);
 
   return (
     <motion.div
@@ -30,7 +33,7 @@ export function MusicArtwork({
     >
       {showImage ? (
         <img
-          src={src ?? undefined}
+          src={imageSrc}
           alt={alt}
           loading="lazy"
           draggable={false}

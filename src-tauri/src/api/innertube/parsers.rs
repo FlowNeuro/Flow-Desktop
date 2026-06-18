@@ -21,11 +21,73 @@ pub fn parse_duration_seconds(simple_text: &str) -> u64 {
     total
 }
 
+fn upgrade_youtube_thumbnail_url(url: String) -> String {
+    let (base, query) = url.split_once('?').map_or((url.as_str(), ""), |(base, query)| {
+        (base, query)
+    });
+
+    if base.ends_with("maxresdefault.jpg")
+        || base.ends_with("maxresdefault.webp")
+        || base.ends_with("hq720.jpg")
+        || base.ends_with("hq720.webp")
+    {
+        return url;
+    }
+
+    for suffix in [
+        "mqdefault.jpg",
+        "hqdefault.jpg",
+        "sddefault.jpg",
+        "default.jpg",
+        "mqdefault.webp",
+        "hqdefault.webp",
+        "sddefault.webp",
+        "default.webp",
+    ] {
+        if let Some(prefix) = base.strip_suffix(suffix) {
+            return if query.is_empty() {
+                format!("{prefix}hq720.jpg")
+            } else {
+                format!("{prefix}hq720.jpg?{query}")
+            };
+        }
+    }
+
+    url
+}
+
+fn normalize_image_url(url: &str) -> String {
+    let mut normalized = if url.starts_with("//") {
+        format!("https:{url}")
+    } else {
+        url.to_string()
+    };
+
+    if normalized.contains("googleusercontent.com") || normalized.contains("ggpht.com") {
+        if let Some(eq_pos) = normalized.find('=') {
+            let base = &normalized[..eq_pos];
+            normalized = format!("{base}=w1080-h1080-p-l90-rj");
+        } else {
+            normalized.push_str("=w1080-h1080-p-l90-rj");
+        }
+    } else if normalized.contains("i.ytimg.com") || normalized.contains("img.youtube.com") {
+        normalized = upgrade_youtube_thumbnail_url(normalized);
+    }
+
+    normalized
+}
+
+fn best_thumbnail_url(value: &Value) -> Option<String> {
+    value
+        .as_array()
+        .and_then(|thumbnails| thumbnails.last())
+        .and_then(|thumb| thumb["url"].as_str().or_else(|| thumb["uri"].as_str()))
+        .map(normalize_image_url)
+}
+
 pub fn get_thumbnail_url(renderer: &Value) -> Option<String> {
-    renderer["musicThumbnailRenderer"]["thumbnail"]["thumbnails"][0]["url"]
-        .as_str()
-        .or_else(|| renderer["thumbnail"]["thumbnails"][0]["url"].as_str())
-        .map(|s| s.to_string())
+    best_thumbnail_url(&renderer["musicThumbnailRenderer"]["thumbnail"]["thumbnails"])
+        .or_else(|| best_thumbnail_url(&renderer["thumbnail"]["thumbnails"]))
 }
 
 pub fn extract_channel_id_from_music_renderer(renderer: &Value) -> Option<String> {
@@ -85,11 +147,9 @@ pub fn parse_music_search_json(val: &Value) -> Vec<VideoSummary> {
                         }
                     }
 
-                    let thumbnail_url =
-                        renderer["thumbnail"]["musicThumbnailRenderer"]["thumbnail"]["thumbnails"]
-                            [0]["url"]
-                            .as_str()
-                            .map(|s| s.to_string());
+                    let thumbnail_url = best_thumbnail_url(
+                        &renderer["thumbnail"]["musicThumbnailRenderer"]["thumbnail"]["thumbnails"],
+                    );
 
                     let mut duration_seconds = None;
                     if let Some(runs) = renderer["flexColumns"][1]
@@ -185,11 +245,9 @@ pub fn parse_music_album_json(val: &Value) -> Vec<VideoSummary> {
                         }
                     }
 
-                    let thumbnail_url =
-                        renderer["thumbnail"]["musicThumbnailRenderer"]["thumbnail"]["thumbnails"]
-                            [0]["url"]
-                            .as_str()
-                            .map(|s| s.to_string());
+                    let thumbnail_url = best_thumbnail_url(
+                        &renderer["thumbnail"]["musicThumbnailRenderer"]["thumbnail"]["thumbnails"],
+                    );
 
                     let mut duration_seconds = None;
                     if let Some(runs) = renderer["flexColumns"][1]
@@ -306,12 +364,10 @@ pub fn parse_music_responsive_list_item_renderer(renderer: &Value) -> Option<YTI
         }
     }
 
-    let thumbnail_url = renderer["thumbnail"]["musicThumbnailRenderer"]["thumbnail"]["thumbnails"]
-        [0]["url"]
-        .as_str()
-        .or_else(|| renderer["thumbnail"]["thumbnails"][0]["url"].as_str())
-        .unwrap_or_default()
-        .to_string();
+    let thumbnail_url =
+        best_thumbnail_url(&renderer["thumbnail"]["musicThumbnailRenderer"]["thumbnail"]["thumbnails"])
+            .or_else(|| best_thumbnail_url(&renderer["thumbnail"]["thumbnails"]))
+            .unwrap_or_default();
 
     let is_explicit = renderer["badges"]
         .as_array()
@@ -349,12 +405,10 @@ pub fn parse_music_responsive_list_item_renderer(renderer: &Value) -> Option<YTI
 
 pub fn parse_music_two_row_item_renderer(renderer: &Value) -> Option<YTItem> {
     let title = renderer["title"]["runs"][0]["text"].as_str()?.to_string();
-    let thumbnail = renderer["thumbnailRenderer"]["musicThumbnailRenderer"]["thumbnail"]
-        ["thumbnails"][0]["url"]
-        .as_str()
-        .or_else(|| renderer["thumbnailRenderer"]["thumbnail"]["thumbnails"][0]["url"].as_str())
-        .or_else(|| renderer["thumbnail"]["thumbnails"][0]["url"].as_str())
-        .map(|s| s.to_string())?;
+    let thumbnail =
+        best_thumbnail_url(&renderer["thumbnailRenderer"]["musicThumbnailRenderer"]["thumbnail"]["thumbnails"])
+            .or_else(|| best_thumbnail_url(&renderer["thumbnailRenderer"]["thumbnail"]["thumbnails"]))
+            .or_else(|| best_thumbnail_url(&renderer["thumbnail"]["thumbnails"]))?;
 
     let watch_endpoint = &renderer["navigationEndpoint"]["watchEndpoint"];
     let browse_endpoint = &renderer["navigationEndpoint"]["browseEndpoint"];

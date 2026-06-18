@@ -3,6 +3,7 @@ import { useEffect, useRef } from "react";
 import { useMusicPlayerStore } from "../../store/useMusicPlayerStore";
 import { musicAudioEngine } from "../../lib/audio/musicAudioEngine";
 import { recordSongHistory } from "../../lib/musicHistory";
+import { upgradeMusicImageUrl } from "../../lib/thumbnails";
 import type { SongItem } from "../../types/music";
 
 const HISTORY_PERSIST_MS = 5000;
@@ -85,13 +86,14 @@ export function GlobalMusicAudio() {
     const store = () => useMusicPlayerStore.getState();
 
     if (currentTrack) {
+      const artwork = upgradeMusicImageUrl(currentTrack.thumbnail, 512);
       try {
         navigator.mediaSession.metadata = new MediaMetadata({
           title: currentTrack.title,
           artist: currentTrack.artists.map((a) => a.name).join(", "),
           album: currentTrack.album?.name ?? "",
-          artwork: currentTrack.thumbnail
-            ? [{ src: currentTrack.thumbnail, sizes: "512x512", type: "image/jpeg" }]
+          artwork: artwork
+            ? [{ src: artwork, sizes: "512x512", type: "image/jpeg" }]
             : [],
         });
       } catch {

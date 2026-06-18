@@ -10,7 +10,7 @@ import { getDeArrowOverride } from '../../lib/api/foss';
 import { useSettingsStore } from '../../store/useSettingsStore';
 import { useAppSettingsStore } from '../../store/useAppSettingsStore';
 import { useChannelAvatar } from '../../lib/useChannelAvatar';
-import { resolveVideoThumbnailUrl } from '../../lib/thumbnails';
+import { isUnavailableYoutubeThumbnail, resolveYoutubeThumbnailCandidates, upgradeAvatarUrl } from '../../lib/thumbnails';
 import { SETTINGS } from '../../lib/settings/schema';
 
 export interface VideoCardProps {
@@ -130,6 +130,7 @@ export function VideoCard({
   const [menuPosition, setMenuPosition] = useState<{ x: number; y: number } | null>(null);
   const [dominantColor, setDominantColor] = useState<string | null>(null);
   const [isHovered, setIsHovered] = useState(false);
+  const [thumbnailCandidateIndex, setThumbnailCandidateIndex] = useState(0);
   const menuRef = useRef<HTMLDivElement>(null);
   const cardRef = useRef<HTMLDivElement>(null);
   const thumbnailRef = useRef<HTMLImageElement>(null);
@@ -152,7 +153,10 @@ export function VideoCard({
   );
 
   const hookAvatarUrl = useChannelAvatar(isChannel ? null : channelId || null);
-  const resolvedAvatarUrl = video.channelAvatarUrl || hookAvatarUrl;
+  const resolvedAvatarUrl = upgradeAvatarUrl(video.channelAvatarUrl || hookAvatarUrl);
+  const displayTitle = overriddenTitle || video.title;
+  const thumbnailCandidates = resolveYoutubeThumbnailCandidates(video.id, overriddenThumbnail || video.thumbnailUrl);
+  const displayThumbnail = thumbnailCandidates[thumbnailCandidateIndex] || overriddenThumbnail || video.thumbnailUrl;
 
   useEffect(() => {
     const isValidVideoId = video.id && video.id.length === 11 && /^[a-zA-Z0-9_-]{11}$/.test(video.id);
@@ -201,14 +205,23 @@ export function VideoCard({
     setIsHovered(false);
   }, []);
 
-  const handleThumbnailLoad = useCallback(() => {
-    if (isHovered && !dominantColor && thumbnailRef.current) {
-      const color = extractDominantColor(thumbnailRef.current);
+  const handleThumbnailLoad = useCallback((event: React.SyntheticEvent<HTMLImageElement>) => {
+    const img = event.currentTarget;
+    if (
+      isUnavailableYoutubeThumbnail(img) &&
+      thumbnailCandidateIndex < thumbnailCandidates.length - 1
+    ) {
+      setThumbnailCandidateIndex((idx) => idx + 1);
+      return;
+    }
+
+    if (isHovered && !dominantColor) {
+      const color = extractDominantColor(img);
       if (color) {
         setDominantColor(color);
       }
     }
-  }, [isHovered, dominantColor]);
+  }, [dominantColor, isHovered, thumbnailCandidateIndex, thumbnailCandidates.length]);
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     if (isChannel) return;
@@ -246,10 +259,15 @@ export function VideoCard({
   const isHistoryCard = variant === 'history';
   const isListVariant = variant === 'list';
   const progressPercent = Math.min(100, Math.max(0, video.watchProgressPercent ?? 0));
-  const displayTitle = overriddenTitle || video.title;
-  const displayThumbnail = overriddenThumbnail
-    || resolveVideoThumbnailUrl(video.id, video.thumbnailUrl)
-    || video.thumbnailUrl;
+
+  useEffect(() => {
+    setThumbnailCandidateIndex(0);
+    setDominantColor(null);
+  }, [overriddenThumbnail, video.id, video.thumbnailUrl]);
+
+  const handleThumbnailError = useCallback(() => {
+    setThumbnailCandidateIndex((idx) => Math.min(idx + 1, Math.max(0, thumbnailCandidates.length - 1)));
+  }, [thumbnailCandidates.length]);
 
   const cardStyle: React.CSSProperties = isHovered
     ? (dominantColor
@@ -359,7 +377,7 @@ export function VideoCard({
         <div className="w-24 h-24 rounded-full overflow-hidden mb-4 border border-zinc-800 group-hover:scale-105 transition-transform duration-300">
           {video.thumbnailUrl ? (
             <img
-              src={video.thumbnailUrl}
+              src={upgradeAvatarUrl(video.thumbnailUrl)}
               alt={video.title}
               className="w-full h-full object-cover"
               loading="lazy"
@@ -415,6 +433,7 @@ export function VideoCard({
               loading="lazy"
               decoding="async"
               onLoad={handleThumbnailLoad}
+              onError={handleThumbnailError}
             />
           ) : (
             <div className="h-full w-full bg-zinc-800" />
@@ -512,6 +531,8 @@ export function VideoCard({
               className="h-full w-full object-cover"
               loading="lazy"
               decoding="async"
+              onLoad={handleThumbnailLoad}
+              onError={handleThumbnailError}
             />
           ) : (
             <div className="h-full w-full bg-zinc-800" />
@@ -592,6 +613,7 @@ export function VideoCard({
             crossOrigin="anonymous"
             loading="lazy"
             onLoad={handleThumbnailLoad}
+            onError={handleThumbnailError}
           />
         ) : (
           <div className="w-full h-full bg-zinc-800" />

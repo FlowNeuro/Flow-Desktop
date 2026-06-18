@@ -2,6 +2,7 @@ use tauri::State;
 use tracing::info;
 
 use crate::errors::ErrorResponse;
+use crate::api::innertube::core::utils::normalize_youtube_image_url;
 use crate::models::channel::{ChannelDetails, ChannelTabResponse};
 use crate::models::comment::CommentsResponse;
 use crate::models::music::{ArtistPage, ChartsPage, ExplorePage};
@@ -155,7 +156,7 @@ fn extract_channel_avatar_from_html(html: &str) -> Option<String> {
                 let raw = &html[value_start..value_start + value_end];
                 let decoded = raw.replace("\\u0026", "&").replace("\\/", "/");
                 if decoded.starts_with("http") && !decoded.contains("/vi/") {
-                    return Some(decoded);
+                    return Some(normalize_youtube_image_url(&decoded));
                 }
             }
         }
