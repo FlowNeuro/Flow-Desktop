@@ -29,7 +29,7 @@ use commands::music::{
     get_music_playlist_continuation, get_music_playlist_page, get_music_queue,
     get_music_queue_continuation, get_music_related_typed, get_music_search_suggestions,
     get_music_search_summary, get_music_stream, get_music_watch_queue, lyrics_http_get,
-    search_music_continuation, search_music_typed,
+    proxy_image_url, search_music_continuation, search_music_typed,
 };
 use commands::recommendation::{
     block_channel, complete_onboarding, generate_discovery_queries, get_brain_snapshot,
@@ -201,7 +201,8 @@ pub fn run() {
             get_music_related_typed,
             get_music_lyrics_typed,
             lyrics_http_get,
-            get_music_stream
+            get_music_stream,
+            proxy_image_url
         ])
         .build(tauri::generate_context!())
         .expect("error while building Flow Desktop")

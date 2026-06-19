@@ -1,8 +1,12 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { MoreVertical, Music2, Play } from 'lucide-react';
 import type { AlbumItem, ArtistItem, EpisodeItem, PlaylistItem, PodcastItem, SongItem } from '../../types/music';
 import { getString } from '../../lib/i18n/index';
 import { upgradeAvatarUrl, upgradeMusicImageUrl } from '../../lib/thumbnails';
+import { extractDominantColorFromImage, useDominantColor } from '../../lib/useDominantColor';
+import { useMusicPlayerStore } from '../../store/useMusicPlayerStore';
+import { useProxiedImageUrl } from '../../lib/useProxiedImageUrl';
+import { PlayingWave } from './PlayingWave';
 
 type BaseProps = {
   className?: string;
@@ -45,6 +49,15 @@ function artistsText(artists?: { name: string }[] | null): string {
   return artists.map((a) => a.name).filter(Boolean).join(', ');
 }
 
+function videoIdOf(track: SongItem): string {
+  return track.videoId ?? track.id;
+}
+
+function colorBackground(color: { r: number; g: number; b: number } | null): React.CSSProperties {
+  if (!color) return { background: 'rgba(39, 39, 42, 0.5)' };
+  return { background: `rgba(${color.r}, ${color.g}, ${color.b}, 0.22)` };
+}
+
 function albumSubtitle(item: AlbumItem): string {
   const artists = artistsText(item.artists);
   if (artists && item.year) return `${artists} • ${item.year}`;
@@ -82,17 +95,22 @@ function Artwork({
   rounded,
   className,
   iconSize = 'w-6 h-6',
+  onLoad,
+  imageRef,
 }: {
   src?: string | null;
   alt: string;
   rounded: string;
   className?: string;
   iconSize?: string;
+  onLoad?: (img: HTMLImageElement) => void;
+  imageRef?: React.Ref<HTMLImageElement>;
 }) {
   const [failed, setFailed] = useState(false);
   const upgradedSrc = rounded.includes('full') ? upgradeAvatarUrl(src) : upgradeMusicImageUrl(src);
-  useEffect(() => setFailed(false), [upgradedSrc]);
-  if (!upgradedSrc || failed) {
+  const imageSrc = useProxiedImageUrl(upgradedSrc);
+  useEffect(() => setFailed(false), [imageSrc]);
+  if (!imageSrc || failed) {
     return (
       <div
         className={cx(
@@ -108,9 +126,11 @@ function Artwork({
   }
   return (
     <img
-      src={upgradedSrc}
+      ref={imageRef}
+      src={imageSrc}
       alt={alt}
       loading="lazy"
+      onLoad={(event) => onLoad?.(event.currentTarget)}
       onError={() => setFailed(true)}
       className={cx('object-cover', rounded, className)}
     />
@@ -293,6 +313,7 @@ function CircleCard({
 
 /** Variant C — dense list row for tracks (Spotify "Top Tracks" style). */
 function ListRow({
+  trackId,
   title,
   subtitle,
   thumbnail,
@@ -302,6 +323,7 @@ function ListRow({
   onMenu,
   className,
 }: {
+  trackId: string;
   title: string;
   subtitle: string;
   thumbnail?: string | null;
@@ -311,14 +333,47 @@ function ListRow({
   onMenu?: (e: React.MouseEvent) => void;
   className?: string;
 }) {
+  const [isHovered, setIsHovered] = useState(false);
+  const [dominantColor, setDominantColor] = useState<{ r: number; g: number; b: number } | null>(null);
+  const artworkRef = useRef<HTMLImageElement | null>(null);
+  const colorImageSrc = useProxiedImageUrl(upgradeMusicImageUrl(thumbnail, 320));
+  const preloadedColor = useDominantColor(colorImageSrc);
+  const currentTrack = useMusicPlayerStore((s) => s.currentTrack);
+  const playerIsPlaying = useMusicPlayerStore((s) => s.isPlaying);
+  const isPlayingTrack = !!currentTrack && videoIdOf(currentTrack) === trackId && playerIsPlaying;
+  const isHighlighted = isHovered || isPlayingTrack;
+  const activeColor = dominantColor ?? preloadedColor;
+  const resolveColor = (img?: HTMLImageElement) => {
+    const source = img ?? artworkRef.current;
+    if (!source || !source.complete || source.naturalWidth === 0) {
+      return;
+    }
+    const extracted = extractDominantColorFromImage(source);
+    setDominantColor(extracted ?? preloadedColor);
+  };
+
+  useEffect(() => {
+    if (isPlayingTrack) resolveColor();
+  }, [isPlayingTrack]);
+
+  useEffect(() => {
+    setDominantColor(null);
+  }, [colorImageSrc]);
+
   return (
     <div
       role="button"
       tabIndex={0}
       onClick={onPlay}
       onKeyDown={onKey(onPlay)}
+      onMouseEnter={() => {
+        setIsHovered(true);
+        resolveColor();
+      }}
+      onMouseLeave={() => setIsHovered(false)}
+      style={isHighlighted ? colorBackground(activeColor) : undefined}
       className={cx(
-        'group flex w-full cursor-pointer items-center gap-4 rounded-lg p-2 transition-colors duration-200 ease-out hover:bg-surface-container',
+        'group flex w-full cursor-pointer items-center gap-4 rounded-lg p-2 transition-colors duration-200 ease-out',
         'outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]',
         className,
       )}
@@ -330,14 +385,29 @@ function ListRow({
           rounded="rounded-md"
           className="h-full w-full"
           iconSize="w-5 h-5"
+          imageRef={artworkRef}
+          onLoad={(img) => {
+            if (isHighlighted) resolveColor(img);
+          }}
         />
-        <div className="absolute inset-0 grid place-items-center rounded-md bg-black/50 opacity-0 transition-opacity duration-200 ease-out group-hover:opacity-100">
-          <Play className="h-5 w-5 text-white" fill="currentColor" />
+        <div
+          className={cx(
+            'absolute inset-0 grid place-items-center rounded-md bg-black/50 transition-opacity duration-200 ease-out',
+            isPlayingTrack ? 'opacity-100' : 'opacity-0 group-hover:opacity-100',
+          )}
+        >
+          {isPlayingTrack ? (
+            <PlayingWave className="text-white" />
+          ) : (
+            <Play className="h-5 w-5 text-white" fill="currentColor" />
+          )}
         </div>
       </div>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <span className="line-clamp-1 font-medium text-neutral-100">{title}</span>
+        <span className={cx('line-clamp-1 font-medium', isPlayingTrack ? 'text-neutral-50' : 'text-neutral-100')}>
+          {title}
+        </span>
         <span className="flex min-w-0 items-center gap-1.5">
           {explicit && <ExplicitBadge />}
           {subtitle && <span className="line-clamp-1 text-sm text-neutral-400">{subtitle}</span>}
@@ -457,6 +527,7 @@ export function MusicItemCard(props: MusicItemCardProps) {
     case 'track-list':
       return (
         <ListRow
+          trackId={videoIdOf(props.item)}
           title={props.item.title}
           subtitle={artistsText(props.item.artists)}
           thumbnail={props.item.thumbnail}

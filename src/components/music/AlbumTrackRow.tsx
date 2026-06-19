@@ -1,10 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Heart, MoreHorizontal, Music2, Play, Volume2 } from 'lucide-react';
 
 import { getString } from '../../lib/i18n/index';
 import { artistsText, formatTime } from '../../lib/musicFormat';
 import { upgradeMusicImageUrl } from '../../lib/thumbnails';
+import { extractDominantColorFromImage, useDominantColor } from '../../lib/useDominantColor';
+import { useProxiedImageUrl } from '../../lib/useProxiedImageUrl';
 import type { SongItem } from '../../types/music';
+import { PlayingWave } from './PlayingWave';
 
 function cx(...parts: Array<string | false | null | undefined>): string {
   return parts.filter(Boolean).join(' ');
@@ -38,31 +41,27 @@ function ExplicitBadge() {
   );
 }
 
-function EqualizerGlyph() {
-  return (
-    <span className="flex h-4 w-4 items-end justify-center gap-0.5" aria-hidden="true">
-      {[0, 1, 2].map((bar) => (
-        <span
-          key={bar}
-          className="w-1 rounded-full bg-[var(--color-primary)] animate-pulse"
-          style={{
-            height: `${8 + bar * 3}px`,
-            animationDelay: `${bar * 120}ms`,
-            animationDuration: '700ms',
-          }}
-        />
-      ))}
-    </span>
-  );
+function colorBackground(color: { r: number; g: number; b: number } | null): React.CSSProperties {
+  if (!color) return { background: 'rgba(39, 39, 42, 0.5)' };
+  return { background: `rgba(${color.r}, ${color.g}, ${color.b}, 0.22)` };
 }
 
-function TrackArtwork({ track }: { track: SongItem }) {
+function TrackArtwork({
+  track,
+  onLoad,
+  imageRef,
+}: {
+  track: SongItem;
+  onLoad?: (img: HTMLImageElement) => void;
+  imageRef?: React.Ref<HTMLImageElement>;
+}) {
   const [failed, setFailed] = useState(false);
   const src = upgradeMusicImageUrl(track.thumbnail, 120);
+  const imageSrc = useProxiedImageUrl(src);
 
-  useEffect(() => setFailed(false), [src]);
+  useEffect(() => setFailed(false), [imageSrc]);
 
-  if (!src || failed) {
+  if (!imageSrc || failed) {
     return (
       <div className="grid h-10 w-10 shrink-0 place-items-center rounded bg-surface-container-high text-neutral-500">
         <Music2 className="h-4 w-4" />
@@ -72,10 +71,12 @@ function TrackArtwork({ track }: { track: SongItem }) {
 
   return (
     <img
-      src={src}
+      ref={imageRef}
+      src={imageSrc}
       alt=""
       aria-hidden="true"
       loading="lazy"
+      onLoad={(event) => onLoad?.(event.currentTarget)}
       onError={() => setFailed(true)}
       className="h-10 w-10 shrink-0 rounded object-cover"
     />
@@ -99,6 +100,36 @@ export function AlbumTrackRow({
   const artistLabel = artistsText(track.artists);
   const duration = track.duration == null ? '' : formatTime(track.duration);
   const showEq = isCurrent && isPlaying;
+  const [isHovered, setIsHovered] = useState(false);
+  const [dominantColor, setDominantColor] = useState<{ r: number; g: number; b: number } | null>(null);
+  const artworkRef = useRef<HTMLImageElement | null>(null);
+  const colorImageSrc = useProxiedImageUrl(upgradeMusicImageUrl(track.thumbnail, 320));
+  const preloadedColor = useDominantColor(colorImageSrc);
+  const isHighlighted = isHovered || showEq;
+  const activeColor = dominantColor ?? preloadedColor;
+  const resolveColor = (img?: HTMLImageElement) => {
+    const source = img ?? artworkRef.current;
+    if (!source || !source.complete || source.naturalWidth === 0) {
+      if (preloadedColor) setDominantColor(preloadedColor);
+      return;
+    }
+    const extracted = extractDominantColorFromImage(source);
+    setDominantColor(extracted ?? preloadedColor);
+  };
+
+  useEffect(() => {
+    if (showEq) resolveColor();
+  }, [showEq]);
+
+  useEffect(() => {
+    setDominantColor(null);
+  }, [colorImageSrc]);
+
+  useEffect(() => {
+    if (isHighlighted && preloadedColor && !dominantColor) {
+      setDominantColor(preloadedColor);
+    }
+  }, [dominantColor, isHighlighted, preloadedColor]);
 
   const handleMenu = () => {
     if (onMenu) onMenu(track);
@@ -110,19 +141,25 @@ export function AlbumTrackRow({
       role="button"
       tabIndex={0}
       onClick={() => onPlay(track)}
+      onMouseEnter={() => {
+        setIsHovered(true);
+        resolveColor();
+      }}
+      onMouseLeave={() => setIsHovered(false)}
       onKeyDown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault();
           onPlay(track);
         }
       }}
-      className={`group flex cursor-pointer items-center rounded-lg px-4 py-2 transition-colors duration-200 ease-out hover:bg-surface-container-low ${
+      style={isHighlighted ? colorBackground(activeColor) : undefined}
+      className={`group flex cursor-pointer items-center rounded-lg px-4 py-2 transition-colors duration-200 ease-out ${
         isCurrent ? 'bg-surface-container-low' : ''
       }`}
     >
       <div className="relative grid w-12 shrink-0 place-items-center">
         {showEq ? (
-          <EqualizerGlyph />
+          <PlayingWave className="text-[var(--color-primary)]" />
         ) : isCurrent ? (
           <Volume2 className="h-4 w-4 text-[var(--color-primary)]" />
         ) : (
@@ -140,7 +177,13 @@ export function AlbumTrackRow({
 
       {showArtwork ? (
         <div className="mr-3 shrink-0">
-          <TrackArtwork track={track} />
+          <TrackArtwork
+            track={track}
+            imageRef={artworkRef}
+            onLoad={(img) => {
+              if (isHighlighted) resolveColor(img);
+            }}
+          />
         </div>
       ) : null}
 

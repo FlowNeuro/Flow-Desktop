@@ -10,6 +10,8 @@ import { Button } from '../ui/Button';
 import { useMusicPlayerStore } from '../../store/useMusicPlayerStore';
 import { useInfiniteScroll } from '../../lib/useInfiniteScroll';
 import { getString } from '../../lib/i18n/index';
+import { upgradeAvatarUrl, upgradeMusicImageUrl } from '../../lib/thumbnails';
+import { useProxiedImageUrl } from '../../lib/useProxiedImageUrl';
 import type {
   SearchCategory,
   TopResult,
@@ -458,6 +460,8 @@ function TopResultHero({
       break;
   }
 
+  const displayThumb = useProxiedImageUrl(circle ? upgradeAvatarUrl(thumb) : upgradeMusicImageUrl(thumb));
+
   return (
     <section className="flex flex-col">
       <p className="mb-3 px-1 text-xs font-semibold uppercase tracking-widest text-neutral-500">
@@ -476,8 +480,8 @@ function TopResultHero({
         className="group flex cursor-pointer items-center gap-5 rounded-2xl border border-neutral-800/50 bg-surface-container-low p-5 outline-none transition-colors duration-200 ease-out hover:bg-surface-container focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]"
       >
         <div className={cx('h-28 w-28 shrink-0 overflow-hidden ring-1 ring-neutral-800/50', circle ? 'rounded-full' : 'rounded-xl')}>
-          {thumb ? (
-            <img src={thumb} alt={title} loading="lazy" className="h-full w-full object-cover" />
+          {displayThumb ? (
+            <img src={displayThumb} alt={title} loading="lazy" className="h-full w-full object-cover" />
           ) : (
             <div className="grid h-full w-full place-items-center bg-surface-container-high text-neutral-600">
               <SearchIcon className="h-8 w-8" />

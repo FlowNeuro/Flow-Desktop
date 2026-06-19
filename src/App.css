@@ -200,6 +200,27 @@
   animation: sidebar-slide-in 0.2s cubic-bezier(0.2, 0, 0, 1) forwards;
 }
 
+@keyframes music-wave {
+  0%,
+  100% {
+    transform: scaleY(0.35);
+  }
+  45% {
+    transform: scaleY(1);
+  }
+}
+
+.music-wave-bar {
+  transform-origin: bottom;
+  animation: music-wave 760ms ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .music-wave-bar {
+    animation: none;
+  }
+}
+
 /* Hide scrollbar for Chrome, Safari and Opera */
 .scrollbar-none::-webkit-scrollbar {
   display: none;

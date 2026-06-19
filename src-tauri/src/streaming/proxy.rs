@@ -624,6 +624,12 @@ async fn relay_remote(
             .get(target_url)
             .header("User-Agent", &upstream_user_agent)
             .header("Accept-Encoding", "identity");
+        if session.content_type.starts_with("image/") {
+            req = req
+                .header("Accept", "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8")
+                .header("Origin", "https://music.youtube.com")
+                .header("Referer", "https://music.youtube.com/");
+        }
         if let Some(rh) = &range_header {
             req = req.header("Range", rh);
         }

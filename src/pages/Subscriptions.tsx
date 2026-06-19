@@ -14,6 +14,8 @@ import { ChannelSwiper } from "../components/subscriptions/ChannelSwiper";
 import { VideoGrid } from "../components/video/VideoGrid";
 import { ShortsShelf } from "../components/shelf/ShortsShelf";
 import { useSubscriptionChannelDetails, useSubscriptionFeed } from "../lib/useSubscriptionFeed";
+import { upgradeAvatarUrl } from "../lib/thumbnails";
+import { useProxiedImageUrl } from "../lib/useProxiedImageUrl";
 import type { SubscribedChannel, SubscriptionGroup } from "../store/useSubscriptionStore";
 import type { ShortVideoSummary, VideoSummary } from "../types/video";
 
@@ -23,9 +25,22 @@ interface SubscriptionsProps {
 }
 
 function getAvatarUrl(url?: string | null) {
-  if (!url?.startsWith("http")) return undefined;
-  if (/ytimg\.com\/vi\//i.test(url)) return undefined;
-  return url;
+  const normalized = upgradeAvatarUrl(url);
+  if (!normalized?.startsWith("http")) return undefined;
+  if (/ytimg\.com\/vi\//i.test(normalized)) return undefined;
+  return normalized;
+}
+
+function ChannelAvatarImage({ src, name }: { src?: string | null; name: string }) {
+  const imageSrc = useProxiedImageUrl(upgradeAvatarUrl(src));
+  if (!imageSrc) {
+    return (
+      <div className="flex h-full w-full items-center justify-center bg-surface-container-high text-sm font-semibold text-neutral-400">
+        {name.charAt(0).toUpperCase()}
+      </div>
+    );
+  }
+  return <img src={imageSrc} alt={name} className="h-full w-full object-cover" />;
 }
 
 function channelCountLabel(count: number) {
@@ -384,7 +399,7 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ onPlay, onAddToQue
                             className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-surface-container-high text-sm font-semibold text-neutral-300"
                           >
                             {avatarUrl ? (
-                              <img src={avatarUrl} alt={channel.name} className="h-full w-full object-cover" />
+                              <ChannelAvatarImage src={avatarUrl} name={channel.name} />
                             ) : (
                               initial
                             )}
@@ -675,7 +690,7 @@ function GroupsModal({
                     </span>
                     <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-surface-container-high text-xs font-semibold text-neutral-300">
                       {avatarUrl ? (
-                        <img src={avatarUrl} alt={channel.name} className="h-full w-full object-cover" />
+                        <ChannelAvatarImage src={avatarUrl} name={channel.name} />
                       ) : (
                         initial
                       )}

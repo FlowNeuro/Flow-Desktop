@@ -2,6 +2,8 @@ import React, { useState } from "react";
 import { Check } from "lucide-react";
 import { SubscribeButton } from "../ui/SubscribeButton";
 import type { ChannelDetails } from "../../types/video";
+import { upgradeAvatarUrl, upgradeMusicImageUrl } from "../../lib/thumbnails";
+import { useProxiedImageUrl } from "../../lib/useProxiedImageUrl";
 
 interface ChannelHeroProps {
   channelInfo: ChannelDetails | null;
@@ -11,6 +13,8 @@ export const ChannelHero: React.FC<ChannelHeroProps> = ({
   channelInfo,
 }) => {
   const [descExpanded, setDescExpanded] = useState(false);
+  const bannerUrl = useProxiedImageUrl(upgradeMusicImageUrl(channelInfo?.bannerUrl));
+  const avatarUrl = useProxiedImageUrl(upgradeAvatarUrl(channelInfo?.avatarUrl));
 
   if (!channelInfo) return null;
 
@@ -18,9 +22,9 @@ export const ChannelHero: React.FC<ChannelHeroProps> = ({
     <div className="w-full flex flex-col bg-background">
       {/* Banner */}
       <div className="relative w-full h-48 md:h-64 bg-zinc-900">
-        {channelInfo.bannerUrl ? (
+        {bannerUrl ? (
           <img
-            src={channelInfo.bannerUrl}
+            src={bannerUrl}
             alt="Channel banner"
             className="w-full h-full object-cover"
           />
@@ -38,9 +42,9 @@ export const ChannelHero: React.FC<ChannelHeroProps> = ({
           <div className="flex flex-col md:flex-row items-center md:items-end gap-6">
             {/* Overlapping Avatar */}
             <div className="w-32 h-32 rounded-full overflow-hidden border-4 border-background bg-zinc-800 shrink-0 -mt-16 md:-mt-16">
-              {channelInfo.avatarUrl ? (
+              {avatarUrl ? (
                 <img
-                  src={channelInfo.avatarUrl}
+                  src={avatarUrl}
                   alt={channelInfo.name}
                   className="w-full h-full object-cover"
                 />
@@ -71,7 +75,7 @@ export const ChannelHero: React.FC<ChannelHeroProps> = ({
             <SubscribeButton
               channelId={channelInfo.id}
               channelName={channelInfo.name}
-              avatarUrl={channelInfo.avatarUrl || undefined}
+              avatarUrl={avatarUrl || undefined}
               size="md"
             />
           </div>

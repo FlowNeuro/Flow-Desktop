@@ -6,9 +6,12 @@
 use std::collections::HashMap;
 
 use tauri::State;
+use uuid::Uuid;
 
 use crate::errors::{AppError, ErrorResponse};
-use crate::models::music::{AlbumItem, ArtistPage, ChartsPage, ExplorePage, MoodAndGenreItem, SongItem};
+use crate::models::music::{
+    AlbumItem, ArtistPage, ChartsPage, ExplorePage, MoodAndGenreItem, SongItem,
+};
 use crate::models::music_pages::{
     AlbumPage, MoodGenrePage, MusicHomePage, MusicPlaylistPage, MusicSearchResponse,
     MusicSearchSuggestions, QueuePage, RelatedPage, SearchSummaryPage,
@@ -19,6 +22,7 @@ use crate::services::music_service::MusicService;
 use crate::streaming::proxy::StreamingManager;
 
 type CmdResult<T> = Result<T, ErrorResponse>;
+const IMAGE_PROXY_UA: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
 // --- Browse ---------------------------------------------------------------
 
@@ -27,7 +31,10 @@ pub async fn get_music_home_page(
     continuation: Option<String>,
     music: State<'_, MusicService>,
 ) -> CmdResult<MusicHomePage> {
-    music.home(continuation.as_deref()).await.map_err(ErrorResponse::from)
+    music
+        .home(continuation.as_deref())
+        .await
+        .map_err(ErrorResponse::from)
 }
 
 #[tauri::command]
@@ -40,7 +47,10 @@ pub async fn get_music_charts_page(
     continuation: Option<String>,
     music: State<'_, MusicService>,
 ) -> CmdResult<ChartsPage> {
-    music.charts(continuation.as_deref()).await.map_err(ErrorResponse::from)
+    music
+        .charts(continuation.as_deref())
+        .await
+        .map_err(ErrorResponse::from)
 }
 
 #[tauri::command]
@@ -89,7 +99,10 @@ pub async fn search_music_typed(
     music: State<'_, MusicService>,
 ) -> CmdResult<MusicSearchResponse> {
     validate_search_query(&query).map_err(ErrorResponse::from)?;
-    music.search(&query, &filter).await.map_err(ErrorResponse::from)
+    music
+        .search(&query, &filter)
+        .await
+        .map_err(ErrorResponse::from)
 }
 
 #[tauri::command]
@@ -97,7 +110,10 @@ pub async fn search_music_continuation(
     continuation: String,
     music: State<'_, MusicService>,
 ) -> CmdResult<MusicSearchResponse> {
-    music.search_continuation(&continuation).await.map_err(ErrorResponse::from)
+    music
+        .search_continuation(&continuation)
+        .await
+        .map_err(ErrorResponse::from)
 }
 
 #[tauri::command]
@@ -106,7 +122,10 @@ pub async fn get_music_search_summary(
     music: State<'_, MusicService>,
 ) -> CmdResult<SearchSummaryPage> {
     validate_search_query(&query).map_err(ErrorResponse::from)?;
-    music.search_summary(&query).await.map_err(ErrorResponse::from)
+    music
+        .search_summary(&query)
+        .await
+        .map_err(ErrorResponse::from)
 }
 
 #[tauri::command]
@@ -114,7 +133,10 @@ pub async fn get_music_search_suggestions(
     query: String,
     music: State<'_, MusicService>,
 ) -> CmdResult<MusicSearchSuggestions> {
-    music.search_suggestions(&query).await.map_err(ErrorResponse::from)
+    music
+        .search_suggestions(&query)
+        .await
+        .map_err(ErrorResponse::from)
 }
 
 // --- Album / Artist / Playlist -------------------------------------------
@@ -132,7 +154,10 @@ pub async fn get_music_album_continuation(
     continuation: String,
     music: State<'_, MusicService>,
 ) -> CmdResult<(Vec<SongItem>, Option<String>)> {
-    music.album_continuation(&continuation).await.map_err(ErrorResponse::from)
+    music
+        .album_continuation(&continuation)
+        .await
+        .map_err(ErrorResponse::from)
 }
 
 #[tauri::command]
@@ -148,7 +173,10 @@ pub async fn get_music_playlist_page(
     playlist_id: String,
     music: State<'_, MusicService>,
 ) -> CmdResult<MusicPlaylistPage> {
-    music.playlist(&playlist_id).await.map_err(ErrorResponse::from)
+    music
+        .playlist(&playlist_id)
+        .await
+        .map_err(ErrorResponse::from)
 }
 
 #[tauri::command]
@@ -156,7 +184,10 @@ pub async fn get_music_playlist_continuation(
     continuation: String,
     music: State<'_, MusicService>,
 ) -> CmdResult<(Vec<SongItem>, Option<String>)> {
-    music.playlist_continuation(&continuation).await.map_err(ErrorResponse::from)
+    music
+        .playlist_continuation(&continuation)
+        .await
+        .map_err(ErrorResponse::from)
 }
 
 // --- Watch / queue / lyrics ----------------------------------------------
@@ -169,7 +200,11 @@ pub async fn get_music_watch_queue(
     music: State<'_, MusicService>,
 ) -> CmdResult<QueuePage> {
     music
-        .watch_queue(video_id.as_deref(), playlist_id.as_deref(), params.as_deref())
+        .watch_queue(
+            video_id.as_deref(),
+            playlist_id.as_deref(),
+            params.as_deref(),
+        )
         .await
         .map_err(ErrorResponse::from)
 }
@@ -179,7 +214,10 @@ pub async fn get_music_queue_continuation(
     continuation: String,
     music: State<'_, MusicService>,
 ) -> CmdResult<QueuePage> {
-    music.queue_continuation(&continuation).await.map_err(ErrorResponse::from)
+    music
+        .queue_continuation(&continuation)
+        .await
+        .map_err(ErrorResponse::from)
 }
 
 #[tauri::command]
@@ -292,4 +330,62 @@ pub async fn get_music_stream(
     info.user_agent = String::new();
 
     Ok(info)
+}
+
+fn image_content_type(url: &str) -> String {
+    let lower = url.split('?').next().unwrap_or(url).to_ascii_lowercase();
+    if lower.ends_with(".png") {
+        "image/png".to_string()
+    } else if lower.ends_with(".webp") {
+        "image/webp".to_string()
+    } else if lower.ends_with(".gif") {
+        "image/gif".to_string()
+    } else if lower.ends_with(".svg") {
+        "image/svg+xml".to_string()
+    } else {
+        "image/jpeg".to_string()
+    }
+}
+
+#[tauri::command]
+pub async fn proxy_image_url(
+    url: String,
+    streaming_manager: State<'_, StreamingManager>,
+) -> CmdResult<String> {
+    let trimmed = url.trim();
+    let parsed = reqwest::Url::parse(trimmed)
+        .map_err(|_| ErrorResponse::from(AppError::Validation("Invalid image URL".into())))?;
+
+    match parsed.scheme() {
+        "http" | "https" => {}
+        _ => {
+            return Err(ErrorResponse::from(AppError::Validation(
+                "Unsupported image URL".into(),
+            )));
+        }
+    }
+
+    let host = parsed.host_str().unwrap_or_default();
+    if host.eq_ignore_ascii_case("localhost")
+        || host.eq_ignore_ascii_case("127.0.0.1")
+        || host.eq_ignore_ascii_case("::1")
+    {
+        return Err(ErrorResponse::from(AppError::Validation(
+            "Local image URLs cannot be proxied".into(),
+        )));
+    }
+
+    let token = format!("img-{}", Uuid::new_v4());
+    streaming_manager.register_session(
+        token.clone(),
+        trimmed.to_string(),
+        image_content_type(trimmed),
+        IMAGE_PROXY_UA.to_string(),
+    );
+
+    Ok(format!(
+        "http://127.0.0.1:{}/stream/{}",
+        streaming_manager.get_port(),
+        token
+    ))
 }

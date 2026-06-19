@@ -1,8 +1,11 @@
 export type ThumbnailQuality = "standard" | "large";
 
 const YOUTUBE_VIDEO_ID = /^[a-zA-Z0-9_-]{11}$/;
-const YOUTUBE_THUMBNAIL_RE = /\/(vi(?:_webp)?)\/([a-zA-Z0-9_-]{11})\/([^/?#]+)/i;
+const YOUTUBE_THUMBNAIL_RE = /(?:https?:)?\/\/(?:i\.ytimg\.com|img\.youtube\.com)\/(?:vi|vi_webp)\/([a-zA-Z0-9_-]{11})\/[^/?#]+/i;
 const YOUTUBE_THUMBNAIL_HOST_RE = /(?:^|\.)ytimg\.com$|(?:^|\.)youtube\.com$/i;
+const GOOGLE_IMAGE_HOST_RE = /(?:^|\.)googleusercontent\.com$|(?:^|\.)ggpht\.com$/i;
+const GOOGLE_CDN_SIZE_RE = /[=/-](?:w|h|s)\d+(?:-[whs]\d+)*/i;
+const GOOGLE_CDN_PARAM_START_RE = /=(?:w|h|s)\d+/i;
 
 export function isYoutubeVideoId(id?: string | null): id is string {
   return Boolean(id && YOUTUBE_VIDEO_ID.test(id));
@@ -80,7 +83,7 @@ export function resolveYoutubeThumbnailCandidates(
   const raw = fallbackUrl?.trim();
   const resolvedId = isYoutubeVideoId(videoId)
     ? videoId
-    : raw?.match(YOUTUBE_THUMBNAIL_RE)?.[2];
+    : raw?.match(YOUTUBE_THUMBNAIL_RE)?.[1];
 
   const candidates: string[] = [];
   if (resolvedId) {
@@ -110,20 +113,37 @@ export function isUnavailableYoutubeThumbnail(img: HTMLImageElement): boolean {
   return width > 0 && height > 0 && width <= 160 && height <= 120;
 }
 
+function isGoogleImageUrl(url: string): boolean {
+  try {
+    return GOOGLE_IMAGE_HOST_RE.test(new URL(url).hostname);
+  } catch {
+    return false;
+  }
+}
+
 export function upgradeMusicImageUrl(url: string | null | undefined, size = 1080): string | undefined {
   if (!url?.trim()) return undefined;
   let upgraded = url.trim();
   if (upgraded.startsWith("//")) upgraded = `https:${upgraded}`;
 
-  const isGoogleCdn = upgraded.includes("googleusercontent.com") || upgraded.includes("ggpht.com");
-  if (!isGoogleCdn) return upgraded;
-
-  if (/w\d+-h\d+/.test(upgraded)) {
-    return upgraded.replace(/w\d+-h\d+/, `w${size}-h${size}`);
+  if (YOUTUBE_THUMBNAIL_RE.test(upgraded)) {
+    return upgradeThumbnailUrl(upgraded, "standard");
   }
-  const paramStart = upgraded.search(/=(?:w|s|h)\d*/);
-  const base = paramStart >= 0 ? upgraded.slice(0, paramStart) : upgraded;
-  return `${base}=w${size}-h${size}-p-l90-rj`;
+
+  if (isGoogleImageUrl(upgraded)) {
+    if (GOOGLE_CDN_SIZE_RE.test(upgraded)) {
+      return upgraded.replace(GOOGLE_CDN_SIZE_RE, (match) => {
+        const prefix = match[0] === "=" || match[0] === "/" || match[0] === "-" ? match[0] : "=";
+        return `${prefix}w${size}-h${size}`;
+      });
+    }
+
+    const paramStart = upgraded.search(GOOGLE_CDN_PARAM_START_RE);
+    const base = paramStart >= 0 ? upgraded.slice(0, paramStart) : upgraded;
+    return `${base}=w${size}-h${size}-p-l90-rj`;
+  }
+
+  return upgraded;
 }
 
 export function upgradeAvatarUrl(url: string | null | undefined, size = 512): string | undefined {
@@ -131,16 +151,18 @@ export function upgradeAvatarUrl(url: string | null | undefined, size = 512): st
   let upgraded = url.trim();
   if (upgraded.startsWith("//")) upgraded = `https:${upgraded}`;
 
-  const isGoogleCdn = upgraded.includes("googleusercontent.com") || upgraded.includes("ggpht.com");
-  if (!isGoogleCdn) return upgraded;
+  if (isGoogleImageUrl(upgraded)) {
+    if (GOOGLE_CDN_SIZE_RE.test(upgraded)) {
+      return upgraded.replace(GOOGLE_CDN_SIZE_RE, (match) => {
+        const prefix = match[0] === "=" || match[0] === "/" || match[0] === "-" ? match[0] : "=";
+        return `${prefix}s${size}`;
+      });
+    }
 
-  if (/w\d+-h\d+/.test(upgraded)) {
-    return upgraded.replace(/w\d+-h\d+/, `s${size}`);
+    const paramStart = upgraded.search(GOOGLE_CDN_PARAM_START_RE);
+    const base = paramStart >= 0 ? upgraded.slice(0, paramStart) : upgraded;
+    return `${base}=s${size}`;
   }
-  if (/=([wsh])\d+/.test(upgraded)) {
-    return upgraded.replace(/=([wsh])\d+/, `=s${size}`);
-  }
-  const paramStart = upgraded.search(/=(?:w|s|h)/);
-  const base = paramStart >= 0 ? upgraded.slice(0, paramStart) : upgraded;
-  return `${base}=s${size}`;
+
+  return upgraded;
 }

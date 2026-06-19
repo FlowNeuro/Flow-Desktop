@@ -11,6 +11,7 @@ import { useArtistPage, type ArtistMoreEndpoint } from '../../lib/useArtistPage'
 import { useMusicPlayerStore } from '../../store/useMusicPlayerStore';
 import { getString } from '../../lib/i18n/index';
 import { upgradeAvatarUrl } from '../../lib/thumbnails';
+import { useProxiedImageUrl } from '../../lib/useProxiedImageUrl';
 import type { SongItem } from '../../types/music';
 
 const videoIdOf = (track: SongItem) => track.videoId ?? track.id;
@@ -119,7 +120,7 @@ function ArtistHeroScaffold({
   onRadio: () => void;
   onToggleFollow: () => void;
 }) {
-  const imageUrl = upgradeAvatarUrl(thumbnail, 1200);
+  const imageUrl = useProxiedImageUrl(upgradeAvatarUrl(thumbnail, 1200));
 
   return (
     <header className="relative flex h-[50vh] min-h-[400px] w-full items-end overflow-hidden bg-[var(--color-surface)] px-8 pb-8">

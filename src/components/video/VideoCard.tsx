@@ -11,6 +11,7 @@ import { useSettingsStore } from '../../store/useSettingsStore';
 import { useAppSettingsStore } from '../../store/useAppSettingsStore';
 import { useChannelAvatar } from '../../lib/useChannelAvatar';
 import { isUnavailableYoutubeThumbnail, resolveYoutubeThumbnailCandidates, upgradeAvatarUrl } from '../../lib/thumbnails';
+import { useProxiedImageUrl } from '../../lib/useProxiedImageUrl';
 import { SETTINGS } from '../../lib/settings/schema';
 
 export interface VideoCardProps {
@@ -153,7 +154,8 @@ export function VideoCard({
   );
 
   const hookAvatarUrl = useChannelAvatar(isChannel ? null : channelId || null);
-  const resolvedAvatarUrl = upgradeAvatarUrl(video.channelAvatarUrl || hookAvatarUrl);
+  const resolvedAvatarUrl = useProxiedImageUrl(upgradeAvatarUrl(video.channelAvatarUrl || hookAvatarUrl));
+  const channelCardAvatarUrl = useProxiedImageUrl(upgradeAvatarUrl(video.thumbnailUrl));
   const displayTitle = overriddenTitle || video.title;
   const thumbnailCandidates = resolveYoutubeThumbnailCandidates(video.id, overriddenThumbnail || video.thumbnailUrl);
   const displayThumbnail = thumbnailCandidates[thumbnailCandidateIndex] || overriddenThumbnail || video.thumbnailUrl;
@@ -375,9 +377,9 @@ export function VideoCard({
         className="flex flex-col items-center justify-center p-6 bg-surface rounded-xl border border-zinc-800 hover:bg-zinc-900/50 transition-colors group cursor-pointer"
       >
         <div className="w-24 h-24 rounded-full overflow-hidden mb-4 border border-zinc-800 group-hover:scale-105 transition-transform duration-300">
-          {video.thumbnailUrl ? (
+          {channelCardAvatarUrl ? (
             <img
-              src={upgradeAvatarUrl(video.thumbnailUrl)}
+              src={channelCardAvatarUrl}
               alt={video.title}
               className="w-full h-full object-cover"
               loading="lazy"

@@ -1,8 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { MoreHorizontal, Music2, Play, Plus, Shuffle } from 'lucide-react';
 
 import { getString } from '../../lib/i18n/index';
 import type { CollectionMeta } from '../../lib/useMusicCollection';
+import { upgradeMusicImageUrl } from '../../lib/thumbnails';
+import { useProxiedImageUrl } from '../../lib/useProxiedImageUrl';
 
 interface MusicCollectionHeaderProps {
   meta: CollectionMeta;
@@ -12,9 +14,11 @@ interface MusicCollectionHeaderProps {
   onArtistClick?: () => void;
 }
 
-function Cover({ src, alt }: { src: string | null; alt: string }) {
+function Cover({ src, alt }: { src: string | null | undefined; alt: string }) {
   const [failed, setFailed] = useState(false);
-  if (!src || failed) {
+  const imageSrc = useProxiedImageUrl(upgradeMusicImageUrl(src));
+  useEffect(() => setFailed(false), [imageSrc]);
+  if (!imageSrc || failed) {
     return (
       <div className="grid h-full w-full place-items-center bg-surface-container-high text-neutral-500">
         <Music2 className="h-12 w-12" />
@@ -24,7 +28,7 @@ function Cover({ src, alt }: { src: string | null; alt: string }) {
 
   return (
     <img
-      src={src}
+      src={imageSrc}
       alt={alt}
       decoding="async"
       onError={() => setFailed(true)}
@@ -40,6 +44,7 @@ export function MusicCollectionHeader({
   onShuffle,
   onArtistClick,
 }: MusicCollectionHeaderProps) {
+  const thumbnailUrl = useProxiedImageUrl(upgradeMusicImageUrl(meta.thumbnail));
   const metaParts = [
     meta.yearText,
     meta.trackCountText,
@@ -48,9 +53,9 @@ export function MusicCollectionHeader({
 
   return (
     <header className="relative flex h-[45vh] min-h-[350px] w-full items-end overflow-hidden bg-surface px-8 pb-8">
-      {meta.thumbnail ? (
+      {thumbnailUrl ? (
         <img
-          src={meta.thumbnail}
+          src={thumbnailUrl}
           alt=""
           aria-hidden="true"
           decoding="async"
@@ -67,7 +72,7 @@ export function MusicCollectionHeader({
 
       <div className="relative z-10 mx-auto flex w-full max-w-[1600px] flex-row items-end gap-8">
         <div className="aspect-square h-48 w-48 shrink-0 overflow-hidden rounded-xl shadow-2xl ring-1 ring-white/10 md:h-56 md:w-56 xl:h-64 xl:w-64">
-          <Cover src={meta.thumbnail} alt={meta.title} />
+          <Cover src={thumbnailUrl} alt={meta.title} />
         </div>
 
         <div className="flex min-w-0 flex-1 flex-col items-start gap-2">

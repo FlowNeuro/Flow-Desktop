@@ -23,12 +23,20 @@ import { useSubscriptionStore } from '../../store/useSubscriptionStore';
 import { SidebarItem } from '../ui/SidebarItem';
 import { getString } from '../../lib/i18n/index';
 import { SETTINGS } from '../../lib/settings/schema';
+import { upgradeAvatarUrl } from '../../lib/thumbnails';
+import { useProxiedImageUrl } from '../../lib/useProxiedImageUrl';
 
 const SUBS_DEFAULT_LIMIT = 7;
 
 type SidebarProps = {
   mode?: 'normal' | 'overlay';
 };
+
+function SidebarAvatar({ src }: { src?: string | null }) {
+  const imageSrc = useProxiedImageUrl(upgradeAvatarUrl(src));
+  if (!imageSrc) return <div className="w-6 h-6 rounded-full bg-surface-container-high" />;
+  return <img src={imageSrc} alt="" className="w-6 h-6 rounded-full object-cover" />;
+}
 
 function CompactRailItem({
   path,
@@ -160,7 +168,7 @@ export function Sidebar({ mode = 'normal' }: SidebarProps) {
               to={`/channel/${channel.id}`}
               icon={
                 channel.avatarUrl ? (
-                  <img src={channel.avatarUrl} alt="" className="w-6 h-6 rounded-full object-cover" />
+                  <SidebarAvatar src={channel.avatarUrl} />
                 ) : (
                   <div className="w-6 h-6 rounded-full bg-surface-container-high" />
                 )

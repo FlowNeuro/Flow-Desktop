@@ -7,6 +7,8 @@ import { useSettingsStore } from "../../store/useSettingsStore";
 import { useVideoReactions } from "../../lib/useVideoReactions";
 import { formatCount } from "../../lib/utils";
 import { getString } from "../../lib/i18n/index";
+import { upgradeAvatarUrl } from "../../lib/thumbnails";
+import { useProxiedImageUrl } from "../../lib/useProxiedImageUrl";
 import type { WatchMetadataProps } from "./types";
 
 export function WatchMetadata({
@@ -26,7 +28,7 @@ export function WatchMetadata({
   const channelId = videoData?.channelId || currentVideo.channelId || channelDetails?.id || "";
   const channelName =
     videoData?.channelName || currentVideo.channelName || channelDetails?.name || getString("watch_unknown_channel");
-  const avatarUrl = channelDetails?.avatarUrl || null;
+  const avatarUrl = useProxiedImageUrl(upgradeAvatarUrl(channelDetails?.avatarUrl || null)) || null;
   const subscriberText = channelDetails?.subscriberCountText || "";
 
   const dearrowTitle = dearrowEnabled ? dearrowData?.title ?? null : null;

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Music2, Loader2 } from "lucide-react";
 import { upgradeMusicImageUrl } from "../../lib/thumbnails";
+import { useProxiedImageUrl } from "../../lib/useProxiedImageUrl";
 
 interface MusicArtworkProps {
   src?: string | null;
@@ -22,7 +23,7 @@ export function MusicArtwork({
   iconClassName = "h-5 w-5",
 }: MusicArtworkProps) {
   const [failed, setFailed] = useState(false);
-  const imageSrc = upgradeMusicImageUrl(src);
+  const imageSrc = useProxiedImageUrl(upgradeMusicImageUrl(src));
   const showImage = !!imageSrc && !failed;
   useEffect(() => setFailed(false), [imageSrc]);
 

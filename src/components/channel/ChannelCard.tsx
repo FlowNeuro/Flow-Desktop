@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Check, Plus } from 'lucide-react';
 import { useSubscriptionStore } from '../../store/useSubscriptionStore';
 import { Button } from '../ui/Button';
 import { getString } from '../../lib/i18n/index';
+import { upgradeAvatarUrl } from '../../lib/thumbnails';
+import { useProxiedImageUrl } from '../../lib/useProxiedImageUrl';
 
 export interface ChannelCardProps {
   channelId: string;
@@ -20,7 +22,9 @@ function cx(...parts: Array<string | false | null | undefined>): string {
 
 function CircleAvatar({ src, name }: { src?: string | null; name: string }) {
   const [failed, setFailed] = useState(false);
-  if (!src || failed) {
+  const imageSrc = useProxiedImageUrl(upgradeAvatarUrl(src));
+  useEffect(() => setFailed(false), [imageSrc]);
+  if (!imageSrc || failed) {
     return (
       <div className="grid h-full w-full place-items-center rounded-full bg-surface-container-high text-2xl font-semibold text-neutral-500">
         {name.charAt(0).toUpperCase() || '?'}
@@ -29,7 +33,7 @@ function CircleAvatar({ src, name }: { src?: string | null; name: string }) {
   }
   return (
     <img
-      src={src}
+      src={imageSrc}
       alt={name}
       loading="lazy"
       onError={() => setFailed(true)}

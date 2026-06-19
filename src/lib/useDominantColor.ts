@@ -7,8 +7,17 @@ export interface Rgb {
 }
 
 const cache = new Map<string, Rgb | null>();
+const BUCKET_SIZE = 24;
 
-function extract(img: HTMLImageElement): Rgb | null {
+type ColorBucket = {
+  r: number;
+  g: number;
+  b: number;
+  weight: number;
+  score: number;
+};
+
+export function extractDominantColorFromImage(img: HTMLImageElement): Rgb | null {
   const size = 32;
   const canvas = document.createElement("canvas");
   canvas.width = size;
@@ -24,15 +33,12 @@ function extract(img: HTMLImageElement): Rgb | null {
     return null; // tainted canvas (no CORS) — caller falls back
   }
 
-  // Weight each pixel by saturation, ignoring near-black/white, for a vibrant pick.
-  let wr = 0;
-  let wg = 0;
-  let wb = 0;
-  let wsum = 0;
+  const buckets = new Map<string, ColorBucket>();
   let ar = 0;
   let ag = 0;
   let ab = 0;
   let acount = 0;
+
   for (let i = 0; i < data.length; i += 4) {
     const r = data[i]!;
     const g = data[i + 1]!;
@@ -47,14 +53,38 @@ function extract(img: HTMLImageElement): Rgb | null {
     const min = Math.min(r, g, b);
     const sat = max === 0 ? 0 : (max - min) / max;
     const luma = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
-    if (luma < 0.15 || luma > 0.92 || sat < 0.15) continue;
-    const w = sat * sat;
-    wr += r * w;
-    wg += g * w;
-    wb += b * w;
-    wsum += w;
+    if (luma < 0.08 || luma > 0.94 || sat < 0.08) continue;
+
+    const key = [
+      Math.round(r / BUCKET_SIZE),
+      Math.round(g / BUCKET_SIZE),
+      Math.round(b / BUCKET_SIZE),
+    ].join(':');
+    const weight = 0.35 + sat;
+    const bucket = buckets.get(key) ?? { r: 0, g: 0, b: 0, weight: 0, score: 0 };
+    bucket.r += r * weight;
+    bucket.g += g * weight;
+    bucket.b += b * weight;
+    bucket.weight += weight;
+    bucket.score += 1 + sat * 1.5;
+    buckets.set(key, bucket);
   }
-  if (wsum > 0) return { r: Math.round(wr / wsum), g: Math.round(wg / wsum), b: Math.round(wb / wsum) };
+
+  let bestBucket: ColorBucket | null = null;
+  for (const bucket of buckets.values()) {
+    if (!bestBucket || bucket.score > bestBucket.score) {
+      bestBucket = bucket;
+    }
+  }
+
+  if (bestBucket && bestBucket.weight > 0) {
+    return {
+      r: Math.round(bestBucket.r / bestBucket.weight),
+      g: Math.round(bestBucket.g / bestBucket.weight),
+      b: Math.round(bestBucket.b / bestBucket.weight),
+    };
+  }
+
   if (acount > 0) return { r: Math.round(ar / acount), g: Math.round(ag / acount), b: Math.round(ab / acount) };
   return null;
 }
@@ -76,7 +106,7 @@ export function useDominantColor(src: string | null | undefined): Rgb | null {
     const img = new Image();
     img.crossOrigin = "anonymous";
     img.onload = () => {
-      const c = extract(img);
+      const c = extractDominantColorFromImage(img);
       cache.set(src, c);
       if (!cancelled) setColor(c);
     };
