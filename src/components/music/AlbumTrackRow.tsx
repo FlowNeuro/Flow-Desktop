@@ -1,8 +1,14 @@
-import { Heart, MoreHorizontal, Play, Volume2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Heart, MoreHorizontal, Music2, Play, Volume2 } from 'lucide-react';
 
 import { getString } from '../../lib/i18n/index';
 import { artistsText, formatTime } from '../../lib/musicFormat';
+import { upgradeMusicImageUrl } from '../../lib/thumbnails';
 import type { SongItem } from '../../types/music';
+
+function cx(...parts: Array<string | false | null | undefined>): string {
+  return parts.filter(Boolean).join(' ');
+}
 
 interface AlbumTrackRowProps {
   track: SongItem;
@@ -10,6 +16,9 @@ interface AlbumTrackRowProps {
   isCurrent: boolean;
   isPlaying: boolean;
   streamsText?: string | null;
+  showArtwork?: boolean;
+  showStreamsColumn?: boolean;
+  compactActions?: boolean;
   onPlay: (track: SongItem) => void;
   onAddToQueue: (track: SongItem) => void;
   onLike?: (track: SongItem) => void;
@@ -47,12 +56,41 @@ function EqualizerGlyph() {
   );
 }
 
+function TrackArtwork({ track }: { track: SongItem }) {
+  const [failed, setFailed] = useState(false);
+  const src = upgradeMusicImageUrl(track.thumbnail, 120);
+
+  useEffect(() => setFailed(false), [src]);
+
+  if (!src || failed) {
+    return (
+      <div className="grid h-10 w-10 shrink-0 place-items-center rounded bg-surface-container-high text-neutral-500">
+        <Music2 className="h-4 w-4" />
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={src}
+      alt=""
+      aria-hidden="true"
+      loading="lazy"
+      onError={() => setFailed(true)}
+      className="h-10 w-10 shrink-0 rounded object-cover"
+    />
+  );
+}
+
 export function AlbumTrackRow({
   track,
   index,
   isCurrent,
   isPlaying,
   streamsText,
+  showArtwork = false,
+  showStreamsColumn = true,
+  compactActions = false,
   onPlay,
   onAddToQueue,
   onLike,
@@ -100,6 +138,12 @@ export function AlbumTrackRow({
         )}
       </div>
 
+      {showArtwork ? (
+        <div className="mr-3 shrink-0">
+          <TrackArtwork track={track} />
+        </div>
+      ) : null}
+
       <div className="flex min-w-0 flex-1 flex-col">
         <span className={`line-clamp-1 font-medium ${isCurrent ? 'text-[var(--color-primary)]' : 'text-neutral-100'}`}>
           {track.title}
@@ -112,11 +156,18 @@ export function AlbumTrackRow({
         )}
       </div>
 
-      <span className="hidden w-32 shrink-0 text-right font-mono text-sm tabular-nums text-neutral-500 lg:block">
-        {streamsText ?? ''}
-      </span>
+      {showStreamsColumn ? (
+        <span className="hidden w-32 shrink-0 text-right font-mono text-sm tabular-nums text-neutral-500 lg:block">
+          {streamsText ?? ''}
+        </span>
+      ) : null}
 
-      <div className="ml-4 flex shrink-0 items-center gap-1 opacity-0 transition-opacity duration-200 ease-out group-hover:opacity-100">
+      <div
+        className={cx(
+          'ml-4 flex shrink-0 items-center gap-1 opacity-0 transition-opacity duration-200 ease-out group-hover:opacity-100',
+          compactActions ? 'hidden xl:flex' : null,
+        )}
+      >
         <button
           type="button"
           aria-label={getString('music_like_track')}

@@ -272,12 +272,12 @@ function CircleCard({
       onKeyDown={onKey(onOpen)}
       className={cx(
         'group flex cursor-pointer flex-col items-center gap-3 text-center',
-        fill ? 'w-full' : 'w-40 md:w-48',
+        fill ? 'w-full' : 'w-32 md:w-40',
         'rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]',
         className,
       )}
     >
-      <div className="w-full aspect-square">
+      <div className={cx('aspect-square shrink-0', fill ? 'w-full' : 'w-32 md:w-40')}>
         <Artwork
           src={thumbnail}
           alt={title}
@@ -286,10 +286,7 @@ function CircleCard({
           iconSize="w-10 h-10"
         />
       </div>
-      <div className="flex flex-col gap-0.5">
-        <span className="line-clamp-1 font-semibold text-neutral-100">{title}</span>
-        <span className="text-sm text-neutral-400">{getString('music_role_artist')}</span>
-      </div>
+      <span className="line-clamp-2 text-center font-medium text-neutral-100">{title}</span>
     </div>
   );
 }

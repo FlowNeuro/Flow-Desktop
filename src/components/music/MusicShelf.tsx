@@ -19,7 +19,12 @@ function cx(...parts: Array<string | false | null | undefined>): string {
 
 function ShelfSkeleton({ shape }: { shape: 'square' | 'circle' }) {
   return (
-    <div className="flex w-40 shrink-0 animate-pulse flex-col gap-3 md:w-48 lg:w-56">
+    <div
+      className={cx(
+        'flex shrink-0 animate-pulse flex-col gap-3',
+        shape === 'circle' ? 'w-32 md:w-40' : 'w-40 md:w-48 lg:w-56',
+      )}
+    >
       <div
         className={cx(
           'aspect-square w-full bg-surface-container-low',
@@ -27,7 +32,7 @@ function ShelfSkeleton({ shape }: { shape: 'square' | 'circle' }) {
         )}
       />
       <div className="h-3.5 w-3/4 rounded bg-surface-container-low" />
-      <div className="h-3 w-1/2 rounded bg-surface-container-low" />
+      {shape === 'square' ? <div className="h-3 w-1/2 rounded bg-surface-container-low" /> : null}
     </div>
   );
 }
