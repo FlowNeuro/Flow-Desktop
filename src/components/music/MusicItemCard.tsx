@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { MoreVertical, Music2, Play } from 'lucide-react';
+import { Download, Heart, Library, ListMusic, ListPlus, MoreVertical, Music2, Play, Share2 } from 'lucide-react';
 import type { AlbumItem, ArtistItem, EpisodeItem, PlaylistItem, PodcastItem, SongItem } from '../../types/music';
 import { getString } from '../../lib/i18n/index';
 import { upgradeAvatarUrl, upgradeMusicImageUrl } from '../../lib/thumbnails';
@@ -7,6 +7,7 @@ import { extractDominantColorFromImage, useDominantColor } from '../../lib/useDo
 import { useMusicPlayerStore } from '../../store/useMusicPlayerStore';
 import { useProxiedImageUrl } from '../../lib/useProxiedImageUrl';
 import { PlayingWave } from './PlayingWave';
+import { MusicCardMenu, type MusicMenuAction, useMusicContextMenu } from './MusicCardMenu';
 
 type BaseProps = {
   className?: string;
@@ -27,7 +28,7 @@ export type MusicItemCardProps = BaseProps &
     | {
         variant: 'track-list';
         item: SongItem;
-        onMenu?: (e: React.MouseEvent) => void;
+        onMenu?: () => void;
       }
   );
 
@@ -85,6 +86,30 @@ function onKey(handler?: () => void) {
       handler();
     }
   };
+}
+
+function trackShareUrl(track: SongItem): string {
+  return `https://music.youtube.com/watch?v=${encodeURIComponent(videoIdOf(track))}`;
+}
+
+function albumShareUrl(album: AlbumItem): string {
+  return `https://music.youtube.com/browse/${encodeURIComponent(album.browseId)}`;
+}
+
+async function shareUrl(title: string, url: string) {
+  try {
+    if (navigator.share) {
+      await navigator.share({ title, url });
+      return;
+    }
+    await navigator.clipboard?.writeText(url);
+  } catch {
+    // Share/copy can be cancelled by the user; the menu should still close.
+  }
+}
+
+function logMusicAction(action: string, id: string) {
+  console.info(`${action} requested`, id);
 }
 
 // --- shared sub-components ------------------------------------------------
@@ -154,6 +179,8 @@ function ExplicitBadge() {
 
 /** Variant A — square card for albums & playlists. */
 function SquareCard({
+  item,
+  menuKind,
   title,
   subtitle,
   thumbnail,
@@ -162,6 +189,8 @@ function SquareCard({
   className,
   fill,
 }: {
+  item?: AlbumItem | SongItem;
+  menuKind?: 'album' | 'track';
   title: string;
   subtitle: string;
   thumbnail?: string | null;
@@ -170,14 +199,78 @@ function SquareCard({
   className?: string;
   fill?: boolean;
 }) {
+  const [liked, setLiked] = useState(false);
+  const addToQueue = useMusicPlayerStore((s) => s.addToQueue);
+  const playNextInQueue = useMusicPlayerStore((s) => s.playNextInQueue);
+  const menu = useMusicContextMenu(Boolean(menuKind));
+  const isTrack = menuKind === 'track' && item && 'videoId' in item;
+  const isAlbum = menuKind === 'album' && item && 'browseId' in item;
+  const menuActions: MusicMenuAction[] = isTrack
+    ? [
+        {
+          id: 'add-to-queue',
+          label: getString('music_add_to_queue'),
+          icon: <ListPlus size={16} />,
+          onSelect: () => addToQueue(item),
+        },
+        {
+          id: 'play-next',
+          label: getString('music_play_next'),
+          icon: <Play size={16} />,
+          onSelect: () => playNextInQueue(item),
+        },
+        {
+          id: 'add-to-playlist',
+          label: getString('music_add_to_playlist'),
+          icon: <ListMusic size={16} />,
+          onSelect: () => logMusicAction('Add to playlist', videoIdOf(item)),
+        },
+        {
+          id: 'download',
+          label: getString('music_download'),
+          icon: <Download size={16} />,
+          onSelect: () => logMusicAction('Download track', videoIdOf(item)),
+        },
+        {
+          id: 'share',
+          label: getString('music_share'),
+          icon: <Share2 size={16} />,
+          onSelect: () => shareUrl(item.title, trackShareUrl(item)),
+        },
+      ]
+    : isAlbum
+      ? [
+          {
+            id: 'add-to-library',
+            label: getString('music_add_to_library'),
+            icon: <Library size={16} />,
+            onSelect: () => logMusicAction('Add album to library', item.browseId),
+          },
+          {
+            id: 'download',
+            label: getString('music_download'),
+            icon: <Download size={16} />,
+            onSelect: () => logMusicAction('Download album', item.browseId),
+          },
+          {
+            id: 'share',
+            label: getString('music_share'),
+            icon: <Share2 size={16} />,
+            onSelect: () => shareUrl(item.title, albumShareUrl(item)),
+          },
+        ]
+      : [];
+
   return (
     <div
+      ref={menu.cardRef}
       role="button"
       tabIndex={0}
       onClick={onOpen}
       onKeyDown={onKey(onOpen)}
+      onContextMenu={menu.openMenuFromContext}
       className={cx(
-        'group flex cursor-pointer flex-col gap-3',
+        'group relative flex cursor-pointer flex-col gap-3',
         fill ? 'w-full' : 'w-40 md:w-48 lg:w-56',
         'rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]',
         className,
@@ -191,6 +284,44 @@ function SquareCard({
           className="h-full w-full ring-1 ring-neutral-800/50"
           iconSize="w-10 h-10"
         />
+        {isTrack ? (
+          <button
+            type="button"
+            aria-label={getString('music_like_track')}
+            aria-pressed={liked}
+            onClick={(event) => {
+              event.stopPropagation();
+              setLiked((current) => !current);
+            }}
+            className={cx(
+              'absolute left-2 top-2 grid h-9 w-9 place-items-center rounded-full bg-neutral-950/80 text-neutral-200 opacity-0 backdrop-blur transition-all duration-200 ease-out hover:bg-neutral-900 group-hover:opacity-100',
+              liked ? 'text-[var(--color-primary)] opacity-100' : null,
+            )}
+          >
+            <Heart className="h-4 w-4" fill={liked ? 'currentColor' : 'none'} />
+          </button>
+        ) : null}
+        {menuKind ? (
+          <div className="absolute right-2 top-2">
+            <button
+              type="button"
+              aria-label={getString('music_more_options')}
+              onClick={menu.openMenuFromDots}
+              className="grid h-9 w-9 place-items-center rounded-full bg-neutral-950/80 text-neutral-200 opacity-0 backdrop-blur transition-all duration-200 ease-out hover:bg-neutral-900 group-hover:opacity-100"
+            >
+              <MoreVertical className="h-4 w-4" />
+            </button>
+            {!menu.menuPosition ? (
+              <MusicCardMenu
+                actions={menuActions}
+                menuPosition={menu.menuPosition}
+                menuRef={menu.menuRef}
+                onClose={menu.closeMenu}
+                show={menu.showMenu}
+              />
+            ) : null}
+          </div>
+        ) : null}
         <button
           type="button"
           aria-label={getString('music_play')}
@@ -203,6 +334,15 @@ function SquareCard({
           <Play className="h-5 w-5" fill="currentColor" />
         </button>
       </div>
+      {menu.menuPosition ? (
+        <MusicCardMenu
+          actions={menuActions}
+          menuPosition={menu.menuPosition}
+          menuRef={menu.menuRef}
+          onClose={menu.closeMenu}
+          show={menu.showMenu}
+        />
+      ) : null}
       <div className="flex flex-col gap-0.5">
         <span className="line-clamp-1 font-medium text-neutral-100">{title}</span>
         {subtitle && <span className="line-clamp-1 text-sm text-neutral-400">{subtitle}</span>}
@@ -313,36 +453,70 @@ function CircleCard({
 
 /** Variant C — dense list row for tracks (Spotify "Top Tracks" style). */
 function ListRow({
-  trackId,
-  title,
-  subtitle,
-  thumbnail,
-  duration,
-  explicit,
+  item,
   onPlay,
   onMenu,
   className,
 }: {
-  trackId: string;
-  title: string;
-  subtitle: string;
-  thumbnail?: string | null;
-  duration: string;
-  explicit: boolean;
+  item: SongItem;
   onPlay?: () => void;
-  onMenu?: (e: React.MouseEvent) => void;
+  onMenu?: () => void;
   className?: string;
 }) {
+  const trackId = videoIdOf(item);
+  const title = item.title;
+  const subtitle = artistsText(item.artists);
+  const duration = formatDuration(item.duration);
+  const explicit = item.explicit;
   const [isHovered, setIsHovered] = useState(false);
+  const [liked, setLiked] = useState(false);
   const [dominantColor, setDominantColor] = useState<{ r: number; g: number; b: number } | null>(null);
   const artworkRef = useRef<HTMLImageElement | null>(null);
-  const colorImageSrc = useProxiedImageUrl(upgradeMusicImageUrl(thumbnail, 320));
+  const colorImageSrc = useProxiedImageUrl(upgradeMusicImageUrl(item.thumbnail, 320));
   const preloadedColor = useDominantColor(colorImageSrc);
+  const addToQueue = useMusicPlayerStore((s) => s.addToQueue);
+  const playNextInQueue = useMusicPlayerStore((s) => s.playNextInQueue);
   const currentTrack = useMusicPlayerStore((s) => s.currentTrack);
   const playerIsPlaying = useMusicPlayerStore((s) => s.isPlaying);
+  const menu = useMusicContextMenu(true);
   const isPlayingTrack = !!currentTrack && videoIdOf(currentTrack) === trackId && playerIsPlaying;
   const isHighlighted = isHovered || isPlayingTrack;
   const activeColor = dominantColor ?? preloadedColor;
+  const menuActions: MusicMenuAction[] = [
+    {
+      id: 'add-to-queue',
+      label: getString('music_add_to_queue'),
+      icon: <ListPlus size={16} />,
+      onSelect: () => {
+        if (onMenu) onMenu();
+        else addToQueue(item);
+      },
+    },
+    {
+      id: 'play-next',
+      label: getString('music_play_next'),
+      icon: <Play size={16} />,
+      onSelect: () => playNextInQueue(item),
+    },
+    {
+      id: 'add-to-playlist',
+      label: getString('music_add_to_playlist'),
+      icon: <ListMusic size={16} />,
+      onSelect: () => logMusicAction('Add to playlist', trackId),
+    },
+    {
+      id: 'download',
+      label: getString('music_download'),
+      icon: <Download size={16} />,
+      onSelect: () => logMusicAction('Download track', trackId),
+    },
+    {
+      id: 'share',
+      label: getString('music_share'),
+      icon: <Share2 size={16} />,
+      onSelect: () => shareUrl(title, trackShareUrl(item)),
+    },
+  ];
   const resolveColor = (img?: HTMLImageElement) => {
     const source = img ?? artworkRef.current;
     if (!source || !source.complete || source.naturalWidth === 0) {
@@ -362,10 +536,12 @@ function ListRow({
 
   return (
     <div
+      ref={menu.cardRef}
       role="button"
       tabIndex={0}
       onClick={onPlay}
       onKeyDown={onKey(onPlay)}
+      onContextMenu={menu.openMenuFromContext}
       onMouseEnter={() => {
         setIsHovered(true);
         resolveColor();
@@ -373,14 +549,14 @@ function ListRow({
       onMouseLeave={() => setIsHovered(false)}
       style={isHighlighted ? colorBackground(activeColor) : undefined}
       className={cx(
-        'group flex w-full cursor-pointer items-center gap-4 rounded-lg p-2 transition-colors duration-200 ease-out',
+        'group relative flex w-full cursor-pointer items-center gap-4 rounded-lg p-2 transition-colors duration-200 ease-out',
         'outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]',
         className,
       )}
     >
       <div className="relative h-12 w-12 shrink-0">
         <Artwork
-          src={thumbnail}
+          src={item.thumbnail}
           alt={title}
           rounded="rounded-md"
           className="h-full w-full"
@@ -414,24 +590,58 @@ function ListRow({
         </span>
       </div>
 
-      <div className="flex shrink-0 items-center gap-2">
+      <div className="relative h-8 w-20 shrink-0">
         {duration && (
-          <span className="font-mono text-sm tabular-nums text-neutral-400">{duration}</span>
+          <span className="absolute right-0 top-1/2 -translate-y-1/2 font-mono text-sm tabular-nums text-neutral-400 transition-opacity duration-200 ease-out group-hover:opacity-0">
+            {duration}
+          </span>
         )}
-        {onMenu && (
+        <div className="absolute right-0 top-0 flex items-center gap-1 opacity-0 transition-opacity duration-200 ease-out group-hover:opacity-100">
           <button
             type="button"
-            aria-label={getString('music_more_options')}
-            onClick={(e) => {
-              e.stopPropagation();
-              onMenu(e);
+            aria-label={getString('music_like_track')}
+            aria-pressed={liked}
+            onClick={(event) => {
+              event.stopPropagation();
+              setLiked((current) => !current);
             }}
-            className="grid h-8 w-8 place-items-center rounded-full text-neutral-400 opacity-0 transition-all duration-200 ease-out hover:bg-surface-container-high hover:text-neutral-100 group-hover:opacity-100"
+            className={cx(
+              'grid h-8 w-8 place-items-center rounded-full text-neutral-400 transition-colors duration-200 ease-out hover:bg-surface-container-high hover:text-neutral-100',
+              liked ? 'text-[var(--color-primary)]' : null,
+            )}
           >
-            <MoreVertical className="h-4 w-4" />
+            <Heart className="h-4 w-4" fill={liked ? 'currentColor' : 'none'} />
           </button>
-        )}
+          <div className="relative">
+            <button
+              type="button"
+              aria-label={getString('music_more_options')}
+              onClick={menu.openMenuFromDots}
+              className="grid h-8 w-8 place-items-center rounded-full text-neutral-400 transition-colors duration-200 ease-out hover:bg-surface-container-high hover:text-neutral-100"
+            >
+              <MoreVertical className="h-4 w-4" />
+            </button>
+            {!menu.menuPosition ? (
+              <MusicCardMenu
+                actions={menuActions}
+                menuPosition={menu.menuPosition}
+                menuRef={menu.menuRef}
+                onClose={menu.closeMenu}
+                show={menu.showMenu}
+              />
+            ) : null}
+          </div>
+        </div>
       </div>
+      {menu.menuPosition ? (
+        <MusicCardMenu
+          actions={menuActions}
+          menuPosition={menu.menuPosition}
+          menuRef={menu.menuRef}
+          onClose={menu.closeMenu}
+          show={menu.showMenu}
+        />
+      ) : null}
     </div>
   );
 }
@@ -445,6 +655,8 @@ export function MusicItemCard(props: MusicItemCardProps) {
     case 'album':
       return (
         <SquareCard
+          item={props.item}
+          menuKind="album"
           title={props.item.title}
           subtitle={albumSubtitle(props.item)}
           thumbnail={props.item.thumbnail}
@@ -469,6 +681,8 @@ export function MusicItemCard(props: MusicItemCardProps) {
     case 'song':
       return (
         <SquareCard
+          item={props.item}
+          menuKind="track"
           title={props.item.title}
           subtitle={artistsText(props.item.artists)}
           thumbnail={props.item.thumbnail}
@@ -527,12 +741,7 @@ export function MusicItemCard(props: MusicItemCardProps) {
     case 'track-list':
       return (
         <ListRow
-          trackId={videoIdOf(props.item)}
-          title={props.item.title}
-          subtitle={artistsText(props.item.artists)}
-          thumbnail={props.item.thumbnail}
-          duration={formatDuration(props.item.duration)}
-          explicit={props.item.explicit}
+          item={props.item}
           onPlay={onPlay}
           onMenu={props.onMenu}
           className={className}

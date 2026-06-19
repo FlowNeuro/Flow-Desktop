@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
-import { Heart, MoreHorizontal, Music2, Play, Volume2 } from 'lucide-react';
+import { Download, Heart, ListMusic, ListPlus, MoreVertical, Music2, Play, Share2, Volume2 } from 'lucide-react';
 
 import { getString } from '../../lib/i18n/index';
 import { artistsText, formatTime } from '../../lib/musicFormat';
 import { upgradeMusicImageUrl } from '../../lib/thumbnails';
 import { extractDominantColorFromImage, useDominantColor } from '../../lib/useDominantColor';
 import { useProxiedImageUrl } from '../../lib/useProxiedImageUrl';
+import { useMusicPlayerStore } from '../../store/useMusicPlayerStore';
 import type { SongItem } from '../../types/music';
+import { MusicCardMenu, type MusicMenuAction, useMusicContextMenu } from './MusicCardMenu';
 import { PlayingWave } from './PlayingWave';
 
 function cx(...parts: Array<string | false | null | undefined>): string {
@@ -44,6 +46,30 @@ function ExplicitBadge() {
 function colorBackground(color: { r: number; g: number; b: number } | null): React.CSSProperties {
   if (!color) return { background: 'rgba(39, 39, 42, 0.5)' };
   return { background: `rgba(${color.r}, ${color.g}, ${color.b}, 0.22)` };
+}
+
+function videoIdOf(track: SongItem): string {
+  return track.videoId ?? track.id;
+}
+
+function trackShareUrl(track: SongItem): string {
+  return `https://music.youtube.com/watch?v=${encodeURIComponent(videoIdOf(track))}`;
+}
+
+async function shareTrack(track: SongItem) {
+  try {
+    if (navigator.share) {
+      await navigator.share({ title: track.title, url: trackShareUrl(track) });
+      return;
+    }
+    await navigator.clipboard?.writeText(trackShareUrl(track));
+  } catch {
+    // Share/copy can be cancelled by the user; the menu should still close.
+  }
+}
+
+function logMusicAction(action: string, id: string) {
+  console.info(`${action} requested`, id);
 }
 
 function TrackArtwork({
@@ -101,12 +127,51 @@ export function AlbumTrackRow({
   const duration = track.duration == null ? '' : formatTime(track.duration);
   const showEq = isCurrent && isPlaying;
   const [isHovered, setIsHovered] = useState(false);
+  const [liked, setLiked] = useState(false);
   const [dominantColor, setDominantColor] = useState<{ r: number; g: number; b: number } | null>(null);
   const artworkRef = useRef<HTMLImageElement | null>(null);
   const colorImageSrc = useProxiedImageUrl(upgradeMusicImageUrl(track.thumbnail, 320));
   const preloadedColor = useDominantColor(colorImageSrc);
+  const playNextInQueue = useMusicPlayerStore((s) => s.playNextInQueue);
+  const menu = useMusicContextMenu(true);
   const isHighlighted = isHovered || showEq;
   const activeColor = dominantColor ?? preloadedColor;
+  const trackId = videoIdOf(track);
+  const menuActions: MusicMenuAction[] = [
+    {
+      id: 'add-to-queue',
+      label: getString('music_add_to_queue'),
+      icon: <ListPlus size={16} />,
+      onSelect: () => {
+        if (onMenu) onMenu(track);
+        else onAddToQueue(track);
+      },
+    },
+    {
+      id: 'play-next',
+      label: getString('music_play_next'),
+      icon: <Play size={16} />,
+      onSelect: () => playNextInQueue(track),
+    },
+    {
+      id: 'add-to-playlist',
+      label: getString('music_add_to_playlist'),
+      icon: <ListMusic size={16} />,
+      onSelect: () => logMusicAction('Add to playlist', trackId),
+    },
+    {
+      id: 'download',
+      label: getString('music_download'),
+      icon: <Download size={16} />,
+      onSelect: () => logMusicAction('Download track', trackId),
+    },
+    {
+      id: 'share',
+      label: getString('music_share'),
+      icon: <Share2 size={16} />,
+      onSelect: () => shareTrack(track),
+    },
+  ];
   const resolveColor = (img?: HTMLImageElement) => {
     const source = img ?? artworkRef.current;
     if (!source || !source.complete || source.naturalWidth === 0) {
@@ -131,16 +196,13 @@ export function AlbumTrackRow({
     }
   }, [dominantColor, isHighlighted, preloadedColor]);
 
-  const handleMenu = () => {
-    if (onMenu) onMenu(track);
-    else onAddToQueue(track);
-  };
-
   return (
     <div
+      ref={menu.cardRef}
       role="button"
       tabIndex={0}
       onClick={() => onPlay(track)}
+      onContextMenu={menu.openMenuFromContext}
       onMouseEnter={() => {
         setIsHovered(true);
         resolveColor();
@@ -155,7 +217,7 @@ export function AlbumTrackRow({
       style={isHighlighted ? colorBackground(activeColor) : undefined}
       className={`group flex cursor-pointer items-center rounded-lg px-4 py-2 transition-colors duration-200 ease-out ${
         isCurrent ? 'bg-surface-container-low' : ''
-      }`}
+      } relative`}
     >
       <div className="relative grid w-12 shrink-0 place-items-center">
         {showEq ? (
@@ -205,39 +267,67 @@ export function AlbumTrackRow({
         </span>
       ) : null}
 
-      <div
-        className={cx(
-          'ml-4 flex shrink-0 items-center gap-1 opacity-0 transition-opacity duration-200 ease-out group-hover:opacity-100',
-          compactActions ? 'hidden xl:flex' : null,
-        )}
-      >
-        <button
-          type="button"
-          aria-label={getString('music_like_track')}
-          onClick={(event) => {
-            event.stopPropagation();
-            onLike?.(track);
-          }}
-          className="grid h-8 w-8 place-items-center rounded-full text-neutral-400 transition-colors duration-200 ease-out hover:bg-surface-container-high hover:text-neutral-100"
+      <div className="relative ml-4 h-8 w-20 shrink-0">
+        <span
+          className={cx(
+            'absolute right-0 top-1/2 -translate-y-1/2 font-mono text-sm tabular-nums text-neutral-400 transition-opacity duration-200 ease-out',
+            compactActions ? 'xl:group-hover:opacity-0' : 'group-hover:opacity-0',
+          )}
         >
-          <Heart className="h-4 w-4" />
-        </button>
-        <button
-          type="button"
-          aria-label={getString('music_more_options')}
-          onClick={(event) => {
-            event.stopPropagation();
-            handleMenu();
-          }}
-          className="grid h-8 w-8 place-items-center rounded-full text-neutral-400 transition-colors duration-200 ease-out hover:bg-surface-container-high hover:text-neutral-100"
+          {duration}
+        </span>
+        <div
+          className={cx(
+            'absolute right-0 top-0 flex items-center gap-1 opacity-0 transition-opacity duration-200 ease-out group-hover:opacity-100',
+            compactActions ? 'hidden xl:flex' : null,
+          )}
         >
-          <MoreHorizontal className="h-4 w-4" />
-        </button>
+          <button
+            type="button"
+            aria-label={getString('music_like_track')}
+            aria-pressed={liked}
+            onClick={(event) => {
+              event.stopPropagation();
+              setLiked((current) => !current);
+              onLike?.(track);
+            }}
+            className={cx(
+              'grid h-8 w-8 place-items-center rounded-full text-neutral-400 transition-colors duration-200 ease-out hover:bg-surface-container-high hover:text-neutral-100',
+              liked ? 'text-[var(--color-primary)]' : null,
+            )}
+          >
+            <Heart className="h-4 w-4" fill={liked ? 'currentColor' : 'none'} />
+          </button>
+          <div className="relative">
+            <button
+              type="button"
+              aria-label={getString('music_more_options')}
+              onClick={menu.openMenuFromDots}
+              className="grid h-8 w-8 place-items-center rounded-full text-neutral-400 transition-colors duration-200 ease-out hover:bg-surface-container-high hover:text-neutral-100"
+            >
+              <MoreVertical className="h-4 w-4" />
+            </button>
+            {!menu.menuPosition ? (
+              <MusicCardMenu
+                actions={menuActions}
+                menuPosition={menu.menuPosition}
+                menuRef={menu.menuRef}
+                onClose={menu.closeMenu}
+                show={menu.showMenu}
+              />
+            ) : null}
+          </div>
+        </div>
       </div>
-
-      <span className="w-16 shrink-0 text-right font-mono text-sm tabular-nums text-neutral-400">
-        {duration}
-      </span>
+      {menu.menuPosition ? (
+        <MusicCardMenu
+          actions={menuActions}
+          menuPosition={menu.menuPosition}
+          menuRef={menu.menuRef}
+          onClose={menu.closeMenu}
+          show={menu.showMenu}
+        />
+      ) : null}
     </div>
   );
 }

@@ -142,6 +142,7 @@ interface MusicPlayerState {
   toggleShuffle: () => void;
 
   addToQueue: (track: SongItem) => void;
+  playNextInQueue: (track: SongItem) => void;
   removeFromQueue: (index: number) => void;
   clearQueue: () => void;
 
@@ -340,6 +341,28 @@ export const useMusicPlayerStore = create<MusicPlayerState>((set, get) => ({
     const { queue } = get();
     if (queue.some((t) => videoIdOf(t) === videoIdOf(track))) return;
     set({ queue: [...queue, track] });
+  },
+
+  playNextInQueue: (track) => {
+    const { currentTrack, queue } = get();
+    if (!currentTrack) {
+      get().addToQueue(track);
+      return;
+    }
+
+    const currentId = videoIdOf(currentTrack);
+    const trackId = videoIdOf(track);
+    if (trackId === currentId) return;
+
+    const next = queue.filter((item) => videoIdOf(item) !== trackId);
+    let currentIndex = next.findIndex((item) => videoIdOf(item) === currentId);
+    if (currentIndex < 0) {
+      next.unshift(currentTrack);
+      currentIndex = 0;
+    }
+
+    next.splice(currentIndex + 1, 0, track);
+    set({ queue: next, currentIndex });
   },
 
   removeFromQueue: (index) => {
