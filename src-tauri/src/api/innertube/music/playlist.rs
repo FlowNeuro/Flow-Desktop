@@ -1,5 +1,7 @@
 //! Music playlist page extractor: header + tracks + continuation paging.
 
+use std::collections::HashSet;
+
 use serde_json::Value;
 
 use super::endpoints;
@@ -66,22 +68,56 @@ impl InnertubeClient {
         let res = self
             .music_browse(None, None, Some(token), visitor.as_deref())
             .await?;
-        let shelf = if !res["continuationContents"]["musicPlaylistShelfContinuation"].is_null() {
-            &res["continuationContents"]["musicPlaylistShelfContinuation"]
-        } else {
-            &res["continuationContents"]["musicShelfContinuation"]
-        };
+
         let mut songs = Vec::new();
-        if let Some(arr) = shelf["contents"].as_array() {
-            for item in arr {
-                if let Some(YTItem::Song(s)) =
-                    parse_responsive_list_item(&item["musicResponsiveListItemRenderer"])
-                {
-                    songs.push(s);
+        let mut seen = HashSet::new();
+        let cont = &res["continuationContents"];
+
+        // Collect rows from every known continuation shape: a section-list
+        // continuation wrapping shelves, the direct shelf continuations, and the
+        // append-action items. (Mirrors mobile `playlistContinuation`.)
+        if let Some(arr) = cont["sectionListContinuation"]["contents"].as_array() {
+            for section in arr {
+                for key in ["musicPlaylistShelfRenderer", "musicShelfRenderer"] {
+                    collect_playlist_rows(&section[key]["contents"], &mut songs, &mut seen);
                 }
             }
         }
-        let next = continuation::any(shelf, &shelf["contents"]);
+        collect_playlist_rows(
+            &cont["musicPlaylistShelfContinuation"]["contents"],
+            &mut songs,
+            &mut seen,
+        );
+        collect_playlist_rows(
+            &cont["musicShelfContinuation"]["contents"],
+            &mut songs,
+            &mut seen,
+        );
+        if let Some(actions) = res["onResponseReceivedActions"].as_array() {
+            for action in actions {
+                collect_playlist_rows(
+                    &action["appendContinuationItemsAction"]["continuationItems"],
+                    &mut songs,
+                    &mut seen,
+                );
+            }
+        }
+
+        // Next token, in mobile's resolution order (section-list first).
+        let next = continuation::from_continuations(&cont["sectionListContinuation"])
+            .or_else(|| continuation::from_continuations(&cont["musicPlaylistShelfContinuation"]))
+            .or_else(|| continuation::from_continuations(&cont["musicShelfContinuation"]))
+            .or_else(|| {
+                continuation::from_items(&cont["musicPlaylistShelfContinuation"]["contents"])
+            })
+            .or_else(|| continuation::from_items(&cont["musicShelfContinuation"]["contents"]))
+            .or_else(|| {
+                continuation::from_items(
+                    &res["onResponseReceivedActions"][0]["appendContinuationItemsAction"]
+                        ["continuationItems"],
+                )
+            });
+
         Ok((songs, next))
     }
 }
@@ -109,15 +145,9 @@ fn find_playlist_header(res: &Value) -> &Value {
 fn collect_playlist_tracks(res: &Value) -> (Vec<SongItem>, Option<String>) {
     let mut songs = Vec::new();
     let mut cont = None;
+    let mut seen = HashSet::new();
 
-    let mut sections = shelves::section_list_contents(res);
-    if let Some(arr) = res["contents"]["twoColumnBrowseResultsRenderer"]["secondaryContents"]
-        ["sectionListRenderer"]["contents"]
-        .as_array()
-    {
-        sections.extend(arr.iter().cloned());
-    }
-
+    let sections = shelves::section_list_contents(res);
     for section in &sections {
         let shelf = if !section["musicPlaylistShelfRenderer"].is_null() {
             &section["musicPlaylistShelfRenderer"]
@@ -126,19 +156,43 @@ fn collect_playlist_tracks(res: &Value) -> (Vec<SongItem>, Option<String>) {
         } else {
             continue;
         };
-        if let Some(arr) = shelf["contents"].as_array() {
-            for item in arr {
-                if let Some(YTItem::Song(s)) =
-                    parse_responsive_list_item(&item["musicResponsiveListItemRenderer"])
-                {
-                    songs.push(s);
-                }
-            }
-        }
+        collect_playlist_rows(&shelf["contents"], &mut songs, &mut seen);
         if cont.is_none() {
             cont = continuation::any(shelf, &shelf["contents"]);
         }
     }
 
+    // Large playlists carry the continuation on the section-list itself, a
+    // level above the shelf (the shelf has no trailing token). Mirrors mobile
+    // `playlist`, which reads `secondaryContents.sectionListRenderer.continuations`.
+    if cont.is_none() {
+        cont = continuation::from_continuations(
+            &res["contents"]["twoColumnBrowseResultsRenderer"]["secondaryContents"]
+                ["sectionListRenderer"],
+        )
+        .or_else(|| {
+            continuation::from_continuations(
+                &res["contents"]["singleColumnBrowseResultsRenderer"]["tabs"][0]["tabRenderer"]
+                    ["content"]["sectionListRenderer"],
+            )
+        })
+        .or_else(|| continuation::from_continuations(&res["contents"]["sectionListRenderer"]));
+    }
+
     (songs, cont)
+}
+
+fn collect_playlist_rows(items: &Value, songs: &mut Vec<SongItem>, seen: &mut HashSet<String>) {
+    if let Some(arr) = items.as_array() {
+        for item in arr {
+            if let Some(YTItem::Song(s)) =
+                parse_responsive_list_item(&item["musicResponsiveListItemRenderer"])
+            {
+                let key = s.video_id.clone().unwrap_or_else(|| s.id.clone());
+                if seen.insert(key) {
+                    songs.push(s);
+                }
+            }
+        }
+    }
 }

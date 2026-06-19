@@ -10,6 +10,9 @@ export function PageWrapper() {
   const isWatchPage = location.pathname.startsWith('/watch/');
   const isSettingsPage = location.pathname.startsWith('/settings');
   const isPlaylistDetailsPage = location.pathname.startsWith('/playlist/');
+  const isMusicCollectionPage =
+    location.pathname.startsWith('/music/album/') ||
+    location.pathname.startsWith('/music/playlist/');
 
   const mainRef = useRef<HTMLElement>(null);
   useEffect(() => {
@@ -25,6 +28,7 @@ export function PageWrapper() {
           ref={mainRef}
           className={
             isPlaylistDetailsPage
+              || isMusicCollectionPage
               ? "flex min-h-0 flex-1 flex-col overflow-hidden"
               : "flex-1 overflow-y-auto"
           }

@@ -1,16 +1,26 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { AlertTriangle, Loader2 } from 'lucide-react';
+import { AlertTriangle, Loader2, Play } from 'lucide-react';
 
 import { Button } from '../../components/ui/Button';
+import { AlbumTrackRow } from '../../components/music/AlbumTrackRow';
 import { MusicCollectionHeader } from '../../components/music/MusicCollectionHeader';
-import { MusicItemCard } from '../../components/music/MusicItemCard';
 import { useMusicCollection, type CollectionKind } from '../../lib/useMusicCollection';
 import { useMusicPlayerStore } from '../../store/useMusicPlayerStore';
 import { getString } from '../../lib/i18n/index';
 import type { SongItem } from '../../types/music';
 
 const videoIdOf = (t: SongItem) => t.videoId ?? t.id;
+
+const PLAYLIST_AUTO_LOAD_CEILING = 500;
+
+function parseTrackCount(text: string | null): number | null {
+  if (!text) return null;
+  const digits = text.match(/[\d,]+/)?.[0]?.replace(/,/g, '');
+  if (!digits) return null;
+  const count = Number.parseInt(digits, 10);
+  return Number.isFinite(count) ? count : null;
+}
 
 function CollectionSkeleton() {
   return (
@@ -44,27 +54,44 @@ export default function MusicCollectionPage({ kind }: { kind: CollectionKind }) 
   const navigate = useNavigate();
   const playQueue = useMusicPlayerStore((s) => s.playQueue);
   const addToQueue = useMusicPlayerStore((s) => s.addToQueue);
+  const currentTrack = useMusicPlayerStore((s) => s.currentTrack);
+  const isPlaying = useMusicPlayerStore((s) => s.isPlaying);
+  const [showMiniHeader, setShowMiniHeader] = useState(false);
 
   const { meta, songs, loading, loadingMore, error, hasMore, loadMore, reload } = useMusicCollection(
     kind,
     id,
   );
-  const [aboutExpanded, setAboutExpanded] = useState(false);
 
   const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     if (!hasMore || loadingMore || typeof IntersectionObserver === 'undefined') return;
     const target = sentinelRef.current;
     if (!target) return;
+    const root = scrollRef.current;
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries.some((e) => e.isIntersecting)) void loadMore();
       },
-      { rootMargin: '0px 0px 800px 0px' },
+      { root, rootMargin: '0px 0px 800px 0px' },
     );
     observer.observe(target);
     return () => observer.disconnect();
   }, [hasMore, loadingMore, loadMore]);
+
+  const expectedTrackCount = parseTrackCount(meta?.trackCountText ?? null);
+  useEffect(() => {
+    if (loading || loadingMore || !hasMore) return;
+    if (!expectedTrackCount || songs.length >= expectedTrackCount) return;
+    if (kind !== 'album' && expectedTrackCount > PLAYLIST_AUTO_LOAD_CEILING) return;
+    void loadMore();
+  }, [expectedTrackCount, hasMore, kind, loading, loadingMore, loadMore, songs.length]);
+
+  const handleScroll = () => {
+    const nextVisible = (scrollRef.current?.scrollTop ?? 0) > 280;
+    setShowMiniHeader((visible) => (visible === nextVisible ? visible : nextVisible));
+  };
 
   if (loading && !meta) return <CollectionSkeleton />;
 
@@ -93,12 +120,43 @@ export default function MusicCollectionPage({ kind }: { kind: CollectionKind }) 
     if (!songs.length) return;
     void playQueue(shuffle ? [...songs].sort(() => Math.random() - 0.5) : songs, 0);
   };
+  const currentTrackId = currentTrack ? videoIdOf(currentTrack) : null;
   const openArtist = meta.artistId
     ? () => navigate(`/music/artist/${meta.artistId}`)
     : undefined;
+  const loadedCountLabel = expectedTrackCount
+    ? getString('music_loaded_songs_count', songs.length, expectedTrackCount)
+    : getString('music_loaded_songs_simple', songs.length);
 
   return (
-    <div className="pb-32">
+    <div
+      ref={scrollRef}
+      onScroll={handleScroll}
+      className="h-full min-h-0 overflow-y-auto pb-32"
+    >
+      <div
+        className={`sticky top-0 z-40 -mb-14 flex h-14 items-center border-b border-neutral-800 bg-surface/95 px-8 transition-all duration-200 ease-out backdrop-blur ${
+          showMiniHeader
+            ? 'translate-y-0 opacity-100'
+            : 'pointer-events-none -translate-y-full opacity-0'
+        }`}
+      >
+        <div className="mx-auto flex w-full max-w-[1600px] items-center gap-3">
+          <button
+            type="button"
+            disabled={songs.length === 0}
+            onClick={() => playAll(false)}
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-neutral-100 text-neutral-950 transition-colors duration-200 ease-out hover:bg-white disabled:pointer-events-none disabled:opacity-50"
+            aria-label={getString('music_play')}
+          >
+            <Play className="h-4 w-4" fill="currentColor" />
+          </button>
+          <span className="line-clamp-1 text-sm font-semibold text-neutral-100">
+            {meta.title}
+          </span>
+        </div>
+      </div>
+
       <MusicCollectionHeader
         meta={meta}
         canPlay={songs.length > 0}
@@ -107,60 +165,55 @@ export default function MusicCollectionPage({ kind }: { kind: CollectionKind }) 
         onArtistClick={openArtist}
       />
 
-      <div className="mx-auto flex max-w-[1100px] flex-col gap-6 px-6 pt-6 lg:px-8">
-        {meta.description && (
-          <div className="rounded-2xl bg-surface-container-low p-6">
-            <p
-              className={`whitespace-pre-line text-sm leading-relaxed text-neutral-300 ${
-                aboutExpanded ? '' : 'line-clamp-4'
-              }`}
-            >
-              {meta.description}
-            </p>
-            {meta.description.length > 240 && (
-              <button
-                type="button"
-                onClick={() => setAboutExpanded((v) => !v)}
-                className="mt-3 text-sm font-medium text-neutral-400 transition-colors duration-200 ease-out hover:text-neutral-100"
-              >
-                {aboutExpanded
-                  ? getString('music_artist_read_less')
-                  : getString('music_artist_read_more')}
-              </button>
-            )}
-          </div>
-        )}
-
-        <div className="flex flex-col">
-          {songs.map((song, i) => (
-            <div key={`${videoIdOf(song)}-${i}`} className="flex items-center gap-1">
-              <span className="w-7 shrink-0 text-center font-mono text-sm text-neutral-500">
-                {i + 1}
-              </span>
-              <div className="min-w-0 flex-1">
-                <MusicItemCard
-                  variant="track-list"
-                  item={song}
-                  onPlay={() => playFrom(song)}
-                  onMenu={() => addToQueue(song)}
-                />
-              </div>
-            </div>
-          ))}
+      <div className="mx-auto flex max-w-[1600px] flex-col gap-4 px-8 pt-6">
+        <div className="mb-4 flex items-center border-b border-neutral-800/50 px-4 pb-2 text-xs font-semibold uppercase tracking-wider text-neutral-500">
+          <span className="w-12 shrink-0">#</span>
+          <span className="min-w-0 flex-1">{getString('music_track_title_column')}</span>
+          <span className="hidden w-32 shrink-0 text-right lg:block">
+            {getString('music_streams_column')}
+          </span>
+          <span className="ml-4 w-[72px] shrink-0" aria-hidden="true" />
+          <span className="w-16 shrink-0 text-right">{getString('music_time_column')}</span>
         </div>
 
-        {hasMore && (
+        <div className="flex flex-col">
+          {songs.map((song, i) => {
+            const songId = videoIdOf(song);
+            const isCurrentSong = currentTrackId === songId;
+
+            return (
+              <AlbumTrackRow
+                key={`${songId}-${i}`}
+                track={song}
+                index={i}
+                isCurrent={isCurrentSong}
+                isPlaying={isPlaying}
+                onPlay={playFrom}
+                onAddToQueue={addToQueue}
+              />
+            );
+          })}
+        </div>
+
+        {(hasMore || songs.length > 0) && (
           <div className="flex flex-col items-center gap-3 py-6">
             <div ref={sentinelRef} className="h-px w-full" />
-            <button
-              type="button"
-              onClick={() => void loadMore()}
-              disabled={loadingMore}
-              className="inline-flex items-center gap-2 rounded-full bg-surface-container-high px-5 py-2.5 text-sm font-medium text-neutral-200 transition-colors duration-200 ease-out hover:bg-surface-container-highest disabled:opacity-50"
-            >
-              {loadingMore && <Loader2 className="h-4 w-4 animate-spin" />}
-              {getString('music_load_more')}
-            </button>
+            <p className="text-xs font-medium uppercase tracking-wider text-neutral-500">
+              {loadedCountLabel}
+            </p>
+            {hasMore ? (
+              <button
+                type="button"
+                onClick={() => void loadMore()}
+                disabled={loadingMore}
+                className="inline-flex items-center gap-2 rounded-full bg-surface-container-high px-5 py-2.5 text-sm font-medium text-neutral-200 transition-colors duration-200 ease-out hover:bg-surface-container-highest disabled:pointer-events-none disabled:opacity-50"
+              >
+                {loadingMore ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                {loadingMore
+                  ? getString('music_loading_more_songs')
+                  : getString('music_load_more_songs')}
+              </button>
+            ) : null}
           </div>
         )}
       </div>

@@ -1,8 +1,11 @@
 //! Album page extractor: header (title/artists/year/description/counts) + the
 //! full track list, with continuation paging.
 
+use std::collections::HashSet;
+
 use serde_json::Value;
 
+use super::endpoints;
 use super::parse::items::album_track;
 use super::parse::runs::{parse_artists_and_year, runs_text};
 use super::parse::thumbnail::thumbnail_url;
@@ -40,11 +43,25 @@ impl InnertubeClient {
             name: title.clone(),
             id: browse_id.to_string(),
         };
-        let (songs, continuation_token) = collect_album_tracks(&res, &album_ref);
+        let playlist_id = extract_album_playlist_id(&res, header);
+
+        let (mut songs, mut continuation_token) = collect_album_tracks(&res, &album_ref);
+        let looks_capped = continuation_token.is_some() || songs.len() >= 100;
+        if looks_capped && !playlist_id.is_empty() {
+            if let Ok(full) = self
+                .music_album_songs(&playlist_id, &album_ref, visitor.as_deref())
+                .await
+            {
+                if full.len() >= songs.len() {
+                    songs = full;
+                    continuation_token = None;
+                }
+            }
+        }
 
         let album = AlbumItem {
             browse_id: browse_id.to_string(),
-            playlist_id: extract_album_playlist_id(&res, header),
+            playlist_id,
             title,
             artists: (!artists.is_empty()).then_some(artists),
             year,
@@ -62,7 +79,40 @@ impl InnertubeClient {
         })
     }
 
-    /// Continue an album's track list.
+    async fn music_album_songs(
+        &self,
+        playlist_id: &str,
+        album: &Album,
+        visitor: Option<&str>,
+    ) -> AppResult<Vec<SongItem>> {
+        let pl = endpoints::vl(playlist_id);
+        let res = self.music_browse(Some(&pl), None, None, visitor).await?;
+
+        let mut seen = HashSet::new();
+        let (page, mut next) = collect_album_tracks(&res, album);
+        let mut songs = Vec::new();
+        for s in page {
+            let key = s.video_id.clone().unwrap_or_else(|| s.id.clone());
+            if seen.insert(key) {
+                songs.push(s);
+            }
+        }
+
+        const MAX_REQUESTS: usize = 50;
+        let mut seen_tokens = HashSet::new();
+        let mut requests = 0;
+        while let Some(token) = next.take() {
+            if requests >= MAX_REQUESTS || !seen_tokens.insert(token.clone()) {
+                break;
+            }
+            requests += 1;
+            let res = self.music_browse(None, None, Some(&token), visitor).await?;
+            next = parse_album_continuation(&res, Some(album), &mut songs, &mut seen);
+        }
+
+        Ok(songs)
+    }
+
     pub(crate) async fn music_album_continuation(
         &self,
         token: &str,
@@ -71,18 +121,61 @@ impl InnertubeClient {
         let res = self
             .music_browse(None, None, Some(token), visitor.as_deref())
             .await?;
-        let shelf = &res["continuationContents"]["musicPlaylistShelfContinuation"];
         let mut songs = Vec::new();
-        if let Some(arr) = shelf["contents"].as_array() {
-            for item in arr {
-                if let Some(s) = album_track(&item["musicResponsiveListItemRenderer"], None) {
-                    songs.push(s);
-                }
-            }
-        }
-        let next = continuation::any(shelf, &shelf["contents"]);
+        let mut seen = HashSet::new();
+        let next = parse_album_continuation(&res, None, &mut songs, &mut seen);
         Ok((songs, next))
     }
+}
+
+fn parse_album_continuation(
+    res: &Value,
+    album: Option<&Album>,
+    songs: &mut Vec<SongItem>,
+    seen: &mut HashSet<String>,
+) -> Option<String> {
+    let mut next = None;
+    let cont = &res["continuationContents"];
+
+    // Section-list continuation: wraps one or more shelves and carries its own
+    // next token (`continuations`) a level above the shelf. Some large
+    // playlists/albums page exclusively this way.
+    if let Some(arr) = cont["sectionListContinuation"]["contents"].as_array() {
+        for section in arr {
+            for key in ["musicPlaylistShelfRenderer", "musicShelfRenderer"] {
+                collect_album_rows(&section[key]["contents"], album, songs, seen);
+            }
+        }
+        if next.is_none() {
+            next = continuation::from_continuations(&cont["sectionListContinuation"]);
+        }
+    }
+
+    for shelf in [
+        &cont["musicPlaylistShelfContinuation"],
+        &cont["musicShelfContinuation"],
+    ] {
+        collect_album_rows(&shelf["contents"], album, songs, seen);
+        if next.is_none() {
+            next = continuation::any(shelf, &shelf["contents"]);
+        }
+    }
+
+    if let Some(actions) = res["onResponseReceivedActions"].as_array() {
+        for action in actions {
+            let items = &action["appendContinuationItemsAction"]["continuationItems"];
+            collect_album_rows(items, album, songs, seen);
+            if next.is_none() {
+                next = continuation::from_items(items);
+            }
+        }
+    }
+
+    if next.is_none() {
+        next = continuation::from_continuations(&res["contents"]["sectionListRenderer"]);
+    }
+
+    next
 }
 
 /// Locate the album header renderer across the known layouts.
@@ -104,15 +197,9 @@ fn find_album_header(res: &Value) -> &Value {
 fn collect_album_tracks(res: &Value, album: &Album) -> (Vec<SongItem>, Option<String>) {
     let mut songs = Vec::new();
     let mut cont = None;
+    let mut seen = HashSet::new();
 
-    let mut sections: Vec<Value> = shelves::section_list_contents(res);
-    if let Some(arr) = res["contents"]["twoColumnBrowseResultsRenderer"]["secondaryContents"]
-        ["sectionListRenderer"]["contents"]
-        .as_array()
-    {
-        sections.extend(arr.iter().cloned());
-    }
-
+    let sections: Vec<Value> = shelves::section_list_contents(res);
     for section in &sections {
         let shelf = if !section["musicShelfRenderer"].is_null() {
             &section["musicShelfRenderer"]
@@ -121,20 +208,48 @@ fn collect_album_tracks(res: &Value, album: &Album) -> (Vec<SongItem>, Option<St
         } else {
             continue;
         };
-        if let Some(arr) = shelf["contents"].as_array() {
-            for item in arr {
-                if let Some(s) = album_track(&item["musicResponsiveListItemRenderer"], Some(album))
-                {
+        collect_album_rows(&shelf["contents"], Some(album), &mut songs, &mut seen);
+        if cont.is_none() {
+            cont = continuation::any(shelf, &shelf["contents"])
+                .or_else(|| continuation::from_continuations(section));
+        }
+    }
+
+    if cont.is_none() {
+        cont = continuation::from_continuations(&res["contents"]["sectionListRenderer"])
+            .or_else(|| {
+                continuation::from_continuations(
+                    &res["contents"]["singleColumnBrowseResultsRenderer"]["tabs"][0]
+                        ["tabRenderer"]["content"]["sectionListRenderer"],
+                )
+            })
+            .or_else(|| {
+                continuation::from_continuations(
+                    &res["contents"]["twoColumnBrowseResultsRenderer"]["secondaryContents"]
+                        ["sectionListRenderer"],
+                )
+            });
+    }
+
+    (songs, cont)
+}
+
+fn collect_album_rows(
+    items: &Value,
+    album: Option<&Album>,
+    songs: &mut Vec<SongItem>,
+    seen: &mut HashSet<String>,
+) {
+    if let Some(arr) = items.as_array() {
+        for item in arr {
+            if let Some(s) = album_track(&item["musicResponsiveListItemRenderer"], album) {
+                let key = s.video_id.clone().unwrap_or_else(|| s.id.clone());
+                if seen.insert(key) {
                     songs.push(s);
                 }
             }
         }
-        if cont.is_none() {
-            cont = continuation::any(shelf, &shelf["contents"]);
-        }
     }
-
-    (songs, cont)
 }
 
 /// Album playlist id from microformat `urlCanonical` (`?list=…`) or the header
@@ -142,7 +257,10 @@ fn collect_album_tracks(res: &Value, album: &Album) -> (Vec<SongItem>, Option<St
 fn extract_album_playlist_id(res: &Value, header: &Value) -> String {
     if let Some(url) = res["microformat"]["microformatDataRenderer"]["urlCanonical"].as_str() {
         if let Some(idx) = url.rfind("list=") {
-            return url[idx + 5..].to_string();
+            let id = url[idx + 5..].split('&').next().unwrap_or_default();
+            if !id.is_empty() {
+                return id.to_string();
+            }
         }
     }
     header["buttons"]

@@ -6,7 +6,6 @@ import { UA_CHROME } from "./common";
 
 const SERVERS = [
   "https://lyricsplus.binimum.org",
-  "https://lyricsplus.atomix.one",
   "https://lyricsplus.prjktla.my.id",
   "https://lyricsplus-seven.vercel.app",
 ];
