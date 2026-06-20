@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Disc3, Download, Heart, Library, ListMusic, ListPlus, MoreVertical, Music2, Play, Share2 } from 'lucide-react';
+import { Disc3, Download, Heart, Library, ListPlus, MoreVertical, Music2, Play, Share2 } from 'lucide-react';
 import type { AlbumItem, ArtistItem, EpisodeItem, PlaylistItem, PodcastItem, SongItem } from '../../types/music';
 import { getString } from '../../lib/i18n/index';
 import { upgradeAvatarUrl, upgradeMusicImageUrl } from '../../lib/thumbnails';
@@ -534,12 +534,6 @@ function ListRow({
       label: getString('music_play_next'),
       icon: <Play size={16} />,
       onSelect: () => playNextInQueue(item),
-    },
-    {
-      id: 'add-to-playlist',
-      label: getString('music_add_to_playlist'),
-      icon: <ListMusic size={16} />,
-      onSelect: () => logMusicAction('Add to playlist', trackId),
     },
     {
       id: 'add-to-album',

@@ -7,6 +7,7 @@ import {
   loadStoredPlaylists,
   PLAYLIST_LIBRARY_UPDATED_EVENT,
   storedPlaylistToCardSummary,
+  WATCH_LATER_PLAYLIST_ID,
   type StoredPlaylist,
 } from "../../lib/playlistLibrary";
 import { useProxiedImageUrl } from "../../lib/useProxiedImageUrl";
@@ -14,14 +15,19 @@ import { usePlaylistModalStore } from "../../store/usePlaylistModalStore";
 import { useUiStore } from "../../store/useUiStore";
 
 function PlaylistChoiceCard({
+  fallbackThumbnailUrl,
   playlist,
   onClick,
 }: {
+  fallbackThumbnailUrl?: string | null;
   playlist: StoredPlaylist;
   onClick: () => void;
 }) {
   const summary = storedPlaylistToCardSummary(playlist);
-  const imageSrc = useProxiedImageUrl(summary.thumbnailUrl ?? null);
+  const thumbnailUrl = summary.thumbnailUrl
+    ?? (playlist.id === WATCH_LATER_PLAYLIST_ID ? fallbackThumbnailUrl : null)
+    ?? null;
+  const imageSrc = useProxiedImageUrl(thumbnailUrl);
 
   return (
     <button
@@ -65,8 +71,8 @@ export function AddToPlaylistModal() {
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
 
-  const editablePlaylists = useMemo(
-    () => playlists.filter((playlist) => playlist.source === "Owned" && !playlist.isProtected),
+  const selectablePlaylists = useMemo(
+    () => playlists.filter((playlist) => playlist.source === "Owned"),
     [playlists],
   );
 
@@ -162,15 +168,16 @@ export function AddToPlaylistModal() {
         </div>
 
         <div className="mt-4 max-h-72 space-y-1 overflow-y-auto hide-scrollbar">
-          {editablePlaylists.map((playlist) => (
+          {selectablePlaylists.map((playlist) => (
             <PlaylistChoiceCard
               key={playlist.id}
+              fallbackThumbnailUrl={addTarget.thumbnailUrl}
               playlist={playlist}
               onClick={() => void handleAdd(playlist.id)}
             />
           ))}
 
-          {editablePlaylists.length === 0 && !creating && (
+          {selectablePlaylists.length === 0 && !creating && (
             <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-neutral-800 px-4 py-8 text-center">
               <ListVideo className="h-6 w-6 text-neutral-600" />
               <p className="text-sm text-neutral-500">{getString("playlist_add_modal_empty")}</p>

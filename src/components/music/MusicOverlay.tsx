@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   ChevronDown,
+  Disc3,
+  Download,
   Play,
   Pause,
   SkipBack,
@@ -16,14 +19,18 @@ import {
   MoreHorizontal,
   Loader2,
   RefreshCw,
+  Share2,
 } from "lucide-react";
 
 import { useMusicPlayerStore } from "../../store/useMusicPlayerStore";
 import { useLikesStore } from "../../store/useLikesStore";
 import { useUiStore } from "../../store/useUiStore";
+import { useAlbumLibraryStore } from "../../store/useAlbumLibraryStore";
 import { getString } from "../../lib/i18n/index";
 import { artistsText } from "../../lib/musicFormat";
+import type { SongItem } from "../../types/music";
 import { HapticButton } from "./HapticButton";
+import { MusicCardMenu, type MusicMenuAction, useMusicContextMenu } from "./MusicCardMenu";
 import { MusicArtwork } from "./MusicArtwork";
 import { MusicScrubber } from "./MusicScrubber";
 import { MusicQueuePane } from "./MusicQueuePane";
@@ -47,7 +54,27 @@ const SIDE_ACTIVE = `${SIDE} text-[var(--color-primary)] hover:bg-white/10`;
 
 const LAYOUT_SPRING = { type: "spring" as const, stiffness: 320, damping: 36, mass: 0.9 };
 
+function videoIdOf(track: SongItem): string {
+  return track.videoId ?? track.id;
+}
+
+function trackShareUrl(track: SongItem): string {
+  return `https://music.youtube.com/watch?v=${encodeURIComponent(videoIdOf(track))}`;
+}
+
+async function shareTrack(track: SongItem) {
+  try {
+    if (navigator.share) {
+      await navigator.share({ title: track.title, url: trackShareUrl(track) });
+      return;
+    }
+    await navigator.clipboard?.writeText(trackShareUrl(track));
+  } catch {
+  }
+}
+
 export function MusicOverlay() {
+  const navigate = useNavigate();
   const currentTrack = useMusicPlayerStore((s) => s.currentTrack);
   const viewState = useMusicPlayerStore((s) => s.viewState);
   const isPlaying = useMusicPlayerStore((s) => s.isPlaying);
@@ -70,6 +97,8 @@ export function MusicOverlay() {
   const loadLikes = useLikesStore((s) => s.load);
   const toggleSongLike = useLikesStore((s) => s.toggleSong);
   const showToast = useUiStore((s) => s.showToast);
+  const openAddToAlbum = useAlbumLibraryStore((s) => s.openAddToAlbum);
+  const menu = useMusicContextMenu(Boolean(currentTrack));
 
   const [eqOpen, setEqOpen] = useState(false);
   const lyrics = useLyrics(currentTrack);
@@ -84,6 +113,32 @@ export function MusicOverlay() {
   const isQueue = viewState === "queue";
   const isLyrics = viewState === "lyrics";
   const loading = isBuffering || loadingStreamId !== null;
+  const primaryArtist = currentTrack?.artists?.find((artist) => artist.id) ?? currentTrack?.artists?.[0] ?? null;
+  const canOpenArtist = Boolean(primaryArtist?.id);
+  const menuActions: MusicMenuAction[] = currentTrack
+    ? [
+        {
+          id: "add-to-album",
+          label: getString("music_add_to_album"),
+          icon: <Disc3 size={16} />,
+          onSelect: () => openAddToAlbum(currentTrack),
+        },
+        {
+          id: "download",
+          label: getString("music_download"),
+          icon: <Download size={16} />,
+          onSelect: () => {
+            showToast({ variant: "info", message: getString("music_download_coming_soon") });
+          },
+        },
+        {
+          id: "share",
+          label: getString("music_share"),
+          icon: <Share2 size={16} />,
+          onSelect: () => shareTrack(currentTrack),
+        },
+      ]
+    : [];
 
   useEffect(() => {
     if (!likesLoaded) void loadLikes();
@@ -256,18 +311,32 @@ export function MusicOverlay() {
               {/* CONTROL CLUSTER */}
               <div className="mt-8 flex w-full max-w-2xl flex-col gap-5">
                 {/* metadata row */}
-                <div className="flex items-start justify-between gap-4">
+                <div
+                  ref={menu.cardRef}
+                  onContextMenu={menu.openMenuFromContext}
+                  className="flex items-start justify-between gap-4"
+                >
                   <div className="min-w-0">
                     <h1
+                      title={currentTrack.title}
                       className={`font-bold tracking-tight text-white ${
-                        isQueue ? "line-clamp-2 text-2xl" : "line-clamp-2 text-3xl lg:text-5xl"
+                        isQueue ? "line-clamp-1 text-2xl" : "line-clamp-1 text-3xl lg:text-5xl"
                       }`}
                     >
                       {currentTrack.title}
                     </h1>
-                    <p className="mt-2 line-clamp-1 text-base text-neutral-300 lg:text-lg">
+                    <button
+                      type="button"
+                      disabled={!canOpenArtist}
+                      onClick={() => {
+                        if (!primaryArtist?.id) return;
+                        closeOverlay();
+                        navigate(`/music/artist/${primaryArtist.id}`);
+                      }}
+                      className="mt-2 line-clamp-1 max-w-full text-left text-base text-neutral-300 transition-colors hover:text-white disabled:cursor-default disabled:hover:text-neutral-300 lg:text-lg"
+                    >
                       {artistsText(currentTrack.artists)}
-                    </p>
+                    </button>
                   </div>
                   <div className="flex shrink-0 items-center gap-1">
                     <HapticButton
@@ -278,10 +347,20 @@ export function MusicOverlay() {
                     >
                       <Heart className="h-5 w-5" fill={liked ? "currentColor" : "none"} />
                     </HapticButton>
-                    <HapticButton aria-label={getString("music_more_actions")} className={META_BTN}>
+                    <HapticButton
+                      onClick={menu.openMenuFromDots}
+                      aria-label={getString("music_more_actions")}
+                      className={META_BTN}
+                    >
                       <MoreHorizontal className="h-5 w-5" />
                     </HapticButton>
                   </div>
+                  <MusicCardMenu
+                    actions={menuActions}
+                    anchor={menu.anchor}
+                    onClose={menu.closeMenu}
+                    show={menu.showMenu}
+                  />
                 </div>
 
                 {/* scrubber row */}

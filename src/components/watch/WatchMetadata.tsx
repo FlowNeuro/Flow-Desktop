@@ -4,6 +4,7 @@ import { ThumbsUp, ThumbsDown, Share2, Bookmark, Download, WandSparkles } from "
 import { Button } from "../ui/Button";
 import { SubscribeButton } from "../ui/SubscribeButton";
 import { useSettingsStore } from "../../store/useSettingsStore";
+import { usePlaylistModalStore } from "../../store/usePlaylistModalStore";
 import { useVideoReactions } from "../../lib/useVideoReactions";
 import { formatCount } from "../../lib/utils";
 import { getString } from "../../lib/i18n/index";
@@ -22,6 +23,7 @@ export function WatchMetadata({
   const dearrowEnabled = useSettingsStore((s) => s.dearrowEnabled);
   const dearrowBadgeEnabled = useSettingsStore((s) => s.dearrowBadgeEnabled);
   const rytdEnabled = useSettingsStore((s) => s.rytdEnabled);
+  const openAddToPlaylist = usePlaylistModalStore((s) => s.openAddToPlaylist);
   const reactions = useVideoReactions(currentVideo, videoData);
   const [showingOriginal, setShowingOriginal] = useState(false);
 
@@ -47,6 +49,14 @@ export function WatchMetadata({
       ? formatCount(videoData.likeCountText)
       : getString("like");
   const dislikeLabel = rytdEnabled && rydData ? formatCount(rydData.dislikes) : getString("watch_dislike");
+  const saveTarget = {
+    ...currentVideo,
+    title: primaryTitle,
+    channelId,
+    channelName,
+    thumbnailUrl: dearrowData?.thumbnailUrl || currentVideo.thumbnailUrl || videoData?.thumbnailUrl,
+    durationSeconds: currentVideo.durationSeconds ?? videoData?.durationSeconds ?? null,
+  };
 
   return (
     <div className="flex flex-col gap-3">
@@ -134,7 +144,7 @@ export function WatchMetadata({
             <Share2 size={18} />
             {getString("share")}
           </Button>
-          <Button variant="tonal">
+          <Button variant="tonal" onClick={() => openAddToPlaylist(saveTarget)}>
             <Bookmark size={18} />
             {getString("save")}
           </Button>

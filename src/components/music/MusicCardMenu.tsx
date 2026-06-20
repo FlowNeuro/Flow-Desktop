@@ -72,7 +72,7 @@ export function MusicCardMenu({
       anchor={anchor}
       onClose={onClose}
       className={cx(
-        'z-50 w-52 rounded-xl border border-neutral-800 bg-surface-container-high py-1.5',
+        'z-[70] w-52 rounded-xl border border-neutral-800 bg-surface-container-high py-1.5',
         className,
       )}
     >
