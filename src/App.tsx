@@ -37,6 +37,7 @@ import { GlobalMusicDock } from "./components/music/GlobalMusicDock";
 import { MusicOverlay } from "./components/music/MusicOverlay";
 import { AddToAlbumModal } from "./components/music/AddToAlbumModal";
 import { AddTracksToAlbumModal } from "./components/music/AddTracksToAlbumModal";
+import { AddToPlaylistModal } from "./components/playlist/AddToPlaylistModal";
 
 import "./App.css";
 
@@ -171,6 +172,7 @@ function App() {
       </LayoutGroup>
       <AddToAlbumModal />
       <AddTracksToAlbumModal />
+      <AddToPlaylistModal />
       <ToastHost />
     </div>
   );

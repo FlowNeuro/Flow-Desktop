@@ -2,7 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { useSubscriptionStore } from '../../store/useSubscriptionStore';
 import { useFeedActionsStore } from '../../store/useFeedActionsStore';
 import { useLiveStore } from '../../store/useLiveStore';
-import { Plus, Ban, Check, MoreVertical, Trash2, GripHorizontal, Sparkles, Eye, EyeOff, Clock } from 'lucide-react';
+import { Plus, Ban, Check, MoreVertical, Trash2, GripHorizontal, Sparkles, Eye, EyeOff, Clock, ListPlus } from 'lucide-react';
 import type { VideoSummary } from '../../types/video';
 import { Button } from '../ui/Button';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
@@ -21,6 +21,7 @@ import {
   removeVideoFromWatchLater,
 } from '../../lib/playlistLibrary';
 import { useUiStore } from '../../store/useUiStore';
+import { usePlaylistModalStore } from '../../store/usePlaylistModalStore';
 
 export interface VideoCardProps {
   video: VideoSummary;
@@ -134,6 +135,7 @@ export function VideoCard({
   const markWatched = useFeedActionsStore((s) => s.markWatched);
   const moreLikeThis = useFeedActionsStore((s) => s.moreLikeThis);
   const showToast = useUiStore((s) => s.showToast);
+  const openAddToPlaylist = usePlaylistModalStore((s) => s.openAddToPlaylist);
   const [overriddenTitle, setOverriddenTitle] = useState<string | null>(null);
   const [overriddenThumbnail, setOverriddenThumbnail] = useState<string | null>(null);
   const [showMenu, setShowMenu] = useState(false);
@@ -337,7 +339,7 @@ export function VideoCard({
       <AnchoredPortalMenu
         anchor={menuAnchor}
         onClose={() => setShowMenu(false)}
-        className="z-50 w-52 rounded-xl border border-neutral-800 bg-surface-container-high py-1.5"
+        className="z-50 w-60 rounded-xl border border-neutral-800 bg-surface-container-high py-1.5"
       >
         {onAddToQueue && (
           <button
@@ -356,10 +358,22 @@ export function VideoCard({
           type="button"
           onClick={(e) => {
             e.stopPropagation();
+            openAddToPlaylist(video);
+            setShowMenu(false);
+          }}
+          className="w-full flex items-center gap-3 whitespace-nowrap px-3.5 py-2.5 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 transition-colors"
+        >
+          <ListPlus size={16} />
+          {getString("video_add_to_playlist")}
+        </button>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
             void handleToggleWatchLater();
             setShowMenu(false);
           }}
-          className="w-full flex items-center gap-3 px-3.5 py-2.5 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 transition-colors"
+          className="w-full flex items-center gap-3 whitespace-nowrap px-3.5 py-2.5 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 transition-colors"
         >
           <Clock size={16} />
           {getString(isSavedToWatchLater ? "video_remove_from_watch_later" : "video_save_to_watch_later")}

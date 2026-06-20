@@ -288,6 +288,59 @@ export const removePlaylistFromLibrary = async (playlistId: string) => {
   return updatedPlaylists;
 };
 
+export const createStoredPlaylist = async (
+  name: string,
+  description = "",
+) => {
+  const playlists = await loadStoredPlaylists();
+  const playlist: StoredPlaylist = normalizePlaylist({
+    id: `playlist-${Date.now()}`,
+    name: name.trim() || "Untitled playlist",
+    description: description.trim(),
+    tracks: [],
+    createdAt: new Date().toISOString(),
+    source: "Owned",
+    thumbnailUrl: null,
+    videoCount: null,
+    videoCountText: null,
+  });
+
+  await persistStoredPlaylists([...playlists, playlist]);
+  return playlist;
+};
+
+export const addVideoToStoredPlaylist = async (
+  playlistId: string,
+  video: VideoSummary,
+) => {
+  if (isProtectedPlaylistId(playlistId)) return addVideoToWatchLater(video);
+
+  const playlists = await loadStoredPlaylists();
+  let updatedPlaylist: StoredPlaylist | null = null;
+  const nextPlaylists = playlists.map((playlist) => {
+    if (playlist.id !== playlistId || playlist.source !== "Owned") return playlist;
+    if (playlist.tracks.some((track) => track.id === video.id)) {
+      updatedPlaylist = playlist;
+      return playlist;
+    }
+
+    const tracks = [...playlist.tracks, video];
+    updatedPlaylist = normalizePlaylist({
+      ...playlist,
+      tracks,
+      thumbnailUrl: playlist.thumbnailUrl ?? video.thumbnailUrl ?? null,
+      videoCount: tracks.length,
+      videoCountText: formatVideoCountText(tracks.length),
+    });
+    return updatedPlaylist;
+  });
+
+  if (!updatedPlaylist) return null;
+
+  await persistStoredPlaylists(nextPlaylists);
+  return updatedPlaylist;
+};
+
 export const isVideoInWatchLater = async (videoId: string) => {
   const watchLater = await getStoredPlaylistById(WATCH_LATER_PLAYLIST_ID);
   return Boolean(watchLater?.tracks.some((track) => track.id === videoId));
