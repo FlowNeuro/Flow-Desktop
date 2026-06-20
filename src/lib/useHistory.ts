@@ -6,10 +6,29 @@ import {
 } from "./api/db";
 import type { WatchHistoryRecord } from "../types/db";
 import type { VideoSummary } from "../types/video";
+import type { SongItem } from "../types/music";
 
 export interface HistoryVideo extends VideoSummary {
   watchDate: string;
   watchProgressPercent: number;
+  isMusic: boolean;
+}
+
+export function historyVideoToSong(video: HistoryVideo): SongItem {
+  const artist = (video.channelName ?? "").replace(/\s*-\s*topic\s*$/i, "").trim();
+  return {
+    id: video.id,
+    title: video.title,
+    artists: artist ? [{ name: artist, id: null }] : [],
+    album: null,
+    duration: video.durationSeconds || null,
+    musicVideoType: null,
+    thumbnail: video.thumbnailUrl || "",
+    explicit: false,
+    videoId: video.id,
+    playlistId: null,
+    params: null,
+  };
 }
 
 export interface HistoryDateGroup {
@@ -62,6 +81,7 @@ export function mapHistoryRecordToVideo(record: WatchHistoryRecord): HistoryVide
     viewCountText: "History",
     watchDate: record.watchDate,
     watchProgressPercent: progress,
+    isMusic: record.isMusic ?? false,
   };
 }
 

@@ -140,7 +140,6 @@ export const History: React.FC<HistoryProps> = ({ onPlay }) => {
                 <MusicHistoryGroup
                   key={group.dateLabel}
                   group={group}
-                  onPlay={onPlay}
                   onRemoveFromHistory={handleDeleteItem}
                 />
               ) : (

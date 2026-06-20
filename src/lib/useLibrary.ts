@@ -1,35 +1,41 @@
 import { useCallback, useEffect, useState } from "react";
 import { getWatchHistory } from "./api/db";
-import { mapHistoryRecordToVideo } from "./useHistory";
+import { mapHistoryRecordToVideo, type HistoryVideo } from "./useHistory";
 import { loadStoredPlaylists, storedPlaylistToCardSummary } from "./playlistLibrary";
+import { useAlbumLibraryStore } from "../store/useAlbumLibraryStore";
 import type { VideoSummary } from "../types/video";
-import type { AlbumItem } from "../types/music";
 
 const SHELF_PREVIEW_LIMIT = 15;
 
 export type LibraryPlaylist = ReturnType<typeof storedPlaylistToCardSummary>;
 
-export interface LibraryData {
-  history: VideoSummary[];
+interface AsyncLibraryData {
+  history: HistoryVideo[];
   playlists: LibraryPlaylist[];
-  savedAlbums: AlbumItem[];
   watchLater: VideoSummary[];
   liked: VideoSummary[];
   downloads: VideoSummary[];
 }
 
-const EMPTY_LIBRARY: LibraryData = {
+const EMPTY_LIBRARY: AsyncLibraryData = {
   history: [],
   playlists: [],
-  savedAlbums: [],
   watchLater: [],
   liked: [],
   downloads: [],
 };
 
 export function useLibrary() {
-  const [data, setData] = useState<LibraryData>(EMPTY_LIBRARY);
+  const [data, setData] = useState<AsyncLibraryData>(EMPTY_LIBRARY);
   const [loading, setLoading] = useState(true);
+
+  const savedAlbums = useAlbumLibraryStore((s) => s.albums);
+  const albumsLoaded = useAlbumLibraryStore((s) => s.loaded);
+  const loadAlbums = useAlbumLibraryStore((s) => s.load);
+
+  useEffect(() => {
+    if (!albumsLoaded) void loadAlbums();
+  }, [albumsLoaded, loadAlbums]);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -48,7 +54,6 @@ export function useLibrary() {
       setData({
         history: historyRecords.map(mapHistoryRecordToVideo),
         playlists: storedPlaylists.map(storedPlaylistToCardSummary),
-        savedAlbums: [],
         watchLater: [],
         liked: [],
         downloads: [],
@@ -62,5 +67,5 @@ export function useLibrary() {
     void refresh();
   }, [refresh]);
 
-  return { ...data, loading, refresh };
+  return { ...data, savedAlbums, loading, refresh };
 }

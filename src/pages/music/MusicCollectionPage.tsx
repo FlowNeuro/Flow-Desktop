@@ -7,8 +7,10 @@ import { AlbumTrackRow } from '../../components/music/AlbumTrackRow';
 import { MusicCollectionHeader } from '../../components/music/MusicCollectionHeader';
 import { useMusicCollection, type CollectionKind } from '../../lib/useMusicCollection';
 import { useMusicPlayerStore } from '../../store/useMusicPlayerStore';
+import { useAlbumLibraryStore } from '../../store/useAlbumLibraryStore';
+import { useUiStore } from '../../store/useUiStore';
 import { getString } from '../../lib/i18n/index';
-import type { SongItem } from '../../types/music';
+import type { AlbumItem, SongItem } from '../../types/music';
 
 const videoIdOf = (t: SongItem) => t.videoId ?? t.id;
 
@@ -56,12 +58,15 @@ export default function MusicCollectionPage({ kind }: { kind: CollectionKind }) 
   const addToQueue = useMusicPlayerStore((s) => s.addToQueue);
   const currentTrack = useMusicPlayerStore((s) => s.currentTrack);
   const isPlaying = useMusicPlayerStore((s) => s.isPlaying);
+  const removeAlbumTrack = useAlbumLibraryStore((s) => s.removeTrack);
+  const toggleAlbumSave = useAlbumLibraryStore((s) => s.toggle);
+  const isAlbumSaved = useAlbumLibraryStore((s) => (kind === 'album' && id ? s.isSaved(id) : false));
+  const openTrackSearch = useAlbumLibraryStore((s) => s.openTrackSearch);
+  const showToast = useUiStore((s) => s.showToast);
   const [showMiniHeader, setShowMiniHeader] = useState(false);
 
-  const { meta, songs, loading, loadingMore, error, hasMore, loadMore, reload } = useMusicCollection(
-    kind,
-    id,
-  );
+  const { meta, songs, loading, loadingMore, error, hasMore, loadMore, reload, ownedAlbumId } =
+    useMusicCollection(kind, id);
 
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -120,6 +125,31 @@ export default function MusicCollectionPage({ kind }: { kind: CollectionKind }) 
     if (!songs.length) return;
     void playQueue(shuffle ? [...songs].sort(() => Math.random() - 0.5) : songs, 0);
   };
+
+  const isOnlineAlbum = kind === 'album' && !ownedAlbumId;
+
+  const handleToggleSave = () => {
+    if (!id) return;
+    const albumItem: AlbumItem = {
+      browseId: id,
+      playlistId: '',
+      title: meta.title,
+      artists: meta.artistName ? [{ name: meta.artistName, id: meta.artistId }] : null,
+      year: meta.yearText ? Number.parseInt(meta.yearText, 10) || null : null,
+      thumbnail: meta.thumbnail ?? '',
+      explicit: false,
+    };
+    void toggleAlbumSave(albumItem).then((nowSaved) => {
+      showToast({
+        variant: 'success',
+        message: getString(nowSaved ? 'music_saved_to_library' : 'music_removed_from_library'),
+      });
+    });
+  };
+
+  const handleDownload = () => {
+    showToast({ variant: 'info', message: getString('music_download_coming_soon') });
+  };
   const currentTrackId = currentTrack ? videoIdOf(currentTrack) : null;
   const openArtist = meta.artistId
     ? () => navigate(`/music/artist/${meta.artistId}`)
@@ -163,6 +193,10 @@ export default function MusicCollectionPage({ kind }: { kind: CollectionKind }) 
         onPlay={() => playAll(false)}
         onShuffle={() => playAll(true)}
         onArtistClick={openArtist}
+        saved={isOnlineAlbum ? isAlbumSaved : undefined}
+        onToggleSave={isOnlineAlbum ? handleToggleSave : undefined}
+        onAddTracks={ownedAlbumId ? () => openTrackSearch(ownedAlbumId) : undefined}
+        onDownload={handleDownload}
       />
 
       <div className="mx-auto flex max-w-[1600px] flex-col gap-4 px-8 pt-6">
@@ -190,6 +224,11 @@ export default function MusicCollectionPage({ kind }: { kind: CollectionKind }) 
                 isPlaying={isPlaying}
                 onPlay={playFrom}
                 onAddToQueue={addToQueue}
+                onRemove={
+                  ownedAlbumId
+                    ? (t) => void removeAlbumTrack(ownedAlbumId, videoIdOf(t))
+                    : undefined
+                }
               />
             );
           })}

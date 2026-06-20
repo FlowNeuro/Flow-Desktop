@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { MoreHorizontal, Music2, Play, Plus, Shuffle } from 'lucide-react';
+import { Bookmark, Download, Music2, Play, Search, Shuffle } from 'lucide-react';
 
 import { getString } from '../../lib/i18n/index';
 import type { CollectionMeta } from '../../lib/useMusicCollection';
@@ -12,6 +12,10 @@ interface MusicCollectionHeaderProps {
   onPlay: () => void;
   onShuffle: () => void;
   onArtistClick?: () => void;
+  saved?: boolean;
+  onToggleSave?: () => void;
+  onAddTracks?: () => void;
+  onDownload?: () => void;
 }
 
 function Cover({ src, alt }: { src: string | null | undefined; alt: string }) {
@@ -43,6 +47,10 @@ export function MusicCollectionHeader({
   onPlay,
   onShuffle,
   onArtistClick,
+  saved,
+  onToggleSave,
+  onAddTracks,
+  onDownload,
 }: MusicCollectionHeaderProps) {
   const thumbnailUrl = useProxiedImageUrl(upgradeMusicImageUrl(meta.thumbnail));
   const metaParts = [
@@ -140,21 +148,46 @@ export function MusicCollectionHeader({
               {getString('music_shuffle')}
             </button>
 
-            <button
-              type="button"
-              aria-label={getString('music_save_to_library')}
-              className="grid h-12 w-12 place-items-center rounded-full bg-surface-container-high text-neutral-200 transition-colors duration-200 ease-out hover:bg-surface-container-highest"
-            >
-              <Plus className="h-5 w-5" />
-            </button>
+            {onToggleSave ? (
+              <button
+                type="button"
+                aria-pressed={saved}
+                aria-label={getString(saved ? 'music_remove_from_library' : 'music_save_to_library')}
+                title={getString(saved ? 'music_remove_from_library' : 'music_save_to_library')}
+                onClick={onToggleSave}
+                className={`grid h-12 w-12 place-items-center rounded-full transition-colors duration-200 ease-out ${
+                  saved
+                    ? 'bg-surface-container-high text-[var(--color-primary)] hover:bg-surface-container-highest'
+                    : 'bg-surface-container-high text-neutral-200 hover:bg-surface-container-highest'
+                }`}
+              >
+                <Bookmark className="h-5 w-5" fill={saved ? 'currentColor' : 'none'} />
+              </button>
+            ) : null}
 
-            <button
-              type="button"
-              aria-label={getString('music_more_options')}
-              className="grid h-12 w-12 place-items-center rounded-full bg-surface-container-high text-neutral-200 transition-colors duration-200 ease-out hover:bg-surface-container-highest"
-            >
-              <MoreHorizontal className="h-5 w-5" />
-            </button>
+            {onAddTracks ? (
+              <button
+                type="button"
+                aria-label={getString('album_add_tracks')}
+                title={getString('album_add_tracks')}
+                onClick={onAddTracks}
+                className="grid h-12 w-12 place-items-center rounded-full bg-surface-container-high text-neutral-200 transition-colors duration-200 ease-out hover:bg-surface-container-highest"
+              >
+                <Search className="h-5 w-5" />
+              </button>
+            ) : null}
+
+            {onDownload ? (
+              <button
+                type="button"
+                aria-label={getString('music_download')}
+                title={getString('music_download')}
+                onClick={onDownload}
+                className="grid h-12 w-12 place-items-center rounded-full bg-surface-container-high text-neutral-200 transition-colors duration-200 ease-out hover:bg-surface-container-highest"
+              >
+                <Download className="h-5 w-5" />
+              </button>
+            ) : null}
           </div>
         </div>
       </div>

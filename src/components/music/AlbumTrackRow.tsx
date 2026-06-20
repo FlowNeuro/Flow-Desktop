@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Download, Heart, ListMusic, ListPlus, MoreVertical, Music2, Play, Share2, Volume2 } from 'lucide-react';
+import { Disc3, Download, Heart, ListMusic, ListPlus, MoreVertical, Music2, Play, Share2, Trash2, Volume2 } from 'lucide-react';
 
 import { getString } from '../../lib/i18n/index';
 import { artistsText, formatTime } from '../../lib/musicFormat';
@@ -7,6 +7,7 @@ import { upgradeMusicImageUrl } from '../../lib/thumbnails';
 import { extractDominantColorFromImage, useDominantColor } from '../../lib/useDominantColor';
 import { useProxiedImageUrl } from '../../lib/useProxiedImageUrl';
 import { useMusicPlayerStore } from '../../store/useMusicPlayerStore';
+import { useAlbumLibraryStore } from '../../store/useAlbumLibraryStore';
 import type { SongItem } from '../../types/music';
 import { MusicCardMenu, type MusicMenuAction, useMusicContextMenu } from './MusicCardMenu';
 import { PlayingWave } from './PlayingWave';
@@ -28,6 +29,7 @@ interface AlbumTrackRowProps {
   onAddToQueue: (track: SongItem) => void;
   onLike?: (track: SongItem) => void;
   onMenu?: (track: SongItem) => void;
+  onRemove?: (track: SongItem) => void;
 }
 
 function ExplicitBadge() {
@@ -64,7 +66,6 @@ async function shareTrack(track: SongItem) {
     }
     await navigator.clipboard?.writeText(trackShareUrl(track));
   } catch {
-    // Share/copy can be cancelled by the user; the menu should still close.
   }
 }
 
@@ -122,6 +123,7 @@ export function AlbumTrackRow({
   onAddToQueue,
   onLike,
   onMenu,
+  onRemove,
 }: AlbumTrackRowProps) {
   const artistLabel = artistsText(track.artists);
   const duration = track.duration == null ? '' : formatTime(track.duration);
@@ -134,6 +136,7 @@ export function AlbumTrackRow({
   const preloadedColor = useDominantColor(colorImageSrc);
   const playNextInQueue = useMusicPlayerStore((s) => s.playNextInQueue);
   const menu = useMusicContextMenu(true);
+  const openAddToAlbum = useAlbumLibraryStore((s) => s.openAddToAlbum);
   const isHighlighted = isHovered || showEq;
   const activeColor = dominantColor ?? preloadedColor;
   const trackId = videoIdOf(track);
@@ -160,6 +163,12 @@ export function AlbumTrackRow({
       onSelect: () => logMusicAction('Add to playlist', trackId),
     },
     {
+      id: 'add-to-album',
+      label: getString('music_add_to_album'),
+      icon: <Disc3 size={16} />,
+      onSelect: () => openAddToAlbum(track),
+    },
+    {
       id: 'download',
       label: getString('music_download'),
       icon: <Download size={16} />,
@@ -171,6 +180,16 @@ export function AlbumTrackRow({
       icon: <Share2 size={16} />,
       onSelect: () => shareTrack(track),
     },
+    ...(onRemove
+      ? ([
+          {
+            id: 'remove-from-album',
+            label: getString('album_remove_track'),
+            icon: <Trash2 size={16} />,
+            onSelect: () => onRemove(track),
+          },
+        ] as MusicMenuAction[])
+      : []),
   ];
   const resolveColor = (img?: HTMLImageElement) => {
     const source = img ?? artworkRef.current;

@@ -1,14 +1,73 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Clock, Disc3, Download, History, ListVideo, ThumbsUp } from "lucide-react";
 import type { VideoSummary } from "../types/video";
-import type { AlbumItem } from "../types/music";
 import { getString } from "../lib/i18n/index";
 import { useLibrary, type LibraryPlaylist } from "../lib/useLibrary";
+import { historyVideoToSong, type HistoryVideo } from "../lib/useHistory";
+import { useMusicPlayerStore } from "../store/useMusicPlayerStore";
+import {
+  albumDetailPath,
+  storedAlbumToItem,
+  type StoredAlbum,
+} from "../store/useAlbumLibraryStore";
 import { LibraryShelf } from "../components/library/LibraryShelf";
 import { VideoCard } from "../components/video/VideoCard";
 import { PlaylistCard } from "../components/video/PlaylistCard";
 import { MusicItemCard } from "../components/music/MusicItemCard";
+
+const videoIdOf = (item: { videoId?: string | null; id: string }) => item.videoId ?? item.id;
+
+function HistoryShelfRow({
+  items,
+  onPlay,
+  onAddToQueue,
+}: {
+  items: HistoryVideo[];
+  onPlay: (video: VideoSummary) => void;
+  onAddToQueue?: (video: VideoSummary) => void;
+}) {
+  const playQueue = useMusicPlayerStore((s) => s.playQueue);
+  const musicSongs = useMemo(
+    () => items.filter((item) => item.isMusic).map(historyVideoToSong),
+    [items],
+  );
+
+  return (
+    <>
+      {items.map((item, index) => {
+        if (item.isMusic) {
+          const song = historyVideoToSong(item);
+          const queueIndex = Math.max(
+            0,
+            musicSongs.findIndex((s) => videoIdOf(s) === videoIdOf(song)),
+          );
+          return (
+            <div key={`${item.id}-${index}`} className="w-[160px] md:w-[200px] shrink-0">
+              <MusicItemCard
+                variant="song"
+                item={song}
+                fill
+                onPlay={() => void playQueue(musicSongs, queueIndex)}
+              />
+            </div>
+          );
+        }
+        return (
+          <div key={`${item.id}-${index}`} className="w-[280px] md:w-[320px] shrink-0">
+            <VideoCard
+              video={item}
+              onPlay={onPlay}
+              onAddToQueue={onAddToQueue}
+              variant="grid"
+              hideChannelAvatar
+            />
+          </div>
+        );
+      })}
+    </>
+  );
+}
 
 interface LibraryPageProps {
   onPlay: (video: VideoSummary) => void;
@@ -60,16 +119,16 @@ function AlbumShelfRow({
   albums,
   onOpenAlbum,
 }: {
-  albums: AlbumItem[];
-  onOpenAlbum: (album: AlbumItem) => void;
+  albums: StoredAlbum[];
+  onOpenAlbum: (album: StoredAlbum) => void;
 }) {
   return (
     <>
       {albums.map((album) => (
-        <div key={album.browseId} className="w-[160px] md:w-[200px] shrink-0">
+        <div key={album.id} className="w-[160px] md:w-[200px] shrink-0">
           <MusicItemCard
             variant="album"
-            item={album}
+            item={storedAlbumToItem(album)}
             fill
             onOpen={() => onOpenAlbum(album)}
             onPlay={() => onOpenAlbum(album)}
@@ -92,8 +151,8 @@ export const LibraryPage: React.FC<LibraryPageProps> = ({ onPlay, onAddToQueue }
     savedAlbums.length,
   );
 
-  const handleOpenAlbum = (album: AlbumItem) => {
-    navigate(`/music/album/${album.browseId}`);
+  const handleOpenAlbum = (album: StoredAlbum) => {
+    navigate(albumDetailPath(album));
   };
 
   return (
@@ -115,7 +174,7 @@ export const LibraryPage: React.FC<LibraryPageProps> = ({ onPlay, onAddToQueue }
         viewAllTo="/history"
         isEmpty={isEmpty(history.length)}
       >
-        <VideoShelfRow videos={history} onPlay={onPlay} onAddToQueue={onAddToQueue} />
+        <HistoryShelfRow items={history} onPlay={onPlay} onAddToQueue={onAddToQueue} />
       </LibraryShelf>
 
       {/* Playlists */}
@@ -128,11 +187,11 @@ export const LibraryPage: React.FC<LibraryPageProps> = ({ onPlay, onAddToQueue }
         <PlaylistShelfRow playlists={playlists} />
       </LibraryShelf>
 
-      {/* Saved Albums */}
+      {/* Albums */}
       <LibraryShelf
-        title={getString("library_saved_albums_label")}
+        title={getString("albums_title")}
         icon={Disc3}
-        viewAllTo="/music"
+        viewAllTo="/albums"
         isEmpty={isEmpty(savedAlbums.length)}
       >
         <AlbumShelfRow albums={savedAlbums} onOpenAlbum={handleOpenAlbum} />

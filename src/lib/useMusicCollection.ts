@@ -8,6 +8,7 @@ import {
 import { getBackendErrorMessage } from './api/errors';
 import { getString } from './i18n/index';
 import { artistsText } from './musicFormat';
+import { useAlbumLibraryStore, type StoredAlbum } from '../store/useAlbumLibraryStore';
 import type { AlbumPage, MusicPlaylistPage, SongItem } from '../types/music';
 
 export type CollectionKind = 'album' | 'playlist';
@@ -101,6 +102,26 @@ function playlistMeta(page: MusicPlaylistPage): CollectionMeta {
   };
 }
 
+function ownedAlbumMeta(album: StoredAlbum): CollectionMeta {
+  const tracks = album.tracks ?? [];
+  const trackCountText = getString('music_songs_count', tracks.length);
+  return {
+    kind: 'album',
+    title: album.title,
+    thumbnail: album.thumbnail ?? tracks.find((t) => t.thumbnail)?.thumbnail ?? null,
+    typeLabel: getString('music_album_label'),
+    artistName: null,
+    artistId: null,
+    yearText: null,
+    trackCountText,
+    durationText: null,
+    stats: trackCountText,
+    description: album.description?.trim() || null,
+  };
+}
+
+const noop = async () => {};
+
 async function loadAlbum(id: string): Promise<InitialLoad> {
   const page = await getMusicAlbumPage(id);
   return { meta: albumMeta(page), songs: uniqueSongs(page.songs), continuation: page.continuation };
@@ -120,6 +141,12 @@ export function useMusicCollection(kind: CollectionKind, id: string | undefined)
   const fetchInitial = kind === 'album' ? loadAlbum : loadPlaylist;
   const fetchMore = kind === 'album' ? getMusicAlbumContinuation : getMusicPlaylistContinuation;
 
+  const ownedAlbum = useAlbumLibraryStore((s) =>
+    kind === 'album' && id ? s.albums.find((a) => a.id === id && a.source === 'Owned') : undefined,
+  );
+  const ownedRef = useRef(false);
+  ownedRef.current = Boolean(ownedAlbum);
+
   const [meta, setMeta] = useState<CollectionMeta | null>(null);
   const [songs, setSongs] = useState<SongItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -136,6 +163,11 @@ export function useMusicCollection(kind: CollectionKind, id: string | undefined)
     if (!id) {
       setLoading(false);
       setError(getBackendErrorMessage(new Error('missing id')));
+      return;
+    }
+    if (ownedRef.current) {
+      setLoading(false);
+      setError(null);
       return;
     }
     const req = ++reqRef.current;
@@ -188,6 +220,20 @@ export function useMusicCollection(kind: CollectionKind, id: string | undefined)
     void load();
   }, [load]);
 
+  if (ownedAlbum) {
+    return {
+      meta: ownedAlbumMeta(ownedAlbum),
+      songs: ownedAlbum.tracks ?? [],
+      loading: false,
+      loadingMore: false,
+      error: null,
+      hasMore: false,
+      loadMore: noop,
+      reload: noop,
+      ownedAlbumId: ownedAlbum.id as string | null,
+    };
+  }
+
   return {
     meta,
     songs,
@@ -197,5 +243,6 @@ export function useMusicCollection(kind: CollectionKind, id: string | undefined)
     hasMore,
     loadMore,
     reload: load,
+    ownedAlbumId: null as string | null,
   };
 }

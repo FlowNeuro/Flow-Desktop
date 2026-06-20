@@ -7,6 +7,7 @@ import {
   ChevronUp,
   Clock,
   Compass,
+  Disc3,
   Download,
   History,
   Home,
@@ -201,6 +202,7 @@ export function Sidebar({ mode = 'normal' }: SidebarProps) {
         <nav className="mt-1 flex flex-col">
           <SidebarItem to="/history" icon={<History />} label={getString('library_history_label')} onClick={closeOverlay} />
           <SidebarItem to="/playlists" icon={<ListVideo />} label={getString('library_playlists_label')} onClick={closeOverlay} />
+          <SidebarItem to="/albums" icon={<Disc3 />} label={getString('albums_title')} onClick={closeOverlay} />
           <SidebarItem to="/watch-later" icon={<Clock />} label={getString('library_watch_later_label')} onClick={closeOverlay} />
           <SidebarItem to="/liked" icon={<ThumbsUp />} label={getString('library_liked_videos_label')} onClick={closeOverlay} />
           <SidebarItem to="/downloads" icon={<Download />} label={getString('library_downloads_label')} onClick={closeOverlay} />

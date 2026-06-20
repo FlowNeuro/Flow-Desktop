@@ -1,10 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Download, Heart, Library, ListMusic, ListPlus, MoreVertical, Music2, Play, Share2 } from 'lucide-react';
+import { Disc3, Download, Heart, Library, ListMusic, ListPlus, MoreVertical, Music2, Play, Share2 } from 'lucide-react';
 import type { AlbumItem, ArtistItem, EpisodeItem, PlaylistItem, PodcastItem, SongItem } from '../../types/music';
 import { getString } from '../../lib/i18n/index';
 import { upgradeAvatarUrl, upgradeMusicImageUrl } from '../../lib/thumbnails';
 import { extractDominantColorFromImage, useDominantColor } from '../../lib/useDominantColor';
 import { useMusicPlayerStore } from '../../store/useMusicPlayerStore';
+import { useAlbumLibraryStore } from '../../store/useAlbumLibraryStore';
+import { useUiStore } from '../../store/useUiStore';
 import { useProxiedImageUrl } from '../../lib/useProxiedImageUrl';
 import { PlayingWave } from './PlayingWave';
 import { MusicCardMenu, type MusicMenuAction, useMusicContextMenu } from './MusicCardMenu';
@@ -205,6 +207,12 @@ function SquareCard({
   const menu = useMusicContextMenu(Boolean(menuKind));
   const isTrack = menuKind === 'track' && item && 'videoId' in item;
   const isAlbum = menuKind === 'album' && item && 'browseId' in item;
+
+  const albumBrowseId = isAlbum ? item.browseId : null;
+  const albumSaved = useAlbumLibraryStore((s) => (albumBrowseId ? s.isSaved(albumBrowseId) : false));
+  const toggleAlbumLibrary = useAlbumLibraryStore((s) => s.toggle);
+  const openAddToAlbum = useAlbumLibraryStore((s) => s.openAddToAlbum);
+  const showToast = useUiStore((s) => s.showToast);
   const menuActions: MusicMenuAction[] = isTrack
     ? [
         {
@@ -226,6 +234,12 @@ function SquareCard({
           onSelect: () => logMusicAction('Add to playlist', videoIdOf(item)),
         },
         {
+          id: 'add-to-album',
+          label: getString('music_add_to_album'),
+          icon: <Disc3 size={16} />,
+          onSelect: () => openAddToAlbum(item),
+        },
+        {
           id: 'download',
           label: getString('music_download'),
           icon: <Download size={16} />,
@@ -242,9 +256,15 @@ function SquareCard({
       ? [
           {
             id: 'add-to-library',
-            label: getString('music_add_to_library'),
+            label: getString(albumSaved ? 'music_remove_from_library' : 'music_add_to_library'),
             icon: <Library size={16} />,
-            onSelect: () => logMusicAction('Add album to library', item.browseId),
+            onSelect: async () => {
+              const nowSaved = await toggleAlbumLibrary(item);
+              showToast({
+                variant: 'success',
+                message: getString(nowSaved ? 'music_saved_to_library' : 'music_removed_from_library'),
+              });
+            },
           },
           {
             id: 'download',
@@ -466,6 +486,7 @@ function ListRow({
   const playNextInQueue = useMusicPlayerStore((s) => s.playNextInQueue);
   const currentTrack = useMusicPlayerStore((s) => s.currentTrack);
   const playerIsPlaying = useMusicPlayerStore((s) => s.isPlaying);
+  const openAddToAlbum = useAlbumLibraryStore((s) => s.openAddToAlbum);
   const menu = useMusicContextMenu(true);
   const isPlayingTrack = !!currentTrack && videoIdOf(currentTrack) === trackId && playerIsPlaying;
   const isHighlighted = isHovered || isPlayingTrack;
@@ -491,6 +512,12 @@ function ListRow({
       label: getString('music_add_to_playlist'),
       icon: <ListMusic size={16} />,
       onSelect: () => logMusicAction('Add to playlist', trackId),
+    },
+    {
+      id: 'add-to-album',
+      label: getString('music_add_to_album'),
+      icon: <Disc3 size={16} />,
+      onSelect: () => openAddToAlbum(item),
     },
     {
       id: 'download',

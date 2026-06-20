@@ -4,6 +4,7 @@ import { usePlayerStore } from "./store/usePlayerStore";
 import { useFeedActionsStore } from "./store/useFeedActionsStore";
 import { useAppSettingsStore } from "./store/useAppSettingsStore";
 import { useSettingsStore } from "./store/useSettingsStore";
+import { useAlbumLibraryStore } from "./store/useAlbumLibraryStore";
 import { getOnboardingStatus } from "./lib/api/recommendation";
 import type { VideoSummary } from "./types/video";
 
@@ -18,6 +19,7 @@ import Search from "./pages/Search";
 import Subscriptions from "./pages/Subscriptions";
 import History from "./pages/History";
 import LibraryPage from "./pages/LibraryPage";
+import AlbumsLibrary from "./pages/AlbumsLibrary";
 import Playlists from "./pages/Playlists";
 import PlaylistDetailsPage from "./pages/PlaylistDetailsPage";
 import Settings from "./pages/Settings";
@@ -32,6 +34,8 @@ import { ToastHost } from "./components/ui/ToastHost";
 import { GlobalMusicAudio } from "./components/music/GlobalMusicAudio";
 import { GlobalMusicDock } from "./components/music/GlobalMusicDock";
 import { MusicOverlay } from "./components/music/MusicOverlay";
+import { AddToAlbumModal } from "./components/music/AddToAlbumModal";
+import { AddTracksToAlbumModal } from "./components/music/AddTracksToAlbumModal";
 
 import "./App.css";
 
@@ -46,6 +50,7 @@ function App() {
     void useFeedActionsStore.getState().load();
     void useAppSettingsStore.getState().loadSettings();
     void useSettingsStore.getState().loadSettings();
+    void useAlbumLibraryStore.getState().load();
   }, []);
 
   // Check onboarding state from sqlite db setting
@@ -130,6 +135,9 @@ function App() {
           <Route path="library" element={
             <LibraryPage onPlay={handlePlayVideo} onAddToQueue={handleAddToQueue} />
           } />
+          <Route path="albums" element={
+            <AlbumsLibrary />
+          } />
           <Route path="history" element={
             <History onPlay={handlePlayVideo} />
           } />
@@ -153,6 +161,8 @@ function App() {
         <GlobalMusicDock />
         <MusicOverlay />
       </LayoutGroup>
+      <AddToAlbumModal />
+      <AddTracksToAlbumModal />
       <ToastHost />
     </div>
   );
