@@ -88,7 +88,13 @@ function SectionHeader({
       <NavLink
         to={to}
         onClick={onClick}
-        className="group flex items-center gap-2 px-5 py-2 mt-2 text-base font-semibold text-neutral-100 cursor-pointer hover:bg-surface-container-low mx-2 rounded-lg"
+        className={({ isActive }) =>
+          `group flex items-center gap-2 px-5 py-2 mt-2 text-base font-semibold cursor-pointer mx-2 rounded-lg transition-colors ${
+            isActive
+              ? 'bg-surface-container text-white'
+              : 'text-neutral-100 hover:bg-surface-container-low'
+          }`
+        }
       >
         {inner}
       </NavLink>
@@ -132,7 +138,7 @@ export function Sidebar({ mode = 'normal' }: SidebarProps) {
           <CompactRailItem path="/feed" icon={<Compass />} label={getString('sidebar_flowneuron')} />
           {showMusicNav && <CompactRailItem path="/music" icon={<Music2 />} label={getString('sidebar_music')} />}
           <CompactRailItem path="/subscriptions" icon={<Users />} label={getString('sidebar_subscriptions')} />
-          <CompactRailItem path="/history" icon={<UserCircle />} label={getString('sidebar_you')} />
+          <CompactRailItem path="/library" icon={<UserCircle />} label={getString('sidebar_you')} />
         </nav>
       </aside>
     );
@@ -191,7 +197,7 @@ export function Sidebar({ mode = 'normal' }: SidebarProps) {
 
       {/* You */}
       <section>
-        <SectionHeader label={getString('sidebar_you')} to="/history" onClick={closeOverlay} />
+        <SectionHeader label={getString('sidebar_you')} to="/library" onClick={closeOverlay} />
         <nav className="mt-1 flex flex-col">
           <SidebarItem to="/history" icon={<History />} label={getString('library_history_label')} onClick={closeOverlay} />
           <SidebarItem to="/playlists" icon={<ListVideo />} label={getString('library_playlists_label')} onClick={closeOverlay} />

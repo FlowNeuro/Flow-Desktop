@@ -311,15 +311,6 @@ function SquareCard({
             >
               <MoreVertical className="h-4 w-4" />
             </button>
-            {!menu.menuPosition ? (
-              <MusicCardMenu
-                actions={menuActions}
-                menuPosition={menu.menuPosition}
-                menuRef={menu.menuRef}
-                onClose={menu.closeMenu}
-                show={menu.showMenu}
-              />
-            ) : null}
           </div>
         ) : null}
         <button
@@ -334,15 +325,12 @@ function SquareCard({
           <Play className="h-5 w-5" fill="currentColor" />
         </button>
       </div>
-      {menu.menuPosition ? (
-        <MusicCardMenu
-          actions={menuActions}
-          menuPosition={menu.menuPosition}
-          menuRef={menu.menuRef}
-          onClose={menu.closeMenu}
-          show={menu.showMenu}
-        />
-      ) : null}
+      <MusicCardMenu
+        actions={menuActions}
+        anchor={menu.anchor}
+        onClose={menu.closeMenu}
+        show={menu.showMenu}
+      />
       <div className="flex flex-col gap-0.5">
         <span className="line-clamp-1 font-medium text-neutral-100">{title}</span>
         {subtitle && <span className="line-clamp-1 text-sm text-neutral-400">{subtitle}</span>}
@@ -621,27 +609,15 @@ function ListRow({
             >
               <MoreVertical className="h-4 w-4" />
             </button>
-            {!menu.menuPosition ? (
-              <MusicCardMenu
-                actions={menuActions}
-                menuPosition={menu.menuPosition}
-                menuRef={menu.menuRef}
-                onClose={menu.closeMenu}
-                show={menu.showMenu}
-              />
-            ) : null}
           </div>
         </div>
       </div>
-      {menu.menuPosition ? (
-        <MusicCardMenu
-          actions={menuActions}
-          menuPosition={menu.menuPosition}
-          menuRef={menu.menuRef}
-          onClose={menu.closeMenu}
-          show={menu.showMenu}
-        />
-      ) : null}
+      <MusicCardMenu
+        actions={menuActions}
+        anchor={menu.anchor}
+        onClose={menu.closeMenu}
+        show={menu.showMenu}
+      />
     </div>
   );
 }

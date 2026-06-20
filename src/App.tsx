@@ -17,6 +17,7 @@ import MusicCollectionPage from "./pages/music/MusicCollectionPage";
 import Search from "./pages/Search";
 import Subscriptions from "./pages/Subscriptions";
 import History from "./pages/History";
+import LibraryPage from "./pages/LibraryPage";
 import Playlists from "./pages/Playlists";
 import PlaylistDetailsPage from "./pages/PlaylistDetailsPage";
 import Settings from "./pages/Settings";
@@ -125,6 +126,9 @@ function App() {
               onPlay={handlePlayVideo}
               onAddToQueue={handleAddToQueue}
             />
+          } />
+          <Route path="library" element={
+            <LibraryPage onPlay={handlePlayVideo} onAddToQueue={handleAddToQueue} />
           } />
           <Route path="history" element={
             <History onPlay={handlePlayVideo} />

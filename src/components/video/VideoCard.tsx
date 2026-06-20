@@ -13,6 +13,7 @@ import { useChannelAvatar } from '../../lib/useChannelAvatar';
 import { isUnavailableYoutubeThumbnail, resolveYoutubeThumbnailCandidates, upgradeAvatarUrl } from '../../lib/thumbnails';
 import { useProxiedImageUrl } from '../../lib/useProxiedImageUrl';
 import { SETTINGS } from '../../lib/settings/schema';
+import { AnchoredPortalMenu, type MenuAnchor } from '../ui/AnchoredPortalMenu';
 
 export interface VideoCardProps {
   video: VideoSummary;
@@ -128,11 +129,10 @@ export function VideoCard({
   const [overriddenTitle, setOverriddenTitle] = useState<string | null>(null);
   const [overriddenThumbnail, setOverriddenThumbnail] = useState<string | null>(null);
   const [showMenu, setShowMenu] = useState(false);
-  const [menuPosition, setMenuPosition] = useState<{ x: number; y: number } | null>(null);
+  const [menuAnchor, setMenuAnchor] = useState<MenuAnchor | null>(null);
   const [dominantColor, setDominantColor] = useState<string | null>(null);
   const [isHovered, setIsHovered] = useState(false);
   const [thumbnailCandidateIndex, setThumbnailCandidateIndex] = useState(0);
-  const menuRef = useRef<HTMLDivElement>(null);
   const cardRef = useRef<HTMLDivElement>(null);
   const thumbnailRef = useRef<HTMLImageElement>(null);
 
@@ -229,33 +229,16 @@ export function VideoCard({
     if (isChannel) return;
     e.preventDefault();
     e.stopPropagation();
-
-    if (cardRef.current) {
-      const rect = cardRef.current.getBoundingClientRect();
-      setMenuPosition({
-        x: e.clientX - rect.left,
-        y: e.clientY - rect.top,
-      });
-    }
+    setMenuAnchor({ top: e.clientY, left: e.clientX });
     setShowMenu(true);
   }, [isChannel]);
 
   const openMenuFromDots = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
-    setMenuPosition(null);
+    const rect = e.currentTarget.getBoundingClientRect();
+    setMenuAnchor({ top: rect.bottom + 4, right: rect.right });
     setShowMenu((prev) => !prev);
   }, []);
-
-  useEffect(() => {
-    if (!showMenu) return;
-    const handleClick = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setShowMenu(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, [showMenu]);
 
   const subStatus = isSubscribed(isChannel ? cleanId : channelId);
   const isHistoryCard = variant === 'history';
@@ -295,16 +278,12 @@ export function VideoCard({
 
   // ── Menu dropdown ───
   const renderMenu = () => {
-    if (!showMenu) return null;
-
-    const positionStyle: React.CSSProperties = menuPosition
-      ? { position: 'absolute', left: menuPosition.x, top: menuPosition.y, right: 'auto' }
-      : { position: 'absolute', right: 0, top: 28 };
+    if (!showMenu || !menuAnchor) return null;
 
     return (
-      <div
-        ref={menuRef}
-        style={positionStyle}
+      <AnchoredPortalMenu
+        anchor={menuAnchor}
+        onClose={() => setShowMenu(false)}
         className="z-50 w-52 rounded-xl border border-neutral-800 bg-surface-container-high py-1.5"
       >
         {onAddToQueue && (
@@ -366,7 +345,7 @@ export function VideoCard({
             Don't show this channel
           </button>
         )}
-      </div>
+      </AnchoredPortalMenu>
     );
   };
 
@@ -481,10 +460,9 @@ export function VideoCard({
           >
             <MoreVertical size={18} />
           </button>
-          {showMenu && !menuPosition && renderMenu()}
         </div>
 
-        {showMenu && menuPosition && renderMenu()}
+        {renderMenu()}
       </div>
     );
   }
@@ -582,10 +560,9 @@ export function VideoCard({
           >
             <MoreVertical size={18} />
           </button>
-          {showMenu && !menuPosition && renderMenu()}
         </div>
 
-        {showMenu && menuPosition && renderMenu()}
+        {renderMenu()}
       </div>
     );
   }
@@ -711,14 +688,10 @@ export function VideoCard({
           >
             <MoreVertical size={18} />
           </button>
-
-          {/* Dropdown from dots (positioned relative to button) */}
-          {showMenu && !menuPosition && renderMenu()}
         </div>
       </div>
 
-      {/* Context menu (positioned at mouse coords) */}
-      {showMenu && menuPosition && renderMenu()}
+      {renderMenu()}
     </div>
   );
 }

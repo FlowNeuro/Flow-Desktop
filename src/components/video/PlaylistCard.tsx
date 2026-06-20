@@ -5,6 +5,7 @@ import { Download, ListVideo, MoreVertical, Plus, Trash2 } from 'lucide-react';
 import type { PlaylistSummary } from '../../types/video';
 import { isPlaylistInLibrary, removePlaylistFromLibrary, savePlaylistToLibrary } from '../../lib/playlistLibrary';
 import { useUiStore } from '../../store/useUiStore';
+import { AnchoredPortalMenu, type MenuAnchor } from '../ui/AnchoredPortalMenu';
 
 interface PlaylistCardProps {
   playlist: PlaylistSummary & {
@@ -93,10 +94,9 @@ export function PlaylistCard({
 }: PlaylistCardProps) {
   const navigate = useNavigate();
   const [showMenu, setShowMenu] = useState(false);
-  const [menuPosition, setMenuPosition] = useState<{ x: number; y: number } | null>(null);
+  const [menuAnchor, setMenuAnchor] = useState<MenuAnchor | null>(null);
   const [isSaved, setIsSaved] = useState(Boolean(isInLibrary));
   const cardRef = useRef<HTMLDivElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
   const showToast = useUiStore((state) => state.showToast);
 
   const resolvedVideoCount = typeof playlist.videoCount === 'number' && playlist.videoCount > 0
@@ -111,36 +111,16 @@ export function PlaylistCard({
   const handleContextMenu = useCallback((event: React.MouseEvent) => {
     event.preventDefault();
     event.stopPropagation();
-
-    if (cardRef.current) {
-      const rect = cardRef.current.getBoundingClientRect();
-      setMenuPosition({
-        x: event.clientX - rect.left,
-        y: event.clientY - rect.top,
-      });
-    }
-
+    setMenuAnchor({ top: event.clientY, left: event.clientX });
     setShowMenu(true);
   }, []);
 
   const openMenuFromDots = useCallback((event: React.MouseEvent) => {
     event.stopPropagation();
-    setMenuPosition(null);
+    const rect = event.currentTarget.getBoundingClientRect();
+    setMenuAnchor({ top: rect.bottom + 4, right: rect.right });
     setShowMenu((current) => !current);
   }, []);
-
-  useEffect(() => {
-    if (!showMenu) return;
-
-    const handleClick = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setShowMenu(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, [showMenu]);
 
   useEffect(() => {
     if (typeof isInLibrary === 'boolean') {
@@ -216,18 +196,13 @@ export function PlaylistCard({
   };
 
   const renderMenu = () => {
-    if (!showMenu) return null;
-
-    const positionStyle: React.CSSProperties = menuPosition
-      ? { position: 'absolute', left: menuPosition.x, top: menuPosition.y, right: 'auto' }
-      : { position: 'absolute', right: 0, top: 32 };
+    if (!showMenu || !menuAnchor) return null;
 
     return (
-      <div
-        ref={menuRef}
-        style={positionStyle}
+      <AnchoredPortalMenu
+        anchor={menuAnchor}
+        onClose={() => setShowMenu(false)}
         className="z-50 w-52 rounded-xl border border-neutral-800 bg-surface-container-high py-1.5"
-        onClick={(event) => event.stopPropagation()}
       >
         {isSaved ? (
           <button
@@ -256,7 +231,7 @@ export function PlaylistCard({
           <Download size={16} />
           Download
         </button>
-      </div>
+      </AnchoredPortalMenu>
     );
   };
 
@@ -299,11 +274,10 @@ export function PlaylistCard({
             <MoreVertical size={18} />
           </button>
 
-          {showMenu && !menuPosition && renderMenu()}
         </div>
       </div>
 
-      {showMenu && menuPosition && renderMenu()}
+      {renderMenu()}
     </div>
   );
 }

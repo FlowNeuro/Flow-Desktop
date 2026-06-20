@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
+import { AnchoredPortalMenu, type MenuAnchor } from '../ui/AnchoredPortalMenu';
 
 export type MusicMenuAction = {
   id: string;
@@ -7,16 +8,13 @@ export type MusicMenuAction = {
   onSelect: () => void | Promise<void>;
 };
 
-type MenuPosition = { x: number; y: number } | null;
-
 function cx(...parts: Array<string | false | null | undefined>): string {
   return parts.filter(Boolean).join(' ');
 }
 
 export function useMusicContextMenu(enabled = true) {
   const [showMenu, setShowMenu] = useState(false);
-  const [menuPosition, setMenuPosition] = useState<MenuPosition>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
+  const [anchor, setAnchor] = useState<MenuAnchor | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
 
   const closeMenu = useCallback(() => setShowMenu(false), []);
@@ -26,7 +24,8 @@ export function useMusicContextMenu(enabled = true) {
       if (!enabled) return;
       event.preventDefault();
       event.stopPropagation();
-      setMenuPosition(null);
+      const rect = event.currentTarget.getBoundingClientRect();
+      setAnchor({ top: rect.bottom + 4, right: rect.right });
       setShowMenu((current) => !current);
     },
     [enabled],
@@ -37,29 +36,16 @@ export function useMusicContextMenu(enabled = true) {
       if (!enabled) return;
       event.preventDefault();
       event.stopPropagation();
-      const rect = cardRef.current?.getBoundingClientRect();
-      setMenuPosition(rect ? { x: event.clientX - rect.left, y: event.clientY - rect.top } : null);
+      setAnchor({ top: event.clientY, left: event.clientX });
       setShowMenu(true);
     },
     [enabled],
   );
 
-  useEffect(() => {
-    if (!showMenu) return;
-    const handleClick = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        closeMenu();
-      }
-    };
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, [closeMenu, showMenu]);
-
   return {
     cardRef,
     closeMenu,
-    menuPosition,
-    menuRef,
+    anchor,
     openMenuFromContext,
     openMenuFromDots,
     showMenu,
@@ -68,30 +54,23 @@ export function useMusicContextMenu(enabled = true) {
 
 export function MusicCardMenu({
   actions,
+  anchor,
   className,
-  menuPosition,
-  menuRef,
   onClose,
   show,
 }: {
   actions: MusicMenuAction[];
+  anchor: MenuAnchor | null;
   className?: string;
-  menuPosition: MenuPosition;
-  menuRef: React.RefObject<HTMLDivElement | null>;
   onClose: () => void;
   show: boolean;
 }) {
-  if (!show || actions.length === 0) return null;
-
-  const positionStyle: React.CSSProperties = menuPosition
-    ? { position: 'absolute', left: menuPosition.x, top: menuPosition.y, right: 'auto' }
-    : { position: 'absolute', right: 0, top: 34 };
+  if (!show || !anchor || actions.length === 0) return null;
 
   return (
-    <div
-      ref={menuRef}
-      style={positionStyle}
-      onContextMenu={(event) => event.preventDefault()}
+    <AnchoredPortalMenu
+      anchor={anchor}
+      onClose={onClose}
       className={cx(
         'z-50 w-52 rounded-xl border border-neutral-800 bg-surface-container-high py-1.5',
         className,
@@ -113,7 +92,6 @@ export function MusicCardMenu({
           <span className="min-w-0 flex-1 truncate">{action.label}</span>
         </button>
       ))}
-    </div>
+    </AnchoredPortalMenu>
   );
 }
-

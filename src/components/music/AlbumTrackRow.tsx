@@ -307,27 +307,15 @@ export function AlbumTrackRow({
             >
               <MoreVertical className="h-4 w-4" />
             </button>
-            {!menu.menuPosition ? (
-              <MusicCardMenu
-                actions={menuActions}
-                menuPosition={menu.menuPosition}
-                menuRef={menu.menuRef}
-                onClose={menu.closeMenu}
-                show={menu.showMenu}
-              />
-            ) : null}
           </div>
         </div>
       </div>
-      {menu.menuPosition ? (
-        <MusicCardMenu
-          actions={menuActions}
-          menuPosition={menu.menuPosition}
-          menuRef={menu.menuRef}
-          onClose={menu.closeMenu}
-          show={menu.showMenu}
-        />
-      ) : null}
+      <MusicCardMenu
+        actions={menuActions}
+        anchor={menu.anchor}
+        onClose={menu.closeMenu}
+        show={menu.showMenu}
+      />
     </div>
   );
 }
