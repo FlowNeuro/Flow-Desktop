@@ -207,14 +207,14 @@ export const LibraryPage: React.FC<LibraryPageProps> = ({ onPlay, onAddToQueue }
         <VideoShelfRow videos={watchLater} onPlay={onPlay} onAddToQueue={onAddToQueue} />
       </LibraryShelf>
 
-      {/* Liked Videos */}
+      {/* Likes */}
       <LibraryShelf
-        title={getString("library_liked_videos_label")}
+        title={getString("library_likes_label")}
         icon={ThumbsUp}
         viewAllTo="/liked"
         isEmpty={isEmpty(liked.length)}
       >
-        <VideoShelfRow videos={liked} onPlay={onPlay} onAddToQueue={onAddToQueue} />
+        <HistoryShelfRow items={liked} onPlay={onPlay} onAddToQueue={onAddToQueue} />
       </LibraryShelf>
 
       {/* Downloads */}

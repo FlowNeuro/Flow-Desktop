@@ -7,7 +7,9 @@ import {
   storedPlaylistToCardSummary,
   WATCH_LATER_PLAYLIST_ID,
 } from "./playlistLibrary";
+import { likedItemToHistoryVideo } from "./useLikes";
 import { useAlbumLibraryStore } from "../store/useAlbumLibraryStore";
+import { LIKES_LIBRARY_UPDATED_EVENT, useLikesStore } from "../store/useLikesStore";
 import type { VideoSummary } from "../types/video";
 
 const SHELF_PREVIEW_LIMIT = 15;
@@ -18,7 +20,7 @@ interface AsyncLibraryData {
   history: HistoryVideo[];
   playlists: LibraryPlaylist[];
   watchLater: VideoSummary[];
-  liked: VideoSummary[];
+  liked: HistoryVideo[];
   downloads: VideoSummary[];
 }
 
@@ -59,12 +61,16 @@ export function useLibrary() {
       const watchLaterPlaylist = storedPlaylists.find((playlist) => (
         playlist.id === WATCH_LATER_PLAYLIST_ID
       ));
+      await useLikesStore.getState().load();
+      const liked = useLikesStore.getState().items
+        .map(likedItemToHistoryVideo)
+        .slice(0, SHELF_PREVIEW_LIMIT);
 
       setData({
         history: historyRecords.map(mapHistoryRecordToVideo),
         playlists: storedPlaylists.map(storedPlaylistToCardSummary),
         watchLater: watchLaterPlaylist?.tracks.slice(0, SHELF_PREVIEW_LIMIT) ?? [],
-        liked: [],
+        liked,
         downloads: [],
       });
     } finally {
@@ -78,7 +84,11 @@ export function useLibrary() {
 
   useEffect(() => {
     window.addEventListener(PLAYLIST_LIBRARY_UPDATED_EVENT, refresh);
-    return () => window.removeEventListener(PLAYLIST_LIBRARY_UPDATED_EVENT, refresh);
+    window.addEventListener(LIKES_LIBRARY_UPDATED_EVENT, refresh);
+    return () => {
+      window.removeEventListener(PLAYLIST_LIBRARY_UPDATED_EVENT, refresh);
+      window.removeEventListener(LIKES_LIBRARY_UPDATED_EVENT, refresh);
+    };
   }, [refresh]);
 
   return { ...data, savedAlbums, loading, refresh };

@@ -5,6 +5,7 @@ import { useFeedActionsStore } from "./store/useFeedActionsStore";
 import { useAppSettingsStore } from "./store/useAppSettingsStore";
 import { useSettingsStore } from "./store/useSettingsStore";
 import { useAlbumLibraryStore } from "./store/useAlbumLibraryStore";
+import { useLikesStore } from "./store/useLikesStore";
 import { getOnboardingStatus } from "./lib/api/recommendation";
 import { WATCH_LATER_PLAYLIST_ID } from "./lib/playlistLibrary";
 import type { VideoSummary } from "./types/video";
@@ -19,6 +20,7 @@ import MusicCollectionPage from "./pages/music/MusicCollectionPage";
 import Search from "./pages/Search";
 import Subscriptions from "./pages/Subscriptions";
 import History from "./pages/History";
+import Likes from "./pages/Likes";
 import LibraryPage from "./pages/LibraryPage";
 import AlbumsLibrary from "./pages/AlbumsLibrary";
 import Playlists from "./pages/Playlists";
@@ -53,6 +55,7 @@ function App() {
     void useAppSettingsStore.getState().loadSettings();
     void useSettingsStore.getState().loadSettings();
     void useAlbumLibraryStore.getState().load();
+    void useLikesStore.getState().load();
   }, []);
 
   // Check onboarding state from sqlite db setting
@@ -149,6 +152,9 @@ function App() {
           } />
           <Route path="history" element={
             <History onPlay={handlePlayVideo} />
+          } />
+          <Route path="liked" element={
+            <Likes onPlay={handlePlayVideo} />
           } />
           <Route path="settings" element={
             <Settings />

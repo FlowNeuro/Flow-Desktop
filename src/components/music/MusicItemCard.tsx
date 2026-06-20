@@ -6,6 +6,7 @@ import { upgradeAvatarUrl, upgradeMusicImageUrl } from '../../lib/thumbnails';
 import { extractDominantColorFromImage, useDominantColor } from '../../lib/useDominantColor';
 import { useMusicPlayerStore } from '../../store/useMusicPlayerStore';
 import { useAlbumLibraryStore } from '../../store/useAlbumLibraryStore';
+import { useLikesStore } from '../../store/useLikesStore';
 import { useUiStore } from '../../store/useUiStore';
 import { useProxiedImageUrl } from '../../lib/useProxiedImageUrl';
 import { PlayingWave } from './PlayingWave';
@@ -54,6 +55,39 @@ function artistsText(artists?: { name: string }[] | null): string {
 
 function videoIdOf(track: SongItem): string {
   return track.videoId ?? track.id;
+}
+
+function useSongLike(track: SongItem | null | undefined) {
+  const likedItems = useLikesStore((s) => s.items);
+  const loaded = useLikesStore((s) => s.loaded);
+  const load = useLikesStore((s) => s.load);
+  const toggleSong = useLikesStore((s) => s.toggleSong);
+  const showToast = useUiStore((s) => s.showToast);
+
+  useEffect(() => {
+    if (!loaded) void load();
+  }, [load, loaded]);
+
+  const trackId = track ? videoIdOf(track) : "";
+  const liked = Boolean(
+    track && likedItems.some((item) => item.kind === "music" && item.id === trackId),
+  );
+
+  const toggle = async () => {
+    if (!track) return;
+    try {
+      const nowLiked = await toggleSong(track);
+      showToast({
+        variant: "success",
+        message: getString(nowLiked ? "liked_added_toast" : "liked_removed_toast"),
+      });
+    } catch (error) {
+      console.warn("Failed to update song like", error);
+      showToast({ variant: "error", message: getString("liked_update_failed") });
+    }
+  };
+
+  return { liked, toggle };
 }
 
 function colorBackground(color: { r: number; g: number; b: number } | null): React.CSSProperties {
@@ -201,12 +235,12 @@ function SquareCard({
   className?: string;
   fill?: boolean;
 }) {
-  const [liked, setLiked] = useState(false);
   const addToQueue = useMusicPlayerStore((s) => s.addToQueue);
   const playNextInQueue = useMusicPlayerStore((s) => s.playNextInQueue);
   const menu = useMusicContextMenu(Boolean(menuKind));
   const isTrack = menuKind === 'track' && item && 'videoId' in item;
   const isAlbum = menuKind === 'album' && item && 'browseId' in item;
+  const songLike = useSongLike(isTrack ? item : null);
 
   const albumBrowseId = isAlbum ? item.browseId : null;
   const albumSaved = useAlbumLibraryStore((s) => (albumBrowseId ? s.isSaved(albumBrowseId) : false));
@@ -302,17 +336,17 @@ function SquareCard({
           <button
             type="button"
             aria-label={getString('music_like_track')}
-            aria-pressed={liked}
+            aria-pressed={songLike.liked}
             onClick={(event) => {
               event.stopPropagation();
-              setLiked((current) => !current);
+              void songLike.toggle();
             }}
             className={cx(
               'absolute left-2 top-2 grid h-9 w-9 place-items-center rounded-full bg-neutral-950/80 text-neutral-200 opacity-0 backdrop-blur transition-all duration-200 ease-out hover:bg-neutral-900 group-hover:opacity-100',
-              liked ? 'text-[var(--color-primary)] opacity-100' : null,
+              songLike.liked ? 'text-[var(--color-primary)] opacity-100' : null,
             )}
           >
-            <Heart className="h-4 w-4" fill={liked ? 'currentColor' : 'none'} />
+            <Heart className="h-4 w-4" fill={songLike.liked ? 'currentColor' : 'none'} />
           </button>
         ) : null}
         {menuKind ? (
@@ -471,7 +505,7 @@ function ListRow({
   const duration = formatDuration(item.duration);
   const explicit = item.explicit;
   const [isHovered, setIsHovered] = useState(false);
-  const [liked, setLiked] = useState(false);
+  const songLike = useSongLike(item);
   const [dominantColor, setDominantColor] = useState<{ r: number; g: number; b: number } | null>(null);
   const artworkRef = useRef<HTMLImageElement | null>(null);
   const colorImageSrc = useProxiedImageUrl(upgradeMusicImageUrl(item.thumbnail, 320));
@@ -609,17 +643,17 @@ function ListRow({
           <button
             type="button"
             aria-label={getString('music_like_track')}
-            aria-pressed={liked}
+            aria-pressed={songLike.liked}
             onClick={(event) => {
               event.stopPropagation();
-              setLiked((current) => !current);
+              void songLike.toggle();
             }}
             className={cx(
               'grid h-8 w-8 place-items-center rounded-full text-neutral-400 transition-colors duration-200 ease-out hover:bg-surface-container-high hover:text-neutral-100',
-              liked ? 'text-[var(--color-primary)]' : null,
+              songLike.liked ? 'text-[var(--color-primary)]' : null,
             )}
           >
-            <Heart className="h-4 w-4" fill={liked ? 'currentColor' : 'none'} />
+            <Heart className="h-4 w-4" fill={songLike.liked ? 'currentColor' : 'none'} />
           </button>
           <div className="relative">
             <button

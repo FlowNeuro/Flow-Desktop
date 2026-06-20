@@ -1,5 +1,8 @@
 import { useEffect, useState } from "react";
 import { logInteraction, markNotInterested } from "./api/recommendation";
+import { getString } from "./i18n/index";
+import { useLikesStore } from "../store/useLikesStore";
+import { useUiStore } from "../store/useUiStore";
 import type { VideoSummary } from "../types/video";
 
 export type ReactionState = "none" | "liked" | "disliked";
@@ -15,18 +18,43 @@ interface ReactionVideoMeta {
  */
 export function useVideoReactions(video: VideoSummary | null, videoMeta: ReactionVideoMeta | null) {
   const [state, setState] = useState<ReactionState>("none");
+  const items = useLikesStore((s) => s.items);
+  const loaded = useLikesStore((s) => s.loaded);
+  const loadLikes = useLikesStore((s) => s.load);
+  const toggleVideoLike = useLikesStore((s) => s.toggleVideo);
+  const showToast = useUiStore((s) => s.showToast);
+
+  const likedInLibrary = Boolean(
+    video && items.some((item) => item.kind === "video" && item.id === video.id),
+  );
 
   useEffect(() => {
-    setState("none");
-  }, [video?.id]);
+    if (!loaded) void loadLikes();
+  }, [loadLikes, loaded]);
+
+  useEffect(() => {
+    setState(likedInLibrary ? "liked" : "none");
+  }, [likedInLibrary, video?.id]);
 
   const channelId = videoMeta?.channelId || video?.channelId || video?.id || "";
   const isShort = (video?.durationSeconds ?? 0) <= 60;
 
   const like = () => {
     if (!video) return;
-    const next: ReactionState = state === "liked" ? "none" : "liked";
+    const next: ReactionState = likedInLibrary ? "none" : "liked";
     setState(next);
+    void toggleVideoLike({
+      ...video,
+      channelId,
+    }).then((nowLiked) => {
+      showToast({
+        variant: "success",
+        message: getString(nowLiked ? "liked_added_toast" : "liked_removed_toast"),
+      });
+    }).catch((err) => {
+      console.warn("Failed to update likes", err);
+      showToast({ variant: "error", message: getString("liked_update_failed") });
+    });
     if (next !== "liked") return;
     void logInteraction(
       video.id,
@@ -47,6 +75,11 @@ export function useVideoReactions(video: VideoSummary | null, videoMeta: Reactio
     const next: ReactionState = state === "disliked" ? "none" : "disliked";
     setState(next);
     if (next !== "disliked") return;
+    if (likedInLibrary) {
+      void toggleVideoLike({ ...video, channelId }).catch((err) => (
+        console.warn("Failed to remove disliked video from likes", err)
+      ));
+    }
     void markNotInterested(
       video.id,
       video.title,

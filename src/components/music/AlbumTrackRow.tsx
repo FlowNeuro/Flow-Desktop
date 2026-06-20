@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Disc3, Download, Heart, ListMusic, ListPlus, MoreVertical, Music2, Play, Share2, Trash2, Volume2 } from 'lucide-react';
+import { Disc3, Download, Heart, ListPlus, MoreVertical, Music2, Play, Share2, Trash2, Volume2 } from 'lucide-react';
 
 import { getString } from '../../lib/i18n/index';
 import { artistsText, formatTime } from '../../lib/musicFormat';
@@ -8,6 +8,8 @@ import { extractDominantColorFromImage, useDominantColor } from '../../lib/useDo
 import { useProxiedImageUrl } from '../../lib/useProxiedImageUrl';
 import { useMusicPlayerStore } from '../../store/useMusicPlayerStore';
 import { useAlbumLibraryStore } from '../../store/useAlbumLibraryStore';
+import { useLikesStore } from '../../store/useLikesStore';
+import { useUiStore } from '../../store/useUiStore';
 import type { SongItem } from '../../types/music';
 import { MusicCardMenu, type MusicMenuAction, useMusicContextMenu } from './MusicCardMenu';
 import { PlayingWave } from './PlayingWave';
@@ -73,6 +75,36 @@ function logMusicAction(action: string, id: string) {
   console.info(`${action} requested`, id);
 }
 
+function useSongLike(track: SongItem) {
+  const likedItems = useLikesStore((s) => s.items);
+  const loaded = useLikesStore((s) => s.loaded);
+  const load = useLikesStore((s) => s.load);
+  const toggleSong = useLikesStore((s) => s.toggleSong);
+  const showToast = useUiStore((s) => s.showToast);
+  const trackId = videoIdOf(track);
+
+  useEffect(() => {
+    if (!loaded) void load();
+  }, [load, loaded]);
+
+  const liked = likedItems.some((item) => item.kind === 'music' && item.id === trackId);
+
+  const toggle = async () => {
+    try {
+      const nowLiked = await toggleSong(track);
+      showToast({
+        variant: 'success',
+        message: getString(nowLiked ? 'liked_added_toast' : 'liked_removed_toast'),
+      });
+    } catch (error) {
+      console.warn('Failed to update song like', error);
+      showToast({ variant: 'error', message: getString('liked_update_failed') });
+    }
+  };
+
+  return { liked, toggle };
+}
+
 function TrackArtwork({
   track,
   onLoad,
@@ -129,7 +161,7 @@ export function AlbumTrackRow({
   const duration = track.duration == null ? '' : formatTime(track.duration);
   const showEq = isCurrent && isPlaying;
   const [isHovered, setIsHovered] = useState(false);
-  const [liked, setLiked] = useState(false);
+  const songLike = useSongLike(track);
   const [dominantColor, setDominantColor] = useState<{ r: number; g: number; b: number } | null>(null);
   const artworkRef = useRef<HTMLImageElement | null>(null);
   const colorImageSrc = useProxiedImageUrl(upgradeMusicImageUrl(track.thumbnail, 320));
@@ -298,18 +330,18 @@ export function AlbumTrackRow({
           <button
             type="button"
             aria-label={getString('music_like_track')}
-            aria-pressed={liked}
+            aria-pressed={songLike.liked}
             onClick={(event) => {
               event.stopPropagation();
-              setLiked((current) => !current);
+              void songLike.toggle();
               onLike?.(track);
             }}
             className={cx(
               'grid h-8 w-8 place-items-center rounded-full text-neutral-400 transition-colors duration-200 ease-out hover:bg-surface-container-high hover:text-neutral-100',
-              liked ? 'text-[var(--color-primary)]' : null,
+              songLike.liked ? 'text-[var(--color-primary)]' : null,
             )}
           >
-            <Heart className="h-4 w-4" fill={liked ? 'currentColor' : 'none'} />
+            <Heart className="h-4 w-4" fill={songLike.liked ? 'currentColor' : 'none'} />
           </button>
           <div className="relative">
             <button

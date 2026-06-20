@@ -19,6 +19,8 @@ import {
 } from "lucide-react";
 
 import { useMusicPlayerStore } from "../../store/useMusicPlayerStore";
+import { useLikesStore } from "../../store/useLikesStore";
+import { useUiStore } from "../../store/useUiStore";
 import { getString } from "../../lib/i18n/index";
 import { artistsText } from "../../lib/musicFormat";
 import { HapticButton } from "./HapticButton";
@@ -63,16 +65,43 @@ export function MusicOverlay() {
   const setViewState = useMusicPlayerStore((s) => s.setViewState);
   const closeOverlay = useMusicPlayerStore((s) => s.closeOverlay);
   const seek = useMusicPlayerStore((s) => s.seek);
+  const likedItems = useLikesStore((s) => s.items);
+  const likesLoaded = useLikesStore((s) => s.loaded);
+  const loadLikes = useLikesStore((s) => s.load);
+  const toggleSongLike = useLikesStore((s) => s.toggleSong);
+  const showToast = useUiStore((s) => s.showToast);
 
   const [eqOpen, setEqOpen] = useState(false);
-  const [liked, setLiked] = useState(false); // visual only — pending music-library backend
   const lyrics = useLyrics(currentTrack);
   const accent = useDominantColor(currentTrack?.thumbnail ?? null);
+  const liked = Boolean(
+    currentTrack && likedItems.some((item) => (
+      item.kind === "music" && item.id === (currentTrack.videoId ?? currentTrack.id)
+    )),
+  );
 
   const open = currentTrack !== null && viewState !== "dock";
   const isQueue = viewState === "queue";
   const isLyrics = viewState === "lyrics";
   const loading = isBuffering || loadingStreamId !== null;
+
+  useEffect(() => {
+    if (!likesLoaded) void loadLikes();
+  }, [likesLoaded, loadLikes]);
+
+  const handleLike = async () => {
+    if (!currentTrack) return;
+    try {
+      const nowLiked = await toggleSongLike(currentTrack);
+      showToast({
+        variant: "success",
+        message: getString(nowLiked ? "liked_added_toast" : "liked_removed_toast"),
+      });
+    } catch (error) {
+      console.warn("Failed to update music like", error);
+      showToast({ variant: "error", message: getString("liked_update_failed") });
+    }
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -242,7 +271,7 @@ export function MusicOverlay() {
                   </div>
                   <div className="flex shrink-0 items-center gap-1">
                     <HapticButton
-                      onClick={() => setLiked((v) => !v)}
+                      onClick={() => void handleLike()}
                       aria-label={getString("music_like")}
                       aria-pressed={liked}
                       className={liked ? `${META_BTN} text-[var(--color-primary)]` : META_BTN}
