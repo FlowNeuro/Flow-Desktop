@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { getWatchHistory } from "./api/db";
 import { mapHistoryRecordToVideo, type HistoryVideo } from "./useHistory";
-import { loadStoredPlaylists, storedPlaylistToCardSummary } from "./playlistLibrary";
+import {
+  loadStoredPlaylists,
+  PLAYLIST_LIBRARY_UPDATED_EVENT,
+  storedPlaylistToCardSummary,
+  WATCH_LATER_PLAYLIST_ID,
+} from "./playlistLibrary";
 import { useAlbumLibraryStore } from "../store/useAlbumLibraryStore";
 import type { VideoSummary } from "../types/video";
 
@@ -51,10 +56,14 @@ export function useLibrary() {
         }),
       ]);
 
+      const watchLaterPlaylist = storedPlaylists.find((playlist) => (
+        playlist.id === WATCH_LATER_PLAYLIST_ID
+      ));
+
       setData({
         history: historyRecords.map(mapHistoryRecordToVideo),
         playlists: storedPlaylists.map(storedPlaylistToCardSummary),
-        watchLater: [],
+        watchLater: watchLaterPlaylist?.tracks.slice(0, SHELF_PREVIEW_LIMIT) ?? [],
         liked: [],
         downloads: [],
       });
@@ -65,6 +74,11 @@ export function useLibrary() {
 
   useEffect(() => {
     void refresh();
+  }, [refresh]);
+
+  useEffect(() => {
+    window.addEventListener(PLAYLIST_LIBRARY_UPDATED_EVENT, refresh);
+    return () => window.removeEventListener(PLAYLIST_LIBRARY_UPDATED_EVENT, refresh);
   }, [refresh]);
 
   return { ...data, savedAlbums, loading, refresh };

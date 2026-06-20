@@ -3,6 +3,7 @@ import { getPlaylistDetails } from "./api/youtube";
 import {
   formatVideoCountText,
   getStoredPlaylistById,
+  isProtectedPlaylistId,
   normalizePlaylist,
   resolvePlaylistTitle,
   type StoredPlaylist,
@@ -45,23 +46,25 @@ export function usePlaylistDetails(playlistId: string | undefined) {
 
       let remoteVideos: VideoSummary[] = [];
       let remoteTitle: string | null = null;
-      let remoteChannel = "YouTube";
+      let remoteChannel = isProtectedPlaylistId(playlistId) ? "Flow" : "YouTube";
       let remoteDescription: string | null = null;
       let remoteCount: number | null = null;
       let remoteViewCountText: string | null = null;
 
-      try {
-        const details = await getPlaylistDetails(playlistId);
-        remoteVideos = details.videos ?? [];
-        remoteTitle = details.title;
-        remoteChannel = details.channelName || remoteChannel;
-        remoteDescription = details.description ?? null;
-        remoteCount = details.videoCount ?? remoteVideos.length;
-        remoteViewCountText = details.viewCountText ?? null;
-      } catch (fetchError) {
-        console.warn("Failed to fetch remote playlist details", fetchError);
-        if (!normalizedStored) {
-          throw fetchError;
+      if (!isProtectedPlaylistId(playlistId)) {
+        try {
+          const details = await getPlaylistDetails(playlistId);
+          remoteVideos = details.videos ?? [];
+          remoteTitle = details.title;
+          remoteChannel = details.channelName || remoteChannel;
+          remoteDescription = details.description ?? null;
+          remoteCount = details.videoCount ?? remoteVideos.length;
+          remoteViewCountText = details.viewCountText ?? null;
+        } catch (fetchError) {
+          console.warn("Failed to fetch remote playlist details", fetchError);
+          if (!normalizedStored) {
+            throw fetchError;
+          }
         }
       }
 
@@ -86,7 +89,9 @@ export function usePlaylistDetails(playlistId: string | undefined) {
       );
 
       const updatedAt = normalizedStored?.createdAt;
-      const updatedLabel = updatedAt
+      const updatedLabel = normalizedStored?.isProtected
+        ? "Built-in playlist"
+        : updatedAt
         ? formatUpdatedLabel(updatedAt)
         : "Updated recently";
 

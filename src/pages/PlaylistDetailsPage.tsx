@@ -13,12 +13,18 @@ import { usePlayerStore } from "../store/usePlayerStore";
 import type { VideoSummary } from "../types/video";
 
 interface PlaylistDetailsPageProps {
+  playlistIdOverride?: string;
   onPlay: (video: VideoSummary) => void;
   onAddToQueue?: (video: VideoSummary) => void;
 }
 
-export function PlaylistDetailsPage({ onPlay, onAddToQueue }: PlaylistDetailsPageProps) {
-  const { playlistId } = useParams<{ playlistId: string }>();
+export function PlaylistDetailsPage({
+  playlistIdOverride,
+  onPlay,
+  onAddToQueue,
+}: PlaylistDetailsPageProps) {
+  const params = useParams<{ playlistId: string }>();
+  const playlistId = playlistIdOverride ?? params.playlistId;
   const navigate = useNavigate();
   const setQueue = usePlayerStore((state) => state.setQueue);
 

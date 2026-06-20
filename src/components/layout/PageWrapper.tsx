@@ -9,7 +9,9 @@ export function PageWrapper() {
   const { isWatchSidebarOpen, setWatchSidebarOpen } = useUiStore();
   const isWatchPage = location.pathname.startsWith('/watch/');
   const isSettingsPage = location.pathname.startsWith('/settings');
-  const isPlaylistDetailsPage = location.pathname.startsWith('/playlist/');
+  const isPlaylistDetailsPage =
+    location.pathname.startsWith('/playlist/') ||
+    location.pathname === '/watch-later';
   const isMusicCollectionPage =
     location.pathname.startsWith('/music/album/') ||
     location.pathname.startsWith('/music/playlist/');

@@ -228,12 +228,6 @@ function SquareCard({
           onSelect: () => playNextInQueue(item),
         },
         {
-          id: 'add-to-playlist',
-          label: getString('music_add_to_playlist'),
-          icon: <ListMusic size={16} />,
-          onSelect: () => logMusicAction('Add to playlist', videoIdOf(item)),
-        },
-        {
           id: 'add-to-album',
           label: getString('music_add_to_album'),
           icon: <Disc3 size={16} />,

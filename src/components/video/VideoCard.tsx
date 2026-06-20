@@ -2,7 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { useSubscriptionStore } from '../../store/useSubscriptionStore';
 import { useFeedActionsStore } from '../../store/useFeedActionsStore';
 import { useLiveStore } from '../../store/useLiveStore';
-import { Plus, Ban, Check, MoreVertical, Trash2, GripHorizontal, Sparkles, Eye, EyeOff } from 'lucide-react';
+import { Plus, Ban, Check, MoreVertical, Trash2, GripHorizontal, Sparkles, Eye, EyeOff, Clock } from 'lucide-react';
 import type { VideoSummary } from '../../types/video';
 import { Button } from '../ui/Button';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
@@ -14,6 +14,13 @@ import { isUnavailableYoutubeThumbnail, resolveYoutubeThumbnailCandidates, upgra
 import { useProxiedImageUrl } from '../../lib/useProxiedImageUrl';
 import { SETTINGS } from '../../lib/settings/schema';
 import { AnchoredPortalMenu, type MenuAnchor } from '../ui/AnchoredPortalMenu';
+import { getString } from '../../lib/i18n/index';
+import {
+  addVideoToWatchLater,
+  isVideoInWatchLater,
+  removeVideoFromWatchLater,
+} from '../../lib/playlistLibrary';
+import { useUiStore } from '../../store/useUiStore';
 
 export interface VideoCardProps {
   video: VideoSummary;
@@ -126,12 +133,14 @@ export function VideoCard({
   const blockChannelAction = useFeedActionsStore((s) => s.blockChannel);
   const markWatched = useFeedActionsStore((s) => s.markWatched);
   const moreLikeThis = useFeedActionsStore((s) => s.moreLikeThis);
+  const showToast = useUiStore((s) => s.showToast);
   const [overriddenTitle, setOverriddenTitle] = useState<string | null>(null);
   const [overriddenThumbnail, setOverriddenThumbnail] = useState<string | null>(null);
   const [showMenu, setShowMenu] = useState(false);
   const [menuAnchor, setMenuAnchor] = useState<MenuAnchor | null>(null);
   const [dominantColor, setDominantColor] = useState<string | null>(null);
   const [isHovered, setIsHovered] = useState(false);
+  const [isSavedToWatchLater, setIsSavedToWatchLater] = useState(false);
   const [thumbnailCandidateIndex, setThumbnailCandidateIndex] = useState(0);
   const cardRef = useRef<HTMLDivElement>(null);
   const thumbnailRef = useRef<HTMLImageElement>(null);
@@ -147,6 +156,23 @@ export function VideoCard({
   useEffect(() => {
     if (video.isLive) markLive(video.id);
   }, [video.id, video.isLive, markLive]);
+
+  useEffect(() => {
+    if (isChannel) return;
+
+    let active = true;
+    isVideoInWatchLater(video.id)
+      .then((saved) => {
+        if (active) setIsSavedToWatchLater(saved);
+      })
+      .catch((error) => {
+        console.warn("Failed to read Watch Later state", error);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [isChannel, video.id]);
 
   const { dearrowEnabled } = useSettingsStore();
   const titleClampStyle = getTitleClampStyle(
@@ -276,6 +302,33 @@ export function VideoCard({
     onRemoveFromHistory?.(video.id);
   };
 
+  const handleToggleWatchLater = async () => {
+    try {
+      if (isSavedToWatchLater) {
+        await removeVideoFromWatchLater(video.id);
+        setIsSavedToWatchLater(false);
+        showToast({
+          variant: "success",
+          message: getString("video_removed_from_watch_later"),
+        });
+        return;
+      }
+
+      await addVideoToWatchLater(video);
+      setIsSavedToWatchLater(true);
+      showToast({
+        variant: "success",
+        message: getString("video_saved_to_watch_later"),
+      });
+    } catch (error) {
+      console.error("Failed to update Watch Later", error);
+      showToast({
+        variant: "error",
+        message: getString("video_watch_later_failed"),
+      });
+    }
+  };
+
   // ── Menu dropdown ───
   const renderMenu = () => {
     if (!showMenu || !menuAnchor) return null;
@@ -299,6 +352,18 @@ export function VideoCard({
             Add to queue
           </button>
         )}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            void handleToggleWatchLater();
+            setShowMenu(false);
+          }}
+          className="w-full flex items-center gap-3 px-3.5 py-2.5 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 transition-colors"
+        >
+          <Clock size={16} />
+          {getString(isSavedToWatchLater ? "video_remove_from_watch_later" : "video_save_to_watch_later")}
+        </button>
         <button
           onClick={(e) => {
             e.stopPropagation();

@@ -151,6 +151,11 @@
   "music": "Music",
   "video_player_title": "Video Player",
   "music_player_title": "Music Player",
+  "video_save_to_watch_later": "Save to Watch Later",
+  "video_remove_from_watch_later": "Remove from Watch Later",
+  "video_saved_to_watch_later": "Saved to Watch Later",
+  "video_removed_from_watch_later": "Removed from Watch Later",
+  "video_watch_later_failed": "Could not update Watch Later",
 
   "settings_title": "Settings",
   "settings_player": "Player",

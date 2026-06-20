@@ -6,6 +6,7 @@ import { useAppSettingsStore } from "./store/useAppSettingsStore";
 import { useSettingsStore } from "./store/useSettingsStore";
 import { useAlbumLibraryStore } from "./store/useAlbumLibraryStore";
 import { getOnboardingStatus } from "./lib/api/recommendation";
+import { WATCH_LATER_PLAYLIST_ID } from "./lib/playlistLibrary";
 import type { VideoSummary } from "./types/video";
 
 import { PageWrapper } from "./components/layout/PageWrapper";
@@ -128,6 +129,13 @@ function App() {
           } />
           <Route path="playlist/:playlistId" element={
             <PlaylistDetailsPage
+              onPlay={handlePlayVideo}
+              onAddToQueue={handleAddToQueue}
+            />
+          } />
+          <Route path="watch-later" element={
+            <PlaylistDetailsPage
+              playlistIdOverride={WATCH_LATER_PLAYLIST_ID}
               onPlay={handlePlayVideo}
               onAddToQueue={handleAddToQueue}
             />

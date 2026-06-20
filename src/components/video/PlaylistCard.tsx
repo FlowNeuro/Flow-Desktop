@@ -3,7 +3,12 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Download, ListVideo, MoreVertical, Plus, Trash2 } from 'lucide-react';
 import type { PlaylistSummary } from '../../types/video';
-import { isPlaylistInLibrary, removePlaylistFromLibrary, savePlaylistToLibrary } from '../../lib/playlistLibrary';
+import {
+  isPlaylistInLibrary,
+  isProtectedPlaylistId,
+  removePlaylistFromLibrary,
+  savePlaylistToLibrary,
+} from '../../lib/playlistLibrary';
 import { useUiStore } from '../../store/useUiStore';
 import { AnchoredPortalMenu, type MenuAnchor } from '../ui/AnchoredPortalMenu';
 
@@ -11,6 +16,7 @@ interface PlaylistCardProps {
   playlist: PlaylistSummary & {
     description?: string | null;
     videoCount?: number;
+    isProtected?: boolean;
   };
   isInLibrary?: boolean;
   onClick?: (playlist: PlaylistSummary) => void;
@@ -98,6 +104,7 @@ export function PlaylistCard({
   const [isSaved, setIsSaved] = useState(Boolean(isInLibrary));
   const cardRef = useRef<HTMLDivElement>(null);
   const showToast = useUiStore((state) => state.showToast);
+  const isProtected = Boolean(playlist.isProtected) || isProtectedPlaylistId(playlist.id);
 
   const resolvedVideoCount = typeof playlist.videoCount === 'number' && playlist.videoCount > 0
     ? playlist.videoCount
@@ -123,6 +130,11 @@ export function PlaylistCard({
   }, []);
 
   useEffect(() => {
+    if (isProtected) {
+      setIsSaved(true);
+      return;
+    }
+
     if (typeof isInLibrary === 'boolean') {
       setIsSaved(isInLibrary);
       return;
@@ -140,7 +152,7 @@ export function PlaylistCard({
     return () => {
       active = false;
     };
-  }, [isInLibrary, playlist.id]);
+  }, [isInLibrary, isProtected, playlist.id]);
 
   const handleSaveToLibrary = async () => {
     try {
@@ -165,6 +177,8 @@ export function PlaylistCard({
   };
 
   const handleRemoveFromLibrary = async () => {
+    if (isProtected) return;
+
     try {
       const result = onRemoveFromLibrary
         ? await onRemoveFromLibrary(playlist)
@@ -204,7 +218,7 @@ export function PlaylistCard({
         onClose={() => setShowMenu(false)}
         className="z-50 w-52 rounded-xl border border-neutral-800 bg-surface-container-high py-1.5"
       >
-        {isSaved ? (
+        {!isProtected && (isSaved ? (
           <button
             type="button"
             onClick={(event) => void runMenuAction(event, handleRemoveFromLibrary)}
@@ -222,7 +236,7 @@ export function PlaylistCard({
             <Plus size={16} />
             Save to library
           </button>
-        )}
+        ))}
         <button
           type="button"
           onClick={(event) => void runMenuAction(event, () => onDownload?.(playlist))}
