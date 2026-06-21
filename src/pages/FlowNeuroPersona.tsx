@@ -21,7 +21,7 @@ import { BlockedContent } from "../components/persona/BlockedContent";
 import { LearningActivity } from "../components/persona/LearningActivity";
 import { ProfileData } from "../components/persona/ProfileData";
 
-import { RefreshCw, Compass } from "lucide-react";
+import { RefreshCw, BrainCog  } from "lucide-react";
 
 export function FlowNeuroPersona() {
   const [brain, setBrain] = useState<UserBrain | null>(null);
@@ -93,8 +93,8 @@ export function FlowNeuroPersona() {
         <div className="grid grid-cols-12 gap-6 mx-auto p-8">
           <div className="col-span-12 flex items-center justify-between">
             <h1 className="text-3xl font-semibold tracking-tight text-[var(--color-on-surface)] flex items-center gap-3">
-              <Compass className="h-7 w-7 text-[var(--color-primary)] animate-pulse" />
-              FlowNeuro Control Center
+              <BrainCog className="h-7 w-7 text-[var(--color-primary)] animate-pulse" />
+               Control Center
             </h1>
           </div>
           <div className="col-span-12">

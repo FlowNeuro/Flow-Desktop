@@ -22,6 +22,8 @@ import {
 
 export { BackendApiError as YoutubeApiError };
 
+export type TrendingCategory = "all" | "trending" | "gaming" | "music" | "movies" | "live";
+
 export function getYoutubeErrorMessage(error: unknown): string {
   return getBackendErrorMessage(error);
 }
@@ -370,6 +372,27 @@ export async function getTrendingVideos(): Promise<VideoSummary[]> {
     ];
   }
   return invokeBackend<VideoSummary[]>("get_trending_videos");
+}
+
+export async function getTrendingByCategory(
+  category: TrendingCategory,
+  region: string,
+): Promise<VideoSummary[]> {
+  if (!(await isTauriEnv())) {
+    console.warn("Tauri not detected. Returning mock category videos.");
+    return [
+      {
+        id: "dQw4w9WgXcQ",
+        title: `${category === "all" ? "All" : category} category offline preview`,
+        channelName: "Flow Preview",
+        thumbnailUrl: "https://images.unsplash.com/photo-1607799279861-4dd421887fb3?q=80&w=300",
+        durationSeconds: 156,
+        publishedText: "1 day ago",
+        viewCountText: "500K views",
+      },
+    ];
+  }
+  return invokeBackend<VideoSummary[]>("get_trending_videos", { category, region });
 }
 
 export async function getSearchSuggestions(query: string): Promise<string[]> {

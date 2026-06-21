@@ -1930,7 +1930,10 @@ impl RecommendationService {
                 .await
             {
                 candidates = trending_music;
-            } else if let Ok(trending_fallback) = youtube_service.get_trending_videos().await {
+            } else if let Ok(trending_fallback) = youtube_service
+                .get_trending_videos(None, None)
+                .await
+            {
                 candidates = trending_fallback
                     .into_iter()
                     .filter(|v| is_music_track(&v.title, &v.channel_name, v.duration_seconds))

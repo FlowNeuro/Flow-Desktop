@@ -740,10 +740,12 @@ pub async fn get_live_chat(
 
 #[tauri::command]
 pub async fn get_trending_videos(
+    category: Option<String>,
+    region: Option<String>,
     youtube_service: State<'_, YoutubeService>,
 ) -> Result<Vec<VideoSummary>, ErrorResponse> {
     youtube_service
-        .get_trending_videos()
+        .get_trending_videos(category.as_deref(), region.as_deref())
         .await
         .map_err(ErrorResponse::from)
 }

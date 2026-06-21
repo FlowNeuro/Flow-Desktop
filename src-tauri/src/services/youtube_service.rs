@@ -83,8 +83,12 @@ impl YoutubeService {
         self.extractor.get_live_chat(video_id, continuation).await
     }
 
-    pub async fn get_trending_videos(&self) -> AppResult<Vec<VideoSummary>> {
-        self.extractor.get_trending_videos().await
+    pub async fn get_trending_videos(
+        &self,
+        category: Option<&str>,
+        region: Option<&str>,
+    ) -> AppResult<Vec<VideoSummary>> {
+        self.extractor.get_trending_videos(category, region).await
     }
 
     pub async fn get_search_suggestions(&self, query: &str) -> AppResult<Vec<String>> {

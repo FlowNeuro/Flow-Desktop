@@ -18,6 +18,7 @@ import ArtistPage from "./pages/music/ArtistPage";
 import ArtistItemsPage from "./pages/music/ArtistItemsPage";
 import MusicCollectionPage from "./pages/music/MusicCollectionPage";
 import Search from "./pages/Search";
+import ExploreCategories from "./pages/ExploreCategories";
 import Subscriptions from "./pages/Subscriptions";
 import History from "./pages/History";
 import Likes from "./pages/Likes";
@@ -122,6 +123,9 @@ function App() {
           } />
           <Route path="search" element={
             <Search onPlay={handlePlayVideo} onAddToQueue={handleAddToQueue} />
+          } />
+          <Route path="explore" element={
+            <ExploreCategories onPlay={handlePlayVideo} onAddToQueue={handleAddToQueue} />
           } />
           <Route path="subscriptions" element={
             <Subscriptions onPlay={handlePlayVideo} onAddToQueue={handleAddToQueue} />

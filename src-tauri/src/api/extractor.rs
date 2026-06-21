@@ -49,7 +49,11 @@ pub trait YoutubeExtractor: Send + Sync {
         continuation: Option<String>,
     ) -> AppResult<LiveChatResponse>;
 
-    async fn get_trending_videos(&self) -> AppResult<Vec<VideoSummary>>;
+    async fn get_trending_videos(
+        &self,
+        category: Option<&str>,
+        region: Option<&str>,
+    ) -> AppResult<Vec<VideoSummary>>;
 
     async fn get_search_suggestions(&self, query: &str) -> AppResult<Vec<String>>;
 

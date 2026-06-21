@@ -103,8 +103,12 @@ impl YoutubeExtractor for InnertubeClient {
         self.get_live_chat(video_id, continuation).await
     }
 
-    async fn get_trending_videos(&self) -> AppResult<Vec<VideoSummary>> {
-        self.get_trending_videos().await
+    async fn get_trending_videos(
+        &self,
+        category: Option<&str>,
+        region: Option<&str>,
+    ) -> AppResult<Vec<VideoSummary>> {
+        self.get_trending_videos(category, region).await
     }
 
     async fn get_search_suggestions(&self, query: &str) -> AppResult<Vec<String>> {
