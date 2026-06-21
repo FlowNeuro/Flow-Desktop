@@ -8,6 +8,7 @@ use crate::models::live_chat::LiveChatResponse;
 use crate::models::music::{ArtistPage, ChartsPage, ExplorePage};
 use crate::models::playlist::PlaylistDetailsResponse;
 use crate::models::search::{SearchVideosRequest, SearchVideosResponse};
+use crate::models::shorts::ShortsFeed;
 use crate::models::video::{MusicHomeChip, MusicHomeSection, VideoSummary};
 use crate::models::video::{RelatedContentItem, StreamInfo, VideoDetails};
 
@@ -93,6 +94,17 @@ impl YoutubeService {
 
     pub async fn get_search_suggestions(&self, query: &str) -> AppResult<Vec<String>> {
         self.extractor.get_search_suggestions(query).await
+    }
+
+    pub async fn get_shorts_sequence(
+        &self,
+        params: Option<String>,
+        sequence_params: Option<String>,
+        region: Option<String>,
+    ) -> AppResult<ShortsFeed> {
+        self.extractor
+            .get_shorts_sequence(params, sequence_params, region)
+            .await
     }
 
     pub async fn search_music(&self, query: &str, filter: &str) -> AppResult<Vec<VideoSummary>> {

@@ -6,6 +6,7 @@ use crate::models::live_chat::LiveChatResponse;
 use crate::models::music::{ArtistPage, ChartsPage, ExplorePage};
 use crate::models::playlist::PlaylistDetailsResponse;
 use crate::models::search::{SearchVideosRequest, SearchVideosResponse};
+use crate::models::shorts::ShortsFeed;
 use crate::models::video::{
     MusicHomeChip, MusicHomeSection, RelatedContentItem, StreamInfo, VideoDetails, VideoSummary,
 };
@@ -113,6 +114,16 @@ impl YoutubeExtractor for InnertubeClient {
 
     async fn get_search_suggestions(&self, query: &str) -> AppResult<Vec<String>> {
         self.get_search_suggestions(query).await
+    }
+
+    async fn get_shorts_sequence(
+        &self,
+        params: Option<String>,
+        sequence_params: Option<String>,
+        region: Option<String>,
+    ) -> AppResult<ShortsFeed> {
+        self.get_shorts_sequence(params, sequence_params, region)
+            .await
     }
 
     async fn search_music(&self, query: &str, filter: &str) -> AppResult<Vec<VideoSummary>> {

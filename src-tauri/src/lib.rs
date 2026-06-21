@@ -38,6 +38,7 @@ use commands::recommendation::{
     rank_videos, record_feed_impressions, remove_preferred_topic, reset_brain, unblock_channel,
     unblock_topic,
 };
+use commands::shorts::{get_shorts_feed, load_more_shorts, reset_shorts_feed};
 use commands::youtube::{
     fetch_subtitles, get_channel_details, get_channel_tab, get_comments, get_dearrow_override,
     get_live_chat, get_music_album, get_music_artist, get_music_charts, get_music_explore,
@@ -49,6 +50,7 @@ use commands::youtube::{
 };
 use services::music_service::MusicService;
 use services::recommendation_service::RecommendationService;
+use services::shorts_service::ShortsService;
 use services::youtube_service::YoutubeService;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -117,6 +119,9 @@ pub fn run() {
             let rec_service = RecommendationService::new(pool, brain_store);
             app.manage(rec_service);
 
+            // Manage the Shorts feed service (prefetch buffer + session de-dup)
+            app.manage(ShortsService::new());
+
             // Initialize and manage streaming proxy
             let (streaming_manager, proxy_listener) = streaming::proxy::StreamingManager::new();
             tauri::async_runtime::spawn(streaming::proxy::start_proxy_server(
@@ -182,6 +187,10 @@ pub fn run() {
             get_music_charts,
             fetch_subtitles,
             get_sabr_debug_state,
+            // --- Shorts feed ---
+            get_shorts_feed,
+            load_more_shorts,
+            reset_shorts_feed,
             // --- YouTube Music subsystem (additive) ---
             get_music_home_page,
             get_music_explore_page,
