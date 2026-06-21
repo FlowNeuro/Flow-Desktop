@@ -121,6 +121,22 @@ function isGoogleImageUrl(url: string): boolean {
   }
 }
 
+function isYt3ImageUrl(url: string): boolean {
+  try {
+    return new URL(url).hostname.toLowerCase().startsWith("yt3.");
+  } catch {
+    return false;
+  }
+}
+
+function withGoogleEqualsParam(url: string, param: string): string | null {
+  const paramStart = url.search(GOOGLE_CDN_PARAM_START_RE);
+  if (paramStart >= 0 && url[paramStart] === "=") {
+    return `${url.slice(0, paramStart)}=${param}`;
+  }
+  return null;
+}
+
 export function upgradeMusicImageUrl(url: string | null | undefined, size = 1080): string | undefined {
   if (!url?.trim()) return undefined;
   let upgraded = url.trim();
@@ -131,6 +147,17 @@ export function upgradeMusicImageUrl(url: string | null | undefined, size = 1080
   }
 
   if (isGoogleImageUrl(upgraded)) {
+    if (isYt3ImageUrl(upgraded)) {
+      return withGoogleEqualsParam(upgraded, `s${Math.min(size, 512)}`)
+        ?? (GOOGLE_CDN_SIZE_RE.test(upgraded) ? upgraded.replace(GOOGLE_CDN_SIZE_RE, (match) => {
+          const prefix = match[0] === "=" || match[0] === "/" || match[0] === "-" ? match[0] : "=";
+          return `${prefix}s${Math.min(size, 512)}`;
+        }) : `${upgraded}=s${Math.min(size, 512)}`);
+    }
+
+    const equalsParamUrl = withGoogleEqualsParam(upgraded, `w${size}-h${size}-p-l90-rj`);
+    if (equalsParamUrl) return equalsParamUrl;
+
     if (GOOGLE_CDN_SIZE_RE.test(upgraded)) {
       return upgraded.replace(GOOGLE_CDN_SIZE_RE, (match) => {
         const prefix = match[0] === "=" || match[0] === "/" || match[0] === "-" ? match[0] : "=";
@@ -152,6 +179,9 @@ export function upgradeAvatarUrl(url: string | null | undefined, size = 512): st
   if (upgraded.startsWith("//")) upgraded = `https:${upgraded}`;
 
   if (isGoogleImageUrl(upgraded)) {
+    const equalsParamUrl = withGoogleEqualsParam(upgraded, `s${size}`);
+    if (equalsParamUrl) return equalsParamUrl;
+
     if (GOOGLE_CDN_SIZE_RE.test(upgraded)) {
       return upgraded.replace(GOOGLE_CDN_SIZE_RE, (match) => {
         const prefix = match[0] === "=" || match[0] === "/" || match[0] === "-" ? match[0] : "=";

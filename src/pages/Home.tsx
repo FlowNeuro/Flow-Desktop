@@ -16,7 +16,7 @@ import {
   logInteraction,
 } from "../lib/api/recommendation";
 import type { FeedQuotas } from "../lib/api/recommendation";
-import { useFeedActionsStore, useFeedHiddenFilter } from "../store/useFeedActionsStore";
+import { cleanChannelId, useFeedActionsStore, useFeedHiddenFilter } from "../store/useFeedActionsStore";
 import { useAppSettingsStore } from "../store/useAppSettingsStore";
 import { getSetting, setSetting, getWatchHistory } from "../lib/api/db";
 import { getString } from "../lib/i18n/index";
@@ -83,14 +83,19 @@ const loadPersistedDiscoverFeed = async (): Promise<VideoSummary[] | null> => {
     const parsed = JSON.parse(raw) as { videos?: VideoSummary[]; timestamp?: number };
     if (!parsed.videos?.length) return null;
     if (Date.now() - (parsed.timestamp ?? 0) > PERSISTED_FEED_TTL_MS) return null;
-    const { dismissedVideoIds, blockedChannelIds, watchedVideoIds } = useFeedActionsStore.getState();
+    const { dismissedVideoIds, blockedChannelIds, suppressedChannelIds, watchedVideoIds } = useFeedActionsStore.getState();
     return parsed.videos.filter(
-      (video) =>
-        video &&
-        typeof video.id === "string" &&
-        !dismissedVideoIds.has(video.id) &&
-        !watchedVideoIds.has(video.id) &&
-        !(video.channelId != null && blockedChannelIds.has(video.channelId)),
+      (video) => {
+        if (!video || typeof video.id !== "string") {
+          return false;
+        }
+        const channelId = cleanChannelId(video.channelId);
+        return (
+          !dismissedVideoIds.has(video.id) &&
+          !watchedVideoIds.has(video.id) &&
+          !(channelId && (blockedChannelIds.has(channelId) || suppressedChannelIds.has(channelId)))
+        );
+      },
     );
   } catch (error) {
     console.warn("Failed to load persisted discover feed", error);
@@ -112,6 +117,10 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
   const homeFeedEnabled = useAppSettingsStore((state) => state.values[SETTINGS.HOME_FEED_ENABLED] !== "false");
   const hideWatchedVideos = useAppSettingsStore((state) => state.values[SETTINGS.HIDE_WATCHED_VIDEOS] === "true");
   const isHidden = useFeedHiddenFilter({ hideWatched: hideWatchedVideos });
+  const dismissedVideoIds = useFeedActionsStore((s) => s.dismissedVideoIds);
+  const blockedChannelIds = useFeedActionsStore((s) => s.blockedChannelIds);
+  const suppressedChannelIds = useFeedActionsStore((s) => s.suppressedChannelIds);
+  const watchedVideoIds = useFeedActionsStore((s) => s.watchedVideoIds);
   const [loading, setLoading] = useState(true);
   const [, setRefreshing] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -165,6 +174,17 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
       void persistDiscoverFeed(nextVideos);
     }
   };
+
+  useEffect(() => {
+    setVideos((currentVideos) => {
+      const filteredVideos = currentVideos.filter((video) => !isHidden(video));
+      if (filteredVideos.length === currentVideos.length) {
+        return currentVideos;
+      }
+      updateCache(activeTab, filteredVideos);
+      return filteredVideos;
+    });
+  }, [activeTab, isHidden, dismissedVideoIds, blockedChannelIds, suppressedChannelIds, watchedVideoIds]);
 
   const rememberSeenVideos = (items: VideoSummary[]) => {
     for (const video of items) {
@@ -293,6 +313,9 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
   const filterFeedVideos = (items: VideoSummary[], watchedIds: Set<string>) => {
     return uniqueByVideoId(items).filter((video) => {
       if (!isValidFeedVideo(video)) {
+        return false;
+      }
+      if (isHidden(video)) {
         return false;
       }
       return !hideWatchedVideos || !watchedIds.has(video.id);

@@ -1572,6 +1572,7 @@ impl RecommendationService {
         interaction_type: InteractionType,
         percent_watched: f32,
     ) -> AppResult<()> {
+        let channel_id = channel_id.trim().trim_start_matches("channel:");
         let outcome = {
             let mut brain = self.brain_store.write().await;
             apply_interaction(
@@ -2087,6 +2088,7 @@ impl RecommendationService {
     }
 
     pub async fn unblock_channel(&self, channel_id: String) -> AppResult<()> {
+        let channel_id = channel_id.trim().trim_start_matches("channel:").to_string();
         let mut brain = self.brain_store.write().await;
         brain.blocked_channels.remove(&channel_id);
         brain.channel_strikes.remove(&channel_id);
@@ -2094,15 +2096,18 @@ impl RecommendationService {
         Ok(())
     }
 
-    /// Explicit user "don't show this channel": permanent block plus a scrubbed channel score so
-    /// the ranker also down-weights anything already learned about it.
+    /// Explicit user "don't show this channel": permanent block plus scrubbed channel memory so
+    /// stale affinity cannot survive beside the block.
     pub async fn block_channel(&self, channel_id: String) -> AppResult<()> {
+        let channel_id = channel_id.trim().trim_start_matches("channel:").to_string();
         if channel_id.trim().is_empty() {
             return Ok(());
         }
         let mut brain = self.brain_store.write().await;
         brain.blocked_channels.insert(channel_id.clone());
-        brain.channel_scores.insert(channel_id, 0.0);
+        brain.channel_scores.remove(&channel_id);
+        brain.suppressed_channels.remove(&channel_id);
+        brain.channel_strikes.remove(&channel_id);
         Ok(())
     }
 

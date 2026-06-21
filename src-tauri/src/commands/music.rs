@@ -347,6 +347,32 @@ fn image_content_type(url: &str) -> String {
     }
 }
 
+fn google_size_param_start(url: &str) -> Option<usize> {
+    ["=w", "=h", "=s"]
+        .iter()
+        .filter_map(|marker| url.find(marker))
+        .min()
+}
+
+fn proxyable_image_url(parsed: &reqwest::Url) -> String {
+    let url = parsed.as_str();
+    let host = parsed.host_str().unwrap_or_default().to_ascii_lowercase();
+    if !(host.starts_with("yt3.") || host == "yt3.googleusercontent.com" || host == "yt3.ggpht.com")
+    {
+        return url.to_string();
+    }
+
+    let (base_and_path, query) = url.split_once('?').map_or((url, ""), |(base, query)| (base, query));
+    let base = google_size_param_start(base_and_path)
+        .map(|idx| &base_and_path[..idx])
+        .unwrap_or(base_and_path);
+    if query.is_empty() {
+        format!("{base}=s512")
+    } else {
+        format!("{base}=s512?{query}")
+    }
+}
+
 #[tauri::command]
 pub async fn proxy_image_url(
     url: String,
@@ -375,11 +401,12 @@ pub async fn proxy_image_url(
         )));
     }
 
+    let upstream_url = proxyable_image_url(&parsed);
     let token = format!("img-{}", Uuid::new_v4());
     streaming_manager.register_session(
         token.clone(),
-        trimmed.to_string(),
-        image_content_type(trimmed),
+        upstream_url.clone(),
+        image_content_type(&upstream_url),
         IMAGE_PROXY_UA.to_string(),
     );
 

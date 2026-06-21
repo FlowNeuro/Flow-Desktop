@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import { create } from "zustand";
 import { getSetting, setSetting, addWatchRecord } from "../lib/api/db";
 import {
@@ -14,11 +14,14 @@ import type { VideoSummary } from "../types/video";
 const STORE_KEY = "feed_actions_state_v1";
 const DISMISSED_CAP = 2000;
 const BLOCKED_CAP = 500;
+const SUPPRESSED_CHANNEL_CAP = 500;
 const WATCHED_CAP = 2000;
+const CHANNEL_SUPPRESSION_MS = 14 * 24 * 60 * 60 * 1000;
 
 interface FeedActionsState {
   dismissedVideoIds: Set<string>;
   blockedChannelIds: Set<string>;
+  suppressedChannelIds: Map<string, number>;
   watchedVideoIds: Set<string>;
   loaded: boolean;
   load: () => Promise<void>;
@@ -36,10 +39,31 @@ function addCapped(set: Set<string>, value: string, cap: number): Set<string> {
   return next.size > cap ? new Set([...next].slice(next.size - cap)) : next;
 }
 
+function addCappedMap(
+  map: Map<string, number>,
+  key: string,
+  value: number,
+  cap: number,
+): Map<string, number> {
+  if (!key) return map;
+  const next = new Map(map);
+  next.set(key, value);
+  return next.size > cap ? new Map([...next].slice(next.size - cap)) : next;
+}
+
+export function cleanChannelId(channelId?: string | null) {
+  return (channelId ?? "").replace(/^channel:/, "").trim();
+}
+
+function activeSuppressedChannels(entries: Map<string, number>) {
+  const cutoff = Date.now() - CHANNEL_SUPPRESSION_MS;
+  return new Map([...entries].filter(([, timestamp]) => timestamp >= cutoff));
+}
+
 function meta(video: VideoSummary) {
   const duration = video.durationSeconds ?? null;
   return {
-    channelId: video.channelId ?? video.id,
+    channelId: cleanChannelId(video.channelId),
     duration,
     isShort: (duration ?? 0) > 0 && (duration ?? 0) <= 60,
   };
@@ -47,12 +71,14 @@ function meta(video: VideoSummary) {
 
 export const useFeedActionsStore = create<FeedActionsState>((set, get) => {
   const persist = () => {
-    const { dismissedVideoIds, blockedChannelIds, watchedVideoIds } = get();
+    const { dismissedVideoIds, blockedChannelIds, suppressedChannelIds, watchedVideoIds } = get();
+    const activeSuppressed = activeSuppressedChannels(suppressedChannelIds);
     void setSetting(
       STORE_KEY,
       JSON.stringify({
         dismissed: [...dismissedVideoIds],
         blocked: [...blockedChannelIds],
+        suppressedChannels: [...activeSuppressed.entries()],
         watched: [...watchedVideoIds],
       }),
     ).catch((e) => console.warn("Failed to persist feed actions", e));
@@ -61,6 +87,7 @@ export const useFeedActionsStore = create<FeedActionsState>((set, get) => {
   return {
     dismissedVideoIds: new Set(),
     blockedChannelIds: new Set(),
+    suppressedChannelIds: new Map(),
     watchedVideoIds: new Set(),
     loaded: false,
 
@@ -72,11 +99,23 @@ export const useFeedActionsStore = create<FeedActionsState>((set, get) => {
           const parsed = JSON.parse(raw) as {
             dismissed?: string[];
             blocked?: string[];
+            suppressedChannels?: [string, number][] | Record<string, number>;
             watched?: string[];
           };
+          const rawSuppressed = parsed.suppressedChannels;
+          const suppressedEntries = Array.isArray(rawSuppressed)
+            ? rawSuppressed
+            : Object.entries(rawSuppressed ?? {});
           set({
             dismissedVideoIds: new Set(parsed.dismissed ?? []),
-            blockedChannelIds: new Set(parsed.blocked ?? []),
+            blockedChannelIds: new Set((parsed.blocked ?? []).map(cleanChannelId).filter(Boolean)),
+            suppressedChannelIds: activeSuppressedChannels(
+              new Map(
+                suppressedEntries
+                  .map(([channelId, timestamp]) => [cleanChannelId(channelId), Number(timestamp)] as const)
+                  .filter(([channelId, timestamp]) => channelId.length > 0 && Number.isFinite(timestamp)),
+              ),
+            ),
             watchedVideoIds: new Set(parsed.watched ?? []),
             loaded: true,
           });
@@ -89,9 +128,14 @@ export const useFeedActionsStore = create<FeedActionsState>((set, get) => {
     },
 
     notInterested: async (video) => {
-      set((s) => ({ dismissedVideoIds: addCapped(s.dismissedVideoIds, video.id, DISMISSED_CAP) }));
-      persist();
       const m = meta(video);
+      set((s) => ({
+        dismissedVideoIds: addCapped(s.dismissedVideoIds, video.id, DISMISSED_CAP),
+        suppressedChannelIds: m.channelId
+          ? addCappedMap(s.suppressedChannelIds, m.channelId, Date.now(), SUPPRESSED_CHANNEL_CAP)
+          : s.suppressedChannelIds,
+      }));
+      persist();
       try {
         await markNotInterested(
           video.id,
@@ -109,7 +153,7 @@ export const useFeedActionsStore = create<FeedActionsState>((set, get) => {
     },
 
     blockChannel: async (video) => {
-      const channelId = video.channelId ?? "";
+      const channelId = cleanChannelId(video.channelId);
       if (!channelId) return;
       set((s) => ({ blockedChannelIds: addCapped(s.blockedChannelIds, channelId, BLOCKED_CAP) }));
       persist();
@@ -177,13 +221,15 @@ export const useFeedActionsStore = create<FeedActionsState>((set, get) => {
 export function useFeedHiddenFilter({ hideWatched = true }: { hideWatched?: boolean } = {}) {
   const dismissed = useFeedActionsStore((s) => s.dismissedVideoIds);
   const blocked = useFeedActionsStore((s) => s.blockedChannelIds);
+  const suppressed = useFeedActionsStore((s) => s.suppressedChannelIds);
   const watched = useFeedActionsStore((s) => s.watchedVideoIds);
+  const activeSuppressed = useMemo(() => activeSuppressedChannels(suppressed), [suppressed]);
   return useCallback(
     (video: VideoSummary) => {
       if (dismissed.has(video.id) || (hideWatched && watched.has(video.id))) return true;
-      const channelId = video.channelId ?? "";
-      return channelId.length > 0 && blocked.has(channelId);
+      const channelId = cleanChannelId(video.channelId);
+      return channelId.length > 0 && (blocked.has(channelId) || activeSuppressed.has(channelId));
     },
-    [dismissed, blocked, watched, hideWatched],
+    [dismissed, blocked, activeSuppressed, watched, hideWatched],
   );
 }

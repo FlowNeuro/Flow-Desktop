@@ -577,9 +577,15 @@ pub fn apply_interaction(
         record_negative_topic_evidence(&mut brain.topic_evidence, &video_vector, now_ms);
 
         if !channel_id.is_empty() {
-            brain
-                .suppressed_channels
-                .insert(channel_id.to_string(), now_ms);
+            if brain.suppressed_channels.contains_key(channel_id) {
+                brain.blocked_channels.insert(channel_id.to_string());
+                brain.suppressed_channels.remove(channel_id);
+                brain.channel_strikes.remove(channel_id);
+            } else {
+                brain
+                    .suppressed_channels
+                    .insert(channel_id.to_string(), now_ms);
+            }
             if brain.suppressed_channels.len() > MAX_SUPPRESSED_CHANNELS {
                 let cutoff = now_ms.saturating_sub(CHANNEL_SUPPRESSION_DAYS * 86_400_000);
                 brain.suppressed_channels.retain(|_, ts| *ts >= cutoff);

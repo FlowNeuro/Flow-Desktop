@@ -219,11 +219,23 @@ pub fn normalize_youtube_image_url(url: &str) -> String {
     if normalized.contains("i.ytimg.com") || normalized.contains("img.youtube.com") {
         normalized = upgrade_youtube_thumbnail_url(normalized);
     } else if normalized.contains("googleusercontent.com") || normalized.contains("ggpht.com") {
+        let is_yt3_avatar = normalized.contains("://yt3.")
+            || normalized.contains("//yt3.")
+            || normalized.contains("yt3.googleusercontent.com")
+            || normalized.contains("yt3.ggpht.com");
         if let Some(eq_pos) = normalized.find('=') {
             let base = &normalized[..eq_pos];
-            normalized = format!("{base}=w1080-h1080-p-l90-rj");
+            normalized = if is_yt3_avatar {
+                format!("{base}=s512")
+            } else {
+                format!("{base}=w1080-h1080-p-l90-rj")
+            };
         } else {
-            normalized.push_str("=w1080-h1080-p-l90-rj");
+            normalized.push_str(if is_yt3_avatar {
+                "=s512"
+            } else {
+                "=w1080-h1080-p-l90-rj"
+            });
         }
     }
 
