@@ -31,6 +31,7 @@ import ImportData from "./pages/ImportData";
 import ExtensionsPage from "./pages/ExtensionsPage";
 import Channel from "./pages/Channel";
 import { Watch } from "./pages/Watch";
+import { ShortsFeed } from "./components/shorts/ShortsFeed";
 import Onboarding from "./pages/Onboarding";
 import FlowNeuroPersona from "./pages/FlowNeuroPersona";
 import { LayoutGroup } from "framer-motion";
@@ -126,6 +127,9 @@ function App() {
           } />
           <Route path="explore" element={
             <ExploreCategories onPlay={handlePlayVideo} onAddToQueue={handleAddToQueue} />
+          } />
+          <Route path="shorts" element={
+            <ShortsFeed />
           } />
           <Route path="subscriptions" element={
             <Subscriptions onPlay={handlePlayVideo} onAddToQueue={handleAddToQueue} />

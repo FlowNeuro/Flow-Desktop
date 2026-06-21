@@ -23,6 +23,7 @@ import { useUiStore } from '../../store/useUiStore';
 import { useAppSettingsStore } from '../../store/useAppSettingsStore';
 import { useSubscriptionStore } from '../../store/useSubscriptionStore';
 import { SidebarItem } from '../ui/SidebarItem';
+import { ShortsIcon } from '../ui/ShortsIcon';
 import { getString } from '../../lib/i18n/index';
 import { SETTINGS } from '../../lib/settings/schema';
 import { upgradeAvatarUrl } from '../../lib/thumbnails';
@@ -139,6 +140,7 @@ export function Sidebar({ mode = 'normal' }: SidebarProps) {
         <nav className="flex w-full flex-col items-center gap-1">
           <CompactRailItem path="/" icon={<Home />} label={getString('home')} end />
           <CompactRailItem path="/feed" icon={<BrainCog />} label={getString('sidebar_flowneuron')} />
+          <CompactRailItem path="/shorts" icon={<ShortsIcon />} label={getString('sidebar_shorts')} />
           {showCategoriesNav && <CompactRailItem path="/explore" icon={<Compass />} label={getString('sidebar_explore')} />}
           {showMusicNav && <CompactRailItem path="/music" icon={<Music2 />} label={getString('sidebar_music')} />}
           <CompactRailItem path="/subscriptions" icon={<Users />} label={getString('sidebar_subscriptions')} />
@@ -163,6 +165,7 @@ export function Sidebar({ mode = 'normal' }: SidebarProps) {
       <nav className="flex flex-col">
         <SidebarItem to="/" end icon={<Home />} label={getString('home')} onClick={closeOverlay} />
         <SidebarItem to="/feed" icon={<BrainCog />} label={getString('sidebar_flowneuron')} onClick={closeOverlay} />
+        <SidebarItem to="/shorts" icon={<ShortsIcon />} label={getString('sidebar_shorts')} onClick={closeOverlay} />
         {showCategoriesNav && <SidebarItem to="/explore" icon={<Compass />} label={getString('sidebar_explore')} onClick={closeOverlay} />}
         {showMusicNav && <SidebarItem to="/music" icon={<Music2 />} label={getString('sidebar_music')} onClick={closeOverlay} />}
       </nav>

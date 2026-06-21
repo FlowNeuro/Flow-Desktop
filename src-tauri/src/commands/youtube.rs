@@ -1,8 +1,8 @@
 use tauri::State;
 use tracing::info;
 
-use crate::errors::ErrorResponse;
 use crate::api::innertube::core::utils::normalize_youtube_image_url;
+use crate::errors::ErrorResponse;
 use crate::models::channel::{ChannelDetails, ChannelTabResponse};
 use crate::models::comment::CommentsResponse;
 use crate::models::music::{ArtistPage, ChartsPage, ExplorePage};

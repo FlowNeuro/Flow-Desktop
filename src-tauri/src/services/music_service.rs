@@ -7,7 +7,9 @@ use std::sync::Arc;
 
 use crate::api::innertube::InnertubeClient;
 use crate::errors::AppResult;
-use crate::models::music::{AlbumItem, ArtistPage, ChartsPage, ExplorePage, MoodAndGenreItem, SongItem};
+use crate::models::music::{
+    AlbumItem, ArtistPage, ChartsPage, ExplorePage, MoodAndGenreItem, SongItem,
+};
 use crate::models::music_pages::{
     AlbumPage, MoodGenrePage, MusicHomePage, MusicPlaylistPage, MusicSearchResponse,
     MusicSearchSuggestions, QueuePage, RelatedPage, SearchSummaryPage,
@@ -47,7 +49,9 @@ impl MusicService {
         params: Option<&str>,
         continuation: Option<&str>,
     ) -> AppResult<MoodGenrePage> {
-        self.client.music_mood_genre(browse_id, params, continuation).await
+        self.client
+            .music_mood_genre(browse_id, params, continuation)
+            .await
     }
 
     // --- Search -----------------------------------------------------------
@@ -94,7 +98,9 @@ impl MusicService {
         playlist_id: Option<&str>,
         params: Option<&str>,
     ) -> AppResult<QueuePage> {
-        self.client.music_watch_queue(video_id, playlist_id, params).await
+        self.client
+            .music_watch_queue(video_id, playlist_id, params)
+            .await
     }
     pub async fn queue_continuation(&self, token: &str) -> AppResult<QueuePage> {
         self.client.music_queue_continuation(token).await

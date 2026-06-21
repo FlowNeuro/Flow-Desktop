@@ -1,14 +1,14 @@
 use std::collections::HashSet;
 
+use crate::api::innertube::InnertubeClient;
 use crate::api::innertube::core::utils::{
     best_video_thumbnail_url, build_related_content_from_lockup, detect_video_is_live,
     extract_channel_id_from_video_renderer, extract_text_from_value, normalize_youtube_image_url,
     parse_duration_seconds, thumbnail_url_from_array,
 };
-use crate::api::innertube::InnertubeClient;
 use crate::errors::{AppError, AppResult};
 use crate::models::video::VideoSummary;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 const WEB_VERSION: &str = "2.20260120.01.00";
 const TRENDING_VIDEOS_PARAMS: &str = "4gIOGgxtb3N0X3BvcHVsYXI%3D";
@@ -16,7 +16,8 @@ const GAMING_CHANNEL_ID: &str = "UCOpNcN46UbXVtpKMrmU4Abg";
 const GAMING_PARAMS: &str = "Egh0cmVuZGluZw%3D%3D";
 const LIVE_CHANNEL_ID: &str = "UC4R8DWoMoI7CAwX8_LjQHig";
 const LIVE_PARAMS: &str = "EgdsaXZldGFikgEDCKEK";
-const CHARTS_ENDPOINT: &str = "https://charts.youtube.com/youtubei/v1/browse?alt=json&prettyPrint=false";
+const CHARTS_ENDPOINT: &str =
+    "https://charts.youtube.com/youtubei/v1/browse?alt=json&prettyPrint=false";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum TrendingCategory {
@@ -90,7 +91,8 @@ impl InnertubeClient {
             .await?;
         let mut videos = Vec::new();
 
-        if let Some(tabs) = response["contents"]["twoColumnBrowseResultsRenderer"]["tabs"].as_array()
+        if let Some(tabs) =
+            response["contents"]["twoColumnBrowseResultsRenderer"]["tabs"].as_array()
         {
             for tab in tabs {
                 let renderer = &tab["tabRenderer"];
@@ -118,7 +120,8 @@ impl InnertubeClient {
             .await?;
         let mut videos = Vec::new();
 
-        if let Some(tabs) = response["contents"]["twoColumnBrowseResultsRenderer"]["tabs"].as_array()
+        if let Some(tabs) =
+            response["contents"]["twoColumnBrowseResultsRenderer"]["tabs"].as_array()
         {
             for tab in tabs {
                 collect_videos_from_value(&tab["tabRenderer"]["content"], &mut videos);
@@ -173,7 +176,9 @@ impl InnertubeClient {
         if !status.is_success() {
             return Err(AppError::Extractor(format!(
                 "YouTube Charts returned status {status}: {}",
-                value["error"]["message"].as_str().unwrap_or("Unknown error")
+                value["error"]["message"]
+                    .as_str()
+                    .unwrap_or("Unknown error")
             )));
         }
 
@@ -205,7 +210,10 @@ fn web_payload(region: &str) -> Value {
 }
 
 fn collect_videos_from_value(value: &Value, videos: &mut Vec<VideoSummary>) {
-    if let Some(video) = value.get("videoRenderer").or_else(|| value.get("gridVideoRenderer")) {
+    if let Some(video) = value
+        .get("videoRenderer")
+        .or_else(|| value.get("gridVideoRenderer"))
+    {
         if let Some(summary) = parse_video_renderer(video) {
             videos.push(summary);
         }
@@ -253,7 +261,11 @@ fn parse_video_renderer(video: &Value) -> Option<VideoSummary> {
         .to_string();
 
     let title = extract_text_from_value(&video["title"])
-        .or_else(|| video["title"]["runs"][0]["text"].as_str().map(ToOwned::to_owned))
+        .or_else(|| {
+            video["title"]["runs"][0]["text"]
+                .as_str()
+                .map(ToOwned::to_owned)
+        })
         .unwrap_or_default();
 
     if title.is_empty() {
@@ -333,19 +345,20 @@ fn parse_chart_video(video: &Value) -> Option<VideoSummary> {
         .or_else(|| thumbnail_url_from_array(&video["thumbnails"]))
         .or_else(|| Some(format!("https://i.ytimg.com/vi/{id}/hq720.jpg")));
 
-    let published_text = video["releaseDate"]
-        .as_object()
-        .and_then(|release| {
-            let year = release.get("year")?.as_i64()?;
-            let month = release.get("month")?.as_i64()?;
-            let day = release.get("day")?.as_i64()?;
-            Some(format!("{year:04}-{month:02}-{day:02}"))
-        });
+    let published_text = video["releaseDate"].as_object().and_then(|release| {
+        let year = release.get("year")?.as_i64()?;
+        let month = release.get("month")?.as_i64()?;
+        let day = release.get("day")?.as_i64()?;
+        Some(format!("{year:04}-{month:02}-{day:02}"))
+    });
 
     Some(VideoSummary {
         id,
         title: video["title"].as_str().unwrap_or_default().to_string(),
-        channel_name: video["channelName"].as_str().unwrap_or_default().to_string(),
+        channel_name: video["channelName"]
+            .as_str()
+            .unwrap_or_default()
+            .to_string(),
         channel_id,
         thumbnail_url,
         duration_seconds: duration,

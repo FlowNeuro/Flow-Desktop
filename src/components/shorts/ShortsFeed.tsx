@@ -1,0 +1,175 @@
+import { useCallback, useEffect, useRef, useState } from "react";
+import { ChevronDown, ChevronUp } from "lucide-react";
+import { useShortsFeed } from "../../lib/useShortsFeed";
+import { ShortPlayer } from "./ShortPlayer";
+import type { ShortsPanelState } from "../../types/shorts";
+
+const PREFETCH_WITHIN = 5;
+const STREAM_PRELOAD_RADIUS = 1;
+
+export function ShortsFeed() {
+  const { items, loading, error, loadMore } = useShortsFeed();
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [panelState, setPanelState] = useState<ShortsPanelState>("none");
+  const [muted, setMuted] = useState(true);
+  const [unavailableIds, setUnavailableIds] = useState<Set<string>>(new Set());
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  const slideRefs = useRef<(HTMLElement | null)[]>([]);
+
+  useEffect(() => {
+    const unmute = () => setMuted(false);
+    const opts = { once: true } as const;
+    window.addEventListener("pointerdown", unmute, opts);
+    window.addEventListener("keydown", unmute, opts);
+    window.addEventListener("wheel", unmute, opts);
+    return () => {
+      window.removeEventListener("pointerdown", unmute);
+      window.removeEventListener("keydown", unmute);
+      window.removeEventListener("wheel", unmute);
+    };
+  }, []);
+
+  const markUnavailable = useCallback((id: string) => {
+    setUnavailableIds((prev) => (prev.has(id) ? prev : new Set(prev).add(id)));
+  }, []);
+
+  useEffect(() => {
+    const root = containerRef.current;
+    if (!root || items.length === 0) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting && entry.intersectionRatio >= 0.6) {
+            const index = Number((entry.target as HTMLElement).dataset.index);
+            if (!Number.isNaN(index)) setActiveIndex(index);
+          }
+        }
+      },
+      { root, threshold: [0.6] },
+    );
+
+    slideRefs.current.slice(0, items.length).forEach((el) => el && observer.observe(el));
+    return () => observer.disconnect();
+  }, [items.length]);
+
+  useEffect(() => {
+    if (items.length > 0 && activeIndex >= items.length - PREFETCH_WITHIN) {
+      void loadMore();
+    }
+  }, [activeIndex, items.length, loadMore]);
+
+  useEffect(() => {
+    setPanelState("none");
+  }, [activeIndex]);
+
+  const scrollToIndex = useCallback(
+    (index: number) => {
+      const clamped = Math.max(0, Math.min(index, items.length - 1));
+      slideRefs.current[clamped]?.scrollIntoView({ behavior: "smooth", block: "start" });
+    },
+    [items.length],
+  );
+
+  useEffect(() => {
+    const active = items[activeIndex];
+    if (!active || !unavailableIds.has(active.id)) return;
+    if (activeIndex >= items.length - 1) {
+      void loadMore();
+      return;
+    }
+    const timer = window.setTimeout(() => scrollToIndex(activeIndex + 1), 500);
+    return () => window.clearTimeout(timer);
+  }, [activeIndex, items, unavailableIds, scrollToIndex, loadMore]);
+
+  if (loading && items.length === 0) {
+    return (
+      <div className="flex h-full w-full items-center justify-center bg-background">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      </div>
+    );
+  }
+
+  if (!loading && items.length === 0) {
+    return (
+      <div className="flex h-full w-full items-center justify-center bg-background px-6 text-center">
+        <p className="text-sm text-neutral-400">
+          {error ? "Couldn't load Shorts right now." : "No Shorts to show yet."}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative h-full w-full bg-background" data-panel={panelState}>
+      <div
+        ref={containerRef}
+        className="hide-scrollbar h-full w-full snap-y snap-mandatory overflow-y-auto"
+      >
+        {items.map((short, index) => (
+          <section
+            key={short.id}
+            ref={(el) => {
+              slideRefs.current[index] = el;
+            }}
+            data-index={index}
+            className="h-full w-full snap-start"
+          >
+            <ShortPlayer
+              short={short}
+              active={index === activeIndex}
+              preload={Math.abs(index - activeIndex) <= STREAM_PRELOAD_RADIUS}
+              muted={muted}
+              panelState={panelState}
+              onRequestPanel={setPanelState}
+              onToggleMute={() => setMuted((value) => !value)}
+              onUnavailable={() => markUnavailable(short.id)}
+            />
+          </section>
+        ))}
+      </div>
+
+      <div className="absolute right-4 top-1/2 z-30 flex -translate-y-1/2 flex-col gap-3">
+        <NavButton
+          ariaLabel="Previous Short"
+          disabled={activeIndex <= 0}
+          onClick={() => scrollToIndex(activeIndex - 1)}
+        >
+          <ChevronUp className="h-5 w-5" />
+        </NavButton>
+        <NavButton
+          ariaLabel="Next Short"
+          disabled={activeIndex >= items.length - 1}
+          onClick={() => scrollToIndex(activeIndex + 1)}
+        >
+          <ChevronDown className="h-5 w-5" />
+        </NavButton>
+      </div>
+    </div>
+  );
+}
+
+function NavButton({
+  ariaLabel,
+  disabled,
+  onClick,
+  children,
+}: {
+  ariaLabel: string;
+  disabled: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={ariaLabel}
+      disabled={disabled}
+      onClick={onClick}
+      className="flex h-11 w-11 items-center justify-center rounded-full border border-neutral-800 bg-neutral-900 text-neutral-200 transition-colors duration-200 ease-out hover:bg-neutral-800 disabled:pointer-events-none disabled:opacity-40"
+    >
+      {children}
+    </button>
+  );
+}

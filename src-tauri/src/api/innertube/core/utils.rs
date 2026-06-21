@@ -175,9 +175,9 @@ pub fn best_video_thumbnail_url(video_id: &str, thumbnails: Option<&Value>) -> O
 }
 
 fn upgrade_youtube_thumbnail_url(url: String) -> String {
-    let (base, query) = url.split_once('?').map_or((url.as_str(), ""), |(base, query)| {
-        (base, query)
-    });
+    let (base, query) = url
+        .split_once('?')
+        .map_or((url.as_str(), ""), |(base, query)| (base, query));
 
     if base.ends_with("maxresdefault.jpg")
         || base.ends_with("maxresdefault.webp")

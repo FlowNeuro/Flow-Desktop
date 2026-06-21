@@ -1368,6 +1368,27 @@ impl RecommendationService {
         candidates: Vec<VideoSummary>,
         user_subs: HashSet<String>,
     ) -> AppResult<Vec<VideoSummary>> {
+        self.rank_candidates_inner(candidates, user_subs, false)
+            .await
+    }
+
+    /// Shorts ranking: keeps taste ordering and explicit blocks, but skips channel-
+    /// level suppression so the high-volume feed isn't starved
+    pub async fn rank_shorts_candidates(
+        &self,
+        candidates: Vec<VideoSummary>,
+        user_subs: HashSet<String>,
+    ) -> AppResult<Vec<VideoSummary>> {
+        self.rank_candidates_inner(candidates, user_subs, true)
+            .await
+    }
+
+    async fn rank_candidates_inner(
+        &self,
+        candidates: Vec<VideoSummary>,
+        user_subs: HashSet<String>,
+        lenient: bool,
+    ) -> AppResult<Vec<VideoSummary>> {
         if candidates.is_empty() {
             return Ok(Vec::new());
         }
@@ -1391,20 +1412,23 @@ impl RecommendationService {
                 {
                     return false;
                 }
-                if brain
-                    .suppressed_channels
-                    .get(channel_id)
-                    .map(|ts| *ts >= channel_cutoff)
-                    .unwrap_or(false)
+                if !lenient
+                    && brain
+                        .suppressed_channels
+                        .get(channel_id)
+                        .map(|ts| *ts >= channel_cutoff)
+                        .unwrap_or(false)
                 {
                     return false;
                 }
                 if brain.blocked_channels.contains(channel_id) {
                     return false;
                 }
-                if let Some(strike) = brain.channel_strikes.get(channel_id) {
-                    if channel_inferred_blocked(strike, now_ms) {
-                        return false;
+                if !lenient {
+                    if let Some(strike) = brain.channel_strikes.get(channel_id) {
+                        if channel_inferred_blocked(strike, now_ms) {
+                            return false;
+                        }
                     }
                 }
                 let title_lower = video.title.to_lowercase();
@@ -1930,9 +1954,8 @@ impl RecommendationService {
                 .await
             {
                 candidates = trending_music;
-            } else if let Ok(trending_fallback) = youtube_service
-                .get_trending_videos(None, None)
-                .await
+            } else if let Ok(trending_fallback) =
+                youtube_service.get_trending_videos(None, None).await
             {
                 candidates = trending_fallback
                     .into_iter()
@@ -2134,7 +2157,10 @@ impl RecommendationService {
         brain.preferred_topics.insert(trimmed.to_string());
         for token in tokenize(trimmed) {
             let current = *brain.global_vector.topics.get(&token).unwrap_or(&0.0);
-            brain.global_vector.topics.insert(token.clone(), current.max(0.5));
+            brain
+                .global_vector
+                .topics
+                .insert(token.clone(), current.max(0.5));
             brain
                 .global_vector
                 .topic_confidence

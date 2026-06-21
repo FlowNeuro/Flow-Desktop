@@ -362,7 +362,9 @@ fn proxyable_image_url(parsed: &reqwest::Url) -> String {
         return url.to_string();
     }
 
-    let (base_and_path, query) = url.split_once('?').map_or((url, ""), |(base, query)| (base, query));
+    let (base_and_path, query) = url
+        .split_once('?')
+        .map_or((url, ""), |(base, query)| (base, query));
     let base = google_size_param_start(base_and_path)
         .map(|idx| &base_and_path[..idx])
         .unwrap_or(base_and_path);

@@ -1,15 +1,16 @@
 use base64::Engine;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
-use crate::api::innertube::core::context::get_ios_context;
-use crate::api::innertube::core::utils::normalize_youtube_image_url;
 use crate::api::innertube::InnertubeClient;
+use crate::api::innertube::core::context::get_android_context;
+use crate::api::innertube::core::utils::normalize_youtube_image_url;
 use crate::errors::AppResult;
 use crate::models::shorts::{ShortItem, ShortsFeed};
 use crate::streaming::sabr::pb::PbWriter;
 
-/// `sequenceParams` sentinel for the home Shorts feed (no seed video).
-const HOME_SEQUENCE_PARAMS: &str = "CA8%3D";
+/// `sequenceParams` sentinel for the home Shorts feed (no seed video). Raw base64
+/// (`=`, not URL-encoded `%3D`) — the JSON body must carry the decoded token.
+const HOME_SEQUENCE_PARAMS: &str = "CA8=";
 
 /// Encode the `params` token that seeds a reel sequence from a video. The wire
 /// shape is field 2 (length-delimited) holding the id, base64url'd without padding.
@@ -33,7 +34,7 @@ impl InnertubeClient {
         region: Option<String>,
     ) -> AppResult<ShortsFeed> {
         let visitor_data = self.fetch_visitor_data().await;
-        let mut context = get_ios_context(visitor_data, None);
+        let mut context = get_android_context(visitor_data);
         if let Some(region) = region.as_deref() {
             let cleaned = region.trim().to_ascii_uppercase();
             if cleaned.len() == 2 && cleaned.chars().all(|c| c.is_ascii_alphabetic()) {
@@ -54,10 +55,28 @@ impl InnertubeClient {
         }
 
         let res = self
-            .post_innertube("reel/reel_watch_sequence", "IOS", "19.29.1", &mut payload)
+            .post_innertube(
+                "reel/reel_watch_sequence",
+                "ANDROID",
+                "21.03.38",
+                &mut payload,
+            )
             .await?;
 
-        Ok(parse_reel_sequence(&res))
+        let feed = parse_reel_sequence(&res);
+        if feed.items.is_empty() {
+            tracing::warn!(
+                "[shorts] reel_watch_sequence parsed 0 items. top-level keys: {:?}",
+                res.as_object()
+                    .map(|obj| obj.keys().cloned().collect::<Vec<_>>())
+            );
+        } else {
+            tracing::info!(
+                "[shorts] reel_watch_sequence parsed {} items",
+                feed.items.len()
+            );
+        }
+        Ok(feed)
     }
 }
 
@@ -180,7 +199,11 @@ fn reel_text(value: &Value) -> Option<String> {
 // View/like counts are well under 2^52, so the f64 cast is exact in practice.
 #[allow(clippy::cast_precision_loss)]
 fn reel_accessibility_count(label: &Value) -> Option<String> {
-    let digits: String = label.as_str()?.chars().filter(char::is_ascii_digit).collect();
+    let digits: String = label
+        .as_str()?
+        .chars()
+        .filter(char::is_ascii_digit)
+        .collect();
     let count: u64 = digits.parse().ok()?;
     Some(match count {
         n if n >= 1_000_000_000 => format!("{:.1}B", n as f64 / 1_000_000_000.0),

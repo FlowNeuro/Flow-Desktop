@@ -22,9 +22,9 @@ pub fn parse_duration_seconds(simple_text: &str) -> u64 {
 }
 
 fn upgrade_youtube_thumbnail_url(url: String) -> String {
-    let (base, query) = url.split_once('?').map_or((url.as_str(), ""), |(base, query)| {
-        (base, query)
-    });
+    let (base, query) = url
+        .split_once('?')
+        .map_or((url.as_str(), ""), |(base, query)| (base, query));
 
     if base.ends_with("maxresdefault.jpg")
         || base.ends_with("maxresdefault.webp")
@@ -376,10 +376,11 @@ pub fn parse_music_responsive_list_item_renderer(renderer: &Value) -> Option<YTI
         }
     }
 
-    let thumbnail_url =
-        best_thumbnail_url(&renderer["thumbnail"]["musicThumbnailRenderer"]["thumbnail"]["thumbnails"])
-            .or_else(|| best_thumbnail_url(&renderer["thumbnail"]["thumbnails"]))
-            .unwrap_or_default();
+    let thumbnail_url = best_thumbnail_url(
+        &renderer["thumbnail"]["musicThumbnailRenderer"]["thumbnail"]["thumbnails"],
+    )
+    .or_else(|| best_thumbnail_url(&renderer["thumbnail"]["thumbnails"]))
+    .unwrap_or_default();
 
     let is_explicit = renderer["badges"]
         .as_array()
@@ -417,10 +418,11 @@ pub fn parse_music_responsive_list_item_renderer(renderer: &Value) -> Option<YTI
 
 pub fn parse_music_two_row_item_renderer(renderer: &Value) -> Option<YTItem> {
     let title = renderer["title"]["runs"][0]["text"].as_str()?.to_string();
-    let thumbnail =
-        best_thumbnail_url(&renderer["thumbnailRenderer"]["musicThumbnailRenderer"]["thumbnail"]["thumbnails"])
-            .or_else(|| best_thumbnail_url(&renderer["thumbnailRenderer"]["thumbnail"]["thumbnails"]))
-            .or_else(|| best_thumbnail_url(&renderer["thumbnail"]["thumbnails"]))?;
+    let thumbnail = best_thumbnail_url(
+        &renderer["thumbnailRenderer"]["musicThumbnailRenderer"]["thumbnail"]["thumbnails"],
+    )
+    .or_else(|| best_thumbnail_url(&renderer["thumbnailRenderer"]["thumbnail"]["thumbnails"]))
+    .or_else(|| best_thumbnail_url(&renderer["thumbnail"]["thumbnails"]))?;
 
     let watch_endpoint = &renderer["navigationEndpoint"]["watchEndpoint"];
     let browse_endpoint = &renderer["navigationEndpoint"]["browseEndpoint"];

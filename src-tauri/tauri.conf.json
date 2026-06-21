@@ -15,7 +15,8 @@
       {
         "title": "Flow",
         "width": 1280,
-        "height": 800
+        "height": 800,
+        "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --autoplay-policy=no-user-gesture-required"
       }
     ],
     "security": {

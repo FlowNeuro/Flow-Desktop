@@ -85,6 +85,29 @@ pub fn get_android_vr_context(visitor_data: Option<String>) -> Value {
     })
 }
 
+pub fn get_android_context(visitor_data: Option<String>) -> Value {
+    let mut client = serde_json::json!({
+        "clientName": "ANDROID",
+        "clientVersion": "21.03.38",
+        "hl": "en",
+        "gl": "US",
+        "utcOffsetMinutes": 0,
+        "deviceMake": "Google",
+        "deviceModel": "Pixel 6 Pro",
+        "osName": "Android",
+        "osVersion": "14",
+        "androidSdkVersion": "34"
+    });
+
+    if let Some(vd) = visitor_data {
+        client["visitorData"] = Value::String(vd);
+    }
+
+    serde_json::json!({
+        "client": client,
+    })
+}
+
 impl InnertubeClient {
     pub async fn fetch_visitor_data(&self) -> Option<String> {
         if let Ok(guard) = self.visitor_data.read() {

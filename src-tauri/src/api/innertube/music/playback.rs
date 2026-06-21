@@ -15,8 +15,8 @@ use serde_json::Value;
 use tracing::{debug, info, warn};
 
 use super::clients;
-use crate::api::innertube::core::botguard::generate_po_token;
 use crate::api::innertube::InnertubeClient;
+use crate::api::innertube::core::botguard::generate_po_token;
 use crate::errors::{AppError, AppResult};
 use crate::models::music_stream::{MusicAudioQuality, MusicStreamInfo};
 
@@ -71,7 +71,10 @@ impl InnertubeClient {
             let status = res["playabilityStatus"]["status"].as_str().unwrap_or("");
             if !status.eq_ignore_ascii_case("OK") {
                 let reason = res["playabilityStatus"]["reason"].as_str();
-                warn!(client = client.name, status, reason, "non-OK music playability");
+                warn!(
+                    client = client.name,
+                    status, reason, "non-OK music playability"
+                );
                 last_error = Some(map_music_playability(status, reason));
                 continue;
             }
@@ -86,7 +89,10 @@ impl InnertubeClient {
                 .as_str()
                 .unwrap_or("audio/webm")
                 .to_string();
-            let itag = format["itag"].as_u64().and_then(|v| u32::try_from(v).ok()).unwrap_or(0);
+            let itag = format["itag"]
+                .as_u64()
+                .and_then(|v| u32::try_from(v).ok())
+                .unwrap_or(0);
             let bitrate = format["bitrate"]
                 .as_u64()
                 .or_else(|| format["averageBitrate"].as_u64());

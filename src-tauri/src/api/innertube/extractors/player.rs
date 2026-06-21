@@ -1,6 +1,8 @@
 use crate::api::innertube::InnertubeClient;
 use crate::api::innertube::core::botguard::generate_po_token;
-use crate::api::innertube::core::context::{get_android_vr_context, get_ios_context};
+use crate::api::innertube::core::context::{
+    get_android_context, get_android_vr_context, get_ios_context,
+};
 use crate::api::innertube::core::utils::{
     collect_related_content_items, dedupe_related_content_items,
     extract_channel_id_from_video_renderer, extract_text_from_value, thumbnail_url_from_array,
@@ -18,6 +20,7 @@ use std::collections::{HashMap, HashSet};
 use tracing::{debug, info, warn};
 
 const ANDROID_VR_USER_AGENT: &str = "com.google.android.apps.youtube.vr.oculus/1.61.48 (Linux; U; Android 12; en_US; Quest 3; Build/SQ3A.220605.009.A1; Cronet/132.0.6808.3)";
+const ANDROID_USER_AGENT: &str = "com.google.android.youtube/21.03.38 (Linux; U; Android 14) gzip";
 const IOS_USER_AGENT: &str =
     "com.google.ios.youtube/19.29.1 (iPhone14,5; U; CPU iOS 17_5_1 like Mac OS X; en_US)";
 // Only referenced by the SABR live smoke test below.
@@ -249,6 +252,13 @@ fn check_needs_reload(val: &Value) -> bool {
         }
     }
     false
+}
+
+fn is_terminal_playability_status(status: &str) -> bool {
+    matches!(
+        status.to_ascii_uppercase().as_str(),
+        "LIVE_STREAM_OFFLINE" | "UNPLAYABLE" | "ERROR"
+    )
 }
 
 fn map_playability_error(status: &str, reason: Option<&str>) -> AppError {
@@ -1018,18 +1028,61 @@ impl InnertubeClient {
             .await;
 
         let mut should_fallback_to_ios = false;
+        let mut recovered_with_android = false;
+        let mut android_recovery = None;
         if let Ok(ref val) = res {
             if check_needs_reload(val) {
                 should_fallback_to_ios = true;
             } else if let Some(status) = val["playabilityStatus"]["status"].as_str() {
                 if !status.eq_ignore_ascii_case("OK") {
-                    warn!(status = %status, video_id = %video_id_trimmed, "ANDROID_VR details request returned a non-OK playability status, falling back to IOS");
-                    should_fallback_to_ios = true;
+                    if is_terminal_playability_status(status) {
+                        warn!(status = %status, video_id = %video_id_trimmed, "ANDROID_VR details request returned a terminal playability status; trying ANDROID fallback");
+                        let mut android_payload = serde_json::json!({
+                            "context": get_android_context(visitor_data.clone()),
+                            "videoId": video_id_trimmed,
+                            "contentCheckOk": true,
+                            "racyCheckOk": true
+                        });
+                        if let Ok(Ok(android_res)) = tokio::time::timeout(
+                            std::time::Duration::from_millis(1500),
+                            self.post_innertube(
+                                "player",
+                                "ANDROID",
+                                "21.03.38",
+                                &mut android_payload,
+                            ),
+                        )
+                        .await
+                        {
+                            if android_res["playabilityStatus"]["status"]
+                                .as_str()
+                                .map(|status| status.eq_ignore_ascii_case("OK"))
+                                .unwrap_or(false)
+                            {
+                                android_recovery = Some(android_res);
+                                should_fallback_to_ios = false;
+                                recovered_with_android = true;
+                            }
+                        }
+                        if !recovered_with_android {
+                            return Err(map_playability_error(
+                                status,
+                                val["playabilityStatus"]["reason"].as_str(),
+                            ));
+                        }
+                    }
+                    if !recovered_with_android {
+                        warn!(status = %status, video_id = %video_id_trimmed, "ANDROID_VR details request returned a non-OK playability status, falling back to IOS");
+                        should_fallback_to_ios = true;
+                    }
                 }
             }
         } else {
             warn!(video_id = %video_id_trimmed, "ANDROID_VR details request failed, falling back to IOS");
             should_fallback_to_ios = true;
+        }
+        if let Some(android_res) = android_recovery {
+            res = Ok(android_res);
         }
 
         if should_fallback_to_ios {
@@ -1310,19 +1363,64 @@ impl InnertubeClient {
         let mut current_user_agent = ANDROID_VR_USER_AGENT;
         let mut sabr_client_name = "ANDROID_VR";
         let mut po_token_used: Option<String> = None;
+        let mut recovered_with_android = false;
+        let mut android_recovery = None;
 
         if let Ok(ref val) = res {
             if check_needs_reload(val) {
                 should_fallback_to_ios = true;
             } else if let Some(status) = val["playabilityStatus"]["status"].as_str() {
                 if !status.eq_ignore_ascii_case("OK") {
-                    warn!(status = %status, video_id = %video_id_trimmed, "ANDROID_VR returned a non-OK playability status, falling back to IOS");
-                    should_fallback_to_ios = true;
+                    if is_terminal_playability_status(status) {
+                        warn!(status = %status, video_id = %video_id_trimmed, "ANDROID_VR returned a terminal playability status; trying ANDROID Shorts fallback");
+                        let mut android_payload = serde_json::json!({
+                            "context": get_android_context(visitor_data.clone()),
+                            "videoId": video_id_trimmed,
+                            "contentCheckOk": true,
+                            "racyCheckOk": true
+                        });
+                        if let Ok(Ok(android_res)) = tokio::time::timeout(
+                            std::time::Duration::from_millis(1500),
+                            self.post_innertube(
+                                "player",
+                                "ANDROID",
+                                "21.03.38",
+                                &mut android_payload,
+                            ),
+                        )
+                        .await
+                        {
+                            if android_res["playabilityStatus"]["status"]
+                                .as_str()
+                                .map(|status| status.eq_ignore_ascii_case("OK"))
+                                .unwrap_or(false)
+                            {
+                                android_recovery = Some(android_res);
+                                recovered_with_android = true;
+                                should_fallback_to_ios = false;
+                                current_user_agent = ANDROID_USER_AGENT;
+                                sabr_client_name = "ANDROID";
+                            }
+                        }
+                        if !recovered_with_android {
+                            return Err(map_playability_error(
+                                status,
+                                val["playabilityStatus"]["reason"].as_str(),
+                            ));
+                        }
+                    }
+                    if !recovered_with_android {
+                        warn!(status = %status, video_id = %video_id_trimmed, "ANDROID_VR returned a non-OK playability status, falling back to IOS");
+                        should_fallback_to_ios = true;
+                    }
                 }
             }
         } else {
             warn!(video_id = %video_id_trimmed, "ANDROID_VR player request failed, falling back to IOS");
             should_fallback_to_ios = true;
+        }
+        if let Some(android_res) = android_recovery {
+            res = Ok(android_res);
         }
 
         if should_fallback_to_ios {

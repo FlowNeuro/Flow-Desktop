@@ -55,6 +55,9 @@ impl InnertubeClient {
             ("ANDROID_VR", _) => {
                 "com.google.android.apps.youtube.vr.oculus/1.61.48 (Linux; U; Android 12; en_US; Quest 3; Build/SQ3A.220605.009.A1; Cronet/132.0.6808.3)"
             }
+            ("ANDROID", "21.03.38") => {
+                "com.google.android.youtube/21.03.38 (Linux; U; Android 14) gzip"
+            }
             _ => {
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
             }
