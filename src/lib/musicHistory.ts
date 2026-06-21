@@ -1,5 +1,6 @@
 import { addWatchRecord } from "./api/db";
 import { logInteraction } from "./api/recommendation";
+import { shouldRecordWatchHistory } from "./deepFlow";
 import type { SongItem } from "../types/music";
 
 const videoIdOf = (t: SongItem): string => t.videoId ?? t.id;
@@ -14,18 +15,20 @@ export async function recordSongHistory(
   const total = Math.floor(totalSeconds || track.duration || 0);
   const watched = Math.floor(Math.max(0, progressSeconds));
 
-  try {
-    await addWatchRecord({
-      videoId: id,
-      title: track.title,
-      channelName,
-      watchDate: new Date().toISOString(),
-      watchDurationSeconds: watched,
-      totalDurationSeconds: total,
-      isMusic: true,
-    });
-  } catch (e) {
-    console.warn("Failed to save song to watch history", e);
+  if (shouldRecordWatchHistory()) {
+    try {
+      await addWatchRecord({
+        videoId: id,
+        title: track.title,
+        channelName,
+        watchDate: new Date().toISOString(),
+        watchDurationSeconds: watched,
+        totalDurationSeconds: total,
+        isMusic: true,
+      });
+    } catch (e) {
+      console.warn("Failed to save song to watch history", e);
+    }
   }
 
   const percentWatched = total > 0 ? Math.min(1, Math.max(0, progressSeconds / total)) : 0;

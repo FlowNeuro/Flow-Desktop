@@ -71,6 +71,16 @@
   @apply bg-red-950/40 text-primary border-l-4 border-primary;
 }
 
+.deep-flow-topbar-active {
+  color: var(--color-primary);
+  background-color: color-mix(in srgb, var(--color-primary) 15%, transparent);
+}
+
+.deep-flow-topbar-active:hover {
+  color: var(--color-primary);
+  background-color: color-mix(in srgb, var(--color-primary) 22%, transparent);
+}
+
 @keyframes pane-fade-in {
   from {
     opacity: 0;

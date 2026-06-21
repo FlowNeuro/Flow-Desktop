@@ -6,6 +6,13 @@ import { useBoolPref, usePreference, useNumberPref } from '../../../lib/usePrefe
 import { getString } from '../../../lib/i18n/index';
 import { SETTINGS } from '../../../lib/settings/schema';
 import { isSettingDisabledUntilWired } from '../../../lib/settings/values';
+import {
+  DEEP_FLOW_DURATION_OPTIONS,
+  DEEP_FLOW_NEVER_EXPIRES_HOURS,
+  getDeepFlowDurationLabel,
+  setDeepFlowEnabled,
+} from '../../../lib/deepFlow';
+import { useAppSettingsStore } from '../../../store/useAppSettingsStore';
 
 const REGION_OPTIONS = [
   { value: 'DZ', label: 'Algeria' }, { value: 'AR', label: 'Argentina' }, { value: 'AU', label: 'Australia' },
@@ -47,6 +54,7 @@ const REGION_OPTIONS = [
 ];
 
 export function ContentTab() {
+  const deepFlowActive = useAppSettingsStore((state) => state.values[SETTINGS.DEEP_FLOW_ACTIVE] === 'true');
   const [titleMaxLines, setTitleMaxLines] = useNumberPref(SETTINGS.VIDEO_TITLE_MAX_LINES, 1);
   const [downloadDialogStyle, setDownloadDialogStyle] = usePreference(SETTINGS.DOWNLOAD_DIALOG_STYLE, 'FULL');
   const [homeFeed, setHomeFeed] = useBoolPref(SETTINGS.HOME_FEED_ENABLED, true);
@@ -67,9 +75,49 @@ export function ContentTab() {
   const [subsShowLive, setSubsShowLive] = useBoolPref(SETTINGS.SUBSCRIPTION_SHOW_LIVE, true);
   const [regionPicker, setRegionPicker] = useBoolPref(SETTINGS.SHOW_REGION_PICKER_IN_EXPLORE, true);
   const [trendingRegion, setTrendingRegion] = usePreference(SETTINGS.TRENDING_REGION, 'US');
+  const [deepFlowExpireHours, setDeepFlowExpireHours] = usePreference(SETTINGS.DEEP_FLOW_EXPIRE_HOURS, '4');
+  const [deepFlowSaveHistory, setDeepFlowSaveHistory] = useBoolPref(SETTINGS.DEEP_FLOW_SAVE_HISTORY, false);
+
+  const deepFlowHours = Number(deepFlowExpireHours);
+  const deepFlowDurationLabel = getDeepFlowDurationLabel(deepFlowHours);
+  const deepFlowDescription = deepFlowActive
+    ? deepFlowHours === DEEP_FLOW_NEVER_EXPIRES_HOURS
+      ? getString('deep_flow_active_until_disabled')
+      : getString('deep_flow_learning_paused')
+    : getString('deep_flow_mode_subtitle');
 
   return (
     <div className="space-y-6 pb-8">
+      <SettingsGroup title={getString('deep_flow_mode_title')}>
+        <SettingItem title={getString('deep_flow_mode_title')} description={deepFlowDescription} disabled={isSettingDisabledUntilWired(SETTINGS.DEEP_FLOW_ACTIVE)}>
+          <ToggleSwitch
+            checked={deepFlowActive}
+            onChange={(enabled) => {
+              void setDeepFlowEnabled(enabled);
+            }}
+            disabled={isSettingDisabledUntilWired(SETTINGS.DEEP_FLOW_ACTIVE)}
+          />
+        </SettingItem>
+        <SettingItem
+          title={getString('deep_flow_expire_duration_title')}
+          description={getString('deep_flow_expire_duration_subtitle', deepFlowDurationLabel)}
+          disabled={isSettingDisabledUntilWired(SETTINGS.DEEP_FLOW_EXPIRE_HOURS)}
+        >
+          <Select
+            value={deepFlowExpireHours}
+            onChange={setDeepFlowExpireHours}
+            disabled={isSettingDisabledUntilWired(SETTINGS.DEEP_FLOW_EXPIRE_HOURS)}
+            options={DEEP_FLOW_DURATION_OPTIONS.map((hours) => ({
+              value: String(hours),
+              label: getDeepFlowDurationLabel(hours),
+            }))}
+          />
+        </SettingItem>
+        <SettingItem title={getString('deep_flow_save_history_title')} description={getString('deep_flow_save_history_subtitle')} disabled={isSettingDisabledUntilWired(SETTINGS.DEEP_FLOW_SAVE_HISTORY)}>
+          <ToggleSwitch checked={deepFlowSaveHistory} onChange={setDeepFlowSaveHistory} disabled={isSettingDisabledUntilWired(SETTINGS.DEEP_FLOW_SAVE_HISTORY)} />
+        </SettingItem>
+      </SettingsGroup>
+
       <SettingsGroup title={getString('settings_group_layout')}>
         <SettingItem title={getString('settings_video_title_lines')} description={getString('settings_video_title_lines_desc')} disabled={isSettingDisabledUntilWired(SETTINGS.VIDEO_TITLE_MAX_LINES)}>
           <Select value={String(titleMaxLines)} onChange={(v) => setTitleMaxLines(Number(v))} disabled={isSettingDisabledUntilWired(SETTINGS.VIDEO_TITLE_MAX_LINES)} options={[

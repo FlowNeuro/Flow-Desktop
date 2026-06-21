@@ -73,6 +73,10 @@ export const SETTINGS = {
   SUBSCRIPTION_SHOW_LIVE: "subscription_show_live",
   SHOW_REGION_PICKER_IN_EXPLORE: "show_region_picker_in_explore",
   TRENDING_REGION: "trending_region",
+  DEEP_FLOW_ACTIVE: "deep_flow_active",
+  DEEP_FLOW_ACTIVATED_AT: "deep_flow_activated_at",
+  DEEP_FLOW_EXPIRE_HOURS: "deep_flow_expire_hours",
+  DEEP_FLOW_SAVE_HISTORY: "deep_flow_save_history",
 
   DEFAULT_QUALITY_WIFI: "default_quality_wifi",
   DEFAULT_VIDEO_CODEC: "default_video_codec",
@@ -247,6 +251,10 @@ export const SETTING_DEFINITIONS = [
   bool(SETTINGS.SUBSCRIPTION_SHOW_LIVE, "content", true, "wired"),
   bool(SETTINGS.SHOW_REGION_PICKER_IN_EXPLORE, "content", true, "deferred", "disabled-until-wired", "settings_note_explore_target_needs_confirmation"),
   str(SETTINGS.TRENDING_REGION, "content", "US", "persisted-only"),
+  bool(SETTINGS.DEEP_FLOW_ACTIVE, "content", false, "wired"),
+  num(SETTINGS.DEEP_FLOW_ACTIVATED_AT, "content", 0, "wired", 0, undefined, "internal"),
+  str(SETTINGS.DEEP_FLOW_EXPIRE_HOURS, "content", "4", "wired", ["0", "1", "2", "4", "6", "8", "12", "24"]),
+  bool(SETTINGS.DEEP_FLOW_SAVE_HISTORY, "content", false, "wired"),
 
   str(SETTINGS.DEFAULT_QUALITY_WIFI, "quality", "1080p", "wired", QUALITY_VALUES),
   str(SETTINGS.DEFAULT_VIDEO_CODEC, "quality", "H.264", "wired", ["Auto", "H.264", "VP9", "AV1"]),

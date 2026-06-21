@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Bell, Menu, Search, Settings } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Bell, HatGlasses, Menu, Search, Settings } from 'lucide-react';
 import { useUiStore } from '../../store/useUiStore';
 import { useAppSettingsStore } from '../../store/useAppSettingsStore';
 import Logo from '../common/Logo';
 import { IconButton } from '../ui/IconButton';
 import { getSearchSuggestions } from '../../lib/api/youtube';
 import { SETTINGS } from '../../lib/settings/schema';
+import { getString } from '../../lib/i18n/index';
+import { toggleDeepFlow } from '../../lib/deepFlow';
 
 export function Topbar() {
   const { toggleSidebar, toggleWatchSidebar, setSearchQuery } = useUiStore();
@@ -18,6 +20,7 @@ export function Topbar() {
   const suggestionRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const showAppLogo = useAppSettingsStore((state) => state.values[SETTINGS.SHOW_APP_LOGO_ICON] !== 'false');
+  const deepFlowActive = useAppSettingsStore((state) => state.values[SETTINGS.DEEP_FLOW_ACTIVE] === 'true');
 
   useEffect(() => {
     const handleOutsideClick = (e: MouseEvent) => {
@@ -158,6 +161,16 @@ export function Topbar() {
       <div className="flex items-center gap-2">
         <IconButton title="Notifications">
           <Bell />
+        </IconButton>
+        <IconButton
+          onClick={() => {
+            void toggleDeepFlow();
+          }}
+          title={getString(deepFlowActive ? 'deep_flow_topbar_disable' : 'deep_flow_topbar_enable')}
+          aria-pressed={deepFlowActive}
+          className={deepFlowActive ? 'deep-flow-topbar-active' : undefined}
+        >
+          <HatGlasses />
         </IconButton>
         <IconButton onClick={() => navigate('/settings')} title="Settings">
           <Settings />

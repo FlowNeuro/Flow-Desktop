@@ -6,6 +6,7 @@ import {
   markNotInterested,
   blockChannel as apiBlockChannel,
 } from "../lib/api/recommendation";
+import { shouldRecordWatchHistory } from "../lib/deepFlow";
 import type { VideoSummary } from "../types/video";
 
 // Global recommendation-feedback state shared by every video card, mirroring the mobile
@@ -181,14 +182,16 @@ export const useFeedActionsStore = create<FeedActionsState>((set, get) => {
           "WATCHED",
           1.0,
         );
-        await addWatchRecord({
-          videoId: video.id,
-          title: video.title,
-          channelName: video.channelName,
-          watchDate: new Date().toISOString(),
-          watchDurationSeconds: m.duration ?? 0,
-          totalDurationSeconds: m.duration ?? 0,
-        });
+        if (shouldRecordWatchHistory()) {
+          await addWatchRecord({
+            videoId: video.id,
+            title: video.title,
+            channelName: video.channelName,
+            watchDate: new Date().toISOString(),
+            watchDurationSeconds: m.duration ?? 0,
+            totalDurationSeconds: m.duration ?? 0,
+          });
+        }
       } catch (e) {
         console.warn("Failed to mark watched", e);
       }

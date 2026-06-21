@@ -40,6 +40,7 @@ import { MusicOverlay } from "./components/music/MusicOverlay";
 import { AddToAlbumModal } from "./components/music/AddToAlbumModal";
 import { AddTracksToAlbumModal } from "./components/music/AddTracksToAlbumModal";
 import { AddToPlaylistModal } from "./components/playlist/AddToPlaylistModal";
+import { DeepFlowController } from "./components/deep-flow/DeepFlowController";
 
 import "./App.css";
 
@@ -179,6 +180,7 @@ function App() {
       <AddToAlbumModal />
       <AddTracksToAlbumModal />
       <AddToPlaylistModal />
+      <DeepFlowController />
       <ToastHost />
     </div>
   );

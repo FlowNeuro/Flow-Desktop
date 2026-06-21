@@ -11,6 +11,7 @@ import { addWatchRecord } from "../../lib/api/db";
 import { isMusicVideo } from "../../lib/utils";
 import { SETTINGS } from "../../lib/settings/schema";
 import { useAppSettingsStore } from "../../store/useAppSettingsStore";
+import { shouldRecordWatchHistory } from "../../lib/deepFlow";
 import type { FlowPlayerCoreProps } from "./types";
 
 /**
@@ -45,7 +46,10 @@ export function FlowPlayerCore({ videoId, videoDetails, onEnded }: FlowPlayerCor
 
       if (!currentVideo) return;
       latestProgressRef.current = { time, duration: nextDuration };
-      saveLocalWatchProgress(currentVideo.id, time, nextDuration);
+      const recordHistory = shouldRecordWatchHistory();
+      if (recordHistory) {
+        saveLocalWatchProgress(currentVideo.id, time, nextDuration);
+      }
 
       const now = Date.now();
       if (now - lastProgressPersistedAtRef.current < 5000) return;
@@ -65,15 +69,17 @@ export function FlowPlayerCore({ videoId, videoDetails, onEnded }: FlowPlayerCor
         percentWatched,
       ).catch((err) => console.warn("Failed to log watch interaction", err));
 
-      void addWatchRecord({
-        videoId: currentVideo.id,
-        title: currentVideo.title,
-        channelName: currentVideo.channelName,
-        watchDate: new Date().toISOString(),
-        watchDurationSeconds: Math.floor(time),
-        totalDurationSeconds: Math.floor(nextDuration || 0),
-        isMusic: isMusicVideo(currentVideo),
-      });
+      if (recordHistory) {
+        void addWatchRecord({
+          videoId: currentVideo.id,
+          title: currentVideo.title,
+          channelName: currentVideo.channelName,
+          watchDate: new Date().toISOString(),
+          watchDurationSeconds: Math.floor(time),
+          totalDurationSeconds: Math.floor(nextDuration || 0),
+          isMusic: isMusicVideo(currentVideo),
+        });
+      }
     },
     [currentVideo, resolvedChannelId, setCurrentTime, setDuration, videoDetails],
   );
@@ -84,7 +90,10 @@ export function FlowPlayerCore({ videoId, videoDetails, onEnded }: FlowPlayerCor
     const persistLatestProgress = () => {
       const latest = latestProgressRef.current;
       if (!latest) return;
-      saveLocalWatchProgress(currentVideo.id, latest.time, latest.duration);
+      const recordHistory = shouldRecordWatchHistory();
+      if (recordHistory) {
+        saveLocalWatchProgress(currentVideo.id, latest.time, latest.duration);
+      }
 
       const duration = latest.duration || currentVideo.durationSeconds || 1;
       const percentWatched = duration > 0 ? Math.min(1, Math.max(0, latest.time / duration)) : 0;
@@ -102,15 +111,17 @@ export function FlowPlayerCore({ videoId, videoDetails, onEnded }: FlowPlayerCor
         percentWatched,
       ).catch((err) => console.warn("Failed to log final watch interaction", err));
 
-      void addWatchRecord({
-        videoId: currentVideo.id,
-        title: currentVideo.title,
-        channelName: currentVideo.channelName,
-        watchDate: new Date().toISOString(),
-        watchDurationSeconds: Math.floor(latest.time),
-        totalDurationSeconds: Math.floor(latest.duration || currentVideo.durationSeconds || 0),
-        isMusic: isMusicVideo(currentVideo),
-      });
+      if (recordHistory) {
+        void addWatchRecord({
+          videoId: currentVideo.id,
+          title: currentVideo.title,
+          channelName: currentVideo.channelName,
+          watchDate: new Date().toISOString(),
+          watchDurationSeconds: Math.floor(latest.time),
+          totalDurationSeconds: Math.floor(latest.duration || currentVideo.durationSeconds || 0),
+          isMusic: isMusicVideo(currentVideo),
+        });
+      }
     };
 
     window.addEventListener("beforeunload", persistLatestProgress);

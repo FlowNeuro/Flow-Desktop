@@ -1,4 +1,5 @@
 import type { VideoSummary } from "../../types/video";
+import { isDeepFlowCurrentlyActive } from "../deepFlow";
 import { isTauriEnv } from "./env";
 import { invokeBackend } from "./errors";
 
@@ -78,6 +79,8 @@ export async function logInteraction(
   interactionType: string,
   percentWatched: number,
 ): Promise<void> {
+  if (isDeepFlowCurrentlyActive()) return;
+
   if (!(await isTauriEnv())) {
     console.log(`[FlowNeuro Mock Log] ${interactionType} - ${title} (${percentWatched * 100}%)`);
     return;
@@ -106,6 +109,8 @@ export async function markNotInterested(
   isLive: boolean,
   isShort: boolean,
 ): Promise<void> {
+  if (isDeepFlowCurrentlyActive()) return;
+
   if (!(await isTauriEnv())) {
     console.log(`[FlowNeuro Mock] Not interested - ${title}`);
     return;
@@ -125,6 +130,8 @@ export async function markNotInterested(
 export async function recordFeedImpressions(
   videos: VideoSummary[],
 ): Promise<void> {
+  if (isDeepFlowCurrentlyActive()) return;
+
   if (!(await isTauriEnv())) {
     return;
   }

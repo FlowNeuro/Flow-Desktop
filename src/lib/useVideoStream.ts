@@ -5,6 +5,7 @@ import { addWatchRecord } from "./api/db";
 import { isMusicVideo } from "./utils";
 import { SETTINGS } from "./settings/schema";
 import { selectPreferredStreamVariant } from "./settings/playerRuntime";
+import { shouldRecordWatchHistory } from "./deepFlow";
 import { useAppSettingsStore } from "../store/useAppSettingsStore";
 import type { AudioTrack, CaptionTrack, StreamInfo, StreamVariant } from "../types/video";
 
@@ -236,17 +237,19 @@ export function useVideoStream(videoId: string | undefined): VideoStream {
 
         setIsPlaying(true);
 
-        await addWatchRecord({
-          videoId: currentVideo.id,
-          title: currentVideo.title,
-          channelName: currentVideo.channelName,
-          watchDate: new Date().toISOString(),
-          watchDurationSeconds: Math.floor(
-            readSavedWatchProgress(currentVideo.id, currentVideo.durationSeconds ?? 0),
-          ),
-          totalDurationSeconds: currentVideo.durationSeconds ?? 0,
-          isMusic: isMusicVideo(currentVideo),
-        });
+        if (shouldRecordWatchHistory()) {
+          await addWatchRecord({
+            videoId: currentVideo.id,
+            title: currentVideo.title,
+            channelName: currentVideo.channelName,
+            watchDate: new Date().toISOString(),
+            watchDurationSeconds: Math.floor(
+              readSavedWatchProgress(currentVideo.id, currentVideo.durationSeconds ?? 0),
+            ),
+            totalDurationSeconds: currentVideo.durationSeconds ?? 0,
+            isMusic: isMusicVideo(currentVideo),
+          });
+        }
       } catch (err) {
         setStreamUrl(null);
         setStreamVariants([]);
