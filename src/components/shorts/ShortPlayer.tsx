@@ -1,13 +1,19 @@
 import { useEffect, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { motion } from "framer-motion";
 import { Loader2, Volume2, VolumeX } from "lucide-react";
+import { getReturnYouTubeDislike, type RydData } from "../../lib/api/foss";
+import { useShortDetails } from "../../lib/useShortDetails";
+import { useVideoComments } from "../../lib/useVideoComments";
 import { useProxiedImageUrl } from "../../lib/useProxiedImageUrl";
 import { useShortStream } from "../../lib/useShortStream";
+import { useSettingsStore } from "../../store/useSettingsStore";
 import { ShortVideoSurface } from "./ShortVideoSurface";
 import { ShortMetadata } from "./ShortMetadata";
 import { ShortActionBar } from "./ShortActionBar";
 import { ShortSidePanel } from "./ShortSidePanel";
 import type { ShortItem, ShortsPanelState } from "../../types/shorts";
+
+const SIDE_PANEL_WIDTH = 560;
 
 interface ShortPlayerProps {
   short: ShortItem;
@@ -34,6 +40,26 @@ export function ShortPlayer({
   const [activeRetryAttempted, setActiveRetryAttempted] = useState(false);
   const thumbnail = useProxiedImageUrl(short.thumbnailUrl);
   const panelOpen = active && panelState !== "none";
+  const { details } = useShortDetails(short.id, active);
+  const { countText: fetchedCommentCountText } = useVideoComments(active ? short.id : undefined);
+  const rytdEnabled = useSettingsStore((s) => s.rytdEnabled);
+  const [rydData, setRydData] = useState<RydData | null>(null);
+  const commentCountText = short.commentCountText ?? fetchedCommentCountText;
+
+  useEffect(() => {
+    if (!active || !rytdEnabled) {
+      setRydData(null);
+      return;
+    }
+
+    let cancelled = false;
+    getReturnYouTubeDislike(short.id).then((data) => {
+      if (!cancelled) setRydData(data);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [active, rytdEnabled, short.id]);
 
   useEffect(() => {
     setActiveRetryAttempted(false);
@@ -46,8 +72,7 @@ export function ShortPlayer({
     activeRetryToken,
   );
 
-  // A Short whose stream can't be resolved (e.g. login-walled) is skipped so the
-  // feed never stalls on a dead frame.
+  // A Short whose stream can't be resolved is skipped so the feed never stalls.
   useEffect(() => {
     if (!active || !unavailable || loading) return;
     if (!activeRetryAttempted) {
@@ -59,54 +84,62 @@ export function ShortPlayer({
   }, [active, activeRetryAttempted, loading, unavailable, onUnavailable]);
 
   return (
-    <div className="relative flex h-full w-full items-center justify-center overflow-hidden">
-      {/* Ambient background*/}
-      <div className="absolute inset-0 z-0 overflow-hidden" aria-hidden>
-        {thumbnail && (
-          <img
-            src={thumbnail}
-            alt=""
-            className="h-full w-full scale-125 object-cover opacity-40 blur-[120px] saturate-150"
+    <div className="relative h-[calc(100vh-64px)] w-full overflow-hidden flex items-end justify-center pb-10">
+      {thumbnail && (
+        <img
+          src={thumbnail}
+          alt=""
+          aria-hidden="true"
+          className="absolute inset-0 h-full w-full object-cover blur-[120px] scale-125 opacity-50 saturate-[1.5] pointer-events-none"
+        />
+      )}
+      <div className="absolute inset-0 bg-neutral-950/60 pointer-events-none" />
+
+      <motion.div
+        layout
+        className="relative z-10 flex w-full max-w-none flex-row items-end justify-center gap-6 px-6 lg:gap-8"
+      >
+        {active ? (
+          <ShortMetadata
+            short={short}
+            details={details}
+            onOpenDescription={() => onRequestPanel("description")}
           />
+        ) : (
+          <div className="mb-4 w-[260px] lg:w-[280px]" />
         )}
-        <div className="absolute inset-0 bg-gradient-to-b from-neutral-950/60 via-neutral-950/80 to-neutral-950" />
-      </div>
 
-      {/* Centered media group */}
-      <div className="relative z-10 flex h-[90%] max-h-[850px] flex-row items-stretch">
-        <div
-          className={`relative aspect-[9/16] h-full overflow-hidden border border-white/10 bg-black ${
-            panelOpen ? "rounded-l-2xl" : "rounded-2xl"
-          }`}
+        <motion.div
+          layout
+          className="flex h-[85vh] max-h-[850px] flex-row overflow-hidden rounded-2xl bg-black shadow-2xl ring-1 ring-white/10"
         >
-          <ShortVideoSurface
-            dashUrl={active ? dashUrl : null}
-            videoUrl={active ? videoUrl : null}
-            audioUrl={active ? audioUrl : null}
-            poster={thumbnail}
-            active={active}
-            muted={muted}
-            onError={() => {
-              console.error(`[shorts] video error ${short.id}`, dashUrl, videoUrl);
-              onUnavailable();
-            }}
-          />
+          <div className="relative z-20 aspect-[9/16] h-full bg-black">
+            <ShortVideoSurface
+              dashUrl={active ? dashUrl : null}
+              videoUrl={active ? videoUrl : null}
+              audioUrl={active ? audioUrl : null}
+              poster={thumbnail}
+              active={active}
+              muted={muted}
+              onError={() => {
+                console.error(`[shorts] video error ${short.id}`, dashUrl, videoUrl);
+                onUnavailable();
+              }}
+            />
 
-          {active && loading && !dashUrl && !videoUrl && (
-            <div className="pointer-events-none absolute inset-0 grid place-items-center">
-              <Loader2 className="h-8 w-8 animate-spin text-white/80" />
-            </div>
-          )}
+            {active && loading && !dashUrl && !videoUrl && (
+              <div className="pointer-events-none absolute inset-0 grid place-items-center">
+                <Loader2 className="h-8 w-8 animate-spin text-white/80" />
+              </div>
+            )}
 
-          {active && unavailable && (
-            <div className="pointer-events-none absolute inset-0 grid place-items-center bg-black/40">
-              <p className="text-sm text-white/70">Skipping unavailable Short…</p>
-            </div>
-          )}
+            {active && unavailable && (
+              <div className="pointer-events-none absolute inset-0 grid place-items-center bg-black/40">
+                <p className="text-sm text-white/70">Skipping unavailable Short...</p>
+              </div>
+            )}
 
-          {/* Overlay only on the focused Short — keeps reaction/subscribe hooks to one instance. */}
-          {active && (
-            <>
+            {active && (
               <button
                 type="button"
                 aria-label={muted ? "Unmute" : "Mute"}
@@ -115,33 +148,43 @@ export function ShortPlayer({
               >
                 {muted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
               </button>
+            )}
+          </div>
 
-              <div className="pointer-events-none absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-black/85 via-black/40 to-transparent" />
-              <ShortMetadata short={short} onOpenDescription={() => onRequestPanel("description")} />
-              <ShortActionBar short={short} onRequestPanel={onRequestPanel} />
-            </>
-          )}
-        </div>
-
-        <AnimatePresence initial={false}>
-          {panelOpen && (
-            <motion.div
-              key="short-panel"
-              initial={{ width: 0, opacity: 0 }}
-              animate={{ width: 400, opacity: 1 }}
-              exit={{ width: 0, opacity: 0 }}
-              transition={{ duration: 0.28, ease: [0.4, 0, 0.2, 1] }}
-              className="h-full overflow-hidden"
-            >
+          <motion.div
+            layout
+            initial={{ width: 0, opacity: 0 }}
+            animate={{ width: panelOpen ? SIDE_PANEL_WIDTH : 0, opacity: 1 }}
+            transition={{ type: "spring", bounce: 0, duration: 0.4 }}
+            className={`flex h-full flex-col overflow-hidden bg-surface-container-high ${
+              panelOpen ? "border-l border-neutral-800" : ""
+            }`}
+          >
+            {panelOpen && (
               <ShortSidePanel
                 short={short}
+                details={details}
+                rydData={rydData}
+                commentCountText={commentCountText}
                 panelState={panelState}
                 onClose={() => onRequestPanel("none")}
               />
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
+            )}
+          </motion.div>
+        </motion.div>
+
+        {active ? (
+          <ShortActionBar
+            short={short}
+            details={details}
+            rydData={rydData}
+            commentCountText={commentCountText}
+            onRequestPanel={onRequestPanel}
+          />
+        ) : (
+          <div className="mb-4 w-[260px] lg:w-[280px]" />
+        )}
+      </motion.div>
     </div>
   );
 }

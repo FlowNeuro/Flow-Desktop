@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useParams } from "react-router-dom";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { useShortsFeed } from "../../lib/useShortsFeed";
 import { ShortPlayer } from "./ShortPlayer";
@@ -8,7 +9,8 @@ const PREFETCH_WITHIN = 5;
 const STREAM_PRELOAD_RADIUS = 1;
 
 export function ShortsFeed() {
-  const { items, loading, error, loadMore } = useShortsFeed();
+  const { videoId } = useParams<{ videoId?: string }>();
+  const { items, loading, error, loadMore } = useShortsFeed(videoId);
   const [activeIndex, setActiveIndex] = useState(0);
   const [panelState, setPanelState] = useState<ShortsPanelState>("none");
   const [muted, setMuted] = useState(true);
@@ -63,6 +65,19 @@ export function ShortsFeed() {
   useEffect(() => {
     setPanelState("none");
   }, [activeIndex]);
+
+  useEffect(() => {
+    setActiveIndex(0);
+    slideRefs.current[0]?.scrollIntoView({ behavior: "instant", block: "start" });
+  }, [videoId]);
+
+  useEffect(() => {
+    if (!videoId || items.length === 0) return;
+    const index = items.findIndex((item) => item.id === videoId);
+    if (index < 0 || index === activeIndex) return;
+    setActiveIndex(index);
+    slideRefs.current[index]?.scrollIntoView({ behavior: "instant", block: "start" });
+  }, [activeIndex, items, videoId]);
 
   const scrollToIndex = useCallback(
     (index: number) => {

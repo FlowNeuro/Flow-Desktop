@@ -51,6 +51,7 @@ export interface RelatedVideosProps {
 
 export interface CommentsSectionProps {
   videoId: string;
+  hideHeader?: boolean;
 }
 
 export interface LiveChatProps {

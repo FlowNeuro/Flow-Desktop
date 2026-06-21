@@ -1,8 +1,5 @@
-import { useRef, useState } from "react";
-
 import { useMusicPlayerStore } from "../../store/useMusicPlayerStore";
-import { formatTime } from "../../lib/musicFormat";
-import { getString } from "../../lib/i18n/index";
+import { MediaScrubber } from "../ui/MediaScrubber";
 
 interface MusicScrubberProps {
   size?: "sm" | "lg";
@@ -23,118 +20,16 @@ export function MusicScrubber({
   const duration = useMusicPlayerStore((s) => s.duration);
   const seek = useMusicPlayerStore((s) => s.seek);
 
-  const trackRef = useRef<HTMLDivElement | null>(null);
-  const [dragging, setDragging] = useState(false);
-  const [dragRatio, setDragRatio] = useState(0);
-
-  const liveRatio = duration > 0 ? Math.min(1, Math.max(0, progress / duration)) : 0;
-  const ratio = dragging ? dragRatio : liveRatio;
-  const pct = ratio * 100;
-
-  const ratioFromClientX = (clientX: number): number => {
-    const el = trackRef.current;
-    if (!el) return 0;
-    const rect = el.getBoundingClientRect();
-    if (rect.width <= 0) return 0;
-    return Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
-  };
-
-  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (duration <= 0) return;
-    e.currentTarget.setPointerCapture(e.pointerId);
-    const r = ratioFromClientX(e.clientX);
-    setDragging(true);
-    setDragRatio(r);
-    seek(r * duration);
-  };
-
-  const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!dragging || duration <= 0) return;
-    const r = ratioFromClientX(e.clientX);
-    setDragRatio(r);
-    seek(r * duration);
-  };
-
-  const endDrag = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!dragging) return;
-    try {
-      e.currentTarget.releasePointerCapture(e.pointerId);
-    } catch {
-      /* pointer already released */
-    }
-    setDragging(false);
-  };
-
-  const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    if (duration <= 0) return;
-    if (e.key === "ArrowRight") {
-      e.preventDefault();
-      seek(Math.min(duration, progress + 5));
-    } else if (e.key === "ArrowLeft") {
-      e.preventDefault();
-      seek(Math.max(0, progress - 5));
-    }
-  };
-
-  const isEdge = variant === "edge";
-  const isLg = size === "lg";
-
-  const hitH = isEdge ? "h-2 items-end" : isLg ? "h-5 items-center" : "h-4 items-center";
-  const trackH = isEdge ? "h-[2px]" : "h-1";
-  const trackShape = isEdge ? "bg-neutral-800" : "rounded-full bg-neutral-800";
-  const fillShape = isEdge ? "" : "rounded-full";
-  const thumbSize = isLg ? "h-3.5 w-3.5" : "h-3 w-3";
-
-  const bar = (
-    <div
-      ref={trackRef}
-      role="slider"
-      tabIndex={0}
-      aria-label={getString("music_seek")}
-      aria-valuemin={0}
-      aria-valuemax={Math.round(duration)}
-      aria-valuenow={Math.round(ratio * duration)}
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={endDrag}
-      onPointerCancel={endDrag}
-      onKeyDown={onKeyDown}
-      className={`group/scrub relative flex ${hitH} flex-1 cursor-pointer touch-none outline-none`}
-    >
-      <div className={`relative ${trackH} w-full overflow-hidden ${trackShape}`}>
-        <div
-          className={`absolute inset-y-0 left-0 bg-[var(--color-primary)] ${fillShape}`}
-          style={{ width: `${pct}%` }}
-        />
-      </div>
-      {!isEdge && (
-        <span
-          className={`pointer-events-none absolute top-1/2 ${thumbSize} -translate-x-1/2 -translate-y-1/2 rounded-full bg-white transition-opacity duration-150 ${
-            dragging ? "opacity-100" : "opacity-0 group-hover/scrub:opacity-100"
-          }`}
-          style={{ left: `${pct}%` }}
-        />
-      )}
-    </div>
-  );
-
-  if (isEdge || !showTimes) {
-    return <div className={`flex w-full items-center ${className}`}>{bar}</div>;
-  }
-
-  const rightLabel = countdown
-    ? `-${formatTime(Math.max(0, duration - ratio * duration))}`
-    : formatTime(duration);
-
   return (
-    <div className={`flex w-full items-center gap-3 ${className}`}>
-      <span className="w-10 shrink-0 text-right font-mono text-xs tabular-nums text-neutral-400">
-        {formatTime(ratio * duration)}
-      </span>
-      {bar}
-      <span className="w-10 shrink-0 font-mono text-xs tabular-nums text-neutral-400">
-        {rightLabel}
-      </span>
-    </div>
+    <MediaScrubber
+      progress={progress}
+      duration={duration}
+      onSeek={seek}
+      size={size}
+      variant={variant}
+      showTimes={showTimes}
+      countdown={countdown}
+      className={className}
+    />
   );
 }

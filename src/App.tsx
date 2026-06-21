@@ -131,6 +131,9 @@ function App() {
           <Route path="shorts" element={
             <ShortsFeed />
           } />
+          <Route path="shorts/:videoId" element={
+            <ShortsFeed />
+          } />
           <Route path="subscriptions" element={
             <Subscriptions onPlay={handlePlayVideo} onAddToQueue={handleAddToQueue} />
           } />

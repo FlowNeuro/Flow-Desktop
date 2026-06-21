@@ -1,4 +1,5 @@
 import React from "react";
+import { useNavigate } from "react-router-dom";
 import { Play } from "lucide-react";
 import { PlaylistCard } from "../video/PlaylistCard";
 import { PostCard } from "../video/PostCard";
@@ -15,12 +16,18 @@ interface ChannelShortsGridProps {
 }
 
 export const ChannelShortsGrid: React.FC<ChannelShortsGridProps> = ({ shorts }) => {
+  const navigate = useNavigate();
+
   if (!shorts.length) return null;
 
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
       {shorts.map((short) => (
-        <div key={short.id} className="flex flex-col gap-2 group cursor-pointer">
+        <div
+          key={short.id}
+          className="flex flex-col gap-2 group cursor-pointer"
+          onClick={() => navigate(`/shorts/${short.id}`)}
+        >
           <div className="relative w-full aspect-[9/16] rounded-xl overflow-hidden bg-zinc-900 border border-zinc-800">
             {short.thumbnailUrl && (
               <img 

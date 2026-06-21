@@ -1,55 +1,87 @@
 import { useNavigate } from "react-router-dom";
 import { Music2 } from "lucide-react";
+import { useChannelAvatar } from "../../lib/useChannelAvatar";
 import { useProxiedImageUrl } from "../../lib/useProxiedImageUrl";
+import { upgradeAvatarUrl } from "../../lib/thumbnails";
+import { formatCount } from "../../lib/utils";
 import { SubscribeButton } from "../ui/SubscribeButton";
 import type { ShortItem } from "../../types/shorts";
+import type { VideoDetails } from "../../types/video";
 
 interface ShortMetadataProps {
   short: ShortItem;
+  details?: VideoDetails | null;
   onOpenDescription: () => void;
 }
 
-export function ShortMetadata({ short, onOpenDescription }: ShortMetadataProps) {
+export function ShortMetadata({
+  short,
+  details,
+  onOpenDescription,
+}: ShortMetadataProps) {
   const navigate = useNavigate();
-  const avatar = useProxiedImageUrl(short.channelAvatarUrl ?? undefined);
+  const channelId = short.channelId ?? details?.channelId ?? null;
+  const fetchedAvatar = useChannelAvatar(channelId);
+  const avatar = useProxiedImageUrl(upgradeAvatarUrl(short.channelAvatarUrl ?? fetchedAvatar));
+  const title = short.title.trim() && short.title !== "Short" ? short.title : details?.title || short.title;
+  const channelName = short.channelName.trim() || details?.channelName || "Unknown channel";
+  const viewText = formatCount(short.viewCountText ?? details?.viewCountText);
+  const viewStatText = viewText ? `${viewText} views` : null;
 
   return (
-    <div className="absolute bottom-6 left-6 right-20 z-20 flex flex-col gap-3">
-      <div className="flex items-center gap-3">
+    <div className="mb-4 flex w-[260px] flex-col gap-4 lg:w-[280px]">
+      <div className="flex min-w-0 items-center gap-3">
         <button
           type="button"
           onClick={() => short.channelId && navigate(`/channel/${short.channelId}`)}
-          className="flex items-center gap-3"
+          className="flex min-w-0 flex-1 items-center gap-3 text-left"
         >
           {avatar ? (
-            <img src={avatar} alt="" className="h-10 w-10 rounded-full object-cover" />
+            <img
+              src={avatar}
+              alt=""
+              className="h-12 w-12 shrink-0 rounded-full object-cover shadow-lg"
+            />
           ) : (
-            <div className="grid h-10 w-10 place-items-center rounded-full bg-surface-container-high text-sm font-bold text-neutral-300">
-              {short.channelName.charAt(0).toUpperCase()}
+            <div className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-surface-container-high text-base font-bold text-neutral-300 shadow-lg">
+              {channelName.charAt(0).toUpperCase()}
             </div>
           )}
-          <span className="font-medium text-white hover:underline">{short.channelName}</span>
+          <span className="truncate text-lg font-bold text-neutral-100 hover:text-white">
+            {channelName}
+          </span>
         </button>
-        {short.channelId && (
+
+        {channelId && (
           <SubscribeButton
-            channelId={short.channelId}
-            channelName={short.channelName}
-            avatarUrl={short.channelAvatarUrl ?? undefined}
+            channelId={channelId}
+            channelName={channelName}
+            avatarUrl={avatar || undefined}
             size="sm"
+            className="shrink-0 !bg-white !px-4 !py-1.5 !text-sm !font-bold !text-black hover:!bg-neutral-200"
           />
         )}
       </div>
 
-      <p
-        className="line-clamp-2 cursor-pointer text-base text-white hover:underline"
+      <button
+        type="button"
+        className="line-clamp-4 text-left text-base leading-relaxed text-neutral-200 transition-colors hover:text-white"
         onClick={onOpenDescription}
       >
-        {short.title}
-      </p>
+        {title}
+      </button>
 
-      <div className="flex items-center gap-2 text-sm text-neutral-300">
-        <Music2 className="h-4 w-4 shrink-0" />
-        <span className="truncate">Original audio · {short.channelName}</span>
+      {viewStatText && (
+        <span className="w-fit rounded-full bg-white/10 px-2.5 py-1 text-xs font-semibold text-neutral-300 backdrop-blur-md">
+          {viewStatText}
+        </span>
+      )}
+
+      <div className="inline-flex w-fit items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-xs text-neutral-300 backdrop-blur-md">
+        <Music2 className="h-3.5 w-3.5 shrink-0" />
+        <span className="max-w-[220px] truncate lg:max-w-[240px]">
+          Original audio - {channelName}
+        </span>
       </div>
     </div>
   );

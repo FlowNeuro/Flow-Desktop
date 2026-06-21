@@ -1,4 +1,5 @@
 import React, { useRef, useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { ChevronLeft, ChevronRight, Play } from "lucide-react";
 import type { ShortVideoSummary, VideoSummary } from "../../types/video";
 import { useAppSettingsStore } from "../../store/useAppSettingsStore";
@@ -13,8 +14,8 @@ interface ShortsShelfProps {
 export const ShortsShelf: React.FC<ShortsShelfProps> = ({
   title,
   shorts,
-  onPlay,
 }) => {
+  const navigate = useNavigate();
   const shortsShelfEnabled = useAppSettingsStore((state) => state.values[SETTINGS.SHORTS_SHELF_ENABLED] !== "false");
   const scrollRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
@@ -58,16 +59,7 @@ export const ShortsShelf: React.FC<ShortsShelfProps> = ({
   };
 
   const handlePlayShort = (short: ShortVideoSummary) => {
-    const summary: VideoSummary = {
-      id: short.id,
-      title: short.title,
-      channelName: "", // Loaded dynamically or omitted for Short play
-      thumbnailUrl: short.thumbnailUrl || null,
-      durationSeconds: null,
-      publishedText: "Shorts Content",
-      viewCountText: short.viewCountText || null,
-    };
-    onPlay(summary);
+    navigate(`/shorts/${short.id}`);
   };
 
   if (!shortsShelfEnabled || !shorts || shorts.length === 0) return null;

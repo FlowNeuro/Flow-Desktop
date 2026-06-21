@@ -31,15 +31,17 @@ function CommentText({ text, className = "text-sm mt-1 text-neutral-200 whitespa
   );
 }
 
-export function CommentsSection({ videoId }: CommentsSectionProps) {
+export function CommentsSection({ videoId, hideHeader = false }: CommentsSectionProps) {
   const navigate = useNavigate();
   const thread = useVideoComments(videoId);
 
   return (
     <div className="space-y-6 pt-4">
-      <h2 className="text-xl font-bold text-neutral-100">
-        {thread.countText || `${thread.comments.length}`} {getString("watch_comments")}
-      </h2>
+      {!hideHeader && (
+        <h2 className="text-xl font-bold text-neutral-100">
+          {thread.countText || `${thread.comments.length}`} {getString("watch_comments")}
+        </h2>
+      )}
 
       {thread.loading ? (
         <Loader2 className="animate-spin text-neutral-500" size={24} />
