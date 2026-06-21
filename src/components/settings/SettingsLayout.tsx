@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react';
 import {
   PlayCircle,
   LayoutGrid,
+  Heart,
   Gauge,
   Wifi,
   Download,
@@ -13,6 +14,7 @@ import { getString } from '../../lib/i18n/index';
 export type SettingsCategory =
   | 'player'
   | 'content'
+  | 'taste'
   | 'quality'
   | 'network'
   | 'downloads'
@@ -28,6 +30,7 @@ interface CategoryDef {
 const categories: CategoryDef[] = [
   { id: 'player', labelKey: 'settings_player', icon: <PlayCircle size={18} /> },
   { id: 'content', labelKey: 'settings_content_ui', icon: <LayoutGrid size={18} /> },
+  { id: 'taste', labelKey: 'settings_taste', icon: <Heart size={18} /> },
   { id: 'quality', labelKey: 'settings_quality_codecs', icon: <Gauge size={18} /> },
   { id: 'network', labelKey: 'settings_network_buffer', icon: <Wifi size={18} /> },
   { id: 'downloads', labelKey: 'settings_downloads', icon: <Download size={18} /> },

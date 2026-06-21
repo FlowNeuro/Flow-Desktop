@@ -32,10 +32,11 @@ use commands::music::{
     proxy_image_url, search_music_continuation, search_music_typed,
 };
 use commands::recommendation::{
-    block_channel, complete_onboarding, generate_discovery_queries, get_brain_snapshot,
-    get_feed_quotas, get_flow_persona, get_onboarding_status, get_recommendation_events,
-    log_interaction, mark_not_interested, rank_videos, record_feed_impressions, reset_brain,
-    unblock_channel, unblock_topic,
+    add_blocked_topic, add_preferred_topic, block_channel, complete_onboarding,
+    generate_discovery_queries, get_brain_snapshot, get_feed_quotas, get_flow_persona,
+    get_onboarding_status, get_recommendation_events, log_interaction, mark_not_interested,
+    rank_videos, record_feed_impressions, remove_preferred_topic, reset_brain, unblock_channel,
+    unblock_topic,
 };
 use commands::youtube::{
     fetch_subtitles, get_channel_details, get_channel_tab, get_comments, get_dearrow_override,
@@ -163,6 +164,9 @@ pub fn run() {
             get_feed_quotas,
             get_recommendation_events,
             unblock_topic,
+            add_blocked_topic,
+            add_preferred_topic,
+            remove_preferred_topic,
             unblock_channel,
             block_channel,
             reset_brain,

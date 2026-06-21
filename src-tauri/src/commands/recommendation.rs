@@ -204,6 +204,39 @@ pub async fn unblock_topic(
 }
 
 #[tauri::command]
+pub async fn add_blocked_topic(
+    topic: String,
+    recommendation_service: State<'_, RecommendationService>,
+) -> Result<(), ErrorResponse> {
+    recommendation_service
+        .add_blocked_topic(topic)
+        .await
+        .map_err(ErrorResponse::from)
+}
+
+#[tauri::command]
+pub async fn add_preferred_topic(
+    topic: String,
+    recommendation_service: State<'_, RecommendationService>,
+) -> Result<(), ErrorResponse> {
+    recommendation_service
+        .add_preferred_topic(topic)
+        .await
+        .map_err(ErrorResponse::from)
+}
+
+#[tauri::command]
+pub async fn remove_preferred_topic(
+    topic: String,
+    recommendation_service: State<'_, RecommendationService>,
+) -> Result<(), ErrorResponse> {
+    recommendation_service
+        .remove_preferred_topic(topic)
+        .await
+        .map_err(ErrorResponse::from)
+}
+
+#[tauri::command]
 pub async fn unblock_channel(
     channel_id: String,
     recommendation_service: State<'_, RecommendationService>,

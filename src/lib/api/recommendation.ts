@@ -412,6 +412,62 @@ export async function unblockTopic(topic: string): Promise<void> {
   brainCache = null;
 }
 
+export async function addBlockedTopic(topic: string): Promise<void> {
+  const normalized = topic.trim().toLowerCase();
+  if (!normalized) return;
+  if (!(await isTauriEnv())) {
+    console.log(`[FlowNeuro Mock] Blocking topic: ${normalized}`);
+    if (brainCache) {
+      brainCache.blocked_topics = [...new Set([...brainCache.blocked_topics, normalized])];
+      brainCache.preferred_topics = brainCache.preferred_topics.filter(
+        (t) => t.toLowerCase() !== normalized,
+      );
+    }
+    return;
+  }
+  await invokeBackend<void>("add_blocked_topic", { topic: normalized });
+  brainCache = null;
+}
+
+export async function addPreferredTopic(topic: string): Promise<void> {
+  const trimmed = topic.trim();
+  if (!trimmed) return;
+  if (!(await isTauriEnv())) {
+    console.log(`[FlowNeuro Mock] Adding preferred topic: ${trimmed}`);
+    if (brainCache) {
+      brainCache.preferred_topics = [...new Set([...brainCache.preferred_topics, trimmed])];
+      brainCache.blocked_topics = brainCache.blocked_topics.filter(
+        (t) => t.toLowerCase() !== trimmed.toLowerCase(),
+      );
+      brainCache.global_vector.topics[trimmed] = 0.5;
+    }
+    localStorage.setItem(
+      "mock_setting_preferred_topics",
+      JSON.stringify(brainCache?.preferred_topics ?? [trimmed]),
+    );
+    return;
+  }
+  await invokeBackend<void>("add_preferred_topic", { topic: trimmed });
+  brainCache = null;
+}
+
+export async function removePreferredTopic(topic: string): Promise<void> {
+  const normalized = topic.trim().toLowerCase();
+  if (!normalized) return;
+  if (!(await isTauriEnv())) {
+    console.log(`[FlowNeuro Mock] Removing preferred topic: ${topic}`);
+    if (brainCache) {
+      brainCache.preferred_topics = brainCache.preferred_topics.filter(
+        (t) => t.toLowerCase() !== normalized,
+      );
+      localStorage.setItem("mock_setting_preferred_topics", JSON.stringify(brainCache.preferred_topics));
+    }
+    return;
+  }
+  await invokeBackend<void>("remove_preferred_topic", { topic });
+  brainCache = null;
+}
+
 export async function unblockChannel(channelId: string): Promise<void> {
   if (!(await isTauriEnv())) {
     console.log(`[FlowNeuro Mock] Unblocking channel: ${channelId}`);

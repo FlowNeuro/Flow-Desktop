@@ -1,6 +1,7 @@
 import { SettingsLayout, type SettingsCategory } from '../components/settings/SettingsLayout';
 import { PlayerTab } from '../components/settings/tabs/PlayerTab';
 import { ContentTab } from '../components/settings/tabs/ContentTab';
+import { TasteTab } from '../components/settings/tabs/TasteTab';
 import { QualityTab } from '../components/settings/tabs/QualityTab';
 import { NetworkTab } from '../components/settings/tabs/NetworkTab';
 import { DownloadsTab } from '../components/settings/tabs/DownloadsTab';
@@ -10,6 +11,7 @@ import { AboutTab } from '../components/settings/tabs/AboutTab';
 const tabComponents: Record<SettingsCategory, React.FC> = {
   player: PlayerTab,
   content: ContentTab,
+  taste: TasteTab,
   quality: QualityTab,
   network: NetworkTab,
   downloads: DownloadsTab,

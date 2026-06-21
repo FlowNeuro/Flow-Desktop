@@ -1697,21 +1697,28 @@ impl RecommendationService {
         let mut brain = self.brain_store.write().await;
 
         let mut preferred = HashSet::new();
-        for topic in topics {
+        for (index, topic) in topics.into_iter().enumerate() {
             let trimmed = topic.trim();
             if trimmed.is_empty() {
                 continue;
             }
 
+            let weight = if index < 3 {
+                0.55
+            } else if index < 6 {
+                0.40
+            } else {
+                0.30
+            };
             for token in tokenize(trimmed) {
-                brain.global_vector.topics.insert(token.clone(), 0.75);
+                brain.global_vector.topics.insert(token.clone(), weight);
                 brain
                     .global_vector
                     .topic_confidence
                     .insert(token.clone(), 1.0);
                 brain.global_vector.anchor_topics.insert(token.clone());
-                preferred.insert(token);
             }
+            preferred.insert(trimmed.to_string());
         }
 
         brain.preferred_topics = preferred;
@@ -2084,6 +2091,66 @@ impl RecommendationService {
         brain
             .blocked_topics
             .retain(|t| t.to_lowercase() != topic_lower);
+        Ok(())
+    }
+
+    pub async fn add_blocked_topic(&self, topic: String) -> AppResult<()> {
+        let normalized = topic.trim().to_lowercase();
+        if normalized.is_empty() {
+            return Ok(());
+        }
+        let lemma = normalize_lemma(&normalized);
+        let mut brain = self.brain_store.write().await;
+        brain.blocked_topics.insert(normalized.clone());
+        brain
+            .preferred_topics
+            .retain(|preferred| preferred.to_lowercase() != normalized);
+        brain.global_vector.topics.retain(|key, _| {
+            let key_lower = key.to_lowercase();
+            !key_lower.contains(&lemma) && !key_lower.contains(&normalized)
+        });
+        for vector in brain.time_vectors.values_mut() {
+            vector.topics.retain(|key, _| {
+                let key_lower = key.to_lowercase();
+                !key_lower.contains(&lemma) && !key_lower.contains(&normalized)
+            });
+        }
+        Ok(())
+    }
+
+    pub async fn add_preferred_topic(&self, topic: String) -> AppResult<()> {
+        let trimmed = topic.trim();
+        if trimmed.is_empty() {
+            return Ok(());
+        }
+        let normalized = trimmed.to_lowercase();
+        let mut brain = self.brain_store.write().await;
+        brain
+            .blocked_topics
+            .retain(|blocked| blocked.to_lowercase() != normalized);
+        brain.preferred_topics.insert(trimmed.to_string());
+        for token in tokenize(trimmed) {
+            let current = *brain.global_vector.topics.get(&token).unwrap_or(&0.0);
+            brain.global_vector.topics.insert(token.clone(), current.max(0.5));
+            brain
+                .global_vector
+                .topic_confidence
+                .insert(token.clone(), 1.0);
+            brain.global_vector.anchor_topics.insert(token);
+        }
+        brain.has_completed_onboarding = true;
+        Ok(())
+    }
+
+    pub async fn remove_preferred_topic(&self, topic: String) -> AppResult<()> {
+        let topic_lower = topic.trim().to_lowercase();
+        if topic_lower.is_empty() {
+            return Ok(());
+        }
+        let mut brain = self.brain_store.write().await;
+        brain
+            .preferred_topics
+            .retain(|preferred| preferred.to_lowercase() != topic_lower);
         Ok(())
     }
 
