@@ -18,6 +18,7 @@ export const ShortsShelf: React.FC<ShortsShelfProps> = ({
 }) => {
   const navigate = useNavigate();
   const shortsShelfEnabled = useAppSettingsStore((state) => state.values[SETTINGS.SHORTS_SHELF_ENABLED] !== "false");
+  const disableShortsPlayer = useAppSettingsStore((state) => state.values[SETTINGS.DISABLE_SHORTS_PLAYER] === "true");
   const scrollRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
@@ -60,6 +61,11 @@ export const ShortsShelf: React.FC<ShortsShelfProps> = ({
   };
 
   const handlePlayShort = (short: ShortVideoSummary) => {
+    if (disableShortsPlayer) {
+      navigate(`/watch/${short.id}`);
+      return;
+    }
+
     navigate(`/shorts/${short.id}`, {
       state: {
         initialShort: shortSummaryToItem(short),

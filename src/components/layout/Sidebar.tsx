@@ -120,6 +120,7 @@ export function Sidebar({ mode = 'normal' }: SidebarProps) {
   const { subscriptions } = useSubscriptionStore();
   const location = useLocation();
   const [subsExpanded, setSubsExpanded] = useState(false);
+  const showShortsNav = useAppSettingsStore((state) => state.values[SETTINGS.SHORTS_NAVIGATION_ENABLED] !== 'false');
   const showMusicNav = useAppSettingsStore((state) => state.values[SETTINGS.MUSIC_NAVIGATION_ENABLED] !== 'false');
   const showCategoriesNav = useAppSettingsStore((state) => state.values[SETTINGS.CATEGORIES_NAV_TAB_ENABLED] !== 'false');
 
@@ -140,7 +141,7 @@ export function Sidebar({ mode = 'normal' }: SidebarProps) {
         <nav className="flex w-full flex-col items-center gap-1">
           <CompactRailItem path="/" icon={<Home />} label={getString('home')} end />
           <CompactRailItem path="/feed" icon={<BrainCog />} label={getString('sidebar_flowneuron')} />
-          <CompactRailItem path="/shorts" icon={<ShortsIcon />} label={getString('sidebar_shorts')} />
+          {showShortsNav && <CompactRailItem path="/shorts" icon={<ShortsIcon />} label={getString('sidebar_shorts')} />}
           {showCategoriesNav && <CompactRailItem path="/explore" icon={<Compass />} label={getString('sidebar_explore')} />}
           {showMusicNav && <CompactRailItem path="/music" icon={<Music2 />} label={getString('sidebar_music')} />}
           <CompactRailItem path="/subscriptions" icon={<Users />} label={getString('sidebar_subscriptions')} />
@@ -165,7 +166,7 @@ export function Sidebar({ mode = 'normal' }: SidebarProps) {
       <nav className="flex flex-col">
         <SidebarItem to="/" end icon={<Home />} label={getString('home')} onClick={closeOverlay} />
         <SidebarItem to="/feed" icon={<BrainCog />} label={getString('sidebar_flowneuron')} onClick={closeOverlay} />
-        <SidebarItem to="/shorts" icon={<ShortsIcon />} label={getString('sidebar_shorts')} onClick={closeOverlay} />
+        {showShortsNav && <SidebarItem to="/shorts" icon={<ShortsIcon />} label={getString('sidebar_shorts')} onClick={closeOverlay} />}
         {showCategoriesNav && <SidebarItem to="/explore" icon={<Compass />} label={getString('sidebar_explore')} onClick={closeOverlay} />}
         {showMusicNav && <SidebarItem to="/music" icon={<Music2 />} label={getString('sidebar_music')} onClick={closeOverlay} />}
       </nav>

@@ -68,8 +68,8 @@ export function QualityTab() {
       </SettingsGroup>
 
       <SettingsGroup title={getString('settings_group_shorts_quality')}>
-        <SettingItem title={getString('settings_shorts_resolution')} description={getString('settings_shorts_resolution_desc')} disabled={isSettingDisabledUntilWired(SETTINGS.SHORTS_QUALITY_WIFI)}>
-          <Select value={shortsQuality} onChange={setShortsQuality} options={QUALITY_OPTIONS} disabled={isSettingDisabledUntilWired(SETTINGS.SHORTS_QUALITY_WIFI)} />
+        <SettingItem title={getString('settings_shorts_resolution')} description={getString('settings_shorts_resolution_desc')}>
+          <Select value={shortsQuality} onChange={setShortsQuality} options={QUALITY_OPTIONS} />
         </SettingItem>
       </SettingsGroup>
 

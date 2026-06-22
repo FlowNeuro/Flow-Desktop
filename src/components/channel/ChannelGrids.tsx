@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { Play } from "lucide-react";
 import { PlaylistCard } from "../video/PlaylistCard";
 import { PostCard } from "../video/PostCard";
+import { useAppSettingsStore } from "../../store/useAppSettingsStore";
+import { SETTINGS } from "../../lib/settings/schema";
 import type { 
   ShortVideoSummary, 
   PlaylistSummary, 
@@ -18,10 +20,16 @@ interface ChannelShortsGridProps {
 
 export const ChannelShortsGrid: React.FC<ChannelShortsGridProps> = ({ shorts }) => {
   const navigate = useNavigate();
+  const disableShortsPlayer = useAppSettingsStore((state) => state.values[SETTINGS.DISABLE_SHORTS_PLAYER] === "true");
 
   if (!shorts.length) return null;
 
   const playShort = (short: ShortVideoSummary) => {
+    if (disableShortsPlayer) {
+      navigate(`/watch/${short.id}`);
+      return;
+    }
+
     navigate(`/shorts/${short.id}`, {
       state: {
         initialShort: shortSummaryToItem(short),

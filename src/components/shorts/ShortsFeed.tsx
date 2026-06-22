@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useParams } from "react-router-dom";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { useShortsFeed } from "../../lib/useShortsFeed";
+import { SETTINGS } from "../../lib/settings/schema";
+import { useAppSettingsStore } from "../../store/useAppSettingsStore";
 import { ShortPlayer } from "./ShortPlayer";
 import type { ShortItem, ShortsPanelState } from "../../types/shorts";
 
@@ -38,6 +40,8 @@ export function ShortsFeed() {
   const [panelState, setPanelState] = useState<ShortsPanelState>("none");
   const [muted, setMuted] = useState(true);
   const [unavailableIds, setUnavailableIds] = useState<Set<string>>(new Set());
+  const playbackMode = useAppSettingsStore((state) => state.values[SETTINGS.SHORTS_PLAYBACK_MODE] ?? "loop");
+  const autoScrollSeconds = useAppSettingsStore((state) => Number(state.values[SETTINGS.SHORTS_AUTO_SCROLL_SECONDS] ?? "10"));
 
   const containerRef = useRef<HTMLDivElement>(null);
   const slideRefs = useRef<(HTMLElement | null)[]>([]);
@@ -114,6 +118,15 @@ export function ShortsFeed() {
     [items.length],
   );
 
+  const advanceToNext = useCallback(() => {
+    if (items.length === 0) return;
+    if (activeIndex >= items.length - 1) {
+      void loadMore();
+      return;
+    }
+    scrollToIndex(activeIndex + 1);
+  }, [activeIndex, items.length, loadMore, scrollToIndex]);
+
   useEffect(() => {
     const active = items[activeIndex];
     if (!active || !unavailableIds.has(active.id)) return;
@@ -163,9 +176,12 @@ export function ShortsFeed() {
               active={index === activeIndex}
               preload={Math.abs(index - activeIndex) <= STREAM_PRELOAD_RADIUS}
               muted={muted}
+              playbackMode={playbackMode}
+              autoScrollSeconds={Number.isFinite(autoScrollSeconds) ? autoScrollSeconds : 10}
               panelState={panelState}
               onRequestPanel={setPanelState}
               onToggleMute={() => setMuted((value) => !value)}
+              onRequestAdvance={advanceToNext}
               onUnavailable={() => markUnavailable(short.id)}
             />
           </section>

@@ -29,6 +29,8 @@ export function ContentTab() {
   const [hideWatched, setHideWatched] = useBoolPref(SETTINGS.HIDE_WATCHED_VIDEOS, false);
   const [disableShorts, setDisableShorts] = useBoolPref(SETTINGS.DISABLE_SHORTS_PLAYER, false);
   const [shortsNav, setShortsNav] = useBoolPref(SETTINGS.SHORTS_NAVIGATION_ENABLED, true);
+  const [shortsPlaybackMode, setShortsPlaybackMode] = usePreference(SETTINGS.SHORTS_PLAYBACK_MODE, 'loop');
+  const [shortsAutoScrollSeconds, setShortsAutoScrollSeconds] = useNumberPref(SETTINGS.SHORTS_AUTO_SCROLL_SECONDS, 10);
   const [musicNav, setMusicNav] = useBoolPref(SETTINGS.MUSIC_NAVIGATION_ENABLED, true);
   const [categoriesTab, setCategoriesTab] = useBoolPref(SETTINGS.CATEGORIES_NAV_TAB_ENABLED, false);
   const [subsRefresh, setSubsRefresh] = useBoolPref(SETTINGS.SUBSCRIPTION_REFRESH_ON_STARTUP, false);
@@ -104,6 +106,21 @@ export function ContentTab() {
         <SettingItem title={getString('settings_related_videos')} description={getString('settings_related_videos_desc')} disabled={isSettingDisabledUntilWired(SETTINGS.SHOW_RELATED_VIDEOS)}><ToggleSwitch checked={relatedVideos} onChange={setRelatedVideos} disabled={isSettingDisabledUntilWired(SETTINGS.SHOW_RELATED_VIDEOS)} /></SettingItem>
         <SettingItem title={getString('settings_hide_watched')} description={getString('settings_hide_watched_desc')} disabled={isSettingDisabledUntilWired(SETTINGS.HIDE_WATCHED_VIDEOS)}><ToggleSwitch checked={hideWatched} onChange={setHideWatched} disabled={isSettingDisabledUntilWired(SETTINGS.HIDE_WATCHED_VIDEOS)} /></SettingItem>
         <SettingItem title={getString('settings_disable_shorts_player')} description={getString('settings_disable_shorts_player_desc')} disabled={isSettingDisabledUntilWired(SETTINGS.DISABLE_SHORTS_PLAYER)}><ToggleSwitch checked={disableShorts} onChange={setDisableShorts} disabled={isSettingDisabledUntilWired(SETTINGS.DISABLE_SHORTS_PLAYER)} /></SettingItem>
+        <SettingItem title={getString('settings_shorts_playback_mode')} description={getString('settings_shorts_playback_mode_desc')} disabled={isSettingDisabledUntilWired(SETTINGS.SHORTS_PLAYBACK_MODE)}>
+          <Select value={shortsPlaybackMode} onChange={setShortsPlaybackMode} disabled={isSettingDisabledUntilWired(SETTINGS.SHORTS_PLAYBACK_MODE)} options={[
+            { value: 'loop', label: getString('settings_shorts_playback_loop') },
+            { value: 'auto_next', label: getString('settings_shorts_playback_auto_next') },
+            { value: 'auto_interval', label: getString('settings_shorts_playback_auto_interval') },
+          ]} />
+        </SettingItem>
+        {shortsPlaybackMode === 'auto_interval' && (
+          <SettingItem title={getString('settings_shorts_auto_scroll_seconds')} description={getString('settings_shorts_auto_scroll_seconds_desc', shortsAutoScrollSeconds)} disabled={isSettingDisabledUntilWired(SETTINGS.SHORTS_AUTO_SCROLL_SECONDS)}>
+            <Select value={String(shortsAutoScrollSeconds)} onChange={(value) => setShortsAutoScrollSeconds(Number(value))} disabled={isSettingDisabledUntilWired(SETTINGS.SHORTS_AUTO_SCROLL_SECONDS)} options={Array.from({ length: 16 }, (_, index) => {
+              const seconds = index + 5;
+              return { value: String(seconds), label: `${seconds}s` };
+            })} />
+          </SettingItem>
+        )}
       </SettingsGroup>
 
       <SettingsGroup title={getString('settings_group_nav_tabs')}>

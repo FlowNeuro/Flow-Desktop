@@ -20,9 +20,12 @@ interface ShortPlayerProps {
   active: boolean;
   preload: boolean;
   muted: boolean;
+  playbackMode: string;
+  autoScrollSeconds: number;
   panelState: ShortsPanelState;
   onRequestPanel: (panel: ShortsPanelState) => void;
   onToggleMute: () => void;
+  onRequestAdvance: () => void;
   onUnavailable: () => void;
 }
 
@@ -31,9 +34,12 @@ export function ShortPlayer({
   active,
   preload,
   muted,
+  playbackMode,
+  autoScrollSeconds,
   panelState,
   onRequestPanel,
   onToggleMute,
+  onRequestAdvance,
   onUnavailable,
 }: ShortPlayerProps) {
   const [activeRetryToken, setActiveRetryToken] = useState(0);
@@ -66,7 +72,17 @@ export function ShortPlayer({
     setActiveRetryToken(0);
   }, [short.id]);
 
-  const { dashUrl, videoUrl, audioUrl, loading, unavailable } = useShortStream(
+  const {
+    dashUrl,
+    videoUrl,
+    audioUrl,
+    variants,
+    captions,
+    selectedQualityId,
+    loading,
+    unavailable,
+    selectQuality,
+  } = useShortStream(
     short.id,
     active || preload,
     activeRetryToken,
@@ -118,9 +134,16 @@ export function ShortPlayer({
               dashUrl={active ? dashUrl : null}
               videoUrl={active ? videoUrl : null}
               audioUrl={active ? audioUrl : null}
+              qualities={variants}
+              captions={captions}
+              selectedQualityId={selectedQualityId}
+              onSelectQuality={selectQuality}
               poster={thumbnail}
               active={active}
               muted={muted}
+              playbackMode={playbackMode}
+              autoScrollSeconds={autoScrollSeconds}
+              onRequestAdvance={onRequestAdvance}
               onError={() => {
                 console.error(`[shorts] video error ${short.id}`, dashUrl, videoUrl);
                 onUnavailable();
