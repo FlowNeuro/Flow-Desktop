@@ -6,6 +6,7 @@ import { usePlayerStore } from "../../store/usePlayerStore";
 import { useSettingsStore, type SponsorBlockCategory, type SponsorBlockAction } from "../../store/useSettingsStore";
 import type { AudioTrack, CaptionTrack, StreamVariant, VideoChapter } from "../../types/video";
 import { FlowPlayerControls } from "./FlowPlayerControls";
+import { MiniPlayerControls } from "./MiniPlayerControls";
 import { PlayerGestureOverlay, type PlayerSeekFeedback } from "./gesture/overlay";
 import { SubtitleOverlay } from "./SubtitleOverlay";
 import { SETTINGS } from "../../lib/settings/schema";
@@ -195,6 +196,9 @@ export const Player: React.FC<PlayerProps> = ({
     sponsorBlockSegments,
     subtitleStyle,
     setSubtitleStyle,
+    videoPlayerMode,
+    enterVideoPip,
+    expandVideoPlayer,
   } = usePlayerStore();
 
   const autoplayEnabled = useAppSettingsStore((state) => state.values[SETTINGS.AUTOPLAY_ENABLED] !== "false");
@@ -210,8 +214,9 @@ export const Player: React.FC<PlayerProps> = ({
   const preferredSubtitleLanguage = useAppSettingsStore((state) => state.values[SETTINGS.PREFERRED_SUBTITLE_LANGUAGE] ?? "en");
   const subtitleFontSizeSetting = useAppSettingsStore((state) => state.values[SETTINGS.SUBTITLE_FONT_SIZE] ?? "14");
   const subtitleBold = useAppSettingsStore((state) => state.values[SETTINGS.SUBTITLE_BOLD] !== "false");
-  const autoPipEnabled = useAppSettingsStore((state) => state.values[SETTINGS.AUTO_PIP_ENABLED] === "true");
   const manualPipButtonEnabled = useAppSettingsStore((state) => state.values[SETTINGS.MANUAL_PIP_BUTTON_ENABLED] !== "false");
+  const miniPlayerShowSkipControls = useAppSettingsStore((state) => state.values[SETTINGS.MINI_PLAYER_SHOW_SKIP_CONTROLS] !== "false");
+  const miniPlayerShowNextPrevControls = useAppSettingsStore((state) => state.values[SETTINGS.MINI_PLAYER_SHOW_NEXT_PREV_CONTROLS] !== "false");
   const showFullscreenTitle = useAppSettingsStore((state) => state.values[SETTINGS.SHOW_FULLSCREEN_TITLE] === "true");
   const bufferProfile = useAppSettingsStore((state) => state.values[SETTINGS.BUFFER_PROFILE] ?? "STABLE");
   const minBufferSetting = useAppSettingsStore((state) => state.values[SETTINGS.MIN_BUFFER_MS] ?? "30000");
@@ -336,6 +341,7 @@ export const Player: React.FC<PlayerProps> = ({
     !isHlsPlayback &&
     (hasSelectedAlternateAudio || (!!selectedQuality && !selectedQuality.hasAudio));
 
+  const isPipMode = videoPlayerMode === "pip";
   const shouldShowControls = controlsVisible || !isPlaying || settingsOpen || isScrubbing;
   const showAmbient = ambientMode && !!poster && !error;
   const effectivePoster = hasStartedPlayback || resumeTime > 0 || isSourceSwitching ? undefined : poster || undefined;
@@ -559,20 +565,6 @@ export const Player: React.FC<PlayerProps> = ({
     if (video) video.loop = videoLoopEnabled && !isLive;
   }, [isLive, videoLoopEnabled]);
 
-  const autoPipEnabledRef = useRef(autoPipEnabled);
-  useEffect(() => {
-    autoPipEnabledRef.current = autoPipEnabled;
-  }, [autoPipEnabled]);
-
-  useEffect(() => {
-    return () => {
-      const video = videoRef.current;
-      if (!autoPipEnabledRef.current || !video || !desiredPlayingRef.current || video.paused || video.ended) return;
-      if (!document.pictureInPictureEnabled || document.pictureInPictureElement) return;
-      void video.requestPictureInPicture().catch(() => {});
-    };
-  }, []);
-
   useEffect(() => {
     return () => {
       if (notifyTimeoutRef.current !== null) {
@@ -751,20 +743,17 @@ export const Player: React.FC<PlayerProps> = ({
     }
   }, []);
 
-  const togglePictureInPicture = useCallback(async () => {
-    const video = videoRef.current;
-    if (!video || !document.pictureInPictureEnabled) return;
-
-    try {
-      if (document.pictureInPictureElement) {
-        await document.exitPictureInPicture();
-      } else {
-        await video.requestPictureInPicture();
-      }
-    } catch (pipError) {
-      console.warn("Picture-in-picture failed", pipError);
+  const togglePictureInPicture = useCallback(() => {
+    if (videoPlayerMode === "pip") {
+      expandVideoPlayer();
+      window.dispatchEvent(new CustomEvent("flow-video-expand-request"));
+      return;
     }
-  }, []);
+    if (document.fullscreenElement) {
+      void document.exitFullscreen().catch(() => {});
+    }
+    enterVideoPip("manual");
+  }, [enterVideoPip, expandVideoPlayer, videoPlayerMode]);
 
   const updateBuffered = useCallback(() => {
     const video = videoRef.current;
@@ -1687,6 +1676,7 @@ export const Player: React.FC<PlayerProps> = ({
         seekTo={seekTo}
         onSeekFeedback={showSeekFeedback}
         onRevealControls={revealControls}
+        isCompact={isPipMode}
       />
 
       {/* buffering spinner */}
@@ -1777,7 +1767,20 @@ export const Player: React.FC<PlayerProps> = ({
         </div>
       )}
 
-      {/* Modular Flow Player Controls */}
+      {/* Compact transport for the floating mini player; full controls otherwise. */}
+      {isPipMode ? (
+        <MiniPlayerControls
+          containerRef={containerRef}
+          isPlaying={isPlaying}
+          duration={duration}
+          seekIntervalSeconds={seekIntervalSeconds}
+          shouldShowControls={shouldShowControls}
+          togglePlay={togglePlay}
+          seekTo={seekTo}
+          showSkipControls={miniPlayerShowSkipControls}
+          showNextPrevControls={miniPlayerShowNextPrevControls}
+        />
+      ) : (
       <FlowPlayerControls
         title={title}
         isLoading={isLoading}
@@ -1821,6 +1824,7 @@ export const Player: React.FC<PlayerProps> = ({
         chapters={chapters}
         activeQualityLabel={isDashPlayback ? (activeQualityLabel || undefined) : (qualities.find(q => q.localUrl === src)?.qualityLabel || undefined)}
       />
+      )}
     </div>
   );
 };

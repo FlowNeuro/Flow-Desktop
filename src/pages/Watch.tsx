@@ -17,7 +17,6 @@ import { getString } from "../lib/i18n/index";
 import { Chapters } from "../components/player/chapters";
 import {
   WatchLayout,
-  FlowPlayerCore,
   WatchMetadata,
   DescriptionCard,
   RelatedVideos,
@@ -25,6 +24,7 @@ import {
   WatchPageSkeleton,
   WatchErrorState,
 } from "../components/watch";
+import { WatchPlayerSlot } from "../components/watch/WatchPlayerSlot";
 import type { RelatedContentItem, VideoSummary } from "../types/video";
 import { SETTINGS } from "../lib/settings/schema";
 
@@ -46,6 +46,7 @@ export function Watch() {
   const isChaptersPanelOpen = usePlayerStore((s) => s.isChaptersPanelOpen);
   const setIsChaptersPanelOpen = usePlayerStore((s) => s.setIsChaptersPanelOpen);
   const captions = usePlayerStore((s) => s.captions);
+  const setWatchPageCache = usePlayerStore((s) => s.setWatchPageCache);
 
   const { loadSubscriptions } = useSubscriptionStore();
   const commentsEnabled = useAppSettingsStore((state) => state.values[SETTINGS.COMMENTS_ENABLED] !== "false");
@@ -57,7 +58,6 @@ export function Watch() {
   const [relatedLoading, setRelatedLoading] = useState(false);
   const [pageError, setPageError] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
-
   useEffect(() => {
     loadSubscriptions();
   }, [loadSubscriptions]);
@@ -99,18 +99,27 @@ export function Watch() {
 
   useEffect(() => {
     if (!videoId) return;
+    const currentCache = usePlayerStore.getState().watchPageCache;
+    const cachedWatchPage = currentCache?.videoId === videoId ? currentCache : null;
 
-    setChannelDetails(null);
-    setVideoDetails(null);
-    setRelatedVideos([]);
+    setChannelDetails(cachedWatchPage?.channelDetails ?? null);
+    setVideoDetails(cachedWatchPage?.videoDetails ?? null);
+    setRelatedVideos(cachedWatchPage?.relatedVideos ?? []);
 
     const loadVideoMeta = async () => {
       try {
-        const detailsRes = await getVideoDetails(videoId);
+        const detailsRes = cachedWatchPage?.videoDetails ?? await getVideoDetails(videoId);
         setVideoDetails(detailsRes);
+        setWatchPageCache(videoId, { videoDetails: detailsRes });
         if (detailsRes.channelId) {
+          if (cachedWatchPage?.channelDetails) {
+            setChannelDetails(cachedWatchPage.channelDetails);
+            return;
+          }
           try {
-            setChannelDetails(await getChannelDetails(detailsRes.channelId));
+            const channel = await getChannelDetails(detailsRes.channelId);
+            setChannelDetails(channel);
+            setWatchPageCache(videoId, { channelDetails: channel });
           } catch (err) {
             console.warn("Failed to load channel details", err);
           }
@@ -144,9 +153,17 @@ export function Watch() {
         return;
       }
 
+      if (cachedWatchPage?.relatedVideos && cachedWatchPage.relatedVideos.length > 0) {
+        setRelatedVideos(cachedWatchPage.relatedVideos);
+        setRelatedLoading(false);
+        return;
+      }
+
       setRelatedLoading(true);
       try {
-        setRelatedVideos(await getRelatedVideos(videoId));
+        const related = await getRelatedVideos(videoId);
+        setRelatedVideos(related);
+        setWatchPageCache(videoId, { relatedVideos: related });
       } catch (err) {
         console.warn("Failed to load related content", err);
         setRelatedVideos([]);
@@ -158,7 +175,16 @@ export function Watch() {
     void loadVideoMeta();
     void loadFossMetadata();
     void loadRelated();
-  }, [videoId, retryNonce, setDearrowData, setRydData, setSponsorBlockSegments, loadSettings, relatedVideosEnabled]);
+  }, [
+    videoId,
+    retryNonce,
+    setDearrowData,
+    setRydData,
+    setSponsorBlockSegments,
+    setWatchPageCache,
+    loadSettings,
+    relatedVideosEnabled,
+  ]);
 
   const mapRelatedItemToVideoSummary = useCallback(
     (item: RelatedContentItem): VideoSummary => ({
@@ -228,7 +254,7 @@ export function Watch() {
 
   return (
     <WatchLayout
-      player={<FlowPlayerCore videoId={videoId} videoDetails={videoDetails} />}
+      player={<WatchPlayerSlot />}
       metadata={
         <WatchMetadata
           currentVideo={currentVideo}

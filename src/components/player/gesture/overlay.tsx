@@ -48,6 +48,7 @@ type PlayerGestureOverlayProps = {
   seekTo: (time: number) => void;
   onSeekFeedback: (direction: PlayerSeekFeedback["direction"], seconds: number) => void;
   onRevealControls: () => void;
+  isCompact?: boolean;
 };
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
@@ -100,6 +101,7 @@ export const PlayerGestureOverlay: React.FC<PlayerGestureOverlayProps> = ({
   seekTo,
   onSeekFeedback,
   onRevealControls,
+  isCompact = false,
 }) => {
   const [centerFeedback, setCenterFeedback] = useState<CenterFeedback | null>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
@@ -303,11 +305,15 @@ export const PlayerGestureOverlay: React.FC<PlayerGestureOverlayProps> = ({
           key={centerFeedback.id}
           className="pointer-events-none absolute inset-0 z-30 grid place-items-center"
         >
-          <div className="grid h-28 w-28 place-items-center rounded-full bg-black/30 text-white backdrop-blur-md animate-player-feedback">
+          <div
+            className={`grid place-items-center rounded-full bg-black/30 text-white backdrop-blur-md animate-player-feedback ${
+              isCompact ? "h-16 w-16" : "h-28 w-28"
+            }`}
+          >
             {centerFeedback.icon === "play" ? (
-              <Play size={62} fill="currentColor" className="ml-1" />
+              <Play size={isCompact ? 30 : 62} fill="currentColor" className="ml-1" />
             ) : (
-              <Pause size={62} fill="currentColor" />
+              <Pause size={isCompact ? 30 : 62} fill="currentColor" />
             )}
           </div>
         </div>
@@ -326,9 +332,17 @@ export const PlayerGestureOverlay: React.FC<PlayerGestureOverlayProps> = ({
             seekFeedback.direction === "forward" ? "right-[16%]" : "left-[16%]"
           }`}
         >
-          <div className="flex h-24 w-24 flex-col items-center justify-center rounded-full bg-black/30 text-white backdrop-blur-md animate-player-seek">
-            {seekFeedback.direction === "forward" ? <FastForward size={34} /> : <Rewind size={34} />}
-            <span className="mt-1 text-lg font-black">
+          <div
+            className={`flex flex-col items-center justify-center rounded-full bg-black/30 text-white backdrop-blur-md animate-player-seek ${
+              isCompact ? "h-14 w-14" : "h-24 w-24"
+            }`}
+          >
+            {seekFeedback.direction === "forward" ? (
+              <FastForward size={isCompact ? 20 : 34} />
+            ) : (
+              <Rewind size={isCompact ? 20 : 34} />
+            )}
+            <span className={`mt-1 font-black ${isCompact ? "text-xs" : "text-lg"}`}>
               {seekFeedback.direction === "forward" ? "+" : "-"}
               {seekFeedback.seconds}
             </span>

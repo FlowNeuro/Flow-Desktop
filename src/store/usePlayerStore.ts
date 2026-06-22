@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { CaptionTrack, VideoSummary } from "../types/video";
+import type { CaptionTrack, RelatedContentItem, VideoDetails, VideoSummary } from "../types/video";
 import { getMusicLyrics, getMusicRelated } from "../lib/api/youtube";
 
 import type { SponsorBlockSegment, DeArrowOverride, RydData } from "../lib/api/foss";
@@ -7,6 +7,16 @@ import type { SponsorBlockSegment, DeArrowOverride, RydData } from "../lib/api/f
 export type PlaybackRate = number;
 export type RepeatMode = "none" | "one" | "all";
 export type PlayMode = "video" | "music";
+export type VideoPlayerMode = "watch" | "pip";
+export type VideoPipIntent = "auto" | "manual";
+
+export interface WatchPageCache {
+  videoId: string;
+  videoDetails: VideoDetails | null;
+  channelDetails: unknown | null;
+  relatedVideos: RelatedContentItem[];
+  updatedAt: number;
+}
 
 export interface SubtitleStyle {
   fontSize: number;
@@ -63,6 +73,9 @@ interface PlayerState {
   playMode: PlayMode;
   currentTime: number;
   duration: number;
+  videoPlayerMode: VideoPlayerMode;
+  videoPipIntent: VideoPipIntent | null;
+  watchPageCache: WatchPageCache | null;
 
   isTheaterMode: boolean;
   sponsorBlockSegments: SponsorBlockSegment[];
@@ -86,6 +99,11 @@ interface PlayerState {
   clearQueue: () => void;
   setCurrentTime: (time: number) => void;
   setDuration: (duration: number) => void;
+  enterVideoPip: (intent: VideoPipIntent) => void;
+  expandVideoPlayer: () => void;
+  dismissVideoPlayer: () => void;
+  setWatchPageCache: (videoId: string, cache: Partial<Omit<WatchPageCache, "videoId" | "updatedAt">>) => void;
+  clearWatchPageCache: (videoId?: string) => void;
 
   setIsTheaterMode: (isTheaterMode: boolean) => void;
   setSponsorBlockSegments: (segments: SponsorBlockSegment[]) => void;
@@ -114,6 +132,9 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   playMode: "video",
   currentTime: 0,
   duration: 0,
+  videoPlayerMode: "watch",
+  videoPipIntent: null,
+  watchPageCache: null,
 
   isTheaterMode: getSavedTheaterMode(),
   sponsorBlockSegments: [],
@@ -128,6 +149,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       currentVideo: video,
       isPlaying: !!video,
       isChaptersPanelOpen: false,
+      ...(isNew ? { videoPlayerMode: "watch", videoPipIntent: null, watchPageCache: null } : {}),
       ...(isNew ? { currentTime: 0, duration: video?.durationSeconds ?? 0 } : {}),
     });
     
@@ -147,11 +169,15 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
 
   setQueue: (queue, startIndex = 0) => {
     const nextVideo = queue[startIndex] || null;
+    const isNew = get().currentVideo?.id !== nextVideo?.id;
     set({
       queue,
       currentIndex: startIndex,
       currentVideo: nextVideo,
       isPlaying: queue.length > 0,
+      videoPlayerMode: "watch",
+      videoPipIntent: null,
+      ...(isNew ? { watchPageCache: null } : {}),
       currentTime: 0,
       duration: nextVideo?.durationSeconds ?? 0,
     });
@@ -293,10 +319,47 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     }
   },
 
-  clearQueue: () => set({ queue: [], currentIndex: -1, currentVideo: null, isPlaying: false, currentTime: 0, duration: 0 }),
+  clearQueue: () => set({
+    queue: [],
+    currentIndex: -1,
+    currentVideo: null,
+    isPlaying: false,
+    currentTime: 0,
+    duration: 0,
+    videoPlayerMode: "watch",
+    videoPipIntent: null,
+    watchPageCache: null,
+  }),
   
   setCurrentTime: (currentTime) => set({ currentTime }),
   setDuration: (duration) => set({ duration }),
+  enterVideoPip: (videoPipIntent) => {
+    if (!get().currentVideo) return;
+    set({ videoPlayerMode: "pip", videoPipIntent });
+  },
+  expandVideoPlayer: () => {
+    if (!get().currentVideo) return;
+    set({ videoPlayerMode: "watch", videoPipIntent: null });
+  },
+  dismissVideoPlayer: () => get().clearQueue(),
+  setWatchPageCache: (videoId, cache) => {
+    const previous = get().watchPageCache;
+    set({
+      watchPageCache: {
+        videoId,
+        videoDetails: cache.videoDetails ?? (previous?.videoId === videoId ? previous.videoDetails : null),
+        channelDetails: cache.channelDetails ?? (previous?.videoId === videoId ? previous.channelDetails : null),
+        relatedVideos: cache.relatedVideos ?? (previous?.videoId === videoId ? previous.relatedVideos : []),
+        updatedAt: Date.now(),
+      },
+    });
+  },
+  clearWatchPageCache: (videoId) => {
+    const previous = get().watchPageCache;
+    if (!previous) return;
+    if (videoId && previous.videoId !== videoId) return;
+    set({ watchPageCache: null });
+  },
 
   setIsTheaterMode: (isTheaterMode) => {
     localStorage.setItem("flow_theater_mode", String(isTheaterMode));

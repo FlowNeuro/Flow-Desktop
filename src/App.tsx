@@ -40,6 +40,7 @@ import { ToastHost } from "./components/ui/ToastHost";
 import { GlobalMusicAudio } from "./components/music/GlobalMusicAudio";
 import { GlobalMusicDock } from "./components/music/GlobalMusicDock";
 import { MusicOverlay } from "./components/music/MusicOverlay";
+import { GlobalVideoPlayer } from "./components/watch/GlobalVideoPlayer";
 import { AddToAlbumModal } from "./components/music/AddToAlbumModal";
 import { AddTracksToAlbumModal } from "./components/music/AddTracksToAlbumModal";
 import { AddToPlaylistModal } from "./components/playlist/AddToPlaylistModal";
@@ -187,6 +188,7 @@ function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>
+      <GlobalVideoPlayer />
       <GlobalMusicAudio />
       <LayoutGroup>
         <GlobalMusicDock />
