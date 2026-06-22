@@ -212,6 +212,7 @@ export function Sidebar({ mode = 'normal' }: SidebarProps) {
           <SidebarItem to="/playlists" icon={<ListVideo />} label={getString('library_playlists_label')} onClick={closeOverlay} />
           <SidebarItem to="/albums" icon={<Disc3 />} label={getString('albums_title')} onClick={closeOverlay} />
           <SidebarItem to="/watch-later" icon={<Clock />} label={getString('library_watch_later_label')} onClick={closeOverlay} />
+          <SidebarItem to="/saved-shorts" icon={<ShortsIcon />} label={getString('library_saved_shorts_label')} onClick={closeOverlay} />
           <SidebarItem to="/liked" icon={<ThumbsUp />} label={getString('library_likes_label')} onClick={closeOverlay} />
           <SidebarItem to="/downloads" icon={<Download />} label={getString('library_downloads_label')} onClick={closeOverlay} />
         </nav>

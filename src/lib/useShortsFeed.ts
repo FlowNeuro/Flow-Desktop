@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSubscriptionStore } from "../store/useSubscriptionStore";
+import { cleanChannelId, useFeedActionsStore } from "../store/useFeedActionsStore";
 import { getShortsFeed, loadMoreShorts, resetShortsFeed } from "./api/shorts";
 import type { ShortItem, ShortsFeed } from "../types/shorts";
 
@@ -47,6 +48,26 @@ function mergeInitialItems(items: ShortItem[], initial: ShortItem[]): ShortItem[
   return [...initial, ...fresh];
 }
 
+function visibleFetchedShorts(items: ShortItem[]): ShortItem[] {
+  const {
+    dismissedVideoIds,
+    blockedChannelIds,
+    suppressedChannelIds,
+    watchedVideoIds,
+  } = useFeedActionsStore.getState();
+  const suppressedCutoff = Date.now() - 14 * 24 * 60 * 60 * 1000;
+
+  return items.filter((short) => {
+    if (dismissedVideoIds.has(short.id) || watchedVideoIds.has(short.id)) return false;
+    const channelId = cleanChannelId(short.channelId);
+    if (!channelId) return true;
+    return (
+      !blockedChannelIds.has(channelId) &&
+      (suppressedChannelIds.get(channelId) ?? 0) < suppressedCutoff
+    );
+  });
+}
+
 export function useShortsFeed(
   seedId?: string,
   initialSeedItem?: ShortItem | null,
@@ -82,7 +103,7 @@ export function useShortsFeed(
       .then((feed) => {
         if (cancelled) return;
         console.log("[shorts] feed loaded:", feed.items.length, "items, continuation:", feed.continuation);
-        const mergedItems = mergeInitialItems(feed.items, queuedItems);
+        const mergedItems = mergeInitialItems(visibleFetchedShorts(feed.items), queuedItems);
         mergedItems.forEach((s) => seenIdsRef.current.add(s.id));
         setItems(mergedItems);
         continuationRef.current = feed.continuation;
@@ -111,7 +132,7 @@ export function useShortsFeed(
     try {
       const feed = await loadMoreShorts(currentSubIds(), continuationRef.current);
       continuationRef.current = feed.continuation;
-      const fresh = feed.items.filter((s) => !seenIdsRef.current.has(s.id));
+      const fresh = visibleFetchedShorts(feed.items).filter((s) => !seenIdsRef.current.has(s.id));
       if (fresh.length) {
         fresh.forEach((s) => seenIdsRef.current.add(s.id));
         setItems((prev) => [...prev, ...fresh]);

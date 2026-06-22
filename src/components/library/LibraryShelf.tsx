@@ -1,13 +1,13 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { ChevronRight, type LucideIcon } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import { getString } from "../../lib/i18n/index";
 
 interface LibraryShelfProps {
   /** Section heading, e.g. "History". */
   title: string;
   /** Lucide icon rendered beside the title (and inside the empty state). */
-  icon: LucideIcon;
+  icon: React.ComponentType<{ className?: string }>;
   /** Route the "View all" pill navigates to, e.g. "/history". */
   viewAllTo: string;
   /** When true, render the MD3 empty state in place of the swiper. */

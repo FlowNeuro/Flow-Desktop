@@ -15,6 +15,9 @@ import { LibraryShelf } from "../components/library/LibraryShelf";
 import { VideoCard } from "../components/video/VideoCard";
 import { PlaylistCard } from "../components/video/PlaylistCard";
 import { MusicItemCard } from "../components/music/MusicItemCard";
+import { ShortCard } from "../components/shorts/ShortCard";
+import { ShortsIcon } from "../components/ui/ShortsIcon";
+import type { ShortVideoSummary } from "../types/video";
 
 const videoIdOf = (item: { videoId?: string | null; id: string }) => item.videoId ?? item.id;
 
@@ -139,9 +142,24 @@ function AlbumShelfRow({
   );
 }
 
+function ShortsShelfRow({ shorts }: { shorts: ShortVideoSummary[] }) {
+  return (
+    <>
+      {shorts.map((short) => (
+        <ShortCard
+          key={short.id}
+          short={short}
+          queue={shorts}
+          variant="shelf"
+        />
+      ))}
+    </>
+  );
+}
+
 export const LibraryPage: React.FC<LibraryPageProps> = ({ onPlay, onAddToQueue }) => {
   const navigate = useNavigate();
-  const { history, playlists, savedAlbums, watchLater, liked, downloads, loading } = useLibrary();
+  const { history, playlists, savedAlbums, watchLater, liked, savedShorts, downloads, loading } = useLibrary();
 
   const isEmpty = (length: number) => !loading && length === 0;
 
@@ -149,6 +167,7 @@ export const LibraryPage: React.FC<LibraryPageProps> = ({ onPlay, onAddToQueue }
     "library_stats_summary",
     playlists.length,
     savedAlbums.length,
+    savedShorts.length,
   );
 
   const handleOpenAlbum = (album: StoredAlbum) => {
@@ -195,6 +214,16 @@ export const LibraryPage: React.FC<LibraryPageProps> = ({ onPlay, onAddToQueue }
         isEmpty={isEmpty(savedAlbums.length)}
       >
         <AlbumShelfRow albums={savedAlbums} onOpenAlbum={handleOpenAlbum} />
+      </LibraryShelf>
+
+      {/* Saved Shorts */}
+      <LibraryShelf
+        title={getString("library_saved_shorts_label")}
+        icon={ShortsIcon}
+        viewAllTo="/saved-shorts"
+        isEmpty={isEmpty(savedShorts.length)}
+      >
+        <ShortsShelfRow shorts={savedShorts} />
       </LibraryShelf>
 
       {/* Watch Later */}

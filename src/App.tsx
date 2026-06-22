@@ -24,6 +24,7 @@ import History from "./pages/History";
 import Likes from "./pages/Likes";
 import LibraryPage from "./pages/LibraryPage";
 import AlbumsLibrary from "./pages/AlbumsLibrary";
+import SavedShorts from "./pages/SavedShorts";
 import Playlists from "./pages/Playlists";
 import PlaylistDetailsPage from "./pages/PlaylistDetailsPage";
 import Settings from "./pages/Settings";
@@ -161,6 +162,9 @@ function App() {
           } />
           <Route path="albums" element={
             <AlbumsLibrary />
+          } />
+          <Route path="saved-shorts" element={
+            <SavedShorts />
           } />
           <Route path="history" element={
             <History onPlay={handlePlayVideo} />

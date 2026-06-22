@@ -203,6 +203,7 @@ export function ShortPlayer({
             rydData={rydData}
             commentCountText={commentCountText}
             onRequestPanel={onRequestPanel}
+            onRequestAdvance={onRequestAdvance}
           />
         ) : (
           <div className="mb-4 w-[260px] lg:w-[280px]" />

@@ -1,10 +1,9 @@
 import React, { useRef, useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import { ChevronLeft, ChevronRight, Play } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { ShortVideoSummary, VideoSummary } from "../../types/video";
 import { useAppSettingsStore } from "../../store/useAppSettingsStore";
 import { SETTINGS } from "../../lib/settings/schema";
-import { buildShortQueue, shortSummaryToItem } from "../../lib/shortsQueue";
+import { ShortCard } from "../shorts/ShortCard";
 
 interface ShortsShelfProps {
   title: string;
@@ -16,9 +15,7 @@ export const ShortsShelf: React.FC<ShortsShelfProps> = ({
   title,
   shorts,
 }) => {
-  const navigate = useNavigate();
   const shortsShelfEnabled = useAppSettingsStore((state) => state.values[SETTINGS.SHORTS_SHELF_ENABLED] !== "false");
-  const disableShortsPlayer = useAppSettingsStore((state) => state.values[SETTINGS.DISABLE_SHORTS_PLAYER] === "true");
   const scrollRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
@@ -60,21 +57,6 @@ export const ShortsShelf: React.FC<ShortsShelfProps> = ({
     }
   };
 
-  const handlePlayShort = (short: ShortVideoSummary) => {
-    if (disableShortsPlayer) {
-      navigate(`/watch/${short.id}`);
-      return;
-    }
-
-    navigate(`/shorts/${short.id}`, {
-      state: {
-        initialShort: shortSummaryToItem(short),
-        initialQueue: buildShortQueue(shorts),
-        queueOnly: true,
-      },
-    });
-  };
-
   if (!shortsShelfEnabled || !shorts || shorts.length === 0) return null;
 
   return (
@@ -108,39 +90,12 @@ export const ShortsShelf: React.FC<ShortsShelfProps> = ({
           className="flex gap-4 overflow-x-auto scroll-smooth scrollbar-none pb-2 px-1 -mx-1"
         >
           {shorts.map((short) => (
-            <div
+            <ShortCard
               key={short.id}
-              onClick={() => handlePlayShort(short)}
-              className="w-[140px] sm:w-[176px] shrink-0 flex flex-col gap-2 group cursor-pointer transform transition-transform duration-300 hover:translate-y-[-2px]"
-            >
-              {/* Vertical Card Cover */}
-              <div className="relative w-full aspect-[9/16] rounded-xl overflow-hidden bg-zinc-900 border border-zinc-850">
-                {short.thumbnailUrl && (
-                  <img
-                    src={short.thumbnailUrl}
-                    alt={short.title}
-                    className="w-full h-full object-cover group-hover:scale-102 transition-transform duration-300"
-                    loading="lazy"
-                  />
-                )}
-                {/* Play overlay button */}
-                <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                  <div className="p-2.5 bg-primary rounded-full text-white shadow-md">
-                    <Play size={16} fill="white" />
-                  </div>
-                </div>
-                {short.viewCountText && (
-                  <div className="absolute bottom-2 left-2 text-[10px] font-bold text-white bg-black/60 px-1.5 py-0.5 rounded tracking-wide backdrop-blur-sm">
-                    {short.viewCountText}
-                  </div>
-                )}
-              </div>
-
-              {/* Text metadata */}
-              <h3 className="text-zinc-200 text-xs font-semibold line-clamp-2 leading-tight group-hover:text-primary transition-colors pr-1">
-                {short.title}
-              </h3>
-            </div>
+              short={short}
+              queue={shorts}
+              variant="shelf"
+            />
           ))}
         </div>
 

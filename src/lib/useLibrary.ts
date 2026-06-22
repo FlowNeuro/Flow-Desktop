@@ -7,10 +7,14 @@ import {
   storedPlaylistToCardSummary,
   WATCH_LATER_PLAYLIST_ID,
 } from "./playlistLibrary";
+import {
+  loadSavedShorts,
+  SAVED_SHORTS_LIBRARY_UPDATED_EVENT,
+} from "./savedShortsLibrary";
 import { likedItemToHistoryVideo } from "./useLikes";
 import { useAlbumLibraryStore } from "../store/useAlbumLibraryStore";
 import { LIKES_LIBRARY_UPDATED_EVENT, useLikesStore } from "../store/useLikesStore";
-import type { VideoSummary } from "../types/video";
+import type { ShortVideoSummary, VideoSummary } from "../types/video";
 
 const SHELF_PREVIEW_LIMIT = 15;
 
@@ -21,6 +25,7 @@ interface AsyncLibraryData {
   playlists: LibraryPlaylist[];
   watchLater: VideoSummary[];
   liked: HistoryVideo[];
+  savedShorts: ShortVideoSummary[];
   downloads: VideoSummary[];
 }
 
@@ -29,6 +34,7 @@ const EMPTY_LIBRARY: AsyncLibraryData = {
   playlists: [],
   watchLater: [],
   liked: [],
+  savedShorts: [],
   downloads: [],
 };
 
@@ -47,13 +53,17 @@ export function useLibrary() {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const [historyRecords, storedPlaylists] = await Promise.all([
+      const [historyRecords, storedPlaylists, savedShorts] = await Promise.all([
         getWatchHistory(SHELF_PREVIEW_LIMIT, 0).catch((error) => {
           console.warn("Library: failed to load history", error);
           return [];
         }),
         loadStoredPlaylists().catch((error) => {
           console.warn("Library: failed to load playlists", error);
+          return [];
+        }),
+        loadSavedShorts().catch((error) => {
+          console.warn("Library: failed to load saved Shorts", error);
           return [];
         }),
       ]);
@@ -71,6 +81,7 @@ export function useLibrary() {
         playlists: storedPlaylists.map(storedPlaylistToCardSummary),
         watchLater: watchLaterPlaylist?.tracks.slice(0, SHELF_PREVIEW_LIMIT) ?? [],
         liked,
+        savedShorts: savedShorts.slice(0, SHELF_PREVIEW_LIMIT),
         downloads: [],
       });
     } finally {
@@ -85,9 +96,11 @@ export function useLibrary() {
   useEffect(() => {
     window.addEventListener(PLAYLIST_LIBRARY_UPDATED_EVENT, refresh);
     window.addEventListener(LIKES_LIBRARY_UPDATED_EVENT, refresh);
+    window.addEventListener(SAVED_SHORTS_LIBRARY_UPDATED_EVENT, refresh);
     return () => {
       window.removeEventListener(PLAYLIST_LIBRARY_UPDATED_EVENT, refresh);
       window.removeEventListener(LIKES_LIBRARY_UPDATED_EVENT, refresh);
+      window.removeEventListener(SAVED_SHORTS_LIBRARY_UPDATED_EVENT, refresh);
     };
   }, [refresh]);
 
