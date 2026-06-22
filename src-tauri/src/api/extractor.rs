@@ -44,6 +44,13 @@ pub trait YoutubeExtractor: Send + Sync {
         page_token: Option<String>,
     ) -> AppResult<CommentsResponse>;
 
+    async fn get_post_comments(
+        &self,
+        post_id: &str,
+        params: Option<String>,
+        page_token: Option<String>,
+    ) -> AppResult<CommentsResponse>;
+
     async fn get_live_chat(
         &self,
         video_id: &str,

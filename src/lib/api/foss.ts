@@ -59,7 +59,11 @@ export interface RydData {
   deleted: boolean;
 }
 
+const YOUTUBE_VIDEO_ID = /^[a-zA-Z0-9_-]{11}$/;
+
 export async function getReturnYouTubeDislike(videoId: string): Promise<RydData | null> {
+  if (!YOUTUBE_VIDEO_ID.test(videoId)) return null;
+
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), 8000);
   try {

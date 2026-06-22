@@ -96,6 +96,15 @@ impl YoutubeExtractor for InnertubeClient {
         self.get_comments(video_id, page_token).await
     }
 
+    async fn get_post_comments(
+        &self,
+        post_id: &str,
+        params: Option<String>,
+        page_token: Option<String>,
+    ) -> AppResult<CommentsResponse> {
+        self.get_post_comments(post_id, params, page_token).await
+    }
+
     async fn get_live_chat(
         &self,
         video_id: &str,

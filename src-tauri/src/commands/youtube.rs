@@ -725,6 +725,28 @@ pub async fn get_comments(
 }
 
 #[tauri::command]
+pub async fn get_post_comments(
+    post_id: String,
+    params: Option<String>,
+    page_token: Option<String>,
+    youtube_service: State<'_, YoutubeService>,
+) -> Result<CommentsResponse, ErrorResponse> {
+    if let Some(token) = page_token.as_deref() {
+        validate_page_token(token).map_err(ErrorResponse::from)?;
+    } else {
+        validate_browse_id(&post_id).map_err(ErrorResponse::from)?;
+        if let Some(post_params) = params.as_deref() {
+            validate_page_token(post_params).map_err(ErrorResponse::from)?;
+        }
+    }
+
+    youtube_service
+        .get_post_comments(&post_id, params, page_token)
+        .await
+        .map_err(ErrorResponse::from)
+}
+
+#[tauri::command]
 pub async fn get_live_chat(
     video_id: String,
     continuation: Option<String>,

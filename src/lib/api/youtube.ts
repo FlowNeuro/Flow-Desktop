@@ -254,6 +254,8 @@ export async function getChannelTab(
           textContent: "Hello world! This is a beautiful mock community post since Tauri was not detected. Modern web design aesthetics are in full force!",
           publishedTimeText: "3 hours ago",
           likesCountText: "1.2K likes",
+          commentCountText: "42",
+          commentEndpointParams: null,
         },
       ];
     } else {
@@ -341,6 +343,36 @@ export async function getComments(
   }
   return invokeBackend<CommentsResponse>("get_comments", {
     videoId,
+    pageToken,
+  });
+}
+
+export async function getPostComments(
+  postId: string,
+  params?: string | null,
+  pageToken?: string | null,
+): Promise<CommentsResponse> {
+  if (!(await isTauriEnv())) {
+    console.warn("Tauri not detected. Returning mock post comments.");
+    return {
+      comments: [
+        {
+          id: "mock_pc1",
+          author: "Mock Commenter",
+          authorThumbnail: null,
+          text: "Mock community post comment.",
+          publishedText: "1 hour ago",
+          likeCount: 12,
+          replyCount: 0,
+        },
+      ],
+      nextPageToken: null,
+      commentCountText: "1",
+    };
+  }
+  return invokeBackend<CommentsResponse>("get_post_comments", {
+    postId,
+    params,
     pageToken,
   });
 }

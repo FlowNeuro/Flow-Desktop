@@ -365,13 +365,15 @@ fn proxyable_image_url(parsed: &reqwest::Url) -> String {
     let (base_and_path, query) = url
         .split_once('?')
         .map_or((url, ""), |(base, query)| (base, query));
-    let base = google_size_param_start(base_and_path)
-        .map(|idx| &base_and_path[..idx])
-        .unwrap_or(base_and_path);
+
+    if google_size_param_start(base_and_path).is_some() {
+        return url.to_string();
+    }
+
     if query.is_empty() {
-        format!("{base}=s512")
+        format!("{base_and_path}=s512")
     } else {
-        format!("{base}=s512?{query}")
+        format!("{base_and_path}=s512?{query}")
     }
 }
 

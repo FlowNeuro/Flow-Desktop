@@ -28,6 +28,8 @@ pub struct PostSummary {
     pub text_content: Option<String>,
     pub image_attachment: Option<String>,
     pub likes_count_text: Option<String>,
+    pub comment_count_text: Option<String>,
+    pub comment_endpoint_params: Option<String>,
     pub published_time_text: Option<String>,
 }
 

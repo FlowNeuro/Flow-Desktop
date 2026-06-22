@@ -94,6 +94,15 @@ fn parse_comments_json(val: &Value) -> CommentsResponse {
         &mutation_payloads,
     );
 
+    if comments.is_empty() || next_page_token.is_none() {
+        collect_comments_from_value(
+            val,
+            &mut comments,
+            &mut next_page_token,
+            &mutation_payloads,
+        );
+    }
+
     comments = dedupe_comments(comments);
 
     let comment_count_text = find_comment_count_text(val);
@@ -103,6 +112,45 @@ fn parse_comments_json(val: &Value) -> CommentsResponse {
         next_page_token,
         comment_count_text,
     }
+}
+
+fn find_first_comments_continuation(value: &Value) -> Option<String> {
+    if let Some(renderer) = value.get("continuationItemRenderer") {
+        if let Some(token) =
+            renderer["continuationEndpoint"]["continuationCommand"]["token"].as_str()
+        {
+            return Some(token.to_string());
+        }
+        if let Some(token) = renderer["button"]["buttonRenderer"]["command"]
+            ["continuationCommand"]["token"]
+            .as_str()
+        {
+            return Some(token.to_string());
+        }
+    }
+
+    if let Some(token) = value["continuationCommand"]["token"].as_str() {
+        return Some(token.to_string());
+    }
+
+    if let Some(array) = value.as_array() {
+        for item in array {
+            if let Some(token) = find_first_comments_continuation(item) {
+                return Some(token);
+            }
+        }
+        return None;
+    }
+
+    if let Some(object) = value.as_object() {
+        for child in object.values() {
+            if let Some(token) = find_first_comments_continuation(child) {
+                return Some(token);
+            }
+        }
+    }
+
+    None
 }
 
 fn find_initial_comments_token(response: &Value) -> Option<String> {
@@ -177,6 +225,7 @@ fn find_initial_comments_token(response: &Value) -> Option<String> {
                 })
             })
         })
+        .or_else(|| find_first_comments_continuation(response))
 }
 
 fn collect_comments_from_value(
@@ -520,6 +569,61 @@ impl InnertubeClient {
                     comments_count = comments_res.comments.len(),
                     "[get_comments] Second fetch result"
                 );
+            }
+        }
+
+        Ok(comments_res)
+    }
+
+    pub async fn get_post_comments(
+        &self,
+        post_id: &str,
+        params: Option<String>,
+        page_token: Option<String>,
+    ) -> AppResult<CommentsResponse> {
+        let post_id_trimmed = post_id.trim();
+        if post_id_trimmed.is_empty() && params.is_none() && page_token.is_none() {
+            return Err(AppError::Validation("Post ID cannot be empty".into()));
+        }
+
+        let res = if let Some(ref token) = page_token {
+            let mut payload = serde_json::json!({
+                "continuation": token
+            });
+            self.post_innertube("browse", "WEB", "2.20260120.01.00", &mut payload)
+                .await?
+        } else {
+            let mut payload = serde_json::json!({
+                "browseId": "FEpost_detail",
+            });
+            if let Some(ref post_params) = params {
+                payload["params"] = serde_json::json!(post_params);
+            } else {
+                payload["canonicalBaseUrl"] =
+                    serde_json::json!(format!("/post/{post_id_trimmed}"));
+            }
+            self.post_innertube("browse", "WEB", "2.20260120.01.00", &mut payload)
+                .await?
+        };
+
+        let mut comments_res = parse_comments_json(&res);
+
+        if page_token.is_none() && comments_res.comments.is_empty() {
+            let initial_count_text = comments_res.comment_count_text.clone();
+            let continuation_token =
+                find_initial_comments_token(&res).or_else(|| comments_res.next_page_token.clone());
+
+            if let Some(token) = continuation_token {
+                let mut next_payload = serde_json::json!({
+                    "continuation": token
+                });
+                let next_res = self
+                    .post_innertube("browse", "WEB", "2.20260120.01.00", &mut next_payload)
+                    .await?;
+                comments_res = parse_comments_json(&next_res);
+                if comments_res.comment_count_text.is_none() {
+                    comments_res.comment_count_text = initial_count_text;
+                }
             }
         }
 

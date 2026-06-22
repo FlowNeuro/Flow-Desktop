@@ -12,6 +12,103 @@ use crate::models::video::VideoSummary;
 use serde_json::Value;
 use tracing::debug;
 
+fn normalize_large_google_image_url(url: &str) -> String {
+    if url.starts_with("//") {
+        format!("https:{url}")
+    } else {
+        url.to_string()
+    }
+}
+
+fn thumbnail_area(thumbnail: &Value) -> u64 {
+    let width = thumbnail.get("width").and_then(Value::as_u64).unwrap_or(0);
+    let height = thumbnail.get("height").and_then(Value::as_u64).unwrap_or(0);
+    width.saturating_mul(height)
+}
+
+fn best_thumbnail_url(thumbnails: &Value) -> Option<String> {
+    thumbnails.as_array().and_then(|arr| {
+        arr.iter()
+            .max_by_key(|thumb| thumbnail_area(thumb))
+            .and_then(|thumb| thumb.get("url").or_else(|| thumb.get("uri")))
+            .and_then(Value::as_str)
+            .map(normalize_large_google_image_url)
+    })
+}
+
+fn text_from_text_runs(value: &Value) -> Option<String> {
+    value
+        .get("runs")
+        .and_then(Value::as_array)
+        .map(|runs| {
+            runs.iter()
+                .filter_map(|run| run.get("text").and_then(Value::as_str))
+                .collect::<Vec<_>>()
+                .join("")
+        })
+        .filter(|text| !text.is_empty())
+        .or_else(|| {
+            value
+                .get("simpleText")
+                .and_then(Value::as_str)
+                .map(ToOwned::to_owned)
+        })
+}
+
+fn post_comment_count_text(post: &Value) -> Option<String> {
+    let reply_button = &post["actionButtons"]["commentActionButtonsRenderer"]["replyButton"]
+        ["buttonRenderer"];
+    reply_button
+        .get("text")
+        .and_then(text_from_text_runs)
+        .or_else(|| {
+            reply_button
+                .get("accessibility")
+                .and_then(|a| a.get("label"))
+                .and_then(Value::as_str)
+                .map(ToOwned::to_owned)
+        })
+        .or_else(|| {
+            reply_button
+                .get("accessibilityData")
+                .and_then(|a| a.get("accessibilityData"))
+                .and_then(|a| a.get("label"))
+                .and_then(Value::as_str)
+                .map(ToOwned::to_owned)
+        })
+}
+
+fn post_comment_endpoint_params(post: &Value) -> Option<String> {
+    let endpoint =
+        &post["actionButtons"]["commentActionButtonsRenderer"]["replyButton"]["buttonRenderer"]
+            ["navigationEndpoint"];
+    endpoint["browseEndpoint"]["params"]
+        .as_str()
+        .or_else(|| endpoint["signInEndpoint"]["nextEndpoint"]["browseEndpoint"]["params"].as_str())
+        .map(ToOwned::to_owned)
+}
+
+fn post_image_attachment_url(post: &Value) -> Option<String> {
+    let attachment = post.get("backstageAttachment")?;
+
+    attachment
+        .get("backstageImageRenderer")
+        .and_then(|renderer| renderer.get("image"))
+        .and_then(|image| image.get("thumbnails"))
+        .and_then(best_thumbnail_url)
+        .or_else(|| {
+            attachment
+                .get("postMultiImageRenderer")
+                .and_then(|renderer| renderer.get("images"))
+                .and_then(Value::as_array)
+                .and_then(|images| images.first())
+                .and_then(|image| image.get("backstageImageRenderer"))
+                .and_then(|renderer| renderer.get("image"))
+                .and_then(|image| image.get("thumbnails"))
+                .and_then(best_thumbnail_url)
+        })
+}
+
 fn extract_videos_from_browse(
     val: &Value,
 ) -> (
@@ -510,11 +607,12 @@ fn extract_videos_from_browse(
                         }));
                     }
                 }
-            } else if let Some(post_thread) = target.get("backstagePostThreadRenderer") {
-                if let Some(post) = post_thread
-                    .get("post")
-                    .and_then(|p| p.get("backstagePostRenderer"))
-                {
+            } else if let Some(post) = target
+                .get("backstagePostThreadRenderer")
+                .and_then(|thread| thread.get("post"))
+                .and_then(|post| post.get("backstagePostRenderer"))
+                .or_else(|| target.get("postRenderer"))
+            {
                     let post_id = post
                         .get("postId")
                         .and_then(|p| p.as_str())
@@ -544,19 +642,7 @@ fn extract_videos_from_browse(
                         .map(|s| s.to_string());
                     let text_content = post
                         .get("contentText")
-                        .and_then(|c| {
-                            c.get("runs").and_then(|r| r.as_array()).map(|arr| {
-                                arr.iter()
-                                    .filter_map(|r| r.get("text").and_then(|s| s.as_str()))
-                                    .collect::<Vec<_>>()
-                                    .join("")
-                            })
-                        })
-                        .or_else(|| {
-                            post.get("contentText")
-                                .and_then(|c| c.get("simpleText").and_then(|s| s.as_str()))
-                                .map(|s| s.to_string())
-                        });
+                        .and_then(text_from_text_runs);
                     let published_time_text = post
                         .get("publishedTimeText")
                         .and_then(|p| {
@@ -571,17 +657,9 @@ fn extract_videos_from_browse(
                         .get("voteCount")
                         .and_then(|v| v.get("simpleText").and_then(|s| s.as_str()))
                         .map(|s| s.to_string());
-                    let image_attachment = post
-                        .get("backstageAttachment")
-                        .and_then(|b| b.get("backstageImageRenderer"))
-                        .and_then(|i| i.get("image"))
-                        .and_then(|i| i.get("thumbnails"))
-                        .and_then(|t| t.as_array())
-                        .and_then(|arr| arr.last())
-                        .and_then(|f| f.get("url"))
-                        .and_then(|s| s.as_str())
-                        .map(normalize_youtube_image_url)
-                        .map(|s| s.to_string());
+                    let comment_count_text = post_comment_count_text(post);
+                    let comment_endpoint_params = post_comment_endpoint_params(post);
+                    let image_attachment = post_image_attachment_url(post);
 
                     items.push(ChannelItem::Post(PostSummary {
                         id: post_id,
@@ -594,9 +672,10 @@ fn extract_videos_from_browse(
                         text_content,
                         image_attachment,
                         likes_count_text,
+                        comment_count_text,
+                        comment_endpoint_params,
                         published_time_text,
                     }));
-                }
             } else if let Some(cont) = target.get("continuationItemRenderer") {
                 if let Some(token) = cont
                     .get("continuationEndpoint")
@@ -1077,10 +1156,7 @@ impl InnertubeClient {
             .get("c4TabbedHeaderRenderer")
             .and_then(|c4| c4.get("banner"))
             .and_then(|b| b.get("thumbnails"))
-            .and_then(|t| t.as_array())
-            .and_then(|arr| arr.last())
-            .and_then(|first| first.get("url"))
-            .and_then(|v| v.as_str())
+            .and_then(best_thumbnail_url)
             .or_else(|| {
                 header
                     .get("pageHeaderRenderer")
@@ -1090,12 +1166,9 @@ impl InnertubeClient {
                     .and_then(|b| b.get("imageBannerViewModel"))
                     .and_then(|ib| ib.get("image"))
                     .and_then(|img| img.get("sources"))
-                    .and_then(|s| s.as_array())
-                    .and_then(|arr| arr.last())
-                    .and_then(|first| first.get("url"))
-                    .and_then(|v| v.as_str())
+                    .and_then(best_thumbnail_url)
             })
-            .map(normalize_youtube_image_url);
+            .map(|s| normalize_large_google_image_url(&s));
 
         let mut subscriber_count = None;
         let mut subscriber_count_text = None;

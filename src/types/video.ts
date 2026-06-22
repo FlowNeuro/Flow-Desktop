@@ -224,6 +224,8 @@ export interface PostSummary {
   textContent?: string | null;
   imageAttachment?: string | null;
   likesCountText?: string | null;
+  commentCountText?: string | null;
+  commentEndpointParams?: string | null;
   publishedTimeText?: string | null;
 }
 

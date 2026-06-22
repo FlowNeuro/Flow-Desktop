@@ -173,6 +173,58 @@ export function upgradeMusicImageUrl(url: string | null | undefined, size = 1080
   return upgraded;
 }
 
+export function upgradeLargeGoogleImageUrl(url: string | null | undefined, size = 2048): string | undefined {
+  if (!url?.trim()) return undefined;
+  let upgraded = url.trim();
+  if (upgraded.startsWith("//")) upgraded = `https:${upgraded}`;
+
+  if (isGoogleImageUrl(upgraded)) {
+    const equalsParamUrl = withGoogleEqualsParam(upgraded, `s${size}`);
+    if (equalsParamUrl) return equalsParamUrl;
+
+    if (GOOGLE_CDN_SIZE_RE.test(upgraded)) {
+      return upgraded.replace(GOOGLE_CDN_SIZE_RE, (match) => {
+        const prefix = match[0] === "=" || match[0] === "/" || match[0] === "-" ? match[0] : "=";
+        return `${prefix}s${size}`;
+      });
+    }
+
+    const paramStart = upgraded.search(GOOGLE_CDN_PARAM_START_RE);
+    const base = paramStart >= 0 ? upgraded.slice(0, paramStart) : upgraded;
+    return `${base}=s${size}`;
+  }
+
+  return upgraded;
+}
+
+export function upgradeChannelBannerUrl(url: string | null | undefined): string | undefined {
+  if (!url?.trim()) return undefined;
+  let upgraded = url.trim();
+  if (upgraded.startsWith("//")) upgraded = `https:${upgraded}`;
+
+  if (isGoogleImageUrl(upgraded)) {
+    const equalsParamStart = upgraded.search(GOOGLE_CDN_PARAM_START_RE);
+    if (equalsParamStart >= 0) {
+      return `${upgraded.slice(0, equalsParamStart)}${upgraded.slice(equalsParamStart).replace(/=(?:w|h|s)\d+/, "=w2560")}`;
+    }
+
+    if (GOOGLE_CDN_SIZE_RE.test(upgraded)) {
+      return upgraded.replace(GOOGLE_CDN_SIZE_RE, (match) => {
+        const prefix = match[0] === "=" || match[0] === "/" || match[0] === "-" ? match[0] : "=";
+        return `${prefix}w2560`;
+      });
+    }
+
+    return `${upgraded}=w2560`;
+  }
+
+  return upgraded;
+}
+
+export function upgradeCommunityPostImageUrl(url: string | null | undefined): string | undefined {
+  return upgradeLargeGoogleImageUrl(url, 2048);
+}
+
 export function upgradeAvatarUrl(url: string | null | undefined, size = 512): string | undefined {
   if (!url?.trim()) return undefined;
   let upgraded = url.trim();

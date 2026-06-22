@@ -31,9 +31,14 @@ function CommentText({ text, className = "text-sm mt-1 text-neutral-200 whitespa
   );
 }
 
-export function CommentsSection({ videoId, hideHeader = false }: CommentsSectionProps) {
+export function CommentsSection({
+  videoId,
+  hideHeader = false,
+  postId,
+  postCommentParams,
+}: CommentsSectionProps) {
   const navigate = useNavigate();
-  const thread = useVideoComments(videoId);
+  const thread = useVideoComments(videoId, { postId, postCommentParams });
 
   return (
     <div className="space-y-6 pt-4">

@@ -58,7 +58,7 @@ export const ChannelPostsFeed: React.FC<ChannelPostsFeedProps> = ({ posts }) => 
   if (!posts.length) return null;
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
+    <div className="mx-auto w-full max-w-6xl space-y-6">
       {posts.map((post) => (
         <PostCard key={post.id} post={post} />
       ))}

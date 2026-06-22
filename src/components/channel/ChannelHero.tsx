@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Check } from "lucide-react";
 import { SubscribeButton } from "../ui/SubscribeButton";
 import type { ChannelDetails } from "../../types/video";
-import { upgradeAvatarUrl, upgradeMusicImageUrl } from "../../lib/thumbnails";
+import { upgradeAvatarUrl, upgradeChannelBannerUrl } from "../../lib/thumbnails";
 import { useProxiedImageUrl } from "../../lib/useProxiedImageUrl";
 
 interface ChannelHeroProps {
@@ -13,7 +13,7 @@ export const ChannelHero: React.FC<ChannelHeroProps> = ({
   channelInfo,
 }) => {
   const [descExpanded, setDescExpanded] = useState(false);
-  const bannerUrl = useProxiedImageUrl(upgradeMusicImageUrl(channelInfo?.bannerUrl));
+  const bannerUrl = useProxiedImageUrl(upgradeChannelBannerUrl(channelInfo?.bannerUrl));
   const avatarUrl = useProxiedImageUrl(upgradeAvatarUrl(channelInfo?.avatarUrl));
 
   if (!channelInfo) return null;

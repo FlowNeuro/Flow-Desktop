@@ -1,8 +1,17 @@
 import { useCallback, useEffect, useState } from "react";
-import { getComments } from "./api/youtube";
+import { getComments, getPostComments } from "./api/youtube";
 import type { Comment } from "../types/video";
 
-export function useVideoComments(videoId: string | undefined) {
+interface UseVideoCommentsOptions {
+  postId?: string | null;
+  postCommentParams?: string | null;
+}
+
+export function useVideoComments(videoId: string | undefined, options: UseVideoCommentsOptions = {}) {
+  const postId = options.postId?.trim() || null;
+  const postCommentParams = options.postCommentParams?.trim() || null;
+  const sourceId = postId ?? videoId;
+  const sourceKey = postId ? `post:${postId}:${postCommentParams ?? ""}` : `video:${videoId ?? ""}`;
   const [comments, setComments] = useState<Comment[]>([]);
   const [loading, setLoading] = useState(false);
   const [nextPageToken, setNextPageToken] = useState<string | null>(null);
@@ -13,6 +22,14 @@ export function useVideoComments(videoId: string | undefined) {
   const [repliesNextToken, setRepliesNextToken] = useState<Record<string, string | null>>({});
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
+  const fetchComments = useCallback(
+    (pageToken?: string | null) => {
+      if (postId) return getPostComments(postId, postCommentParams, pageToken);
+      return getComments(videoId || "", pageToken);
+    },
+    [postId, postCommentParams, videoId],
+  );
+
   useEffect(() => {
     setComments([]);
     setNextPageToken(null);
@@ -21,11 +38,11 @@ export function useVideoComments(videoId: string | undefined) {
     setRepliesLoading({});
     setRepliesNextToken({});
     setExpanded({});
-    if (!videoId) return;
+    if (!sourceId) return;
 
     let cancelled = false;
     setLoading(true);
-    getComments(videoId)
+    fetchComments()
       .then((res) => {
         if (cancelled) return;
         setComments(res.comments || []);
@@ -46,13 +63,13 @@ export function useVideoComments(videoId: string | undefined) {
     return () => {
       cancelled = true;
     };
-  }, [videoId]);
+  }, [fetchComments, sourceId, sourceKey]);
 
   const loadMore = useCallback(async () => {
-    if (!videoId || !nextPageToken || loadingMore) return;
+    if (!sourceId || !nextPageToken || loadingMore) return;
     setLoadingMore(true);
     try {
-      const res = await getComments(videoId, nextPageToken);
+      const res = await fetchComments(nextPageToken);
       setComments((prev) => [...prev, ...(res.comments || [])]);
       setNextPageToken(res.nextPageToken || null);
       if (res.commentCountText) setCountText(res.commentCountText);
@@ -61,14 +78,14 @@ export function useVideoComments(videoId: string | undefined) {
     } finally {
       setLoadingMore(false);
     }
-  }, [videoId, nextPageToken, loadingMore]);
+  }, [fetchComments, sourceId, nextPageToken, loadingMore]);
 
   const loadReplies = useCallback(
     async (commentId: string, replyToken: string) => {
-      if (!videoId || repliesLoading[commentId]) return;
+      if (!sourceId || repliesLoading[commentId]) return;
       setRepliesLoading((prev) => ({ ...prev, [commentId]: true }));
       try {
-        const res = await getComments(videoId, replyToken);
+        const res = await fetchComments(replyToken);
         setReplies((prev) => ({ ...prev, [commentId]: [...(prev[commentId] || []), ...(res.comments || [])] }));
         setRepliesNextToken((prev) => ({ ...prev, [commentId]: res.nextPageToken || null }));
       } catch (err) {
@@ -77,7 +94,7 @@ export function useVideoComments(videoId: string | undefined) {
         setRepliesLoading((prev) => ({ ...prev, [commentId]: false }));
       }
     },
-    [videoId, repliesLoading],
+    [fetchComments, sourceId, repliesLoading],
   );
 
   const toggleReplies = useCallback(
