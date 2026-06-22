@@ -9,8 +9,9 @@ interface VideoShelfProps {
   onPlay: (video: VideoSummary) => void;
   onAddToQueue?: (video: VideoSummary) => void;
   onRemoveFromHistory?: (videoId: string) => void;
+  onRemoveFromContinueWatching?: (videoId: string) => void;
   getVideoKey?: (video: VideoSummary, index: number) => string;
-  variant?: "default" | "history";
+  variant?: "default" | "history" | "continue";
   hideChannelAvatar?: boolean;
 }
 
@@ -20,6 +21,7 @@ export const VideoShelf: React.FC<VideoShelfProps> = ({
   onPlay,
   onAddToQueue,
   onRemoveFromHistory,
+  onRemoveFromContinueWatching,
   getVideoKey,
   variant = "default",
   hideChannelAvatar = true,
@@ -111,6 +113,7 @@ export const VideoShelf: React.FC<VideoShelfProps> = ({
                 onPlay={onPlay}
                 onAddToQueue={onAddToQueue}
                 onRemoveFromHistory={onRemoveFromHistory}
+                onRemoveFromContinueWatching={onRemoveFromContinueWatching}
                 variant={variant}
                 hideChannelAvatar={hideChannelAvatar}
               />

@@ -239,7 +239,7 @@ export const SETTING_DEFINITIONS = [
   bool(SETTINGS.SHOW_APP_LOGO_ICON, "content", true, "wired"),
   bool(SETTINGS.SHORTS_SHELF_ENABLED, "content", true, "wired"),
   bool(SETTINGS.HOME_SHORTS_SHELF_ENABLED, "content", true, "persisted-only"),
-  bool(SETTINGS.CONTINUE_WATCHING_ENABLED, "content", true, "persisted-only"),
+  bool(SETTINGS.CONTINUE_WATCHING_ENABLED, "content", true, "wired"),
   bool(SETTINGS.COMMENTS_ENABLED, "content", true, "wired"),
   bool(SETTINGS.SHOW_RELATED_VIDEOS, "content", true, "wired"),
   bool(SETTINGS.HIDE_WATCHED_VIDEOS, "content", false, "wired"),

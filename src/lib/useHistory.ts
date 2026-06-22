@@ -75,6 +75,7 @@ export function mapHistoryRecordToVideo(record: WatchHistoryRecord): HistoryVide
     id: record.videoId,
     title: record.title,
     channelName: record.channelName || "Unknown Channel",
+    channelId: record.channelId || null,
     thumbnailUrl: `https://i.ytimg.com/vi/${record.videoId}/hqdefault.jpg`,
     durationSeconds: record.totalDurationSeconds || 0,
     publishedText: getHistoryDateLabel(record.watchDate),

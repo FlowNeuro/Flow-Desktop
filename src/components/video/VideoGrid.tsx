@@ -1,3 +1,4 @@
+import { Fragment, type ReactNode } from 'react';
 import type { VideoSummary } from '../../types/video';
 import { VideoCard } from './VideoCard';
 import { SkeletonLoader } from '../ui/SkeletonLoader';
@@ -9,6 +10,8 @@ interface VideoGridProps {
   onPlay: (video: VideoSummary) => void;
   onAddToQueue?: (video: VideoSummary) => void;
   onRemoveFromHistory?: (videoId: string) => void;
+  insertAfterIndex?: number;
+  insertNode?: ReactNode;
   getVideoKey?: (video: VideoSummary, index: number) => string;
   variant?: "default" | "history";
   hideChannelAvatar?: boolean;
@@ -36,6 +39,8 @@ export function VideoGrid({
   onPlay,
   onAddToQueue,
   onRemoveFromHistory,
+  insertAfterIndex,
+  insertNode,
   getVideoKey,
   variant = "default",
   hideChannelAvatar,
@@ -55,15 +60,21 @@ export function VideoGrid({
   return (
     <div className={gridClass}>
       {videos.map((video, index) => (
-        <VideoCard 
-          key={getVideoKey ? getVideoKey(video, index) : `${video.id}-${index}`} 
-          video={video} 
-          onPlay={onPlay}
-          onAddToQueue={onAddToQueue}
-          onRemoveFromHistory={onRemoveFromHistory}
-          variant={variant}
-          hideChannelAvatar={hideChannelAvatar}
-        />
+        <Fragment key={getVideoKey ? getVideoKey(video, index) : `${video.id}-${index}`}>
+          <VideoCard 
+            video={video} 
+            onPlay={onPlay}
+            onAddToQueue={onAddToQueue}
+            onRemoveFromHistory={onRemoveFromHistory}
+            variant={variant}
+            hideChannelAvatar={hideChannelAvatar}
+          />
+          {insertNode && insertAfterIndex === index ? (
+            <div className="col-span-full">
+              {insertNode}
+            </div>
+          ) : null}
+        </Fragment>
       ))}
     </div>
   );

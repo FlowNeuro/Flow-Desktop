@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from "react";
+import React, { useCallback, useRef, useState, useEffect } from "react";
 import { Loader2, ChevronDown } from "lucide-react";
 import {
   getChannelTab,
@@ -24,6 +24,12 @@ import { SETTINGS } from "../lib/settings/schema";
 import type { VideoSummary } from "../types/video";
 import type { WatchHistoryRecord } from "../types/db";
 import { VideoGrid } from "../components/video/VideoGrid";
+import { VideoShelf } from "../components/shelf/VideoShelf";
+import { mapHistoryRecordToVideo } from "../lib/useHistory";
+import {
+  getHiddenContinueWatchingIds,
+  hideContinueWatchingVideo,
+} from "../lib/continueWatching";
 
 interface HomeProps {
   onPlay: (video: VideoSummary) => void;
@@ -59,6 +65,44 @@ const homeFeedCache: Record<"discover" | "trending", { videos: VideoSummary[]; t
 
 const logHomeFeed = (stage: string, details: Record<string, unknown>) => {
   console.info(`[home-feed] ${stage}`, details);
+};
+
+const getHomeGridColumnCount = () => {
+  if (typeof window === "undefined") return 4;
+  if (window.innerWidth >= 1024) return 4;
+  if (window.innerWidth >= 768) return 3;
+  if (window.innerWidth >= 640) return 2;
+  return 1;
+};
+
+const buildContinueWatchingVideos = (history: WatchHistoryRecord[]): VideoSummary[] => {
+  const hiddenIds = getHiddenContinueWatchingIds();
+  const seenIds = new Set<string>();
+  const videos: VideoSummary[] = [];
+
+  for (const record of history) {
+    if (seenIds.has(record.videoId) || hiddenIds.has(record.videoId) || record.isMusic) {
+      continue;
+    }
+
+    seenIds.add(record.videoId);
+    const duration = record.totalDurationSeconds ?? 0;
+    if (duration <= 0 || record.watchDurationSeconds <= 0) {
+      continue;
+    }
+
+    const progressPercent = Math.min(100, Math.max(0, (record.watchDurationSeconds / duration) * 100));
+    if (progressPercent >= 90) {
+      continue;
+    }
+
+    videos.push({
+      ...mapHistoryRecordToVideo(record),
+      viewCountText: `${Math.round(progressPercent)}% watched`,
+    });
+  }
+
+  return videos.slice(0, 20);
 };
 
 // Persistent discover feed: survives process restart for an instant cold-start paint and an
@@ -115,6 +159,7 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
   const [activeTab] = useState<"discover" | "trending">("discover");
   const [videos, setVideos] = useState<VideoSummary[]>([]);
   const homeFeedEnabled = useAppSettingsStore((state) => state.values[SETTINGS.HOME_FEED_ENABLED] !== "false");
+  const continueWatchingEnabled = useAppSettingsStore((state) => state.values[SETTINGS.CONTINUE_WATCHING_ENABLED] !== "false");
   const hideWatchedVideos = useAppSettingsStore((state) => state.values[SETTINGS.HIDE_WATCHED_VIDEOS] === "true");
   const isHidden = useFeedHiddenFilter({ hideWatched: hideWatchedVideos });
   const dismissedVideoIds = useFeedActionsStore((s) => s.dismissedVideoIds);
@@ -124,6 +169,8 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
   const [loading, setLoading] = useState(true);
   const [, setRefreshing] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [continueWatchingVideos, setContinueWatchingVideos] = useState<VideoSummary[]>([]);
+  const [gridColumnCount, setGridColumnCount] = useState(getHomeGridColumnCount);
   const [hasMoreDiscover, setHasMoreDiscover] = useState(true);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const requestSequenceRef = useRef(0);
@@ -1139,6 +1186,7 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
       subscriptionIdsRef.current = subscriptionIds;
       subscriptionIndexRef.current = subscriptionIds.length === 0 ? 0 : Math.min(subscriptionIds.length, 6) % subscriptionIds.length;
       watchHistoryRef.current = watchedHistory;
+      setContinueWatchingVideos(buildContinueWatchingVideos(watchedHistory));
       watchedIdsRef.current = watchedIds;
       discoveryQueriesRef.current = queryCandidates;
       discoveryIndexRef.current = 3;
@@ -1440,6 +1488,36 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
   }, [videos]);
 
   useEffect(() => {
+    const handleResize = () => {
+      setGridColumnCount(getHomeGridColumnCount());
+    };
+
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  const refreshContinueWatching = useCallback(async () => {
+    if (!continueWatchingEnabled) {
+      setContinueWatchingVideos([]);
+      return;
+    }
+
+    try {
+      const history = await getWatchHistory(200, 0);
+      watchHistoryRef.current = history;
+      setContinueWatchingVideos(buildContinueWatchingVideos(history));
+    } catch (error) {
+      console.warn("Failed to load Continue Watching shelf", error);
+      setContinueWatchingVideos([]);
+    }
+  }, [continueWatchingEnabled]);
+
+  useEffect(() => {
+    void refreshContinueWatching();
+  }, [refreshContinueWatching]);
+
+  useEffect(() => {
     if (!homeFeedEnabled) {
       requestSequenceRef.current += 1;
       initialDiscoverHydratingRef.current = false;
@@ -1544,7 +1622,20 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
     }
   };
 
+  const handleRemoveFromContinueWatching = (videoId: string) => {
+    hideContinueWatchingVideo(videoId);
+    setContinueWatchingVideos((current) => current.filter((video) => video.id !== videoId));
+  };
+
   const visibleVideos = capPerChannel(videos.filter((video) => !isHidden(video)), 3);
+  const visibleContinueWatchingVideos = continueWatchingEnabled
+    ? continueWatchingVideos.filter((video) => !isHidden(video))
+    : [];
+  const shouldInsertContinueShelf =
+    homeFeedEnabled && !loading && visibleVideos.length > 0 && visibleContinueWatchingVideos.length > 0;
+  const continueShelfInsertAfterIndex = shouldInsertContinueShelf
+    ? Math.min(visibleVideos.length - 1, Math.max(0, gridColumnCount - 1))
+    : undefined;
 
   return (
     <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-8 py-6 space-y-6">
@@ -1571,6 +1662,17 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
             videos={visibleVideos}
             onPlay={handlePlayVideo}
             onAddToQueue={onAddToQueue}
+            insertAfterIndex={continueShelfInsertAfterIndex}
+            insertNode={shouldInsertContinueShelf ? (
+              <VideoShelf
+                title={getString("continue_watching_shelf_title")}
+                videos={visibleContinueWatchingVideos}
+                onPlay={handlePlayVideo}
+                onAddToQueue={onAddToQueue}
+                onRemoveFromContinueWatching={handleRemoveFromContinueWatching}
+                variant="continue"
+              />
+            ) : null}
           />
 
           {activeTab === "discover" && (

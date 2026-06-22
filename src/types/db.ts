@@ -3,6 +3,7 @@ export interface WatchHistoryRecord {
   videoId: string;
   title: string;
   channelName?: string | null;
+  channelId?: string | null;
   watchDate: string;
   watchDurationSeconds: number;
   totalDurationSeconds?: number | null;

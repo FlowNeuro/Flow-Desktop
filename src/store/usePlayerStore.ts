@@ -124,7 +124,12 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
 
   setCurrentVideo: (video) => {
     const isNew = get().currentVideo?.id !== video?.id;
-    set({ currentVideo: video, isPlaying: !!video, isChaptersPanelOpen: false });
+    set({
+      currentVideo: video,
+      isPlaying: !!video,
+      isChaptersPanelOpen: false,
+      ...(isNew ? { currentTime: 0, duration: video?.durationSeconds ?? 0 } : {}),
+    });
     
     if (video && isNew) {
       const isSong = video.viewCountText === "Song" || video.viewCountText === "Album Track" || video.channelName.toLowerCase().includes("topic") || video.durationSeconds && video.durationSeconds < 360;
@@ -141,14 +146,17 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   setPlaybackRate: (playbackRate) => set({ playbackRate: Math.min(4, Math.max(0.25, playbackRate)) }),
 
   setQueue: (queue, startIndex = 0) => {
+    const nextVideo = queue[startIndex] || null;
     set({
       queue,
       currentIndex: startIndex,
-      currentVideo: queue[startIndex] || null,
+      currentVideo: nextVideo,
       isPlaying: queue.length > 0,
+      currentTime: 0,
+      duration: nextVideo?.durationSeconds ?? 0,
     });
-    if (queue[startIndex]) {
-      get().loadTrackMetadata(queue[startIndex].id);
+    if (nextVideo) {
+      get().loadTrackMetadata(nextVideo.id);
     }
   },
 
@@ -191,13 +199,25 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     if (nextIndex < queue.length) {
       const nextItem = queue[nextIndex];
       if (nextItem) {
-        set({ currentIndex: nextIndex, currentVideo: nextItem, isPlaying: true });
+        set({
+          currentIndex: nextIndex,
+          currentVideo: nextItem,
+          isPlaying: true,
+          currentTime: 0,
+          duration: nextItem.durationSeconds ?? 0,
+        });
         get().loadTrackMetadata(nextItem.id);
       }
     } else if (repeatMode === "all") {
       const firstItem = queue[0];
       if (firstItem) {
-        set({ currentIndex: 0, currentVideo: firstItem, isPlaying: true });
+        set({
+          currentIndex: 0,
+          currentVideo: firstItem,
+          isPlaying: true,
+          currentTime: 0,
+          duration: firstItem.durationSeconds ?? 0,
+        });
         get().loadTrackMetadata(firstItem.id);
       }
     } else {
@@ -213,14 +233,26 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     if (prevIndex >= 0) {
       const prevItem = queue[prevIndex];
       if (prevItem) {
-        set({ currentIndex: prevIndex, currentVideo: prevItem, isPlaying: true });
+        set({
+          currentIndex: prevIndex,
+          currentVideo: prevItem,
+          isPlaying: true,
+          currentTime: 0,
+          duration: prevItem.durationSeconds ?? 0,
+        });
         get().loadTrackMetadata(prevItem.id);
       }
     } else {
       const lastIndex = queue.length - 1;
       const lastItem = queue[lastIndex];
       if (lastItem) {
-        set({ currentIndex: lastIndex, currentVideo: lastItem, isPlaying: true });
+        set({
+          currentIndex: lastIndex,
+          currentVideo: lastItem,
+          isPlaying: true,
+          currentTime: 0,
+          duration: lastItem.durationSeconds ?? 0,
+        });
         get().loadTrackMetadata(lastItem.id);
       }
     }

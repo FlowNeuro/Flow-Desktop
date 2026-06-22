@@ -7,6 +7,7 @@ import type { VideoSummary } from '../../types/video';
 import { Button } from '../ui/Button';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { getDeArrowOverride } from '../../lib/api/foss';
+import { getVideoDetails } from '../../lib/api/youtube';
 import { useSettingsStore } from '../../store/useSettingsStore';
 import { useAppSettingsStore } from '../../store/useAppSettingsStore';
 import { useChannelAvatar } from '../../lib/useChannelAvatar';
@@ -28,7 +29,8 @@ export interface VideoCardProps {
   onPlay: (video: VideoSummary) => void;
   onAddToQueue?: (video: VideoSummary) => void;
   onRemoveFromHistory?: (videoId: string) => void;
-  variant?: 'default' | 'grid' | 'history' | 'list' | 'compact';
+  onRemoveFromContinueWatching?: (videoId: string) => void;
+  variant?: 'default' | 'grid' | 'history' | 'continue' | 'list' | 'compact';
   hideChannelAvatar?: boolean;
   showDragHandle?: boolean;
   dragHandleProps?: React.ButtonHTMLAttributes<HTMLButtonElement> & {
@@ -122,6 +124,7 @@ export function VideoCard({
   onPlay,
   onAddToQueue,
   onRemoveFromHistory,
+  onRemoveFromContinueWatching,
   variant = 'default',
   hideChannelAvatar,
   showDragHandle = true,
@@ -270,6 +273,7 @@ export function VideoCard({
 
   const subStatus = isSubscribed(isChannel ? cleanId : channelId);
   const isHistoryCard = variant === 'history';
+  const isContinueCard = variant === 'continue';
   const isListVariant = variant === 'list';
   const progressPercent = Math.min(100, Math.max(0, video.watchProgressPercent ?? 0));
 
@@ -302,6 +306,29 @@ export function VideoCard({
   const handleRemoveFromHistory = (e: React.MouseEvent) => {
     e.stopPropagation();
     onRemoveFromHistory?.(video.id);
+  };
+
+  const handleChannelNavigate = useCallback(async (e: React.MouseEvent<HTMLElement>) => {
+    e.stopPropagation();
+    if (channelId) {
+      navigate(`/channel/${channelId}`);
+      return;
+    }
+
+    try {
+      const details = await getVideoDetails(video.id);
+      if (details.channelId) {
+        navigate(`/channel/${details.channelId}`);
+      }
+    } catch (error) {
+      console.warn("Failed to resolve channel for video card", error);
+    }
+  }, [channelId, navigate, video.id]);
+
+  const handleRemoveFromContinueWatching = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onRemoveFromContinueWatching?.(video.id);
+    setShowMenu(false);
   };
 
   const handleToggleWatchLater = async () => {
@@ -411,6 +438,15 @@ export function VideoCard({
           <Ban size={16} />
           Not interested
         </button>
+        {onRemoveFromContinueWatching ? (
+          <button
+            onClick={handleRemoveFromContinueWatching}
+            className="w-full flex items-center gap-3 px-3.5 py-2.5 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 transition-colors"
+          >
+            <Trash2 size={16} />
+            {getString("video_remove_from_continue_watching")}
+          </button>
+        ) : null}
         {video.channelId && (
           <button
             onClick={(e) => {
@@ -517,10 +553,7 @@ export function VideoCard({
           </h3>
           <button
             type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              if (channelId) navigate(`/channel/${channelId}`);
-            }}
+            onClick={(e) => { void handleChannelNavigate(e); }}
             className="mt-1 truncate text-left text-[13px] text-neutral-400 transition-colors hover:text-neutral-300"
           >
             {video.channelName}
@@ -616,10 +649,7 @@ export function VideoCard({
           </h3>
           <button
             type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              if (channelId) navigate(`/channel/${channelId}`);
-            }}
+            onClick={(e) => { void handleChannelNavigate(e); }}
             className="mt-0.5 truncate text-left text-[13px] text-neutral-400 transition-colors hover:text-neutral-300"
           >
             {video.channelName}
@@ -678,14 +708,14 @@ export function VideoCard({
         )}
 
         {isLiveVideo ? (
-          <LiveBadge className={`absolute right-1 ${isHistoryCard ? 'bottom-2' : 'bottom-1'}`} />
+          <LiveBadge className={`absolute right-1 ${isHistoryCard || isContinueCard ? 'bottom-2' : 'bottom-1'}`} />
         ) : video.durationSeconds ? (
-          <div className={`absolute right-1 z-10 bg-black/80 px-1 py-px rounded text-[12px] font-medium text-white leading-tight tracking-wide ${isHistoryCard ? 'bottom-2' : 'bottom-1'}`}>
+          <div className={`absolute right-1 z-10 bg-black/80 px-1 py-px rounded text-[12px] font-medium text-white leading-tight tracking-wide ${isHistoryCard || isContinueCard ? 'bottom-2' : 'bottom-1'}`}>
             {formatDuration(video.durationSeconds)}
           </div>
         ) : null}
 
-        {isHistoryCard ? (
+        {isHistoryCard || isContinueCard ? (
           <>
             <div className="absolute bottom-0 left-0 z-10 h-[3px] w-full bg-neutral-600">
               <div
@@ -694,7 +724,7 @@ export function VideoCard({
               />
             </div>
 
-            {onRemoveFromHistory ? (
+            {isHistoryCard && onRemoveFromHistory ? (
               <button
                 type="button"
                 onClick={handleRemoveFromHistory}
@@ -714,10 +744,7 @@ export function VideoCard({
       <div className="flex gap-3 pr-1 relative z-10">
         {!hideChannelAvatar && (
           <div 
-            onClick={(e) => {
-              e.stopPropagation();
-              if (channelId) navigate(`/channel/${channelId}`);
-            }}
+            onClick={(e) => { void handleChannelNavigate(e); }}
             className="w-9 h-9 rounded-full bg-zinc-800 shrink-0 overflow-hidden flex items-center justify-center cursor-pointer mt-0.5 hover:opacity-80 transition-opacity"
           >
             {resolvedAvatarUrl ? (
@@ -742,10 +769,7 @@ export function VideoCard({
             {displayTitle}
           </h3>
           <div
-            onClick={(e) => {
-              e.stopPropagation();
-              if (channelId) navigate(`/channel/${channelId}`);
-            }}
+            onClick={(e) => { void handleChannelNavigate(e); }}
             className="text-zinc-400 text-[13px] mt-0.5 truncate cursor-pointer hover:text-zinc-300 transition-colors"
           >
             {video.channelName}

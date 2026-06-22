@@ -191,6 +191,7 @@
   "video_saved_to_watch_later": "Saved to Watch Later",
   "video_removed_from_watch_later": "Removed from Watch Later",
   "video_watch_later_failed": "Could not update Watch Later",
+  "video_remove_from_continue_watching": "Remove from Continue Watching",
   "video_add_to_playlist": "Add to playlist",
   "video_added_to_playlist": "Added to playlist",
   "video_add_to_playlist_failed": "Could not update playlist",
@@ -367,6 +368,7 @@
   "settings_home_shorts_shelf_desc": "Show Shorts shelf on the home page",
   "settings_continue_watching": "Continue Watching",
   "settings_continue_watching_desc": "Show Continue Watching shelf",
+  "continue_watching_shelf_title": "Continue Watching",
 
   "settings_group_content": "Content",
   "settings_comments": "Comments",

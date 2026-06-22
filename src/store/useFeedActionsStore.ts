@@ -187,6 +187,7 @@ export const useFeedActionsStore = create<FeedActionsState>((set, get) => {
             videoId: video.id,
             title: video.title,
             channelName: video.channelName,
+            channelId: video.channelId ?? null,
             watchDate: new Date().toISOString(),
             watchDurationSeconds: m.duration ?? 0,
             totalDurationSeconds: m.duration ?? 0,

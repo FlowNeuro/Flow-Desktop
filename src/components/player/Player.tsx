@@ -160,7 +160,7 @@ export const Player: React.FC<PlayerProps> = ({
   const undoSkippedSegmentsRef = useRef<Set<string>>(new Set());
   const mutedSegmentsRecordedRef = useRef<Set<string>>(new Set());
   const notifiedSegmentsRef = useRef<Set<string>>(new Set());
-  const lastSrcRef = useRef<string | null | undefined>(src);
+  const lastMediaIdentityRef = useRef<string>(src || dashManifestUrl || hlsManifestUrl || "");
   const desiredPlayingRef = useRef(false);
   const pendingResumeTimeRef = useRef(0);
   const sourceSwitchingRef = useRef(false);
@@ -1208,18 +1208,18 @@ export const Player: React.FC<PlayerProps> = ({
   }, [logPlayerEvent, playbackRate, usesExternalAudio]);
 
   useEffect(() => {
-    if (lastSrcRef.current === src) return;
+    if (lastMediaIdentityRef.current === mediaIdentity) return;
 
     const video = videoRef.current;
     const audio = audioRef.current;
-    const targetTime = Math.max(0, resumeTime || currentTime || 0);
+    const targetTime = Math.max(0, resumeTime || 0);
 
     pendingResumeTimeRef.current = targetTime;
     skippedSegmentsRef.current.clear();
     undoSkippedSegmentsRef.current.clear();
     mutedSegmentsRecordedRef.current.clear();
     notifiedSegmentsRef.current.clear();
-    lastSrcRef.current = src;
+    lastMediaIdentityRef.current = mediaIdentity;
 
     mediaBufferingRef.current = false;
     setIsBuffering(false);
@@ -1233,8 +1233,20 @@ export const Player: React.FC<PlayerProps> = ({
       sourceSwitchingRef.current = false;
       setHasStartedPlayback(false);
       setIsSourceSwitching(false);
+      if (video && Number.isFinite(video.currentTime) && video.currentTime !== 0) {
+        try {
+          video.currentTime = 0;
+        } catch {
+        }
+      }
+      if (audio && Number.isFinite(audio.currentTime) && audio.currentTime !== 0) {
+        try {
+          audio.currentTime = 0;
+        } catch {
+        }
+      }
     }
-  }, [currentTime, resumeTime, src]);
+  }, [mediaIdentity, resumeTime]);
 
   useEffect(() => {
     const video = videoRef.current;

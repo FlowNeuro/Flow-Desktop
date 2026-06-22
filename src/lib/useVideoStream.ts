@@ -187,6 +187,14 @@ export function useVideoStream(videoId: string | undefined): VideoStream {
       setLoadingStream(true);
       setStreamError(null);
       setStreamUrl(null);
+      setDashManifestUrl(null);
+      setHlsManifestUrl(null);
+      setAudioTracks([]);
+      setStreamVariants([]);
+      publishCaptions([]);
+      setIsLive(false);
+      setSourceMode("unavailable");
+      setResumeTime(0);
       try {
         const info = await getStreamInfo(currentVideo.id);
         streamInfoRef.current = info;
@@ -242,6 +250,7 @@ export function useVideoStream(videoId: string | undefined): VideoStream {
             videoId: currentVideo.id,
             title: currentVideo.title,
             channelName: currentVideo.channelName,
+            channelId: currentVideo.channelId ?? null,
             watchDate: new Date().toISOString(),
             watchDurationSeconds: Math.floor(
               readSavedWatchProgress(currentVideo.id, currentVideo.durationSeconds ?? 0),
