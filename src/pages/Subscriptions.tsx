@@ -227,8 +227,12 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ onPlay, onAddToQue
             type: "short",
             id: video.id,
             title: video.title,
+            channelName: video.channelName,
+            channelId: video.channelId ?? null,
             thumbnailUrl: video.thumbnailUrl ?? null,
+            channelAvatarUrl: video.channelAvatarUrl ?? null,
             viewCountText: video.viewCountText ?? null,
+            publishedText: video.publishedText ?? null,
           });
         }
       } else if (isLiveVideo(video)) {

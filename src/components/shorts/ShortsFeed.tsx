@@ -1,16 +1,39 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useLocation, useParams } from "react-router-dom";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { useShortsFeed } from "../../lib/useShortsFeed";
 import { ShortPlayer } from "./ShortPlayer";
-import type { ShortsPanelState } from "../../types/shorts";
+import type { ShortItem, ShortsPanelState } from "../../types/shorts";
 
 const PREFETCH_WITHIN = 5;
 const STREAM_PRELOAD_RADIUS = 1;
 
 export function ShortsFeed() {
   const { videoId } = useParams<{ videoId?: string }>();
-  const { items, loading, error, loadMore } = useShortsFeed(videoId);
+  const location = useLocation();
+  const routeState = location.state as {
+    initialShort?: ShortItem;
+    initialQueue?: ShortItem[];
+    queueOnly?: boolean;
+  } | null;
+  const initialShort = useMemo(() => {
+    const candidate = routeState?.initialShort;
+    if (!candidate || candidate.id !== videoId) return null;
+    return candidate;
+  }, [routeState, videoId]);
+  const initialQueue = useMemo(() => {
+    const candidate = routeState?.initialQueue;
+    if (!candidate?.length || !videoId) return null;
+    if (!candidate.some((short) => short.id === videoId)) return null;
+    return candidate;
+  }, [routeState, videoId]);
+  const queueOnly = Boolean(routeState?.queueOnly && initialQueue);
+  const { items, loading, error, loadMore } = useShortsFeed(
+    videoId,
+    initialShort,
+    initialQueue,
+    queueOnly,
+  );
   const [activeIndex, setActiveIndex] = useState(0);
   const [panelState, setPanelState] = useState<ShortsPanelState>("none");
   const [muted, setMuted] = useState(true);
@@ -18,6 +41,7 @@ export function ShortsFeed() {
 
   const containerRef = useRef<HTMLDivElement>(null);
   const slideRefs = useRef<(HTMLElement | null)[]>([]);
+  const syncedRouteVideoIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     const unmute = () => setMuted(false);
@@ -67,17 +91,20 @@ export function ShortsFeed() {
   }, [activeIndex]);
 
   useEffect(() => {
+    syncedRouteVideoIdRef.current = null;
     setActiveIndex(0);
     slideRefs.current[0]?.scrollIntoView({ behavior: "instant", block: "start" });
   }, [videoId]);
 
   useEffect(() => {
     if (!videoId || items.length === 0) return;
+    if (syncedRouteVideoIdRef.current === videoId) return;
     const index = items.findIndex((item) => item.id === videoId);
-    if (index < 0 || index === activeIndex) return;
+    if (index < 0) return;
+    syncedRouteVideoIdRef.current = videoId;
     setActiveIndex(index);
     slideRefs.current[index]?.scrollIntoView({ behavior: "instant", block: "start" });
-  }, [activeIndex, items, videoId]);
+  }, [items, videoId]);
 
   const scrollToIndex = useCallback(
     (index: number) => {

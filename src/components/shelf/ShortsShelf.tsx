@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight, Play } from "lucide-react";
 import type { ShortVideoSummary, VideoSummary } from "../../types/video";
 import { useAppSettingsStore } from "../../store/useAppSettingsStore";
 import { SETTINGS } from "../../lib/settings/schema";
+import { buildShortQueue, shortSummaryToItem } from "../../lib/shortsQueue";
 
 interface ShortsShelfProps {
   title: string;
@@ -59,7 +60,13 @@ export const ShortsShelf: React.FC<ShortsShelfProps> = ({
   };
 
   const handlePlayShort = (short: ShortVideoSummary) => {
-    navigate(`/shorts/${short.id}`);
+    navigate(`/shorts/${short.id}`, {
+      state: {
+        initialShort: shortSummaryToItem(short),
+        initialQueue: buildShortQueue(shorts),
+        queueOnly: true,
+      },
+    });
   };
 
   if (!shortsShelfEnabled || !shorts || shorts.length === 0) return null;

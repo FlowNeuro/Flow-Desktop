@@ -8,6 +8,7 @@ import type {
   PlaylistSummary, 
   PostSummary 
 } from "../../types/video";
+import { buildShortQueue, shortSummaryToItem } from "../../lib/shortsQueue";
 
 // --- Shorts Grid ---
 
@@ -20,13 +21,23 @@ export const ChannelShortsGrid: React.FC<ChannelShortsGridProps> = ({ shorts }) 
 
   if (!shorts.length) return null;
 
+  const playShort = (short: ShortVideoSummary) => {
+    navigate(`/shorts/${short.id}`, {
+      state: {
+        initialShort: shortSummaryToItem(short),
+        initialQueue: buildShortQueue(shorts),
+        queueOnly: true,
+      },
+    });
+  };
+
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
       {shorts.map((short) => (
         <div
           key={short.id}
           className="flex flex-col gap-2 group cursor-pointer"
-          onClick={() => navigate(`/shorts/${short.id}`)}
+          onClick={() => playShort(short)}
         >
           <div className="relative w-full aspect-[9/16] rounded-xl overflow-hidden bg-zinc-900 border border-zinc-800">
             {short.thumbnailUrl && (

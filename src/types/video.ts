@@ -200,8 +200,12 @@ export interface ShortVideoSummary {
   type: "short";
   id: string;
   title: string;
+  channelName?: string | null;
+  channelId?: string | null;
   thumbnailUrl?: string | null;
+  channelAvatarUrl?: string | null;
   viewCountText?: string | null;
+  publishedText?: string | null;
 }
 
 export interface PlaylistSummary {
