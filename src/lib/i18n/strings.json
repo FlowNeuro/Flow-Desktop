@@ -483,7 +483,7 @@
   "settings_clear_success": "Local data cleared",
   "settings_clear_failed": "Failed to clear local data",
 
-  "settings_about_subtitle": "Privacy-first media player for desktop",
+  "settings_about_subtitle": "Desktop companion to Flow for Android, powered by the local FlowNeuro engine",
   "settings_group_app": "App",
   "settings_version": "Version",
   "settings_identifier": "Identifier",

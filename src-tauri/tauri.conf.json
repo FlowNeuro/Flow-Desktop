@@ -13,10 +13,13 @@
     "withGlobalTauri": false,
     "windows": [
       {
+        "label": "main",
         "title": "Flow",
         "width": 1280,
         "height": 800,
-        "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --autoplay-policy=no-user-gesture-required"
+        "minWidth": 960,
+        "minHeight": 640,
+        "additionalBrowserArgs": "--autoplay-policy=no-user-gesture-required"
       }
     ],
     "security": {
@@ -26,6 +29,10 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "category": "Entertainment",
+    "shortDescription": "The privacy-first desktop companion to Flow for Android.",
+    "longDescription": "Flow Desktop is a privacy-first YouTube and YouTube Music companion to Flow for Android, with native playback and the fully local FlowNeuro recommendation engine.",
+    "copyright": "Copyright © 2025-2026 A-EDev",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -35,6 +42,17 @@
     ],
     "resources": [
       "sidecar/integrity.cjs"
-    ]
+    ],
+    "macOS": {
+      "minimumSystemVersion": "13.0",
+      "signingIdentity": "-"
+    },
+    "windows": {
+      "allowDowngrades": false,
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper",
+        "silent": true
+      }
+    }
   }
 }

@@ -56,8 +56,8 @@ fn text_from_text_runs(value: &Value) -> Option<String> {
 }
 
 fn post_comment_count_text(post: &Value) -> Option<String> {
-    let reply_button = &post["actionButtons"]["commentActionButtonsRenderer"]["replyButton"]
-        ["buttonRenderer"];
+    let reply_button =
+        &post["actionButtons"]["commentActionButtonsRenderer"]["replyButton"]["buttonRenderer"];
     reply_button
         .get("text")
         .and_then(text_from_text_runs)
@@ -79,9 +79,8 @@ fn post_comment_count_text(post: &Value) -> Option<String> {
 }
 
 fn post_comment_endpoint_params(post: &Value) -> Option<String> {
-    let endpoint =
-        &post["actionButtons"]["commentActionButtonsRenderer"]["replyButton"]["buttonRenderer"]
-            ["navigationEndpoint"];
+    let endpoint = &post["actionButtons"]["commentActionButtonsRenderer"]["replyButton"]["buttonRenderer"]
+        ["navigationEndpoint"];
     endpoint["browseEndpoint"]["params"]
         .as_str()
         .or_else(|| endpoint["signInEndpoint"]["nextEndpoint"]["browseEndpoint"]["params"].as_str())
@@ -613,69 +612,67 @@ fn extract_videos_from_browse(
                 .and_then(|post| post.get("backstagePostRenderer"))
                 .or_else(|| target.get("postRenderer"))
             {
-                    let post_id = post
-                        .get("postId")
-                        .and_then(|p| p.as_str())
-                        .unwrap_or_default()
-                        .to_string();
-                    let author_name = post
-                        .get("authorText")
-                        .and_then(|a| {
-                            a.get("runs")
-                                .and_then(|r| r.as_array())
-                                .and_then(|arr| arr.first())
-                                .and_then(|f| f.get("text"))
-                                .and_then(|s| s.as_str())
-                        })
-                        .unwrap_or_default()
-                        .to_string();
-                    let author_avatar = post
-                        .get("authorThumbnail")
-                        .and_then(|t| {
-                            t.get("thumbnails")
-                                .and_then(|th| th.as_array())
-                                .and_then(|arr| arr.last())
-                                .and_then(|f| f.get("url"))
-                                .and_then(|s| s.as_str())
-                        })
-                        .map(normalize_youtube_image_url)
-                        .map(|s| s.to_string());
-                    let text_content = post
-                        .get("contentText")
-                        .and_then(text_from_text_runs);
-                    let published_time_text = post
-                        .get("publishedTimeText")
-                        .and_then(|p| {
-                            p.get("runs")
-                                .and_then(|r| r.as_array())
-                                .and_then(|arr| arr.first())
-                                .and_then(|f| f.get("text"))
-                                .and_then(|s| s.as_str())
-                        })
-                        .map(|s| s.to_string());
-                    let likes_count_text = post
-                        .get("voteCount")
-                        .and_then(|v| v.get("simpleText").and_then(|s| s.as_str()))
-                        .map(|s| s.to_string());
-                    let comment_count_text = post_comment_count_text(post);
-                    let comment_endpoint_params = post_comment_endpoint_params(post);
-                    let image_attachment = post_image_attachment_url(post);
+                let post_id = post
+                    .get("postId")
+                    .and_then(|p| p.as_str())
+                    .unwrap_or_default()
+                    .to_string();
+                let author_name = post
+                    .get("authorText")
+                    .and_then(|a| {
+                        a.get("runs")
+                            .and_then(|r| r.as_array())
+                            .and_then(|arr| arr.first())
+                            .and_then(|f| f.get("text"))
+                            .and_then(|s| s.as_str())
+                    })
+                    .unwrap_or_default()
+                    .to_string();
+                let author_avatar = post
+                    .get("authorThumbnail")
+                    .and_then(|t| {
+                        t.get("thumbnails")
+                            .and_then(|th| th.as_array())
+                            .and_then(|arr| arr.last())
+                            .and_then(|f| f.get("url"))
+                            .and_then(|s| s.as_str())
+                    })
+                    .map(normalize_youtube_image_url)
+                    .map(|s| s.to_string());
+                let text_content = post.get("contentText").and_then(text_from_text_runs);
+                let published_time_text = post
+                    .get("publishedTimeText")
+                    .and_then(|p| {
+                        p.get("runs")
+                            .and_then(|r| r.as_array())
+                            .and_then(|arr| arr.first())
+                            .and_then(|f| f.get("text"))
+                            .and_then(|s| s.as_str())
+                    })
+                    .map(|s| s.to_string());
+                let likes_count_text = post
+                    .get("voteCount")
+                    .and_then(|v| v.get("simpleText").and_then(|s| s.as_str()))
+                    .map(|s| s.to_string());
+                let comment_count_text = post_comment_count_text(post);
+                let comment_endpoint_params = post_comment_endpoint_params(post);
+                let image_attachment = post_image_attachment_url(post);
 
-                    items.push(ChannelItem::Post(PostSummary {
-                        id: post_id,
-                        author_name: if author_name.is_empty() {
-                            top_channel_name.clone()
-                        } else {
-                            author_name
-                        },
-                        author_avatar,
-                        text_content,
-                        image_attachment,
-                        likes_count_text,
-                        comment_count_text,
-                        comment_endpoint_params,
-                        published_time_text,
-                    }));
+                items.push(ChannelItem::Post(PostSummary {
+                    id: post_id,
+                    author_name: if author_name.is_empty() {
+                        top_channel_name.clone()
+                    } else {
+                        author_name
+                    },
+                    author_avatar,
+                    text_content,
+                    image_attachment,
+                    likes_count_text,
+                    comment_count_text,
+                    comment_endpoint_params,
+                    published_time_text,
+                }));
             } else if let Some(cont) = target.get("continuationItemRenderer") {
                 if let Some(token) = cont
                     .get("continuationEndpoint")

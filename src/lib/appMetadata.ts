@@ -10,7 +10,7 @@ export interface AppMetadata {
 }
 
 const FALLBACK_METADATA: AppMetadata = {
-  name: "Flow Desktop",
+  name: "Flow",
   version: "0.1.0",
   identifier: "io.github.aedev.flow.desktop",
   tauriVersion: "unknown",

@@ -95,12 +95,7 @@ fn parse_comments_json(val: &Value) -> CommentsResponse {
     );
 
     if comments.is_empty() || next_page_token.is_none() {
-        collect_comments_from_value(
-            val,
-            &mut comments,
-            &mut next_page_token,
-            &mutation_payloads,
-        );
+        collect_comments_from_value(val, &mut comments, &mut next_page_token, &mutation_payloads);
     }
 
     comments = dedupe_comments(comments);
@@ -121,9 +116,8 @@ fn find_first_comments_continuation(value: &Value) -> Option<String> {
         {
             return Some(token.to_string());
         }
-        if let Some(token) = renderer["button"]["buttonRenderer"]["command"]
-            ["continuationCommand"]["token"]
-            .as_str()
+        if let Some(token) =
+            renderer["button"]["buttonRenderer"]["command"]["continuationCommand"]["token"].as_str()
         {
             return Some(token.to_string());
         }
@@ -599,8 +593,7 @@ impl InnertubeClient {
             if let Some(ref post_params) = params {
                 payload["params"] = serde_json::json!(post_params);
             } else {
-                payload["canonicalBaseUrl"] =
-                    serde_json::json!(format!("/post/{post_id_trimmed}"));
+                payload["canonicalBaseUrl"] = serde_json::json!(format!("/post/{post_id_trimmed}"));
             }
             self.post_innertube("browse", "WEB", "2.20260120.01.00", &mut payload)
                 .await?
