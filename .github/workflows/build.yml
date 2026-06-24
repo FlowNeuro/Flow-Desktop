@@ -44,7 +44,8 @@ jobs:
             libxdo-dev \
             patchelf \
             pkg-config \
-            wget
+            wget \
+            xdg-utils
 
       - name: Install pnpm
         uses: pnpm/action-setup@v6
@@ -124,7 +125,8 @@ jobs:
             libxdo-dev \
             patchelf \
             pkg-config \
-            wget
+            wget \
+            xdg-utils
 
       - name: Install pnpm
         uses: pnpm/action-setup@v6
@@ -213,7 +215,8 @@ jobs:
             patchelf \
             pkg-config \
             rpm \
-            wget
+            wget \
+            xdg-utils
 
       - name: Install pnpm
         uses: pnpm/action-setup@v6
