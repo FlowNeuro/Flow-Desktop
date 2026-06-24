@@ -48,6 +48,10 @@ Flow still contacts YouTube and optional services such as SponsorBlock, DeArrow,
 
 Release builds are published through [GitHub Releases](https://github.com/A-EDev/flow-desktop/releases).
 
+- **Stable:** reviewed releases intended for normal use.
+- **Beta / RC:** public GitHub prereleases for wider testing. These install as **Flow Beta** with isolated application data.
+- **Nightly:** automatic snapshots from `main`. These install as **Flow Nightly**, use isolated data, and may be unstable. Download the latest packages from [GitHub Actions](https://github.com/A-EDev/flow-desktop/actions/workflows/build.yml) or [nightly.link](https://nightly.link/A-EDev/flow-desktop/workflows/build/main) without a GitHub account.
+
 | Platform | Supported versions | Architectures | Packages |
 | --- | --- | --- | --- |
 | Windows | Windows 10 22H2, Windows 11 | x64, ARM64 | NSIS installer |

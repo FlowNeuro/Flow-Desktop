@@ -12,6 +12,7 @@ node_modules
 dist
 dist-ssr
 *.local
+src-tauri/tauri.nightly.generated.json
 
 # Editor directories and files
 .vscode/*
@@ -29,5 +30,5 @@ notes/
 NewPipeExtractor-dev/
 InnertubeAPI/
 scratch/
-
 Design.md
+release.ps1

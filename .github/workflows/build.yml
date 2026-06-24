@@ -6,6 +6,8 @@ on:
       - main
   pull_request:
   workflow_dispatch:
+  schedule:
+    - cron: "17 3 * * *"
 
 concurrency:
   group: build-${{ github.workflow }}-${{ github.ref }}
@@ -86,6 +88,7 @@ jobs:
 
   platform-build:
     name: Compile (${{ matrix.name }})
+    if: github.event_name == 'pull_request'
     needs: quality
     timeout-minutes: 60
     strategy:
@@ -145,3 +148,107 @@ jobs:
 
       - name: Compile desktop application
         run: pnpm tauri build --no-bundle
+
+  nightly-package:
+    name: Nightly (${{ matrix.name }})
+    if: github.event_name != 'pull_request'
+    needs: quality
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows x64
+            slug: windows-x64
+            runner: windows-2025
+            target: x86_64-pc-windows-msvc
+            args: --target x86_64-pc-windows-msvc --bundles nsis
+          - name: Windows ARM64
+            slug: windows-arm64
+            runner: windows-11-arm
+            target: aarch64-pc-windows-msvc
+            args: --target aarch64-pc-windows-msvc --bundles nsis
+          - name: Linux x64
+            slug: linux-x64
+            runner: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            args: --target x86_64-unknown-linux-gnu --bundles appimage,deb,rpm
+          - name: Linux ARM64
+            slug: linux-arm64
+            runner: ubuntu-22.04-arm
+            target: aarch64-unknown-linux-gnu
+            args: --target aarch64-unknown-linux-gnu --bundles appimage,deb,rpm
+          - name: macOS Intel
+            slug: macos-x64
+            runner: macos-15-intel
+            target: x86_64-apple-darwin
+            args: --target x86_64-apple-darwin --bundles dmg
+          - name: macOS Apple Silicon
+            slug: macos-arm64
+            runner: macos-15
+            target: aarch64-apple-darwin
+            args: --target aarch64-apple-darwin --bundles dmg
+
+    runs-on: ${{ matrix.runner }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Install Linux system dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            curl \
+            file \
+            libayatana-appindicator3-dev \
+            libfuse2 \
+            libgtk-3-dev \
+            librsvg2-dev \
+            libssl-dev \
+            libwebkit2gtk-4.1-dev \
+            libxdo-dev \
+            patchelf \
+            pkg-config \
+            rpm \
+            wget
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install Rust target
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache Rust build data
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+          shared-key: nightly-${{ matrix.target }}
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate isolated nightly configuration
+        run: node scripts/write-nightly-config.mjs
+
+      - name: Build nightly packages
+        run: pnpm tauri build ${{ matrix.args }} --config src-tauri/tauri.nightly.generated.json
+
+      - name: Upload nightly packages
+        uses: actions/upload-artifact@v7
+        with:
+          name: Flow-nightly-${{ matrix.slug }}-${{ github.run_number }}
+          path: src-tauri/target/${{ matrix.target }}/release/bundle/**
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0

@@ -1,0 +1,9 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Flow Beta",
+  "identifier": "io.github.aedev.flow.desktop.beta",
+  "bundle": {
+    "shortDescription": "Prerelease testing build of Flow Desktop.",
+    "longDescription": "A beta or release-candidate build of Flow Desktop. Prerelease builds use isolated application data and may be unstable."
+  }
+}

@@ -17,34 +17,80 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  prepare:
+    name: Prepare release metadata
+    runs-on: ubuntu-22.04
+    outputs:
+      version: ${{ steps.release.outputs.version }}
+      tag: ${{ steps.release.outputs.tag }}
+      is_prerelease: ${{ steps.release.outputs.is_prerelease }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Resolve release channel
+        id: release
+        shell: bash
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          tag="v${version}"
+
+          if [[ "$version" == *-* ]]; then
+            is_prerelease=true
+          else
+            is_prerelease=false
+          fi
+
+          if [[ "${GITHUB_REF_TYPE}" == "tag" && "${GITHUB_REF_NAME}" != "$tag" ]]; then
+            echo "Tag ${GITHUB_REF_NAME} does not match package version ${version}." >&2
+            exit 1
+          fi
+
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "is_prerelease=$is_prerelease" >> "$GITHUB_OUTPUT"
+
   publish:
     name: ${{ matrix.name }}
+    needs: prepare
     timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
         include:
           - name: Windows x64
+            slug: windows-x64
             runner: windows-2025
             target: x86_64-pc-windows-msvc
             args: --target x86_64-pc-windows-msvc --bundles nsis
           - name: Windows ARM64
+            slug: windows-arm64
             runner: windows-11-arm
             target: aarch64-pc-windows-msvc
             args: --target aarch64-pc-windows-msvc --bundles nsis
           - name: Linux x64
+            slug: linux-x64
             runner: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
             args: --target x86_64-unknown-linux-gnu --bundles appimage,deb,rpm
           - name: Linux ARM64
+            slug: linux-arm64
             runner: ubuntu-22.04-arm
             target: aarch64-unknown-linux-gnu
             args: --target aarch64-unknown-linux-gnu --bundles appimage,deb,rpm
           - name: macOS Intel
+            slug: macos-x64
             runner: macos-15-intel
             target: x86_64-apple-darwin
             args: --target x86_64-apple-darwin --bundles dmg
           - name: macOS Apple Silicon
+            slug: macos-arm64
             runner: macos-15
             target: aarch64-apple-darwin
             args: --target aarch64-apple-darwin --bundles dmg
@@ -101,17 +147,32 @@ jobs:
       - name: Verify release version
         run: pnpm verify:version
 
-      - name: Build and publish draft release
+      - name: Build and publish release
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: ${{ github.event_name == 'push' && github.ref_name || 'v__VERSION__' }}
-          releaseName: Flow v__VERSION__
+          tagName: ${{ needs.prepare.outputs.tag }}
+          releaseName: ${{ needs.prepare.outputs.is_prerelease == 'true' && 'Flow Beta v__VERSION__' || 'Flow v__VERSION__' }}
           releaseBody: |
             Download the installer for your operating system and architecture.
 
-            This release is a draft until its artifacts have been smoke-tested and any required production signing or notarization is complete.
-          releaseDraft: true
-          prerelease: false
-          args: ${{ matrix.args }}
+            Beta and release-candidate builds are intended for testing and use a separate application identity and data directory. Stable releases remain drafts until their artifacts have been smoke-tested and any required production signing or notarization is complete.
+          releaseDraft: ${{ needs.prepare.outputs.is_prerelease != 'true' }}
+          prerelease: ${{ needs.prepare.outputs.is_prerelease == 'true' }}
+          generateReleaseNotes: true
+          includeUpdaterJson: false
+          assetNamePattern: Flow_[version]_[platform]_[arch][setup][ext]
+          retryAttempts: 2
+          args: >-
+            ${{ matrix.args }}
+            ${{ needs.prepare.outputs.is_prerelease == 'true' && '--config src-tauri/tauri.prerelease.conf.json' || '' }}
+
+      - name: Upload tagged workflow artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: Flow-${{ needs.prepare.outputs.version }}-${{ matrix.slug }}
+          path: src-tauri/target/${{ matrix.target }}/release/bundle/**
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
