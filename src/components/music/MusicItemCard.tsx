@@ -8,6 +8,7 @@ import { useMusicPlayerStore } from '../../store/useMusicPlayerStore';
 import { useAlbumLibraryStore } from '../../store/useAlbumLibraryStore';
 import { useLikesStore } from '../../store/useLikesStore';
 import { useUiStore } from '../../store/useUiStore';
+import { useDownloadStore } from '../../store/useDownloadStore';
 import { useProxiedImageUrl } from '../../lib/useProxiedImageUrl';
 import { PlayingWave } from './PlayingWave';
 import { MusicCardMenu, type MusicMenuAction, useMusicContextMenu } from './MusicCardMenu';
@@ -144,10 +145,6 @@ async function shareUrl(title: string, url: string) {
   }
 }
 
-function logMusicAction(action: string, id: string) {
-  console.info(`${action} requested`, id);
-}
-
 // --- shared sub-components ------------------------------------------------
 
 function Artwork({
@@ -247,6 +244,7 @@ function SquareCard({
   const toggleAlbumLibrary = useAlbumLibraryStore((s) => s.toggle);
   const openAddToAlbum = useAlbumLibraryStore((s) => s.openAddToAlbum);
   const showToast = useUiStore((s) => s.showToast);
+  const openMusicDownload = useDownloadStore((s) => s.openMusic);
   const menuActions: MusicMenuAction[] = isTrack
     ? [
         {
@@ -271,7 +269,7 @@ function SquareCard({
           id: 'download',
           label: getString('music_download'),
           icon: <Download size={16} />,
-          onSelect: () => logMusicAction('Download track', videoIdOf(item)),
+          onSelect: () => openMusicDownload(item),
         },
         {
           id: 'share',
@@ -293,12 +291,6 @@ function SquareCard({
                 message: getString(nowSaved ? 'music_saved_to_library' : 'music_removed_from_library'),
               });
             },
-          },
-          {
-            id: 'download',
-            label: getString('music_download'),
-            icon: <Download size={16} />,
-            onSelect: () => logMusicAction('Download album', item.browseId),
           },
           {
             id: 'share',
@@ -515,6 +507,7 @@ function ListRow({
   const currentTrack = useMusicPlayerStore((s) => s.currentTrack);
   const playerIsPlaying = useMusicPlayerStore((s) => s.isPlaying);
   const openAddToAlbum = useAlbumLibraryStore((s) => s.openAddToAlbum);
+  const openMusicDownload = useDownloadStore((s) => s.openMusic);
   const menu = useMusicContextMenu(true);
   const isPlayingTrack = !!currentTrack && videoIdOf(currentTrack) === trackId && playerIsPlaying;
   const isHighlighted = isHovered || isPlayingTrack;
@@ -545,7 +538,7 @@ function ListRow({
       id: 'download',
       label: getString('music_download'),
       icon: <Download size={16} />,
-      onSelect: () => logMusicAction('Download track', trackId),
+      onSelect: () => openMusicDownload(item),
     },
     {
       id: 'share',

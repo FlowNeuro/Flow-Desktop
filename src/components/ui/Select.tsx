@@ -54,7 +54,7 @@ export function Select({ value, onChange, options, disabled, className = '' }: S
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="listbox"
         aria-expanded={open}
-        className="inline-flex h-9 w-full items-center justify-between gap-1.5 rounded-lg border border-neutral-800 bg-surface-container-high px-3 text-sm text-neutral-00 transition-colors duration-200 ease-out hover:bg-surface-container-highest focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)] disabled:opacity-50 disabled:cursor-not-allowed"
+        className="inline-flex h-10 w-full items-center justify-between gap-1.5 rounded-lg border border-neutral-800 bg-surface-container-high px-3 text-sm text-neutral-100 transition-colors duration-200 ease-out hover:bg-surface-container-highest focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)] disabled:cursor-not-allowed disabled:opacity-50"
       >
         <span className="font-medium">{current?.label}</span>
         <ChevronDown
@@ -66,7 +66,7 @@ export function Select({ value, onChange, options, disabled, className = '' }: S
         <div
           role="listbox"
           className={cx(
-            'absolute right-0 z-50 min-w-[12rem] rounded-xl border border-neutral-800 bg-surface-container-high py-1.5 shadow-lg max-h-60 overflow-y-auto',
+            'absolute right-0 z-50 max-h-60 min-w-[12rem] overflow-y-auto rounded-xl border border-neutral-800 bg-surface-container-high py-1.5',
             openUp ? 'bottom-full mb-2' : 'top-full mt-2'
           )}
         >

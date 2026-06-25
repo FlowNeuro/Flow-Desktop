@@ -147,9 +147,6 @@ export default function MusicCollectionPage({ kind }: { kind: CollectionKind }) 
     });
   };
 
-  const handleDownload = () => {
-    showToast({ variant: 'info', message: getString('music_download_coming_soon') });
-  };
   const currentTrackId = currentTrack ? videoIdOf(currentTrack) : null;
   const openArtist = meta.artistId
     ? () => navigate(`/music/artist/${meta.artistId}`)
@@ -196,7 +193,6 @@ export default function MusicCollectionPage({ kind }: { kind: CollectionKind }) 
         saved={isOnlineAlbum ? isAlbumSaved : undefined}
         onToggleSave={isOnlineAlbum ? handleToggleSave : undefined}
         onAddTracks={ownedAlbumId ? () => openTrackSearch(ownedAlbumId) : undefined}
-        onDownload={handleDownload}
       />
 
       <div className="mx-auto flex max-w-[1600px] flex-col gap-4 px-8 pt-6">

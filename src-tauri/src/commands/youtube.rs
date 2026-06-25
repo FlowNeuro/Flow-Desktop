@@ -843,13 +843,20 @@ pub async fn get_sponsorblock_segments(
     video_id: String,
     server_url: Option<String>,
 ) -> Result<serde_json::Value, ErrorResponse> {
-    validate_video_id(&video_id).map_err(ErrorResponse::from)?;
+    fetch_sponsorblock_segments(&video_id, server_url.as_deref())
+        .await
+        .map_err(ErrorResponse::from)
+}
 
-    let base_url =
-        normalize_sponsorblock_server_url(server_url.as_deref()).map_err(ErrorResponse::from)?;
+pub(crate) async fn fetch_sponsorblock_segments(
+    video_id: &str,
+    server_url: Option<&str>,
+) -> crate::errors::AppResult<serde_json::Value> {
+    validate_video_id(video_id)?;
+
+    let base_url = normalize_sponsorblock_server_url(server_url)?;
     let url = format!(
-        "{}/api/skipSegments?videoID={}&categories=[\"sponsor\",\"intro\",\"outro\",\"selfpromo\",\"interaction\",\"filler\",\"music_offtopic\",\"preview\",\"exclusive_access\"]",
-        base_url, video_id
+        "{base_url}/api/skipSegments?videoID={video_id}&categories=[\"sponsor\",\"intro\",\"outro\",\"selfpromo\",\"interaction\",\"filler\",\"music_offtopic\",\"preview\",\"exclusive_access\"]"
     );
 
     let client = reqwest::Client::builder()
@@ -861,7 +868,7 @@ pub async fn get_sponsorblock_segments(
         .get(&url)
         .send()
         .await
-        .map_err(|e| crate::errors::AppError::Extractor(format!("Network error: {}", e)))?;
+        .map_err(|e| crate::errors::AppError::Extractor(format!("Network error: {e}")))?;
 
     let status = res.status();
     if status == reqwest::StatusCode::NOT_FOUND {
@@ -869,17 +876,14 @@ pub async fn get_sponsorblock_segments(
     }
 
     if !status.is_success() {
-        return Err(ErrorResponse::from(crate::errors::AppError::Extractor(
-            format!("SponsorBlock server returned status {}", status),
+        return Err(crate::errors::AppError::Extractor(format!(
+            "SponsorBlock server returned status {status}"
         )));
     }
 
-    let segments = res
-        .json::<serde_json::Value>()
+    res.json::<serde_json::Value>()
         .await
-        .map_err(|e| crate::errors::AppError::Extractor(format!("JSON parse error: {}", e)))?;
-
-    Ok(segments)
+        .map_err(|e| crate::errors::AppError::Extractor(format!("JSON parse error: {e}")))
 }
 
 fn normalize_sponsorblock_server_url(server_url: Option<&str>) -> crate::errors::AppResult<String> {

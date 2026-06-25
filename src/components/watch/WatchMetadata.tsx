@@ -5,6 +5,7 @@ import { Button } from "../ui/Button";
 import { SubscribeButton } from "../ui/SubscribeButton";
 import { useSettingsStore } from "../../store/useSettingsStore";
 import { usePlaylistModalStore } from "../../store/usePlaylistModalStore";
+import { useDownloadStore } from "../../store/useDownloadStore";
 import { useVideoReactions } from "../../lib/useVideoReactions";
 import { formatCount } from "../../lib/utils";
 import { getString } from "../../lib/i18n/index";
@@ -24,6 +25,7 @@ export function WatchMetadata({
   const dearrowBadgeEnabled = useSettingsStore((s) => s.dearrowBadgeEnabled);
   const rytdEnabled = useSettingsStore((s) => s.rytdEnabled);
   const openAddToPlaylist = usePlaylistModalStore((s) => s.openAddToPlaylist);
+  const openVideoDownload = useDownloadStore((s) => s.openVideo);
   const reactions = useVideoReactions(currentVideo, videoData);
   const [showingOriginal, setShowingOriginal] = useState(false);
 
@@ -148,7 +150,7 @@ export function WatchMetadata({
             <Bookmark size={18} />
             {getString("save")}
           </Button>
-          <Button variant="tonal">
+          <Button variant="tonal" onClick={() => openVideoDownload(saveTarget)}>
             <Download size={18} />
             {getString("download")}
           </Button>

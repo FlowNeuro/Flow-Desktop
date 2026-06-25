@@ -45,6 +45,8 @@ import { AddToAlbumModal } from "./components/music/AddToAlbumModal";
 import { AddTracksToAlbumModal } from "./components/music/AddTracksToAlbumModal";
 import { AddToPlaylistModal } from "./components/playlist/AddToPlaylistModal";
 import { DeepFlowController } from "./components/deep-flow/DeepFlowController";
+import { DownloadDialog } from "./components/downloads/DownloadDialog";
+import { DownloadActivity } from "./components/downloads/DownloadActivity";
 
 import "./App.css";
 
@@ -196,6 +198,10 @@ function App() {
       <AddTracksToAlbumModal />
       <AddToPlaylistModal />
       <DeepFlowController />
+      <LayoutGroup id="downloads">
+        <DownloadDialog />
+        <DownloadActivity />
+      </LayoutGroup>
       <ToastHost />
     </div>
   );

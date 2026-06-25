@@ -441,6 +441,13 @@ fn parse_approx_duration_ms(format: &Value) -> Option<u64> {
         .and_then(|value| value.parse::<u64>().ok())
 }
 
+fn parse_content_length(format: &Value) -> Option<u64> {
+    format["contentLength"]
+        .as_str()
+        .and_then(|value| value.parse::<u64>().ok())
+        .or_else(|| format["contentLength"].as_u64())
+}
+
 fn append_or_replace_query_param(raw_url: &str, key: &str, value: &str) -> Option<String> {
     let mut url = reqwest::Url::parse(raw_url).ok()?;
     let query_pairs: Vec<(String, String)> = url
@@ -508,6 +515,7 @@ fn build_stream_variant_from_format(
         height,
         fps: format["fps"].as_u64(),
         bitrate: format["bitrate"].as_u64(),
+        content_length: parse_content_length(format),
         is_default: false,
         is_playable,
         has_audio: is_progressive,
@@ -566,10 +574,12 @@ fn collect_stream_variants(
     let mut seen = std::collections::HashSet::new();
     variants.retain(|variant| {
         let key = format!(
-            "{}:{}:{}",
+            "{}:{}:{}:{}:{}",
             variant.quality_label,
             variant.fps.unwrap_or(0),
-            variant.is_playable
+            variant.is_playable,
+            variant.mime_type.as_deref().unwrap_or_default(),
+            variant.delivery_method,
         );
         seen.insert(key)
     });
@@ -703,7 +713,13 @@ fn collect_audio_tracks(streaming_data: &Value, user_agent: &str) -> Vec<AudioTr
             let is_default = audio_track["audioIsDefault"]
                 .as_bool()
                 .unwrap_or_else(|| !is_auto_dubbed && tracks_by_key.is_empty());
-            let track_key = audio_track_identity_key(audio_track, &id, language_code.as_deref());
+            let mime_type = format["mimeType"].as_str().map(ToOwned::to_owned);
+            let track_key = audio_track_identity_key(
+                audio_track,
+                &id,
+                language_code.as_deref(),
+                mime_type.as_deref(),
+            );
             let track = AudioTrack {
                 id: format!("{id}-{itag}"),
                 label,
@@ -712,8 +728,9 @@ fn collect_audio_tracks(streaming_data: &Value, user_agent: &str) -> Vec<AudioTr
                     if is_default { "original" } else { "alternate" }.to_string(),
                 ),
                 local_url,
-                mime_type: format["mimeType"].as_str().map(ToOwned::to_owned),
+                mime_type,
                 bitrate,
+                content_length: parse_content_length(format),
                 is_default,
                 available: is_default,
                 init_range_start,
@@ -774,13 +791,19 @@ fn audio_track_language_code(audio_track: &Value, id: &str) -> Option<String> {
         .map(ToOwned::to_owned)
 }
 
-fn audio_track_identity_key(audio_track: &Value, id: &str, language_code: Option<&str>) -> String {
-    audio_track["displayName"]
+fn audio_track_identity_key(
+    audio_track: &Value,
+    id: &str,
+    language_code: Option<&str>,
+    mime_type: Option<&str>,
+) -> String {
+    let identity = audio_track["displayName"]
         .as_str()
         .filter(|value| !value.is_empty())
         .map(|value| format!("name:{value}"))
         .or_else(|| language_code.map(|value| format!("lang:{value}")))
-        .unwrap_or_else(|| format!("id:{id}"))
+        .unwrap_or_else(|| format!("id:{id}"));
+    format!("{identity}|{}", mime_type.unwrap_or_default())
 }
 
 fn looks_like_language_code(value: &str) -> bool {
@@ -1633,7 +1656,8 @@ impl InnertubeClient {
         // Offer only the original audio track. Dubbed/translated languages are
         // delivered as progressive direct URLs that googlevideo 403s for sustained
         // playback in this environment, so they are not surfaced.
-        let mut audio_tracks = collect_audio_tracks(streaming_data, current_user_agent);
+        let download_audio_tracks = collect_audio_tracks(streaming_data, current_user_agent);
+        let mut audio_tracks = download_audio_tracks.clone();
         if let Some(idx) = audio_tracks.iter().position(|track| track.is_default) {
             audio_tracks = vec![audio_tracks.swap_remove(idx)];
         } else {
@@ -1660,6 +1684,7 @@ impl InnertubeClient {
             variants,
             captions: collect_caption_tracks(&res),
             audio_tracks,
+            download_audio_tracks,
             hls_manifest_url,
             dash_manifest_url,
             is_live,

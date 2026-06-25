@@ -71,6 +71,8 @@ pub struct StreamInfo {
     pub variants: Vec<StreamVariant>,
     pub captions: Vec<CaptionTrack>,
     pub audio_tracks: Vec<AudioTrack>,
+    #[serde(skip)]
+    pub download_audio_tracks: Vec<AudioTrack>,
     pub hls_manifest_url: Option<String>,
     pub dash_manifest_url: Option<String>,
     #[serde(default)]
@@ -127,6 +129,7 @@ pub struct StreamVariant {
     pub height: Option<u64>,
     pub fps: Option<u64>,
     pub bitrate: Option<u64>,
+    pub content_length: Option<u64>,
     pub is_default: bool,
     pub is_playable: bool,
     pub has_audio: bool,
@@ -159,6 +162,7 @@ pub struct AudioTrack {
     pub local_url: String,
     pub mime_type: Option<String>,
     pub bitrate: Option<u64>,
+    pub content_length: Option<u64>,
     pub is_default: bool,
     pub available: bool,
     pub init_range_start: Option<u64>,

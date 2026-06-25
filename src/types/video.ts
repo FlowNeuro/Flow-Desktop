@@ -116,6 +116,7 @@ export interface StreamVariant {
   height?: number | null;
   fps?: number | null;
   bitrate?: number | null;
+  contentLength?: number | null;
   isDefault: boolean;
   isPlayable: boolean;
   hasAudio: boolean;
@@ -145,6 +146,7 @@ export interface AudioTrack {
   localUrl: string;
   mimeType?: string | null;
   bitrate?: number | null;
+  contentLength?: number | null;
   isDefault: boolean;
   /** Whether this track has a playable direct URL. Only the original track is offered, so this is always true. */
   available: boolean;

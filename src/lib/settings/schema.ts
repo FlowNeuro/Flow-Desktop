@@ -234,7 +234,7 @@ export const SETTING_DEFINITIONS = [
   json(SETTINGS.LYRICS_PROVIDER_ENABLED_STATES, "player", "{}", "wired"),
 
   num(SETTINGS.VIDEO_TITLE_MAX_LINES, "content", 1, "wired", 0, 3),
-  str(SETTINGS.DOWNLOAD_DIALOG_STYLE, "content", "FULL", "deferred", ["FULL", "COMPACT"], "disabled-until-wired", "app-data", "settings_note_download_modal_required"),
+  str(SETTINGS.DOWNLOAD_DIALOG_STYLE, "content", "FULL", "wired", ["FULL", "COMPACT"]),
   bool(SETTINGS.HOME_FEED_ENABLED, "content", true, "wired"),
   bool(SETTINGS.SHOW_APP_LOGO_ICON, "content", true, "wired"),
   bool(SETTINGS.SHORTS_SHELF_ENABLED, "content", true, "wired"),
@@ -279,11 +279,11 @@ export const SETTING_DEFINITIONS = [
   str(SETTINGS.PROXY_USERNAME, "network", "", "persisted-only", undefined, "visible", "private"),
   str(SETTINGS.PROXY_PASSWORD, "network", "", "persisted-only", undefined, "visible", "private"),
 
-  str(SETTINGS.DEFAULT_DOWNLOAD_QUALITY, "downloads", "720p", "deferred", QUALITY_VALUES, "disabled-until-wired", "app-data", "settings_note_download_manager_missing"),
-  bool(SETTINGS.PARALLEL_DOWNLOAD_ENABLED, "downloads", true, "deferred", "disabled-until-wired", "settings_note_download_manager_missing"),
-  num(SETTINGS.DOWNLOAD_THREADS, "downloads", 3, "deferred", 1, 8, "disabled-until-wired", "settings_note_download_manager_missing"),
-  str(SETTINGS.DOWNLOAD_LOCATION, "downloads", "", "deferred", undefined, "disabled-until-wired", "app-data", "settings_note_download_manager_missing"),
-  str(SETTINGS.MUSIC_DOWNLOAD_LOCATION, "downloads", "", "deferred", undefined, "disabled-until-wired", "app-data", "settings_note_download_manager_missing"),
+  str(SETTINGS.DEFAULT_DOWNLOAD_QUALITY, "downloads", "720p", "wired", QUALITY_VALUES),
+  bool(SETTINGS.PARALLEL_DOWNLOAD_ENABLED, "downloads", true, "wired"),
+  num(SETTINGS.DOWNLOAD_THREADS, "downloads", 3, "wired", 1, 8),
+  str(SETTINGS.DOWNLOAD_LOCATION, "downloads", "", "wired"),
+  str(SETTINGS.MUSIC_DOWNLOAD_LOCATION, "downloads", "", "wired"),
 
   str(SETTINGS.AUTO_BACKUP_FREQUENCY, "data", "NONE", "persisted-only", ["NONE", "DAILY", "WEEKLY", "MONTHLY"]),
   str(SETTINGS.AUTO_BACKUP_TYPE, "data", "APP_DATA", "wired", ["APP_DATA", "BRAIN", "MASTER"]),

@@ -21,6 +21,10 @@ use commands::db::{
     add_watch_record, clear_watch_history, delete_watch_record, get_music_history, get_setting,
     get_watch_history, set_setting,
 };
+use commands::downloads::{
+    DownloadManager, cancel_download, get_download_formats, pause_download, resume_download,
+    start_download,
+};
 use commands::files::write_backup_file;
 use commands::music::{
     get_music_album_continuation, get_music_album_page, get_music_artist_items,
@@ -121,6 +125,7 @@ pub fn run() {
 
             // Manage the Shorts feed service (prefetch buffer + session de-dup)
             app.manage(ShortsService::new());
+            app.manage(DownloadManager::default());
 
             // Initialize and manage streaming proxy
             let (streaming_manager, proxy_listener) = streaming::proxy::StreamingManager::new();
@@ -158,6 +163,11 @@ pub fn run() {
             get_setting,
             set_setting,
             write_backup_file,
+            get_download_formats,
+            start_download,
+            cancel_download,
+            pause_download,
+            resume_download,
             rank_videos,
             log_interaction,
             mark_not_interested,

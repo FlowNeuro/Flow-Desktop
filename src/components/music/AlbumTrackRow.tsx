@@ -10,6 +10,7 @@ import { useMusicPlayerStore } from '../../store/useMusicPlayerStore';
 import { useAlbumLibraryStore } from '../../store/useAlbumLibraryStore';
 import { useLikesStore } from '../../store/useLikesStore';
 import { useUiStore } from '../../store/useUiStore';
+import { useDownloadStore } from '../../store/useDownloadStore';
 import type { SongItem } from '../../types/music';
 import { MusicCardMenu, type MusicMenuAction, useMusicContextMenu } from './MusicCardMenu';
 import { PlayingWave } from './PlayingWave';
@@ -69,10 +70,6 @@ async function shareTrack(track: SongItem) {
     await navigator.clipboard?.writeText(trackShareUrl(track));
   } catch {
   }
-}
-
-function logMusicAction(action: string, id: string) {
-  console.info(`${action} requested`, id);
 }
 
 function useSongLike(track: SongItem) {
@@ -169,9 +166,9 @@ export function AlbumTrackRow({
   const playNextInQueue = useMusicPlayerStore((s) => s.playNextInQueue);
   const menu = useMusicContextMenu(true);
   const openAddToAlbum = useAlbumLibraryStore((s) => s.openAddToAlbum);
+  const openMusicDownload = useDownloadStore((s) => s.openMusic);
   const isHighlighted = isHovered || showEq;
   const activeColor = dominantColor ?? preloadedColor;
-  const trackId = videoIdOf(track);
   const menuActions: MusicMenuAction[] = [
     {
       id: 'add-to-queue',
@@ -198,7 +195,7 @@ export function AlbumTrackRow({
       id: 'download',
       label: getString('music_download'),
       icon: <Download size={16} />,
-      onSelect: () => logMusicAction('Download track', trackId),
+      onSelect: () => openMusicDownload(track),
     },
     {
       id: 'share',

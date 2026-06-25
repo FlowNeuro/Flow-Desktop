@@ -26,6 +26,7 @@ import { useMusicPlayerStore } from "../../store/useMusicPlayerStore";
 import { useLikesStore } from "../../store/useLikesStore";
 import { useUiStore } from "../../store/useUiStore";
 import { useAlbumLibraryStore } from "../../store/useAlbumLibraryStore";
+import { useDownloadStore } from "../../store/useDownloadStore";
 import { getString } from "../../lib/i18n/index";
 import { artistsText } from "../../lib/musicFormat";
 import type { SongItem } from "../../types/music";
@@ -98,6 +99,7 @@ export function MusicOverlay() {
   const toggleSongLike = useLikesStore((s) => s.toggleSong);
   const showToast = useUiStore((s) => s.showToast);
   const openAddToAlbum = useAlbumLibraryStore((s) => s.openAddToAlbum);
+  const openMusicDownload = useDownloadStore((s) => s.openMusic);
   const menu = useMusicContextMenu(Boolean(currentTrack));
 
   const [eqOpen, setEqOpen] = useState(false);
@@ -127,9 +129,7 @@ export function MusicOverlay() {
           id: "download",
           label: getString("music_download"),
           icon: <Download size={16} />,
-          onSelect: () => {
-            showToast({ variant: "info", message: getString("music_download_coming_soon") });
-          },
+          onSelect: () => openMusicDownload(currentTrack),
         },
         {
           id: "share",

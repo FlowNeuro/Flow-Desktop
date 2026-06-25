@@ -2,7 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { useSubscriptionStore } from '../../store/useSubscriptionStore';
 import { useFeedActionsStore } from '../../store/useFeedActionsStore';
 import { useLiveStore } from '../../store/useLiveStore';
-import { Plus, Ban, Check, MoreVertical, Trash2, GripHorizontal, Sparkles, Eye, EyeOff, Clock, ListPlus } from 'lucide-react';
+import { Plus, Ban, Check, MoreVertical, Trash2, GripHorizontal, Sparkles, Eye, EyeOff, Clock, ListPlus, Download } from 'lucide-react';
 import type { VideoSummary } from '../../types/video';
 import { Button } from '../ui/Button';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
@@ -24,6 +24,7 @@ import {
 import { useUiStore } from '../../store/useUiStore';
 import { usePlaylistModalStore } from '../../store/usePlaylistModalStore';
 import { usePlayerStore } from '../../store/usePlayerStore';
+import { useDownloadStore } from '../../store/useDownloadStore';
 
 export interface VideoCardProps {
   video: VideoSummary;
@@ -140,6 +141,7 @@ export function VideoCard({
   const moreLikeThis = useFeedActionsStore((s) => s.moreLikeThis);
   const showToast = useUiStore((s) => s.showToast);
   const openAddToPlaylist = usePlaylistModalStore((s) => s.openAddToPlaylist);
+  const openVideoDownload = useDownloadStore((s) => s.openVideo);
   const [overriddenTitle, setOverriddenTitle] = useState<string | null>(null);
   const [overriddenThumbnail, setOverriddenThumbnail] = useState<string | null>(null);
   const [showMenu, setShowMenu] = useState(false);
@@ -408,6 +410,18 @@ export function VideoCard({
         >
           <ListPlus size={16} />
           {getString("video_add_to_playlist")}
+        </button>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            openVideoDownload(video);
+            setShowMenu(false);
+          }}
+          className="w-full flex items-center gap-3 whitespace-nowrap px-3.5 py-2.5 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 transition-colors"
+        >
+          <Download size={16} />
+          {getString("download")}
         </button>
         <button
           type="button"
