@@ -46,7 +46,7 @@ base64 = "0.22"
 
 # NLP Pipeline
 rust-stemmers = "1.2"
-stop-words = "0.8"
+stop-words = "0.10"
 whatlang = "0.18"
 
 [profile.release]
