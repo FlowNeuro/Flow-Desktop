@@ -6,6 +6,7 @@ import type { SponsorBlockSegment, DeArrowOverride, RydData } from "../lib/api/f
 
 export type PlaybackRate = number;
 export type RepeatMode = "none" | "one" | "all";
+export type QueueAddResult = "added" | "duplicate";
 export type PlayMode = "video" | "music";
 export type VideoPlayerMode = "watch" | "pip";
 export type VideoPipIntent = "auto" | "manual";
@@ -76,6 +77,7 @@ interface PlayerState {
   videoPlayerMode: VideoPlayerMode;
   videoPipIntent: VideoPipIntent | null;
   watchPageCache: WatchPageCache | null;
+  autoplayCandidates: VideoSummary[];
 
   isTheaterMode: boolean;
   sponsorBlockSegments: SponsorBlockSegment[];
@@ -88,12 +90,17 @@ interface PlayerState {
   setVolume: (volume: number) => void;
   setPlaybackRate: (playbackRate: PlaybackRate) => void;
   setQueue: (queue: VideoSummary[], startIndex?: number) => void;
-  addToQueue: (video: VideoSummary) => void;
+  addToQueue: (video: VideoSummary) => QueueAddResult;
   removeFromQueue: (index: number) => void;
-  playNext: () => void;
+  moveQueueItem: (fromIndex: number, toIndex: number) => void;
+  playQueueItem: (index: number) => void;
+  playNext: (allowAutoplayFallback?: boolean) => VideoSummary | null;
   playPrevious: () => void;
   setRepeatMode: (mode: RepeatMode) => void;
+  cycleRepeatMode: () => void;
   toggleShuffle: () => void;
+  setAutoplayCandidates: (videos: VideoSummary[]) => void;
+  clearUpcoming: () => void;
   setPlayMode: (mode: PlayMode) => void;
   loadTrackMetadata: (videoId: string) => Promise<void>;
   clearQueue: () => void;
@@ -114,6 +121,8 @@ interface PlayerState {
   setSubtitleStyle: (style: SubtitleStyle) => void;
   isChaptersPanelOpen: boolean;
   setIsChaptersPanelOpen: (open: boolean) => void;
+  isQueuePanelOpen: boolean;
+  setIsQueuePanelOpen: (open: boolean) => void;
 }
 
 export const usePlayerStore = create<PlayerState>((set, get) => ({
@@ -135,6 +144,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   videoPlayerMode: "watch",
   videoPipIntent: null,
   watchPageCache: null,
+  autoplayCandidates: [],
 
   isTheaterMode: getSavedTheaterMode(),
   sponsorBlockSegments: [],
@@ -142,6 +152,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   rydData: null,
   captions: [],
   isChaptersPanelOpen: false,
+  isQueuePanelOpen: false,
 
   setCurrentVideo: (video) => {
     const isNew = get().currentVideo?.id !== video?.id;
@@ -149,7 +160,9 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       currentVideo: video,
       isPlaying: !!video,
       isChaptersPanelOpen: false,
+      isQueuePanelOpen: false,
       ...(isNew ? { videoPlayerMode: "watch", videoPipIntent: null, watchPageCache: null } : {}),
+      ...(isNew ? { autoplayCandidates: [] } : {}),
       ...(isNew ? { currentTime: 0, duration: video?.durationSeconds ?? 0 } : {}),
     });
     
@@ -168,16 +181,22 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   setPlaybackRate: (playbackRate) => set({ playbackRate: Math.min(4, Math.max(0.25, playbackRate)) }),
 
   setQueue: (queue, startIndex = 0) => {
-    const nextVideo = queue[startIndex] || null;
+    const safeIndex = queue.length > 0
+      ? Math.max(0, Math.min(startIndex, queue.length - 1))
+      : -1;
+    const nextVideo = safeIndex >= 0 ? queue[safeIndex] || null : null;
     const isNew = get().currentVideo?.id !== nextVideo?.id;
     set({
       queue,
-      currentIndex: startIndex,
+      currentIndex: safeIndex,
       currentVideo: nextVideo,
       isPlaying: queue.length > 0,
       videoPlayerMode: "watch",
       videoPipIntent: null,
+      isChaptersPanelOpen: false,
+      isQueuePanelOpen: false,
       ...(isNew ? { watchPageCache: null } : {}),
+      ...(isNew ? { autoplayCandidates: [] } : {}),
       currentTime: 0,
       duration: nextVideo?.durationSeconds ?? 0,
     });
@@ -187,9 +206,22 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   },
 
   addToQueue: (video) => {
-    const { queue } = get();
-    if (queue.some((item) => item.id === video.id)) return;
-    set({ queue: [...queue, video] });
+    const { queue, currentVideo, currentIndex } = get();
+    if (queue.some((item) => item.id === video.id) || currentVideo?.id === video.id) {
+      return "duplicate";
+    }
+
+    if (queue.length === 0 && currentVideo) {
+      set({ queue: [currentVideo, video], currentIndex: 0 });
+      return "added";
+    }
+
+    const nextQueue = [...queue, video];
+    set({
+      queue: nextQueue,
+      currentIndex: currentVideo && currentIndex < 0 ? 0 : currentIndex,
+    });
+    return "added";
   },
 
   removeFromQueue: (index) => {
@@ -208,52 +240,93 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     });
   },
 
-  playNext: () => {
-    const { queue, currentIndex, repeatMode } = get();
-    if (queue.length === 0) return;
+  moveQueueItem: (fromIndex, toIndex) => {
+    const { queue, currentIndex } = get();
+    if (
+      fromIndex < 0 ||
+      fromIndex >= queue.length ||
+      toIndex < 0 ||
+      toIndex >= queue.length ||
+      fromIndex === toIndex
+    ) return;
 
-    if (repeatMode === "one") {
-      const current = queue[currentIndex];
-      if (current) {
-        set({ currentVideo: null });
-        setTimeout(() => set({ currentVideo: current, isPlaying: true }), 50);
-      }
-      return;
+    const nextQueue = [...queue];
+    const [moved] = nextQueue.splice(fromIndex, 1);
+    if (!moved) return;
+    nextQueue.splice(toIndex, 0, moved);
+
+    let nextCurrentIndex = currentIndex;
+    if (fromIndex === currentIndex) {
+      nextCurrentIndex = toIndex;
+    } else if (fromIndex < currentIndex && toIndex >= currentIndex) {
+      nextCurrentIndex = currentIndex - 1;
+    } else if (fromIndex > currentIndex && toIndex <= currentIndex) {
+      nextCurrentIndex = currentIndex + 1;
     }
+    set({ queue: nextQueue, currentIndex: nextCurrentIndex });
+  },
+
+  playQueueItem: (index) => {
+    const item = get().queue[index];
+    if (!item) return;
+    set({
+      currentIndex: index,
+      currentVideo: item,
+      isPlaying: true,
+      currentTime: 0,
+      duration: item.durationSeconds ?? 0,
+      watchPageCache: null,
+      autoplayCandidates: [],
+    });
+    get().loadTrackMetadata(item.id);
+  },
+
+  playNext: (allowAutoplayFallback = false) => {
+    const { queue, currentIndex, repeatMode, autoplayCandidates } = get();
+    if (queue.length === 0) return null;
 
     const nextIndex = currentIndex + 1;
     if (nextIndex < queue.length) {
       const nextItem = queue[nextIndex];
       if (nextItem) {
-        set({
-          currentIndex: nextIndex,
-          currentVideo: nextItem,
-          isPlaying: true,
-          currentTime: 0,
-          duration: nextItem.durationSeconds ?? 0,
-        });
-        get().loadTrackMetadata(nextItem.id);
+        get().playQueueItem(nextIndex);
+        return nextItem;
       }
     } else if (repeatMode === "all") {
       const firstItem = queue[0];
       if (firstItem) {
-        set({
-          currentIndex: 0,
-          currentVideo: firstItem,
-          isPlaying: true,
-          currentTime: 0,
-          duration: firstItem.durationSeconds ?? 0,
-        });
-        get().loadTrackMetadata(firstItem.id);
+        get().playQueueItem(0);
+        return firstItem;
       }
-    } else {
-      set({ isPlaying: false });
     }
+
+    if (allowAutoplayFallback) {
+      const queuedIds = new Set(queue.map((item) => item.id));
+      const nextCandidate = autoplayCandidates.find((item) => !queuedIds.has(item.id));
+      if (nextCandidate) {
+        const nextQueue = [...queue, nextCandidate];
+        set({
+          queue: nextQueue,
+          autoplayCandidates: autoplayCandidates.filter((item) => item.id !== nextCandidate.id),
+        });
+        get().playQueueItem(nextQueue.length - 1);
+        return nextCandidate;
+      }
+    }
+
+    set({ isPlaying: false });
+    return null;
   },
 
   playPrevious: () => {
-    const { queue, currentIndex } = get();
+    const { queue, currentIndex, currentTime, repeatMode } = get();
     if (queue.length === 0) return;
+
+    if (currentTime > 3) {
+      set({ currentTime: 0 });
+      window.dispatchEvent(new CustomEvent("flow-player-seek", { detail: { time: 0 } }));
+      return;
+    }
 
     const prevIndex = currentIndex - 1;
     if (prevIndex >= 0) {
@@ -268,7 +341,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
         });
         get().loadTrackMetadata(prevItem.id);
       }
-    } else {
+    } else if (repeatMode === "all") {
       const lastIndex = queue.length - 1;
       const lastItem = queue[lastIndex];
       if (lastItem) {
@@ -281,21 +354,50 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
         });
         get().loadTrackMetadata(lastItem.id);
       }
+    } else {
+      set({ currentTime: 0 });
+      window.dispatchEvent(new CustomEvent("flow-player-seek", { detail: { time: 0 } }));
     }
   },
 
   setRepeatMode: (repeatMode) => set({ repeatMode }),
+  cycleRepeatMode: () => {
+    const order: RepeatMode[] = ["none", "all", "one"];
+    const current = order.indexOf(get().repeatMode);
+    set({ repeatMode: order[(current + 1) % order.length] ?? "none" });
+  },
 
   toggleShuffle: () => {
-    const { isShuffle, queue, currentVideo } = get();
+    const { isShuffle, queue, currentIndex } = get();
     if (!isShuffle) {
-      const filtered = queue.filter((item) => item.id !== currentVideo?.id);
-      const shuffled = [...filtered].sort(() => Math.random() - 0.5);
-      const newQueue = currentVideo ? [currentVideo, ...shuffled] : shuffled;
-      set({ isShuffle: true, queue: newQueue, currentIndex: currentVideo ? 0 : -1 });
+      const fixed = currentIndex >= 0 ? queue.slice(0, currentIndex + 1) : [];
+      const upcoming = queue.slice(currentIndex + 1);
+      const shuffled = [...upcoming].sort(() => Math.random() - 0.5);
+      set({ isShuffle: true, queue: [...fixed, ...shuffled] });
     } else {
       set({ isShuffle: false });
     }
+  },
+  setAutoplayCandidates: (videos) => {
+    const currentId = get().currentVideo?.id;
+    const queueIds = new Set(get().queue.map((item) => item.id));
+    const seen = new Set<string>();
+    const candidates = videos.filter((video) => {
+      if (!video.id || video.id === currentId || queueIds.has(video.id) || seen.has(video.id) || video.isLive) {
+        return false;
+      }
+      seen.add(video.id);
+      return true;
+    });
+    set({ autoplayCandidates: candidates });
+  },
+  clearUpcoming: () => {
+    const { queue, currentVideo, currentIndex } = get();
+    const retained = currentIndex >= 0 ? queue.slice(0, currentIndex + 1) : [];
+    set({
+      queue: retained,
+      currentIndex: currentVideo ? retained.length - 1 : -1,
+    });
   },
 
   setPlayMode: (playMode) => set({ playMode }),
@@ -329,6 +431,9 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     videoPlayerMode: "watch",
     videoPipIntent: null,
     watchPageCache: null,
+    autoplayCandidates: [],
+    isChaptersPanelOpen: false,
+    isQueuePanelOpen: false,
   }),
   
   setCurrentTime: (currentTime) => set({ currentTime }),
@@ -369,7 +474,14 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   setDearrowData: (dearrowData) => set({ dearrowData }),
   setRydData: (rydData) => set({ rydData }),
   setCaptions: (captions) => set({ captions }),
-  setIsChaptersPanelOpen: (isChaptersPanelOpen) => set({ isChaptersPanelOpen }),
+  setIsChaptersPanelOpen: (isChaptersPanelOpen) => set({
+    isChaptersPanelOpen,
+    ...(isChaptersPanelOpen ? { isQueuePanelOpen: false } : {}),
+  }),
+  setIsQueuePanelOpen: (isQueuePanelOpen) => set({
+    isQueuePanelOpen,
+    ...(isQueuePanelOpen ? { isChaptersPanelOpen: false } : {}),
+  }),
   subtitleStyle: getSavedSubtitleStyle(),
   setSubtitleStyle: (style) => {
     localStorage.setItem("flow_subtitle_style", JSON.stringify(style));

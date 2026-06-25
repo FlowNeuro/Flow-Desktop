@@ -50,16 +50,68 @@ export function GlobalVideoPlayer() {
   const enterVideoPip = usePlayerStore((s) => s.enterVideoPip);
   const expandVideoPlayer = usePlayerStore((s) => s.expandVideoPlayer);
   const dismissVideoPlayer = usePlayerStore((s) => s.dismissVideoPlayer);
+  const setIsPlaying = usePlayerStore((s) => s.setIsPlaying);
+  const playNext = usePlayerStore((s) => s.playNext);
+  const playPrevious = usePlayerStore((s) => s.playPrevious);
   const autoPipEnabled = useAppSettingsStore((s) => s.values[SETTINGS.AUTO_PIP_ENABLED] !== "false");
 
   const [slotBounds, setSlotBounds] = useState<PlayerBounds | null>(null);
   const previousPathRef = useRef(location.pathname);
+  const previousVideoIdRef = useRef(currentVideo?.id ?? null);
 
   const isFloating = videoPlayerMode === "pip";
   const cachedDetails =
     currentVideo && watchPageCache?.videoId === currentVideo.id
       ? watchPageCache.videoDetails
       : null;
+
+  useEffect(() => {
+    const previousVideoId = previousVideoIdRef.current;
+    const nextVideoId = currentVideo?.id ?? null;
+    previousVideoIdRef.current = nextVideoId;
+
+    if (!nextVideoId || previousVideoId === nextVideoId) return;
+    const routeVideoId = watchVideoIdFromPath(location.pathname);
+    if (routeVideoId && routeVideoId !== nextVideoId) {
+      navigate(`/watch/${nextVideoId}`, { replace: true });
+    }
+  }, [currentVideo?.id, location.pathname, navigate]);
+
+  useEffect(() => {
+    if (!currentVideo || !("mediaSession" in navigator)) return;
+
+    try {
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: currentVideo.title,
+        artist: currentVideo.channelName,
+        artwork: currentVideo.thumbnailUrl
+          ? [{ src: currentVideo.thumbnailUrl }]
+          : undefined,
+      });
+      navigator.mediaSession.playbackState = isPlaying ? "playing" : "paused";
+    } catch (error) {
+      console.warn("Failed to update media session metadata", error);
+    }
+
+    try {
+      navigator.mediaSession.setActionHandler("play", () => setIsPlaying(true));
+      navigator.mediaSession.setActionHandler("pause", () => setIsPlaying(false));
+      navigator.mediaSession.setActionHandler("nexttrack", () => playNext(true));
+      navigator.mediaSession.setActionHandler("previoustrack", playPrevious);
+    } catch (error) {
+      console.warn("Failed to configure media session actions", error);
+    }
+
+    return () => {
+      for (const action of ["play", "pause", "nexttrack", "previoustrack"] as MediaSessionAction[]) {
+        try {
+          navigator.mediaSession.setActionHandler(action, null);
+        } catch {
+          // Some WebViews expose Media Session but not every action.
+        }
+      }
+    };
+  }, [currentVideo, isPlaying, playNext, playPrevious, setIsPlaying]);
 
   useEffect(() => {
     if (isFloating || !currentVideo) return;

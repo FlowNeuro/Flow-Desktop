@@ -6,6 +6,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Gauge,
+  ListVideo,
   Maximize2,
   Minimize2,
   Monitor,
@@ -25,6 +26,7 @@ import { usePlayerStore, type PlaybackRate } from "../../store/usePlayerStore";
 import { useSettingsStore, type SponsorBlockCategory } from "../../store/useSettingsStore";
 import type { AudioTrack, CaptionTrack, StreamVariant, VideoChapter } from "../../types/video";
 import { SubtitleCustomizer } from "./SubtitleCustomizer";
+import { getString } from "../../lib/i18n/index";
 
 export interface FlowPlayerControlsProps {
   title?: string;
@@ -172,6 +174,8 @@ export const FlowPlayerControls: React.FC<FlowPlayerControlsProps> = ({
     sponsorBlockSegments,
     isChaptersPanelOpen,
     setIsChaptersPanelOpen,
+    isQueuePanelOpen,
+    setIsQueuePanelOpen,
   } = usePlayerStore();
 
   const { sponsorBlockColors, sponsorBlockEnabled } = useSettingsStore();
@@ -558,7 +562,7 @@ export const FlowPlayerControls: React.FC<FlowPlayerControlsProps> = ({
               <button
                 type="button"
                 title="Next"
-                onClick={playNext}
+                onClick={() => playNext()}
                 className="grid h-7 w-7 place-items-center rounded-full hover:bg-white/10"
               >
                 <SkipForward size={19} fill="currentColor" />
@@ -625,6 +629,18 @@ export const FlowPlayerControls: React.FC<FlowPlayerControlsProps> = ({
             </div>
 
             <div className="flex items-center gap-1 sm:gap-2 bg-black/20 rounded-full px-1 py-1">
+              <button
+                type="button"
+                title={getString("queue_title")}
+                aria-label={getString("queue_title")}
+                onClick={() => setIsQueuePanelOpen(!isQueuePanelOpen)}
+                className={cx(
+                  "grid h-7 w-7 place-items-center rounded-full hover:bg-white/10",
+                  isQueuePanelOpen && "bg-white/15 text-primary/90"
+                )}
+              >
+                <ListVideo size={19} />
+              </button>
               <button
                 type="button"
                 title="Quality"

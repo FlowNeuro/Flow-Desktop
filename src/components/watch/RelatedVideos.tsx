@@ -4,7 +4,7 @@ import { getString } from "../../lib/i18n/index";
 import type { VideoSummary } from "../../types/video";
 import type { RelatedVideosProps } from "./types";
 
-export function RelatedVideos({ items, loading, onSelect }: RelatedVideosProps) {
+export function RelatedVideos({ items, loading, onSelect, onAddToQueue }: RelatedVideosProps) {
   if (loading) {
     return <Loader2 className="mx-auto mt-10 animate-spin text-neutral-500" size={24} />;
   }
@@ -28,7 +28,13 @@ export function RelatedVideos({ items, loading, onSelect }: RelatedVideosProps) 
           isLive: item.isLive,
         };
         return (
-          <VideoCard key={`${item.itemType}-${item.id}`} video={video} variant="compact" onPlay={() => onSelect(item)} />
+          <VideoCard
+            key={`${item.itemType}-${item.id}`}
+            video={video}
+            variant="compact"
+            onPlay={() => onSelect(item)}
+            onAddToQueue={onAddToQueue}
+          />
         );
       })}
     </div>

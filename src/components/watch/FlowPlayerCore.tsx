@@ -12,6 +12,7 @@ import { isMusicVideo } from "../../lib/utils";
 import { SETTINGS } from "../../lib/settings/schema";
 import { useAppSettingsStore } from "../../store/useAppSettingsStore";
 import { shouldRecordWatchHistory } from "../../lib/deepFlow";
+import { seekToTime } from "../../lib/linkify";
 import type { FlowPlayerCoreProps } from "./types";
 
 /**
@@ -28,6 +29,7 @@ export function FlowPlayerCore({ videoId, videoDetails, onEnded }: FlowPlayerCor
   const setDuration = usePlayerStore((s) => s.setDuration);
   const setIsPlaying = usePlayerStore((s) => s.setIsPlaying);
   const playNext = usePlayerStore((s) => s.playNext);
+  const repeatMode = usePlayerStore((s) => s.repeatMode);
   const autoplayEnabled = useAppSettingsStore((s) => s.values[SETTINGS.AUTOPLAY_ENABLED] !== "false");
 
   const stream = useVideoStream(videoId);
@@ -150,13 +152,19 @@ export function FlowPlayerCore({ videoId, videoDetails, onEnded }: FlowPlayerCor
     ).catch((err) => console.warn("Failed to log watch interaction on ended", err));
 
     clearLocalWatchProgress(currentVideo.id);
+    if (repeatMode === "one") {
+      seekToTime(0);
+      setIsPlaying(true);
+      onEnded?.();
+      return;
+    }
     if (autoplayEnabled) {
-      playNext();
+      playNext(true);
     } else {
       setIsPlaying(false);
     }
     onEnded?.();
-  }, [autoplayEnabled, currentVideo, onEnded, playNext, resolvedChannelId, setIsPlaying, videoDetails]);
+  }, [autoplayEnabled, currentVideo, onEnded, playNext, repeatMode, resolvedChannelId, setIsPlaying, videoDetails]);
 
   const title = (dearrowData?.title || currentVideo?.title) ?? "";
   const poster =

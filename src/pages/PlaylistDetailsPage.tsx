@@ -14,13 +14,11 @@ import type { VideoSummary } from "../types/video";
 
 interface PlaylistDetailsPageProps {
   playlistIdOverride?: string;
-  onPlay: (video: VideoSummary) => void;
   onAddToQueue?: (video: VideoSummary) => void;
 }
 
 export function PlaylistDetailsPage({
   playlistIdOverride,
-  onPlay,
   onAddToQueue,
 }: PlaylistDetailsPageProps) {
   const params = useParams<{ playlistId: string }>();
@@ -67,7 +65,14 @@ export function PlaylistDetailsPage({
     const first = queue[0];
     if (!first) return;
     setQueue(queue, 0);
-    onPlay(first);
+    navigate(`/watch/${first.id}`);
+  };
+
+  const playFromPlaylist = (video: VideoSummary) => {
+    const startIndex = displayVideos.findIndex((item) => item.id === video.id);
+    const safeIndex = startIndex >= 0 ? startIndex : 0;
+    setQueue(displayVideos, safeIndex);
+    navigate(`/watch/${video.id}`);
   };
 
   if (loading) {
@@ -112,7 +117,7 @@ export function PlaylistDetailsPage({
           sortType={sortType}
           onSortChange={setSortType}
           onReorder={handleReorder}
-          onPlay={onPlay}
+          onPlay={playFromPlaylist}
           onAddToQueue={onAddToQueue}
         />
       </div>

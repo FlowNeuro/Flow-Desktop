@@ -15,6 +15,7 @@ import { setSetting } from "../lib/api/db";
 import { seekToTime } from "../lib/linkify";
 import { getString } from "../lib/i18n/index";
 import { Chapters } from "../components/player/chapters";
+import { QueuePanel } from "../components/player/QueuePanel";
 import {
   WatchLayout,
   WatchMetadata,
@@ -30,6 +31,20 @@ import { SETTINGS } from "../lib/settings/schema";
 
 const CommentsSection = lazy(() => import("../components/watch/CommentsSection"));
 
+function mapRelatedItemToVideoSummary(item: RelatedContentItem): VideoSummary {
+  return {
+    id: item.videoId || item.id,
+    title: item.title,
+    channelName: item.channelName,
+    channelId: item.channelId,
+    thumbnailUrl: item.thumbnailUrl,
+    durationSeconds: item.durationSeconds,
+    publishedText: item.publishedText,
+    viewCountText: item.viewCountText,
+    isLive: item.isLive,
+  };
+}
+
 export function Watch() {
   const { videoId } = useParams<{ videoId: string }>();
   const navigate = useNavigate();
@@ -38,6 +53,7 @@ export function Watch() {
 
   const currentVideo = usePlayerStore((s) => s.currentVideo);
   const setQueue = usePlayerStore((s) => s.setQueue);
+  const playQueueItem = usePlayerStore((s) => s.playQueueItem);
   const dearrowData = usePlayerStore((s) => s.dearrowData);
   const rydData = usePlayerStore((s) => s.rydData);
   const setDearrowData = usePlayerStore((s) => s.setDearrowData);
@@ -45,6 +61,9 @@ export function Watch() {
   const setSponsorBlockSegments = usePlayerStore((s) => s.setSponsorBlockSegments);
   const isChaptersPanelOpen = usePlayerStore((s) => s.isChaptersPanelOpen);
   const setIsChaptersPanelOpen = usePlayerStore((s) => s.setIsChaptersPanelOpen);
+  const isQueuePanelOpen = usePlayerStore((s) => s.isQueuePanelOpen);
+  const setAutoplayCandidates = usePlayerStore((s) => s.setAutoplayCandidates);
+  const addToQueue = usePlayerStore((s) => s.addToQueue);
   const captions = usePlayerStore((s) => s.captions);
   const setWatchPageCache = usePlayerStore((s) => s.setWatchPageCache);
 
@@ -65,6 +84,12 @@ export function Watch() {
   useEffect(() => {
     if (!videoId) return;
     if (currentVideo && currentVideo.id === videoId) return;
+
+    const queuedIndex = usePlayerStore.getState().queue.findIndex((item) => item.id === videoId);
+    if (queuedIndex >= 0) {
+      playQueueItem(queuedIndex);
+      return;
+    }
 
     let cancelled = false;
     setPageError(null);
@@ -95,7 +120,7 @@ export function Watch() {
     return () => {
       cancelled = true;
     };
-  }, [videoId, currentVideo, setQueue, retryNonce]);
+  }, [videoId, currentVideo, playQueueItem, setQueue, retryNonce]);
 
   useEffect(() => {
     if (!videoId) return;
@@ -149,12 +174,14 @@ export function Watch() {
     const loadRelated = async () => {
       if (!relatedVideosEnabled) {
         setRelatedVideos([]);
+        setAutoplayCandidates([]);
         setRelatedLoading(false);
         return;
       }
 
       if (cachedWatchPage?.relatedVideos && cachedWatchPage.relatedVideos.length > 0) {
         setRelatedVideos(cachedWatchPage.relatedVideos);
+        setAutoplayCandidates(cachedWatchPage.relatedVideos.map(mapRelatedItemToVideoSummary));
         setRelatedLoading(false);
         return;
       }
@@ -163,10 +190,12 @@ export function Watch() {
       try {
         const related = await getRelatedVideos(videoId);
         setRelatedVideos(related);
+        setAutoplayCandidates(related.map(mapRelatedItemToVideoSummary));
         setWatchPageCache(videoId, { relatedVideos: related });
       } catch (err) {
         console.warn("Failed to load related content", err);
         setRelatedVideos([]);
+        setAutoplayCandidates([]);
       } finally {
         setRelatedLoading(false);
       }
@@ -181,24 +210,11 @@ export function Watch() {
     setDearrowData,
     setRydData,
     setSponsorBlockSegments,
+    setAutoplayCandidates,
     setWatchPageCache,
     loadSettings,
     relatedVideosEnabled,
   ]);
-
-  const mapRelatedItemToVideoSummary = useCallback(
-    (item: RelatedContentItem): VideoSummary => ({
-      id: item.videoId || item.id,
-      title: item.title,
-      channelName: item.channelName,
-      channelId: item.channelId,
-      thumbnailUrl: item.thumbnailUrl,
-      durationSeconds: item.durationSeconds,
-      publishedText: item.publishedText,
-      viewCountText: item.viewCountText,
-    }),
-    [],
-  );
 
   const handleRelatedClick = useCallback(
     async (item: RelatedContentItem) => {
@@ -234,7 +250,7 @@ export function Watch() {
       setQueue([mapRelatedItemToVideoSummary(item)], 0);
       navigate(`/watch/${targetVideoId}`);
     },
-    [mapRelatedItemToVideoSummary, navigate, setQueue],
+    [navigate, setQueue],
   );
 
   const retryWithProxy = useCallback(() => {
@@ -274,6 +290,12 @@ export function Watch() {
         <>
           {videoDetails?.isLive && <LiveChat videoId={videoId} />}
 
+          {isQueuePanelOpen && (
+            <div className="h-[min(720px,calc(100vh-140px))] min-h-[450px] w-full shrink-0">
+              <QueuePanel />
+            </div>
+          )}
+
           {isChaptersPanelOpen && (
             <div className="h-[min(720px,calc(100vh-140px))] min-h-[450px] w-full shrink-0">
               <Chapters
@@ -287,7 +309,14 @@ export function Watch() {
             </div>
           )}
 
-          {relatedVideosEnabled && <RelatedVideos items={relatedVideos} loading={relatedLoading} onSelect={handleRelatedClick} />}
+          {relatedVideosEnabled && (
+            <RelatedVideos
+              items={relatedVideos}
+              loading={relatedLoading}
+              onSelect={handleRelatedClick}
+              onAddToQueue={addToQueue}
+            />
+          )}
         </>
       }
     />

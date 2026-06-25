@@ -83,6 +83,7 @@ type DashPlayerController = {
   getQualityFor: (type: string) => number;
   getCurrentRepresentationForType: (type: string) => DashRepresentationInfo | null;
   getTracksFor?: (type: string) => DashTrackInfo[];
+  getCurrentTrackFor?: (type: string) => DashTrackInfo | null;
   setCurrentTrack?: (track: DashTrackInfo) => void;
 };
 
@@ -166,6 +167,7 @@ export const Player: React.FC<PlayerProps> = ({
   const pendingResumeTimeRef = useRef(0);
   const sourceSwitchingRef = useRef(false);
   const dashPlayerRef = useRef<DashPlayerController | null>(null);
+  const dashReadyRef = useRef(false);
   const hlsPlayerRef = useRef<Hls | null>(null);
   const qualitySwitchSnapshotRef = useRef<QualitySwitchSnapshot | null>(null);
   const qualitySwitchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -373,7 +375,7 @@ export const Player: React.FC<PlayerProps> = ({
   const applyDashQualitySelection = useCallback(() => {
     const player = dashPlayerRef.current;
     const video = videoRef.current;
-    if (!player || !video) return;
+    if (!player || !video || !dashReadyRef.current) return;
 
     if (selectedQualityId === "auto") {
       player.updateSettings({
@@ -419,6 +421,27 @@ export const Player: React.FC<PlayerProps> = ({
       return;
     }
 
+    const currentRepresentation = player.getCurrentRepresentationForType("video");
+    if (currentRepresentation?.id === targetRepresentation.id) {
+      player.updateSettings({
+        streaming: {
+          abr: {
+            autoSwitchBitrate: {
+              video: false,
+              audio: true,
+            },
+          },
+        },
+      });
+      if (currentRepresentation.height) {
+        setActiveQualityLabel(`${currentRepresentation.height}p`);
+      }
+      logPlayerEvent("dash-quality-already-selected", {
+        targetRepresentationId: targetRepresentation.id,
+      });
+      return;
+    }
+
     qualitySwitchSnapshotRef.current = {
       appliedAt: performance.now(),
       corrected: false,
@@ -437,17 +460,31 @@ export const Player: React.FC<PlayerProps> = ({
       }
     }, 8000);
 
-    player.updateSettings({
-      streaming: {
-        abr: {
-          autoSwitchBitrate: {
-            video: false,
-            audio: true,
+    try {
+      player.updateSettings({
+        streaming: {
+          abr: {
+            autoSwitchBitrate: {
+              video: false,
+              audio: true,
+            },
           },
         },
-      },
-    });
-    player.setRepresentationForTypeById("video", targetRepresentation.id, false);
+      });
+      player.setRepresentationForTypeById("video", targetRepresentation.id, false);
+    } catch (switchError) {
+      qualitySwitchSnapshotRef.current = null;
+      if (qualitySwitchTimeoutRef.current) {
+        clearTimeout(qualitySwitchTimeoutRef.current);
+        qualitySwitchTimeoutRef.current = null;
+      }
+      logPlayerEvent("dash-quality-switch-rejected", {
+        requestedQualityId: selectedQuality.id,
+        targetRepresentationId: targetRepresentation.id,
+        error: switchError instanceof Error ? switchError.message : String(switchError),
+      });
+      return;
+    }
     logPlayerEvent("dash-quality-switch-requested", {
       requestedQualityId: selectedQuality.id,
       selectedMimeType: selectedQuality.mimeType,
@@ -462,7 +499,12 @@ export const Player: React.FC<PlayerProps> = ({
 
   const applyDashAudioSelection = useCallback(() => {
     const player = dashPlayerRef.current;
-    if (!player?.getTracksFor || !player.setCurrentTrack) return;
+    if (
+      !dashReadyRef.current ||
+      !player?.getTracksFor ||
+      !player.getCurrentTrackFor ||
+      !player.setCurrentTrack
+    ) return;
 
     const dashAudioTracks = player.getTracksFor("audio") || [];
     if (dashAudioTracks.length === 0) return;
@@ -487,7 +529,36 @@ export const Player: React.FC<PlayerProps> = ({
 
     if (!targetTrack) return;
 
-    player.setCurrentTrack(targetTrack);
+    const currentTrack = player.getCurrentTrackFor("audio");
+    const isCurrentTrack =
+      currentTrack === targetTrack ||
+      (!!currentTrack?.id && !!targetTrack.id && String(currentTrack.id) === String(targetTrack.id)) ||
+      (
+        currentTrack?.index !== undefined &&
+        targetTrack.index !== undefined &&
+        currentTrack.index === targetTrack.index &&
+        String(currentTrack.lang || "") === String(targetTrack.lang || "")
+      );
+
+    if (isCurrentTrack) {
+      logPlayerEvent("dash-audio-track-already-selected", {
+        selectedAudioTrackId,
+        dashTrackId: targetTrack.id,
+        dashTrackIndex: targetTrack.index,
+      });
+      return;
+    }
+
+    try {
+      player.setCurrentTrack(targetTrack);
+    } catch (trackError) {
+      logPlayerEvent("dash-audio-track-selection-rejected", {
+        selectedAudioTrackId,
+        dashTrackId: targetTrack.id,
+        error: trackError instanceof Error ? trackError.message : String(trackError),
+      });
+      return;
+    }
     logPlayerEvent("dash-audio-track-selected", {
       selectedAudioTrackId,
       selectedAudioLabel: selectedAudioTrack?.label,
@@ -802,11 +873,13 @@ export const Player: React.FC<PlayerProps> = ({
     if (!video) return;
 
     if (!isDashPlayback || !dashManifestUrl) {
+      dashReadyRef.current = false;
       dashPlayerRef.current?.destroy();
       dashPlayerRef.current = null;
       return;
     }
 
+    dashReadyRef.current = false;
     const player = dashjs.MediaPlayer().create() as unknown as DashPlayerController;
     if (dashProxyPrefix) {
       player.extend?.("RequestModifier", () => ({
@@ -831,7 +904,7 @@ export const Player: React.FC<PlayerProps> = ({
           },
         },
         buffer: {
-          fastSwitchEnabled: true,
+          fastSwitchEnabled: false,
           bufferToKeep: Math.max(60, bufferConfig.maxSeconds),
           bufferPruningInterval: 120,
           bufferTimeDefault: bufferConfig.minSeconds,
@@ -888,11 +961,26 @@ export const Player: React.FC<PlayerProps> = ({
       qualitySwitchSnapshotRef.current = null;
     };
     const classifyDashError = (event: unknown): { label: string; fatal: boolean } => {
-      const err = (event as { error?: unknown })?.error ?? event;
-      const code = (err as { code?: number })?.code;
+      const outer = (event || {}) as {
+        error?: unknown;
+        event?: unknown;
+        message?: string;
+      };
+      const err = outer.error ?? outer.event ?? event;
+      const code = Number((err as { code?: number })?.code);
       const rawMessage =
-        typeof err === "string" ? err : (err as { message?: string })?.message || "";
+        typeof err === "string"
+          ? err
+          : (err as { message?: string })?.message ||
+            outer.message ||
+            String(err);
       const message = rawMessage.toLowerCase();
+      if (code === 17 || code === 27 || code === 28) {
+        return { label: "fragment-load-failure", fatal: true };
+      }
+      if (code === 25) {
+        return { label: "manifest-load-failure", fatal: true };
+      }
       if (message.includes("segmentbase") || message.includes("webm")) {
         return { label: "webm-segmentbase-loader", fatal: true };
       }
@@ -925,6 +1013,7 @@ export const Player: React.FC<PlayerProps> = ({
       fireRetrySourceRef.current("dash:capabilities-dropped");
     };
     const onStreamInitialized = () => {
+      dashReadyRef.current = true;
       logPlayerEventRef.current("dash-stream-initialized", {
         representations: player.getRepresentationsByType("video").map((representation) => ({
           id: representation.id,
@@ -953,10 +1042,11 @@ export const Player: React.FC<PlayerProps> = ({
     player.on(dashEvents.ADAPTATION_SET_REMOVED_NO_CAPABILITIES, onCapabilitiesDrop);
     player.on(dashEvents.STREAM_INITIALIZED, onStreamInitialized);
 
-    player.initialize(video, dashManifestUrl, desiredPlayingRef.current || isPlaying);
     dashPlayerRef.current = player;
+    player.initialize(video, dashManifestUrl, desiredPlayingRef.current || isPlaying);
 
     return () => {
+      dashReadyRef.current = false;
       player.off(dashEvents.PLAYBACK_WAITING, onPlaybackWaiting);
       player.off(dashEvents.BUFFER_LEVEL_STATE_CHANGED, onBufferStateChanged);
       player.off(dashEvents.QUALITY_CHANGE_REQUESTED, onQualityChangeRequested);
@@ -1409,9 +1499,6 @@ export const Player: React.FC<PlayerProps> = ({
     const video = videoRef.current;
     const audio = audioRef.current;
     if (!video) return;
-    if (isDashPlayback) {
-      applyDashQualitySelection();
-    }
     const nextDuration = video.duration || duration || 0;
     setDuration(nextDuration);
     const pendingResumeTime = Math.max(resumeTime, pendingResumeTimeRef.current);
@@ -1636,10 +1723,13 @@ export const Player: React.FC<PlayerProps> = ({
             setPlaybackDesired(true);
             return;
           }
-          onEnded?.();
-          if (!onEnded && autoplayEnabled) {
+          if (onEnded) {
+            onEnded();
+            return;
+          }
+          if (autoplayEnabled) {
             playNext();
-          } else if (!autoplayEnabled) {
+          } else {
             setPlaybackDesired(false);
           }
         }}

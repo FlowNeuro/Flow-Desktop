@@ -147,14 +147,12 @@ function App() {
           } />
           <Route path="playlist/:playlistId" element={
             <PlaylistDetailsPage
-              onPlay={handlePlayVideo}
               onAddToQueue={handleAddToQueue}
             />
           } />
           <Route path="watch-later" element={
             <PlaylistDetailsPage
               playlistIdOverride={WATCH_LATER_PLAYLIST_ID}
-              onPlay={handlePlayVideo}
               onAddToQueue={handleAddToQueue}
             />
           } />

@@ -23,6 +23,7 @@ import {
 } from '../../lib/playlistLibrary';
 import { useUiStore } from '../../store/useUiStore';
 import { usePlaylistModalStore } from '../../store/usePlaylistModalStore';
+import { usePlayerStore } from '../../store/usePlayerStore';
 
 export interface VideoCardProps {
   video: VideoSummary;
@@ -358,6 +359,23 @@ export function VideoCard({
     }
   };
 
+  const handleAddToQueue = () => {
+    const player = usePlayerStore.getState();
+    const isDuplicate = player.currentVideo?.id === video.id
+      || player.queue.some((item) => item.id === video.id);
+
+    if (onAddToQueue) {
+      onAddToQueue(video);
+    } else {
+      player.addToQueue(video);
+    }
+
+    showToast({
+      variant: isDuplicate ? "info" : "success",
+      message: getString(isDuplicate ? "queue_duplicate_toast" : "queue_added_toast"),
+    });
+  };
+
   // ── Menu dropdown ───
   const renderMenu = () => {
     if (!showMenu || !menuAnchor) return null;
@@ -368,19 +386,17 @@ export function VideoCard({
         onClose={() => setShowMenu(false)}
         className="z-50 w-60 rounded-xl border border-neutral-800 bg-surface-container-high py-1.5"
       >
-        {onAddToQueue && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onAddToQueue(video);
-              setShowMenu(false);
-            }}
-            className="w-full flex items-center gap-3 px-3.5 py-2.5 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 transition-colors"
-          >
-            <Plus size={16} />
-            Add to queue
-          </button>
-        )}
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            handleAddToQueue();
+            setShowMenu(false);
+          }}
+          className="w-full flex items-center gap-3 px-3.5 py-2.5 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 transition-colors"
+        >
+          <Plus size={16} />
+          {getString("music_add_to_queue")}
+        </button>
         <button
           type="button"
           onClick={(e) => {

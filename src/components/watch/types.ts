@@ -47,6 +47,7 @@ export interface RelatedVideosProps {
   items: RelatedContentItem[];
   loading: boolean;
   onSelect: (item: RelatedContentItem) => void;
+  onAddToQueue?: (video: VideoSummary) => void;
 }
 
 export interface CommentsSectionProps {
