@@ -247,11 +247,50 @@ jobs:
       - name: Build nightly packages
         run: pnpm tauri build ${{ matrix.args }} --config src-tauri/tauri.nightly.generated.json
 
-      - name: Upload nightly packages
+      - name: Report package sizes
+        run: node scripts/report-bundle-sizes.mjs src-tauri/target/${{ matrix.target }}/release/bundle
+
+      - name: Upload Windows nightly installer
+        if: runner.os == 'Windows'
         uses: actions/upload-artifact@v7
         with:
           name: Flow-nightly-${{ matrix.slug }}-${{ github.run_number }}
-          path: src-tauri/target/${{ matrix.target }}/release/bundle/**
+          path: src-tauri/target/${{ matrix.target }}/release/bundle/nsis/*.exe
           if-no-files-found: error
           retention-days: 14
-          compression-level: 0
+
+      - name: Upload macOS nightly disk image
+        if: runner.os == 'macOS'
+        uses: actions/upload-artifact@v7
+        with:
+          name: Flow-nightly-${{ matrix.slug }}-${{ github.run_number }}
+          path: src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload Linux nightly AppImage
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v7
+        with:
+          name: Flow-nightly-${{ matrix.slug }}-appimage-${{ github.run_number }}
+          path: src-tauri/target/${{ matrix.target }}/release/bundle/appimage/*.AppImage
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload Linux nightly Debian package
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v7
+        with:
+          name: Flow-nightly-${{ matrix.slug }}-deb-${{ github.run_number }}
+          path: src-tauri/target/${{ matrix.target }}/release/bundle/deb/*.deb
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload Linux nightly RPM package
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v7
+        with:
+          name: Flow-nightly-${{ matrix.slug }}-rpm-${{ github.run_number }}
+          path: src-tauri/target/${{ matrix.target }}/release/bundle/rpm/*.rpm
+          if-no-files-found: error
+          retention-days: 14

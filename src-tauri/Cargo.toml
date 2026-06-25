@@ -48,3 +48,10 @@ base64 = "0.22"
 rust-stemmers = "1.2"
 stop-words = "0.8"
 whatlang = "0.18"
+
+[profile.release]
+# Keep production binaries compact without sacrificing the normal release optimizer.
+panic = "abort"
+codegen-units = 1
+lto = true
+strip = "symbols"
