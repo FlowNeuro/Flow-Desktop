@@ -2,7 +2,7 @@ use futures_util::StreamExt;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tracing::{debug, error, info, warn};
 
@@ -12,6 +12,7 @@ use super::sabr::{SabrError, SabrSessionManager, SabrTrack};
 pub enum StreamSessionKind {
     Remote { remote_url: String },
     Inline { body: Vec<u8> },
+    Local { path: String },
 }
 
 #[derive(Clone)]
@@ -46,6 +47,7 @@ const MAX_TOTAL_CACHE_BYTES: usize = 192 * 1024 * 1024;
 const CACHE_TTL_SECONDS: u64 = 30 * 60;
 const MAX_UPSTREAM_RECOVERIES: u32 = 6;
 const MAX_HEADER_BYTES: usize = 32 * 1024;
+const LOCAL_FILE_CHUNK_BYTES: usize = 256 * 1024;
 
 const CORS_HEADERS: &str = "Access-Control-Allow-Origin: *\r\n\
 Access-Control-Allow-Methods: GET, HEAD, OPTIONS\r\n\
@@ -151,6 +153,22 @@ impl StreamingManager {
             kind: StreamSessionKind::Inline { body },
             content_type,
             expires_at: now + 3600,
+            user_agent: String::new(),
+        };
+        let mut lock = self.sessions.lock().unwrap();
+        lock.insert(token, session);
+        lock.retain(|_, s| s.expires_at > now);
+    }
+
+    pub fn register_local_session(&self, token: String, path: String, content_type: String) {
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        let session = StreamSession {
+            kind: StreamSessionKind::Local { path },
+            content_type,
+            expires_at: now + 24 * 3600,
             user_agent: String::new(),
         };
         let mut lock = self.sessions.lock().unwrap();
@@ -531,9 +549,20 @@ async fn handle_connection(
         .await;
     }
 
+    if let StreamSessionKind::Local { path } = &session.kind {
+        return relay_local_file(
+            &mut socket,
+            path,
+            &session.content_type,
+            head.range.as_deref(),
+            head_only,
+        )
+        .await;
+    }
+
     let target_url = target_url_override.unwrap_or_else(|| match &session.kind {
         StreamSessionKind::Remote { remote_url } => remote_url.clone(),
-        StreamSessionKind::Inline { .. } => String::new(),
+        StreamSessionKind::Inline { .. } | StreamSessionKind::Local { .. } => String::new(),
     });
 
     relay_remote(
@@ -568,6 +597,85 @@ fn parse_range_spec(range: Option<&str>) -> (u64, Option<u64>) {
         }
     });
     (start, end)
+}
+
+async fn relay_local_file(
+    socket: &mut TcpStream,
+    path: &str,
+    content_type: &str,
+    client_range: Option<&str>,
+    head_only: bool,
+) -> std::io::Result<()> {
+    let mut file = match tokio::fs::File::open(path).await {
+        Ok(file) => file,
+        Err(_) => return write_status_only(socket, 404, "Not Found", "Local file not found").await,
+    };
+    let total = match file.metadata().await {
+        Ok(meta) => meta.len(),
+        Err(_) => {
+            return write_status_only(socket, 500, "Internal Server Error", "Cannot read file").await
+        }
+    };
+
+    let is_range = client_range.is_some();
+    let (range_start, range_end) = parse_range_spec(client_range);
+
+    if is_range && total > 0 && range_start >= total {
+        let headers = format!(
+            "HTTP/1.1 416 Range Not Satisfiable\r\nContent-Range: bytes */{total}\r\nContent-Length: 0\r\n{CORS_HEADERS}Connection: close\r\n\r\n"
+        );
+        return socket.write_all(headers.as_bytes()).await;
+    }
+
+    let last_byte = total.saturating_sub(1);
+    let start = range_start.min(last_byte);
+    let end_inclusive = range_end.map_or(last_byte, |end| end.min(last_byte));
+    let length = if total == 0 {
+        0
+    } else {
+        end_inclusive - start + 1
+    };
+
+    let (status, reason) = if is_range {
+        (206, "Partial Content")
+    } else {
+        (200, "OK")
+    };
+    let mut headers = format!(
+        "HTTP/1.1 {status} {reason}\r\nContent-Type: {content_type}\r\nContent-Length: {length}\r\nAccept-Ranges: bytes\r\n"
+    );
+    if is_range {
+        headers.push_str(&format!(
+            "Content-Range: bytes {start}-{end_inclusive}/{total}\r\n"
+        ));
+    }
+    headers.push_str(CORS_HEADERS);
+    headers.push_str("Cache-Control: private, max-age=3600\r\nConnection: close\r\n\r\n");
+    socket.write_all(headers.as_bytes()).await?;
+
+    if head_only || length == 0 {
+        return Ok(());
+    }
+
+    if start > 0 && file.seek(std::io::SeekFrom::Start(start)).await.is_err() {
+        return Ok(());
+    }
+
+    let mut remaining = length;
+    let mut buf = vec![0u8; LOCAL_FILE_CHUNK_BYTES];
+    while remaining > 0 {
+        let want = remaining.min(buf.len() as u64) as usize;
+        let read = match file.read(&mut buf[..want]).await {
+            Ok(0) => break,
+            Ok(read) => read,
+            Err(_) => break,
+        };
+        if socket.write_all(&buf[..read]).await.is_err() {
+            return Ok(());
+        }
+        remaining -= read as u64;
+    }
+    Ok(())
 }
 
 #[allow(clippy::too_many_arguments)]

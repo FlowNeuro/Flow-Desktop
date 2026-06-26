@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ThumbsUp, ThumbsDown, Share2, Bookmark, Download, WandSparkles } from "lucide-react";
+import { ThumbsUp, ThumbsDown, Share2, Bookmark, Download, Check, WandSparkles } from "lucide-react";
 import { Button } from "../ui/Button";
 import { SubscribeButton } from "../ui/SubscribeButton";
 import { useSettingsStore } from "../../store/useSettingsStore";
 import { usePlaylistModalStore } from "../../store/usePlaylistModalStore";
 import { useDownloadStore } from "../../store/useDownloadStore";
+import { useIsDownloaded } from "../../lib/useDownloads";
 import { useVideoReactions } from "../../lib/useVideoReactions";
 import { formatCount } from "../../lib/utils";
 import { getString } from "../../lib/i18n/index";
@@ -26,6 +27,7 @@ export function WatchMetadata({
   const rytdEnabled = useSettingsStore((s) => s.rytdEnabled);
   const openAddToPlaylist = usePlaylistModalStore((s) => s.openAddToPlaylist);
   const openVideoDownload = useDownloadStore((s) => s.openVideo);
+  const isDownloaded = useIsDownloaded(currentVideo.id);
   const reactions = useVideoReactions(currentVideo, videoData);
   const [showingOriginal, setShowingOriginal] = useState(false);
 
@@ -151,8 +153,8 @@ export function WatchMetadata({
             {getString("save")}
           </Button>
           <Button variant="tonal" onClick={() => openVideoDownload(saveTarget)}>
-            <Download size={18} />
-            {getString("download")}
+            {isDownloaded ? <Check size={18} /> : <Download size={18} />}
+            {getString(isDownloaded ? "downloaded" : "download")}
           </Button>
         </div>
       </div>

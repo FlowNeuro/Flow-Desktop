@@ -61,12 +61,17 @@ struct SampleRef {
     offset: u64,
     size: u32,
     timestamp_ns: i128,
+    /// Decode duration and composition offset in track-timescale ticks, kept for
+    /// the progressive-MP4 writer (the Matroska path only needs `timestamp_ns`).
+    duration: u32,
+    composition_offset: i32,
     keyframe: bool,
 }
 
 struct TrackMeta {
     codec: Codec,
     codec_private: Option<Vec<u8>>,
+    timescale: u32,
     width: u16,
     height: u16,
     channels: u16,
@@ -104,13 +109,99 @@ impl SampleReader {
     }
 }
 
+/// One sample's decode timing for the progressive-MP4 writer.
+#[derive(Clone, Copy)]
+pub(super) struct ProgressiveSample {
+    pub(super) offset: u64,
+    pub(super) size: u32,
+    pub(super) duration: u32,
+    pub(super) composition_offset: i32,
+    pub(super) is_sync: bool,
+}
+
+/// A fragmented-MP4 track parsed for re-wrapping into a progressive (non-fragmented)
+/// MP4 — the path the `mp4` crate's `Mp4Reader` cannot handle. Carries the codec
+/// configuration and the full sample list in decode order; bytes are read on demand.
+pub(super) struct ProgressiveTrack {
+    file: File,
+    pub(super) is_h264: bool,
+    pub(super) is_aac: bool,
+    pub(super) timescale: u32,
+    pub(super) width: u16,
+    pub(super) height: u16,
+    pub(super) channels: u16,
+    pub(super) sample_rate: u32,
+    pub(super) codec_private: Option<Vec<u8>>,
+    pub(super) samples: Vec<ProgressiveSample>,
+}
+
+impl ProgressiveTrack {
+    pub(super) fn read_sample(&mut self, sample: ProgressiveSample) -> Result<Vec<u8>, String> {
+        self.file
+            .seek(SeekFrom::Start(sample.offset))
+            .map_err(|error| format!("Could not seek MP4 sample at {}: {error}", sample.offset))?;
+        let mut data = vec![0_u8; sample.size as usize];
+        self.file
+            .read_exact(&mut data)
+            .map_err(|error| format!("Could not read MP4 sample at {}: {error}", sample.offset))?;
+        Ok(data)
+    }
+}
+
+/// Parses a fragmented-MP4 track for the progressive-MP4 muxer.
+pub(super) fn open_progressive(path: &Path, kind: TrackKind) -> Result<ProgressiveTrack, String> {
+    let mut file = File::open(path).map_err(|error| {
+        format!(
+            "Could not open MP4 {} `{}`: {error}",
+            kind.label(),
+            path.display()
+        )
+    })?;
+    let meta = parse_metadata(&mut file, kind)?;
+    if meta.codec.is_video() != matches!(kind, TrackKind::Video) {
+        return Err(format!(
+            "The source MP4 `{}` does not contain the expected {}",
+            path.display(),
+            kind.label()
+        ));
+    }
+    let samples = meta
+        .samples
+        .iter()
+        .map(|sample| ProgressiveSample {
+            offset: sample.offset,
+            size: sample.size,
+            duration: sample.duration,
+            composition_offset: sample.composition_offset,
+            is_sync: sample.keyframe,
+        })
+        .collect();
+    Ok(ProgressiveTrack {
+        file,
+        is_h264: matches!(meta.codec, Codec::H264),
+        is_aac: matches!(meta.codec, Codec::Aac),
+        timescale: meta.timescale,
+        width: meta.width,
+        height: meta.height,
+        channels: meta.channels,
+        sample_rate: meta.sample_rate,
+        codec_private: meta.codec_private,
+        samples,
+    })
+}
+
 pub fn open(
     path: &Path,
     output_track: u64,
     kind: TrackKind,
 ) -> Result<(MatroskaSpec, SampleReader), String> {
-    let mut file = File::open(path)
-        .map_err(|error| format!("Could not open MP4 {} `{}`: {error}", kind.label(), path.display()))?;
+    let mut file = File::open(path).map_err(|error| {
+        format!(
+            "Could not open MP4 {} `{}`: {error}",
+            kind.label(),
+            path.display()
+        )
+    })?;
     let meta = parse_metadata(&mut file, kind)?;
     if meta.codec.is_video() != matches!(kind, TrackKind::Video) {
         return Err(format!(
@@ -190,12 +281,15 @@ fn parse_metadata(file: &mut File, kind: TrackKind) -> Result<TrackMeta, String>
 
     let config = config.ok_or_else(|| format!("The {label} MP4 is missing its moov box"))?;
     if samples.is_empty() {
-        return Err(format!("The {label} MP4 contained no media fragments to remux"));
+        return Err(format!(
+            "The {label} MP4 contained no media fragments to remux"
+        ));
     }
 
     Ok(TrackMeta {
         codec: config.entry.codec,
         codec_private: config.entry.codec_private,
+        timescale: config.timescale,
         width: config.entry.width,
         height: config.entry.height,
         channels: config.entry.channels,
@@ -212,13 +306,13 @@ struct MoovConfig {
 }
 
 fn parse_moov(moov: &[u8], label: &str) -> Result<MoovConfig, String> {
-    let trak = child(moov, b"trak")
-        .ok_or_else(|| format!("The {label} MP4 is missing its trak box"))?;
+    let trak =
+        child(moov, b"trak").ok_or_else(|| format!("The {label} MP4 is missing its trak box"))?;
     let track_id = child(trak, b"tkhd")
         .and_then(parse_tkhd_track_id)
         .unwrap_or(1);
-    let mdia = child(trak, b"mdia")
-        .ok_or_else(|| format!("The {label} MP4 is missing its mdia box"))?;
+    let mdia =
+        child(trak, b"mdia").ok_or_else(|| format!("The {label} MP4 is missing its mdia box"))?;
     let timescale = child(mdia, b"mdhd")
         .and_then(parse_mdhd_timescale)
         .filter(|scale| *scale > 0)
@@ -226,8 +320,8 @@ fn parse_moov(moov: &[u8], label: &str) -> Result<MoovConfig, String> {
     let stbl = child(mdia, b"minf")
         .and_then(|minf| child(minf, b"stbl"))
         .ok_or_else(|| format!("The {label} MP4 is missing its stbl box"))?;
-    let stsd = child(stbl, b"stsd")
-        .ok_or_else(|| format!("The {label} MP4 is missing its stsd box"))?;
+    let stsd =
+        child(stbl, b"stsd").ok_or_else(|| format!("The {label} MP4 is missing its stsd box"))?;
     let entry = parse_sample_entry(stsd, label)?;
     let defaults = child(moov, b"mvex")
         .map(|mvex| trex_defaults(mvex, track_id))
@@ -253,7 +347,10 @@ fn parse_moof(
         if header.track_id != config.track_id {
             continue;
         }
-        let mut decode_time = child(traf, b"tfdt").map(parse_tfdt).transpose()?.unwrap_or(0);
+        let mut decode_time = child(traf, b"tfdt")
+            .map(parse_tfdt)
+            .transpose()?
+            .unwrap_or(0);
         let mut cursor: Option<u64> = None;
         for trun in children(traf, b"trun") {
             read_trun(
@@ -286,8 +383,12 @@ fn parse_sample_entry(stsd: &[u8], label: &str) -> Result<SampleEntryMeta, Strin
     let (fourcc, payload) = boxes(entries)
         .next()
         .ok_or_else(|| format!("The {label} MP4 has no sample description"))?;
-    let codec = Codec::from_fourcc(fourcc)
-        .ok_or_else(|| format!("The {label} MP4 uses an unsupported codec `{}`", fourcc_label(fourcc)))?;
+    let codec = Codec::from_fourcc(fourcc).ok_or_else(|| {
+        format!(
+            "The {label} MP4 uses an unsupported codec `{}`",
+            fourcc_label(fourcc)
+        )
+    })?;
 
     let (width, height, channels, sample_rate, config) = if codec.is_video() {
         let width = be16(payload, 24)?;
@@ -306,7 +407,9 @@ fn parse_sample_entry(stsd: &[u8], label: &str) -> Result<SampleEntryMeta, Strin
     };
 
     let codec_private = codec_private(codec, config);
-    if matches!(codec, Codec::Av1 | Codec::H264 | Codec::Hevc | Codec::Aac) && codec_private.is_none() {
+    if matches!(codec, Codec::Av1 | Codec::H264 | Codec::Hevc | Codec::Aac)
+        && codec_private.is_none()
+    {
         return Err(format!(
             "The {label} MP4 is missing the codec configuration required to remux {}",
             codec.codec_id()
@@ -411,7 +514,11 @@ struct FragmentHeader {
     default_flags: u32,
 }
 
-fn parse_tfhd(tfhd: &[u8], moof_start: u64, defaults: &FragmentDefaults) -> Result<FragmentHeader, String> {
+fn parse_tfhd(
+    tfhd: &[u8],
+    moof_start: u64,
+    defaults: &FragmentDefaults,
+) -> Result<FragmentHeader, String> {
     let flags = be24(tfhd, 1)?;
     let mut cursor = 4_usize;
     let track_id = be32(tfhd, cursor)?;
@@ -533,12 +640,15 @@ fn read_trun(
             0
         };
 
-        let position = cursor.ok_or_else(|| "MP4 fragment has no sample data offset".to_string())?;
+        let position =
+            cursor.ok_or_else(|| "MP4 fragment has no sample data offset".to_string())?;
         let presentation = i128::from(*decode_time) + i128::from(composition_offset);
         samples.push(SampleRef {
             offset: position,
             size,
             timestamp_ns: presentation * NS_PER_SEC / scale,
+            duration,
+            composition_offset: i32::try_from(composition_offset).unwrap_or(0),
             keyframe: !is_video || (sample_flags & NON_SYNC_FLAG) == 0,
         });
         *cursor = Some(position + u64::from(size));
@@ -548,12 +658,20 @@ fn read_trun(
 }
 
 fn parse_tkhd_track_id(tkhd: &[u8]) -> Option<u32> {
-    let offset = if tkhd.first().copied() == Some(1) { 20 } else { 12 };
+    let offset = if tkhd.first().copied() == Some(1) {
+        20
+    } else {
+        12
+    };
     be32(tkhd, offset).ok()
 }
 
 fn parse_mdhd_timescale(mdhd: &[u8]) -> Option<u32> {
-    let offset = if mdhd.first().copied() == Some(1) { 20 } else { 12 };
+    let offset = if mdhd.first().copied() == Some(1) {
+        20
+    } else {
+        12
+    };
     be32(mdhd, offset).ok()
 }
 
@@ -697,7 +815,9 @@ mod tests {
     fn iterates_sibling_boxes() {
         let mut data = mp4_box(b"ftyp", &[1, 2, 3, 4]);
         data.extend(mp4_box(b"moov", &[9, 9]));
-        let found: Vec<_> = boxes(&data).map(|(fourcc, payload)| (fourcc, payload.to_vec())).collect();
+        let found: Vec<_> = boxes(&data)
+            .map(|(fourcc, payload)| (fourcc, payload.to_vec()))
+            .collect();
         assert_eq!(found.len(), 2);
         assert_eq!(&found[0].0, b"ftyp");
         assert_eq!(found[0].1, vec![1, 2, 3, 4]);

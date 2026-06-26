@@ -20,9 +20,12 @@ export interface StartDownloadRequest {
   destinationDirectory?: string;
   parallel: boolean;
   threads: number;
-  /** Source identifiers used to save companion files (poster, SponsorBlock, lyrics). */
+  /** Source identifiers used to save companion files (poster, SponsorBlock, lyrics)
+   *  and to populate the persisted downloads library. */
   videoId?: string;
   thumbnailUrl?: string;
+  author?: string;
+  durationSeconds?: number;
 }
 
 export interface AdaptiveDownloadRequest {
@@ -49,6 +52,8 @@ export interface DownloadProgress {
   status: DownloadStatus;
   error: string | null;
   logs: string[];
+  videoId: string | null;
+  thumbnailUrl: string | null;
 }
 
 export type DownloadContainer = "mp4" | "mkv";
@@ -91,4 +96,46 @@ export function pauseDownload(id: string): Promise<boolean> {
 
 export function resumeDownload(id: string): Promise<boolean> {
   return invokeBackend<boolean>("resume_download", { id });
+}
+
+export interface DownloadRecord {
+  id: number;
+  videoId: string | null;
+  title: string;
+  author: string | null;
+  mediaKind: DownloadMediaKind;
+  filePath: string;
+  thumbnailUrl: string | null;
+  durationSeconds: number | null;
+  qualityLabel: string | null;
+  fileSizeBytes: number | null;
+  createdAt: string;
+}
+
+export function listDownloads(): Promise<DownloadRecord[]> {
+  return invokeBackend<DownloadRecord[]>("list_downloads");
+}
+
+export function getDownloadedVideoIds(): Promise<string[]> {
+  return invokeBackend<string[]>("get_downloaded_video_ids");
+}
+
+export function deleteDownloads(ids: number[]): Promise<void> {
+  return invokeBackend<void>("delete_downloads", { ids });
+}
+
+export function clearDownloads(): Promise<void> {
+  return invokeBackend<void>("clear_downloads");
+}
+
+export interface OfflineStreamInfo {
+  url: string;
+  contentType: string;
+}
+
+export function getOfflineStream(
+  videoId: string,
+  mediaKind: DownloadMediaKind,
+): Promise<OfflineStreamInfo> {
+  return invokeBackend<OfflineStreamInfo>("get_offline_stream", { videoId, mediaKind });
 }

@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { getWatchHistory } from "./api/db";
+import { listDownloads } from "./api/downloads";
+import { downloadRecordToSong, downloadRecordToVideo } from "./useDownloads";
 import { mapHistoryRecordToVideo, type HistoryVideo } from "./useHistory";
+import type { SongItem } from "../types/music";
 import {
   loadStoredPlaylists,
   PLAYLIST_LIBRARY_UPDATED_EVENT,
@@ -26,7 +29,8 @@ interface AsyncLibraryData {
   watchLater: VideoSummary[];
   liked: HistoryVideo[];
   savedShorts: ShortVideoSummary[];
-  downloads: VideoSummary[];
+  videoDownloads: VideoSummary[];
+  musicDownloads: SongItem[];
 }
 
 const EMPTY_LIBRARY: AsyncLibraryData = {
@@ -35,7 +39,8 @@ const EMPTY_LIBRARY: AsyncLibraryData = {
   watchLater: [],
   liked: [],
   savedShorts: [],
-  downloads: [],
+  videoDownloads: [],
+  musicDownloads: [],
 };
 
 export function useLibrary() {
@@ -53,7 +58,7 @@ export function useLibrary() {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const [historyRecords, storedPlaylists, savedShorts] = await Promise.all([
+      const [historyRecords, storedPlaylists, savedShorts, downloadRecords] = await Promise.all([
         getWatchHistory(SHELF_PREVIEW_LIMIT, 0).catch((error) => {
           console.warn("Library: failed to load history", error);
           return [];
@@ -64,6 +69,10 @@ export function useLibrary() {
         }),
         loadSavedShorts().catch((error) => {
           console.warn("Library: failed to load saved Shorts", error);
+          return [];
+        }),
+        listDownloads().catch((error) => {
+          console.warn("Library: failed to load downloads", error);
           return [];
         }),
       ]);
@@ -82,7 +91,14 @@ export function useLibrary() {
         watchLater: watchLaterPlaylist?.tracks.slice(0, SHELF_PREVIEW_LIMIT) ?? [],
         liked,
         savedShorts: savedShorts.slice(0, SHELF_PREVIEW_LIMIT),
-        downloads: [],
+        videoDownloads: downloadRecords
+          .filter((record) => record.mediaKind === "video")
+          .slice(0, SHELF_PREVIEW_LIMIT)
+          .map(downloadRecordToVideo),
+        musicDownloads: downloadRecords
+          .filter((record) => record.mediaKind !== "video")
+          .slice(0, SHELF_PREVIEW_LIMIT)
+          .map(downloadRecordToSong),
       });
     } finally {
       setLoading(false);

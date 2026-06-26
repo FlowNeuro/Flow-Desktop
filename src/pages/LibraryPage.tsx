@@ -1,7 +1,8 @@
 import React, { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Clock, Disc3, Download, History, ListVideo, ThumbsUp } from "lucide-react";
+import { Clock, Disc3, Download, History, ListVideo, Music2, ThumbsUp } from "lucide-react";
 import type { VideoSummary } from "../types/video";
+import type { SongItem } from "../types/music";
 import { getString } from "../lib/i18n/index";
 import { useLibrary, type LibraryPlaylist } from "../lib/useLibrary";
 import { historyVideoToSong, type HistoryVideo } from "../lib/useHistory";
@@ -15,6 +16,7 @@ import { LibraryShelf } from "../components/library/LibraryShelf";
 import { VideoCard } from "../components/video/VideoCard";
 import { PlaylistCard } from "../components/video/PlaylistCard";
 import { MusicItemCard } from "../components/music/MusicItemCard";
+import { DownloadVideoCard } from "../components/downloads/DownloadVideoCard";
 import { ShortCard } from "../components/shorts/ShortCard";
 import { ShortsIcon } from "../components/ui/ShortsIcon";
 import type { ShortVideoSummary } from "../types/video";
@@ -142,6 +144,37 @@ function AlbumShelfRow({
   );
 }
 
+function DownloadVideoShelfRow({
+  videos,
+  onPlay,
+}: {
+  videos: VideoSummary[];
+  onPlay: (video: VideoSummary) => void;
+}) {
+  return (
+    <>
+      {videos.map((video, index) => (
+        <div key={`${video.id}-${index}`} className="w-[280px] md:w-[320px] shrink-0">
+          <DownloadVideoCard video={video} onPlay={onPlay} />
+        </div>
+      ))}
+    </>
+  );
+}
+
+function MusicDownloadShelfRow({ songs }: { songs: SongItem[] }) {
+  const playQueue = useMusicPlayerStore((s) => s.playQueue);
+  return (
+    <>
+      {songs.map((song, index) => (
+        <div key={`${song.id}-${index}`} className="w-[160px] md:w-[200px] shrink-0">
+          <MusicItemCard variant="song" item={song} fill onPlay={() => void playQueue(songs, index)} />
+        </div>
+      ))}
+    </>
+  );
+}
+
 function ShortsShelfRow({ shorts }: { shorts: ShortVideoSummary[] }) {
   return (
     <>
@@ -159,7 +192,17 @@ function ShortsShelfRow({ shorts }: { shorts: ShortVideoSummary[] }) {
 
 export const LibraryPage: React.FC<LibraryPageProps> = ({ onPlay, onAddToQueue }) => {
   const navigate = useNavigate();
-  const { history, playlists, savedAlbums, watchLater, liked, savedShorts, downloads, loading } = useLibrary();
+  const {
+    history,
+    playlists,
+    savedAlbums,
+    watchLater,
+    liked,
+    savedShorts,
+    videoDownloads,
+    musicDownloads,
+    loading,
+  } = useLibrary();
 
   const isEmpty = (length: number) => !loading && length === 0;
 
@@ -246,14 +289,24 @@ export const LibraryPage: React.FC<LibraryPageProps> = ({ onPlay, onAddToQueue }
         <HistoryShelfRow items={liked} onPlay={onPlay} onAddToQueue={onAddToQueue} />
       </LibraryShelf>
 
-      {/* Downloads */}
+      {/* Video downloads */}
       <LibraryShelf
-        title={getString("library_downloads_label")}
+        title={getString("library_video_downloads_label")}
         icon={Download}
         viewAllTo="/downloads"
-        isEmpty={isEmpty(downloads.length)}
+        isEmpty={isEmpty(videoDownloads.length)}
       >
-        <VideoShelfRow videos={downloads} onPlay={onPlay} onAddToQueue={onAddToQueue} />
+        <DownloadVideoShelfRow videos={videoDownloads} onPlay={onPlay} />
+      </LibraryShelf>
+
+      {/* Music downloads */}
+      <LibraryShelf
+        title={getString("library_music_downloads_label")}
+        icon={Music2}
+        viewAllTo="/downloads"
+        isEmpty={isEmpty(musicDownloads.length)}
+      >
+        <MusicDownloadShelfRow songs={musicDownloads} />
       </LibraryShelf>
 
       {/* STEP 5 — MD3 empty states */}

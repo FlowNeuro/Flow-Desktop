@@ -11,6 +11,7 @@ import {
   getRelatedVideos,
 } from "../lib/api/youtube";
 import { getSponsorBlockSegments, getReturnYouTubeDislike, getDeArrowOverride } from "../lib/api/foss";
+import { useDownloadedVideoRecord, downloadRecordToVideo } from "../lib/useDownloads";
 import { setSetting } from "../lib/api/db";
 import { seekToTime } from "../lib/linkify";
 import { getString } from "../lib/i18n/index";
@@ -77,6 +78,8 @@ export function Watch() {
   const [relatedLoading, setRelatedLoading] = useState(false);
   const [pageError, setPageError] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
+
+  const offlineRecord = useDownloadedVideoRecord(videoId);
   useEffect(() => {
     loadSubscriptions();
   }, [loadSubscriptions]);
@@ -88,6 +91,12 @@ export function Watch() {
     const queuedIndex = usePlayerStore.getState().queue.findIndex((item) => item.id === videoId);
     if (queuedIndex >= 0) {
       playQueueItem(queuedIndex);
+      return;
+    }
+
+    if (offlineRecord) {
+      setPageError(null);
+      setQueue([downloadRecordToVideo(offlineRecord)], 0);
       return;
     }
 
@@ -120,7 +129,7 @@ export function Watch() {
     return () => {
       cancelled = true;
     };
-  }, [videoId, currentVideo, playQueueItem, setQueue, retryNonce]);
+  }, [videoId, currentVideo, playQueueItem, setQueue, retryNonce, offlineRecord]);
 
   useEffect(() => {
     if (!videoId) return;
@@ -130,6 +139,12 @@ export function Watch() {
     setChannelDetails(cachedWatchPage?.channelDetails ?? null);
     setVideoDetails(cachedWatchPage?.videoDetails ?? null);
     setRelatedVideos(cachedWatchPage?.relatedVideos ?? []);
+
+    if (offlineRecord) {
+      setAutoplayCandidates([]);
+      setRelatedLoading(false);
+      return;
+    }
 
     const loadVideoMeta = async () => {
       try {
@@ -214,6 +229,7 @@ export function Watch() {
     setWatchPageCache,
     loadSettings,
     relatedVideosEnabled,
+    offlineRecord,
   ]);
 
   const handleRelatedClick = useCallback(
@@ -281,7 +297,7 @@ export function Watch() {
         />
       }
       description={<DescriptionCard currentVideo={currentVideo} videoData={videoDetails} />}
-      comments={commentsEnabled ? (
+      comments={commentsEnabled && !offlineRecord ? (
         <Suspense fallback={<div className="h-32" />}>
           <CommentsSection videoId={videoId} />
         </Suspense>

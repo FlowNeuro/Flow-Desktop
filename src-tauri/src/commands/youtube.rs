@@ -1268,6 +1268,15 @@ pub async fn fetch_subtitles(
                         })?;
                         return Ok(text);
                     }
+                    crate::streaming::proxy::StreamSessionKind::Local { path } => {
+                        let text = tokio::fs::read_to_string(&path).await.map_err(|e| {
+                            crate::errors::AppError::Extractor(format!(
+                                "Read error reading local subtitles: {}",
+                                e
+                            ))
+                        })?;
+                        return Ok(text);
+                    }
                 }
             } else {
                 info!(

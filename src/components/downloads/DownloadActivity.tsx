@@ -20,6 +20,7 @@ import {
 import { isTauriEnv } from "../../lib/api/env";
 import { getString } from "../../lib/i18n/index";
 import { useDownloadStore } from "../../store/useDownloadStore";
+import { useDownloadsLibraryStore } from "../../store/useDownloadsLibraryStore";
 import { DOWNLOAD_SURFACE_SPRING, downloadSurfaceLayoutId } from "./surface";
 
 function progressPercent(item: DownloadProgress): number | null {
@@ -144,6 +145,9 @@ export function DownloadActivity() {
       if (!tauri) return;
       const stop = await listen<DownloadProgress>("download-progress", (event) => {
         updateProgress(event.payload);
+        if (event.payload.status === "completed") {
+          void useDownloadsLibraryStore.getState().load();
+        }
       });
       if (disposed) stop();
       else unlisten = stop;

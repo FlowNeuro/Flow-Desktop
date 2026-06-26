@@ -4,8 +4,8 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use mp4::{
-    AacConfig, AvcConfig, MediaConfig, MediaType, Mp4Config, Mp4Reader, Mp4Sample, Mp4Writer,
-    TrackConfig, TrackType,
+    AacConfig, AudioObjectType, AvcConfig, Bytes, ChannelConfig, MediaConfig, Mp4Config, Mp4Sample,
+    Mp4Writer, SampleFreqIndex, TrackConfig, TrackType,
 };
 use webm_iterable::matroska_spec::{BlockLacing, Master, MatroskaSpec, SimpleBlock};
 use webm_iterable::{WebmIterator, WebmWriter, WriteOptions};
@@ -58,43 +58,44 @@ pub fn mux_adaptive_tracks(
     }
 }
 
+/// Re-wraps a downloaded H.264 video track and AAC audio track — both delivered as
+/// fragmented MP4 — into one progressive (non-fragmented) MP4. Sample timing comes
+/// from `mp4_demux` (which reads `moof`/`trun`); the `mp4` crate's `Mp4Reader` cannot,
+/// and feeding it fragmented input yields a zero-duration, unplayable file.
 fn mux_mp4(
     video_path: &Path,
     audio_path: &Path,
     output_path: &Path,
     cancelled: &AtomicBool,
 ) -> Result<(), String> {
-    let video_file =
-        File::open(video_path).map_err(|error| format!("Could not open video track: {error}"))?;
-    let audio_file =
-        File::open(audio_path).map_err(|error| format!("Could not open audio track: {error}"))?;
-    let video_size = video_file
-        .metadata()
-        .map_err(|error| format!("Could not inspect video track: {error}"))?
-        .len();
-    let audio_size = audio_file
-        .metadata()
-        .map_err(|error| format!("Could not inspect audio track: {error}"))?
-        .len();
-    let mut video_reader = Mp4Reader::read_header(video_file, video_size)
-        .map_err(|error| format!("Invalid MP4 video track: {error}"))?;
-    let mut audio_reader = Mp4Reader::read_header(audio_file, audio_size)
-        .map_err(|error| format!("Invalid MP4 audio track: {error}"))?;
+    let mut video = mp4_demux::open_progressive(video_path, TrackKind::Video)?;
+    let mut audio = mp4_demux::open_progressive(audio_path, TrackKind::Audio)?;
+    if !video.is_h264 {
+        return Err("The MP4 muxer requires an H.264 video track".to_string());
+    }
+    if !audio.is_aac {
+        return Err("The MP4 muxer requires an AAC audio track".to_string());
+    }
 
-    let video_track_id = find_mp4_track(&video_reader, TrackType::Video)?;
-    let audio_track_id = find_mp4_track(&audio_reader, TrackType::Audio)?;
-    let video_config = mp4_track_config(&video_reader, video_track_id)?;
-    let audio_config = mp4_track_config(&audio_reader, audio_track_id)?;
-    let movie_timescale = video_reader
-        .timescale()
-        .max(audio_reader.timescale())
-        .max(1);
+    let avcc = video
+        .codec_private
+        .clone()
+        .ok_or_else(|| "The H.264 track is missing its avcC configuration".to_string())?;
+    let (sps, pps) = parse_avc_sps_pps(&avcc)?;
+    let asc = audio
+        .codec_private
+        .clone()
+        .ok_or_else(|| "The AAC track is missing its AudioSpecificConfig".to_string())?;
+    let aac_config = parse_aac_config(&asc, audio.sample_rate, audio.channels)?;
+
+    let video_timescale = video.timescale.max(1);
+    let audio_timescale = audio.timescale.max(1);
     let config = Mp4Config {
         major_brand: "isom"
             .parse()
             .map_err(|error| format!("Invalid MP4 brand: {error}"))?,
         minor_version: 512,
-        compatible_brands: ["isom", "iso2", "mp41"]
+        compatible_brands: ["isom", "iso2", "avc1", "mp41"]
             .into_iter()
             .map(|brand| {
                 brand
@@ -102,64 +103,68 @@ fn mux_mp4(
                     .map_err(|error| format!("Invalid MP4 brand: {error}"))
             })
             .collect::<Result<Vec<_>, _>>()?,
-        timescale: movie_timescale,
+        timescale: video_timescale.max(audio_timescale),
     };
     let output = File::create(output_path)
         .map_err(|error| format!("Could not create MP4 output: {error}"))?;
     let mut writer = Mp4Writer::write_start(BufWriter::new(output), &config)
         .map_err(|error| format!("Could not initialize MP4 muxer: {error}"))?;
     writer
-        .add_track(&video_config)
+        .add_track(&TrackConfig {
+            track_type: TrackType::Video,
+            timescale: video_timescale,
+            language: "und".to_string(),
+            media_conf: MediaConfig::AvcConfig(AvcConfig {
+                width: video.width,
+                height: video.height,
+                seq_param_set: sps,
+                pic_param_set: pps,
+            }),
+        })
         .map_err(|error| format!("Could not add MP4 video track: {error}"))?;
     writer
-        .add_track(&audio_config)
+        .add_track(&TrackConfig {
+            track_type: TrackType::Audio,
+            timescale: audio_timescale,
+            language: "und".to_string(),
+            media_conf: MediaConfig::AacConfig(aac_config),
+        })
         .map_err(|error| format!("Could not add MP4 audio track: {error}"))?;
 
-    let video_count = video_reader
-        .sample_count(video_track_id)
-        .map_err(|error| format!("Could not read MP4 video sample count: {error}"))?;
-    let audio_count = audio_reader
-        .sample_count(audio_track_id)
-        .map_err(|error| format!("Could not read MP4 audio sample count: {error}"))?;
-    let video_timescale = u64::from(video_config.timescale.max(1));
-    let audio_timescale = u64::from(audio_config.timescale.max(1));
-    let mut video_index = 1;
-    let mut audio_index = 1;
-    let mut video_sample = read_mp4_sample(&mut video_reader, video_track_id, video_index)?;
-    let mut audio_sample = read_mp4_sample(&mut audio_reader, audio_track_id, audio_index)?;
-
-    while video_sample.is_some() || audio_sample.is_some() {
+    // Interleave by decode time. Each track's samples are already in decode order;
+    // `start_time` is ignored by the writer (it accumulates durations), so the
+    // running decode clocks only steer interleaving.
+    let mut video_decode: u64 = 0;
+    let mut audio_decode: u64 = 0;
+    let mut video_index = 0;
+    let mut audio_index = 0;
+    while video_index < video.samples.len() || audio_index < audio.samples.len() {
         if cancelled.load(Ordering::Relaxed) {
             return Err("Download cancelled".into());
         }
-        let take_video = match (&video_sample, &audio_sample) {
-            (Some(video), Some(audio)) => {
-                u128::from(video.start_time) * u128::from(audio_timescale)
-                    <= u128::from(audio.start_time) * u128::from(video_timescale)
+        let take_video = match (
+            video_index < video.samples.len(),
+            audio_index < audio.samples.len(),
+        ) {
+            (true, true) => {
+                u128::from(video_decode) * u128::from(audio_timescale)
+                    <= u128::from(audio_decode) * u128::from(video_timescale)
             }
-            (Some(_), None) => true,
+            (true, false) => true,
             _ => false,
         };
         if take_video {
-            writer
-                .write_sample(1, video_sample.as_ref().expect("video sample is present"))
-                .map_err(|error| format!("Could not write MP4 video sample: {error}"))?;
+            let sample = video.samples[video_index];
+            let data = video.read_sample(sample)?;
+            write_mp4_sample(&mut writer, 1, &sample, data, video_decode)?;
+            video_decode += u64::from(sample.duration);
             video_index += 1;
-            video_sample = if video_index <= video_count {
-                read_mp4_sample(&mut video_reader, video_track_id, video_index)?
-            } else {
-                None
-            };
         } else {
-            writer
-                .write_sample(2, audio_sample.as_ref().expect("audio sample is present"))
-                .map_err(|error| format!("Could not write MP4 audio sample: {error}"))?;
+            let sample = audio.samples[audio_index];
+            let data = audio.read_sample(sample)?;
+            write_mp4_sample(&mut writer, 2, &sample, data, audio_decode)?;
+            audio_decode += u64::from(sample.duration);
             audio_index += 1;
-            audio_sample = if audio_index <= audio_count {
-                read_mp4_sample(&mut audio_reader, audio_track_id, audio_index)?
-            } else {
-                None
-            };
         }
     }
     writer
@@ -167,73 +172,120 @@ fn mux_mp4(
         .map_err(|error| format!("Could not finalize MP4 output: {error}"))
 }
 
-fn find_mp4_track<R: std::io::Read + std::io::Seek>(
-    reader: &Mp4Reader<R>,
-    wanted: TrackType,
-) -> Result<u32, String> {
-    reader
-        .tracks()
-        .iter()
-        .find_map(|(id, track)| (track.track_type().ok() == Some(wanted)).then_some(*id))
-        .ok_or_else(|| format!("The source MP4 does not contain a {wanted:?} track"))
+fn write_mp4_sample(
+    writer: &mut Mp4Writer<BufWriter<File>>,
+    track_id: u32,
+    sample: &mp4_demux::ProgressiveSample,
+    data: Vec<u8>,
+    decode_time: u64,
+) -> Result<(), String> {
+    writer
+        .write_sample(
+            track_id,
+            &Mp4Sample {
+                start_time: decode_time,
+                duration: sample.duration,
+                rendering_offset: sample.composition_offset,
+                is_sync: sample.is_sync,
+                bytes: Bytes::from(data),
+            },
+        )
+        .map_err(|error| format!("Could not write MP4 sample: {error}"))
 }
 
-fn mp4_track_config<R: std::io::Read + std::io::Seek>(
-    reader: &Mp4Reader<R>,
-    track_id: u32,
-) -> Result<TrackConfig, String> {
-    let track = reader
-        .tracks()
-        .get(&track_id)
-        .ok_or_else(|| "MP4 track disappeared while preparing the muxer".to_string())?;
-    let media_conf = match track
-        .media_type()
-        .map_err(|error| format!("Unsupported MP4 track: {error}"))?
-    {
-        MediaType::H264 => MediaConfig::AvcConfig(AvcConfig {
-            width: track.width(),
-            height: track.height(),
-            seq_param_set: track
-                .sequence_parameter_set()
-                .map_err(|error| format!("Missing H.264 sequence parameters: {error}"))?
-                .to_vec(),
-            pic_param_set: track
-                .picture_parameter_set()
-                .map_err(|error| format!("Missing H.264 picture parameters: {error}"))?
-                .to_vec(),
-        }),
-        MediaType::AAC => MediaConfig::AacConfig(AacConfig {
-            bitrate: track.bitrate(),
-            profile: track
-                .audio_profile()
-                .map_err(|error| format!("Missing AAC profile: {error}"))?,
-            freq_index: track
-                .sample_freq_index()
-                .map_err(|error| format!("Missing AAC sample frequency: {error}"))?,
-            chan_conf: track
-                .channel_config()
-                .map_err(|error| format!("Missing AAC channel configuration: {error}"))?,
-        }),
-        media => return Err(format!("Unsupported MP4 media type: {media:?}")),
-    };
-    Ok(TrackConfig {
-        track_type: track
-            .track_type()
-            .map_err(|error| format!("Invalid MP4 track type: {error}"))?,
-        timescale: track.timescale(),
-        language: track.language().to_string(),
-        media_conf,
+/// Extracts the first SPS and PPS NAL units from an `avcC` configuration record so the
+/// `mp4` writer can rebuild the `avc1` sample entry. Samples stay in their length-prefixed
+/// AVCC form (4-byte prefixes), which the writer copies verbatim.
+fn parse_avc_sps_pps(avcc: &[u8]) -> Result<(Vec<u8>, Vec<u8>), String> {
+    if avcc.len() < 6 {
+        return Err("H.264 avcC is too short".to_string());
+    }
+    let mut offset = 6;
+    let sps_count = usize::from(avcc[5] & 0x1F);
+    let sps = read_param_set(avcc, &mut offset, sps_count)?
+        .ok_or_else(|| "H.264 avcC has no SPS".to_string())?;
+    let pps_count = usize::from(
+        *avcc
+            .get(offset)
+            .ok_or_else(|| "H.264 avcC is missing its PPS count".to_string())?,
+    );
+    offset += 1;
+    let pps = read_param_set(avcc, &mut offset, pps_count)?
+        .ok_or_else(|| "H.264 avcC has no PPS".to_string())?;
+    Ok((sps, pps))
+}
+
+/// Reads `count` length-prefixed parameter sets, returning the first one.
+fn read_param_set(
+    data: &[u8],
+    offset: &mut usize,
+    count: usize,
+) -> Result<Option<Vec<u8>>, String> {
+    let mut first = None;
+    for _ in 0..count {
+        let length = data
+            .get(*offset..*offset + 2)
+            .map(|bytes| usize::from(u16::from_be_bytes([bytes[0], bytes[1]])))
+            .ok_or_else(|| "H.264 avcC parameter set is truncated".to_string())?;
+        *offset += 2;
+        let nal = data
+            .get(*offset..*offset + length)
+            .ok_or_else(|| "H.264 avcC parameter set is truncated".to_string())?;
+        if first.is_none() {
+            first = Some(nal.to_vec());
+        }
+        *offset += length;
+    }
+    Ok(first)
+}
+
+/// Builds an [`AacConfig`] from a raw `AudioSpecificConfig`, falling back to the sample
+/// entry's rate/channel count when the config uses escape values.
+fn parse_aac_config(asc: &[u8], sample_rate: u32, channels: u16) -> Result<AacConfig, String> {
+    if asc.len() < 2 {
+        return Err("AAC AudioSpecificConfig is too short".to_string());
+    }
+    let object_type = (asc[0] >> 3) & 0x1F;
+    let freq_index_raw = ((asc[0] & 0x07) << 1) | (asc[1] >> 7);
+    let chan_conf_raw = (asc[1] >> 3) & 0x0F;
+
+    let profile = AudioObjectType::try_from(object_type)
+        .map_err(|_| format!("Unsupported AAC object type {object_type}"))?;
+    let freq_index = SampleFreqIndex::try_from(freq_index_raw)
+        .or_else(|_| freq_index_for_rate(sample_rate))
+        .map_err(|()| "Unsupported AAC sample rate".to_string())?;
+    let chan_conf = ChannelConfig::try_from(if chan_conf_raw == 0 {
+        u8::try_from(channels).unwrap_or(2).max(1)
+    } else {
+        chan_conf_raw
+    })
+    .map_err(|_| "Unsupported AAC channel configuration".to_string())?;
+
+    Ok(AacConfig {
+        bitrate: 0,
+        profile,
+        freq_index,
+        chan_conf,
     })
 }
 
-fn read_mp4_sample<R: std::io::Read + std::io::Seek>(
-    reader: &mut Mp4Reader<R>,
-    track_id: u32,
-    sample_id: u32,
-) -> Result<Option<Mp4Sample>, String> {
-    reader
-        .read_sample(track_id, sample_id)
-        .map_err(|error| format!("Could not read MP4 sample {sample_id}: {error}"))
+fn freq_index_for_rate(rate: u32) -> Result<SampleFreqIndex, ()> {
+    match rate {
+        96000 => Ok(SampleFreqIndex::Freq96000),
+        88200 => Ok(SampleFreqIndex::Freq88200),
+        64000 => Ok(SampleFreqIndex::Freq64000),
+        48000 => Ok(SampleFreqIndex::Freq48000),
+        44100 => Ok(SampleFreqIndex::Freq44100),
+        32000 => Ok(SampleFreqIndex::Freq32000),
+        24000 => Ok(SampleFreqIndex::Freq24000),
+        22050 => Ok(SampleFreqIndex::Freq22050),
+        16000 => Ok(SampleFreqIndex::Freq16000),
+        12000 => Ok(SampleFreqIndex::Freq12000),
+        11025 => Ok(SampleFreqIndex::Freq11025),
+        8000 => Ok(SampleFreqIndex::Freq8000),
+        7350 => Ok(SampleFreqIndex::Freq7350),
+        _ => Err(()),
+    }
 }
 
 /// A single coded frame, normalized so video (`WebM` or fragmented MP4) and audio
@@ -273,7 +325,8 @@ fn open_track_source(
 ) -> Result<(MatroskaSpec, PacketSource), String> {
     match container {
         DownloadContainer::Mkv => {
-            let (entry, source_track) = read_matroska_track_entry(path, output_track, kind.label())?;
+            let (entry, source_track) =
+                read_matroska_track_entry(path, output_track, kind.label())?;
             let track = MatroskaTrack::open(path, source_track, kind.label())?;
             Ok((entry, PacketSource::Webm(Box::new(track))))
         }
@@ -359,8 +412,10 @@ fn mux_matroska(
     output_path: &Path,
     cancelled: &AtomicBool,
 ) -> Result<(), String> {
-    let (video_entry, mut video) = open_track_source(video_container, video_path, 1, TrackKind::Video)?;
-    let (audio_entry, mut audio) = open_track_source(audio_container, audio_path, 2, TrackKind::Audio)?;
+    let (video_entry, mut video) =
+        open_track_source(video_container, video_path, 1, TrackKind::Video)?;
+    let (audio_entry, mut audio) =
+        open_track_source(audio_container, audio_path, 2, TrackKind::Audio)?;
     let output = File::create(output_path)
         .map_err(|error| format!("Could not create Matroska output: {error}"))?;
     let mut writer = WebmWriter::new(BufWriter::new(output));
@@ -542,4 +597,30 @@ fn media_file_diagnostics(path: &Path) -> String {
         .collect::<Vec<_>>()
         .join(" ");
     format!("size={size} bytes, first {read} bytes=[{prefix}]")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{parse_aac_config, parse_avc_sps_pps};
+    use mp4::{AudioObjectType, ChannelConfig, SampleFreqIndex};
+
+    #[test]
+    fn extracts_sps_and_pps_from_avcc() {
+        // version, profile/compat/level, lengthSize, numSPS=1, [len=2]{67 42}, numPPS=1, [len=2]{68 ce}
+        let avcc = [
+            1, 0x64, 0x00, 0x1f, 0xff, 0xe1, 0x00, 0x02, 0x67, 0x42, 0x01, 0x00, 0x02, 0x68, 0xce,
+        ];
+        let (sps, pps) = parse_avc_sps_pps(&avcc).expect("avcC parses");
+        assert_eq!(sps, vec![0x67, 0x42]);
+        assert_eq!(pps, vec![0x68, 0xce]);
+    }
+
+    #[test]
+    fn reads_aac_lc_stereo_44100_config() {
+        // AAC-LC (objectType 2), samplingFrequencyIndex 4 (44100), channelConfig 2.
+        let config = parse_aac_config(&[0x12, 0x10], 44100, 2).expect("ASC parses");
+        assert_eq!(config.profile, AudioObjectType::AacLowComplexity);
+        assert_eq!(config.freq_index, SampleFreqIndex::Freq44100);
+        assert_eq!(config.chan_conf, ChannelConfig::Stereo);
+    }
 }

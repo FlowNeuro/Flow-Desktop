@@ -34,7 +34,10 @@ pub async fn write_sidecars(
     match media_kind {
         DownloadMediaKind::Video => match write_sponsorblock(media_path, video_id).await {
             Ok(Some(path)) => {
-                emitter.log(format!("Saved SponsorBlock segments to `{}`", path.display()));
+                emitter.log(format!(
+                    "Saved SponsorBlock segments to `{}`",
+                    path.display()
+                ));
             }
             Ok(None) => {}
             Err(error) => emitter.log(format!("Could not save SponsorBlock segments: {error}")),

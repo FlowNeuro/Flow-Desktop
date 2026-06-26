@@ -131,6 +131,8 @@ export function useVideoDownloadDialog(video: VideoSummary | null) {
         threads: Number(values[SETTINGS.DOWNLOAD_THREADS] ?? 3),
         videoId: video.id,
         thumbnailUrl: video.thumbnailUrl ?? undefined,
+        author: video.channelName || undefined,
+        durationSeconds: video.durationSeconds ?? undefined,
       });
       setStartedId(started.id);
       return started;
@@ -209,6 +211,8 @@ export function useMusicDownloadDialog(track: SongItem | null) {
         threads: Number(values[SETTINGS.DOWNLOAD_THREADS] ?? 3),
         videoId: track.videoId ?? track.id,
         thumbnailUrl: track.thumbnail || undefined,
+        author: track.artists.map((artist) => artist.name).filter(Boolean).join(", ") || undefined,
+        durationSeconds: track.duration ?? undefined,
       });
     } catch (reason) {
       setError(getBackendErrorMessage(reason));

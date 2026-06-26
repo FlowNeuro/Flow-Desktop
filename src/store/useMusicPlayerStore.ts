@@ -2,6 +2,8 @@ import { create } from "zustand";
 
 import type { SongItem } from "../types/music";
 import { getMusicStream, type MusicAudioQuality } from "../lib/api/music";
+import { getOfflineStream } from "../lib/api/downloads";
+import { findDownloadedRecord } from "../lib/useDownloads";
 import { getBackendErrorMessage } from "../lib/api/errors";
 import { musicAudioEngine } from "../lib/audio/musicAudioEngine";
 import { SETTINGS } from "../lib/settings/schema";
@@ -219,6 +221,20 @@ export const useMusicPlayerStore = create<MusicPlayerState>((set, get) => ({
     });
 
     try {
+      if (findDownloadedRecord(videoId, "audio")) {
+        try {
+          const offline = await getOfflineStream(videoId, "music");
+          if (get().loadingStreamId !== videoId) return;
+          set({ loudnessDb: null, loadingStreamId: null });
+          musicAudioEngine.setLoudness(null, get().normalizationEnabled);
+          await musicAudioEngine.load(offline.url);
+          await musicAudioEngine.play();
+          return;
+        } catch (offlineError) {
+          console.warn("Offline track unavailable, falling back to stream", offlineError);
+        }
+      }
+
       const info = await getMusicStream(videoId, getMusicAudioQualitySetting());
       if (get().loadingStreamId !== videoId) return;
 

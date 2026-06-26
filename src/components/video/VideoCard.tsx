@@ -25,6 +25,7 @@ import { useUiStore } from '../../store/useUiStore';
 import { usePlaylistModalStore } from '../../store/usePlaylistModalStore';
 import { usePlayerStore } from '../../store/usePlayerStore';
 import { useDownloadStore } from '../../store/useDownloadStore';
+import { useIsDownloaded } from '../../lib/useDownloads';
 
 export interface VideoCardProps {
   video: VideoSummary;
@@ -142,6 +143,7 @@ export function VideoCard({
   const showToast = useUiStore((s) => s.showToast);
   const openAddToPlaylist = usePlaylistModalStore((s) => s.openAddToPlaylist);
   const openVideoDownload = useDownloadStore((s) => s.openVideo);
+  const isDownloaded = useIsDownloaded(video.id);
   const [overriddenTitle, setOverriddenTitle] = useState<string | null>(null);
   const [overriddenThumbnail, setOverriddenThumbnail] = useState<string | null>(null);
   const [showMenu, setShowMenu] = useState(false);
@@ -420,8 +422,8 @@ export function VideoCard({
           }}
           className="w-full flex items-center gap-3 whitespace-nowrap px-3.5 py-2.5 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 transition-colors"
         >
-          <Download size={16} />
-          {getString("download")}
+          {isDownloaded ? <Check size={16} /> : <Download size={16} />}
+          {getString(isDownloaded ? "downloaded" : "download")}
         </button>
         <button
           type="button"

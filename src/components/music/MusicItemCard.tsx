@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Disc3, Download, Heart, Library, ListPlus, MoreVertical, Music2, Play, Share2 } from 'lucide-react';
+import { CheckCircle2, Disc3, Download, Heart, Library, ListPlus, MoreVertical, Music2, Play, Share2 } from 'lucide-react';
 import type { AlbumItem, ArtistItem, EpisodeItem, PlaylistItem, PodcastItem, SongItem } from '../../types/music';
 import { getString } from '../../lib/i18n/index';
+import { useActiveDownloadForVideo, useIsDownloaded } from '../../lib/useDownloads';
 import { upgradeAvatarUrl, upgradeMusicImageUrl } from '../../lib/thumbnails';
 import { extractDominantColorFromImage, useDominantColor } from '../../lib/useDominantColor';
 import { useMusicPlayerStore } from '../../store/useMusicPlayerStore';
@@ -56,6 +57,56 @@ function artistsText(artists?: { name: string }[] | null): string {
 
 function videoIdOf(track: SongItem): string {
   return track.videoId ?? track.id;
+}
+
+/** Circular loader while a track downloads; a small "saved" badge once it is downloaded. */
+function TrackDownloadIndicator({ trackId }: { trackId: string }) {
+  const active = useActiveDownloadForVideo(trackId);
+  const downloaded = useIsDownloaded(trackId);
+
+  if (active) {
+    const circumference = 2 * Math.PI * 7;
+    const percent = active.totalBytes
+      ? Math.max(0, Math.min(100, (active.downloadedBytes / active.totalBytes) * 100))
+      : null;
+    return (
+      <span
+        title={getString('download_downloading_tracks')}
+        className="relative grid h-7 w-7 shrink-0 place-items-center text-[var(--color-primary)]"
+      >
+        <svg
+          viewBox="0 0 18 18"
+          className={cx('absolute inset-0 h-full w-full', percent == null && 'animate-spin')}
+        >
+          <circle cx="9" cy="9" r="7" fill="none" strokeWidth="2" className="stroke-neutral-700" />
+          <circle
+            cx="9"
+            cy="9"
+            r="7"
+            fill="none"
+            strokeWidth="2"
+            strokeLinecap="round"
+            stroke="currentColor"
+            transform="rotate(-90 9 9)"
+            strokeDasharray={circumference}
+            strokeDashoffset={percent == null ? circumference * 0.65 : circumference * (1 - percent / 100)}
+            className={percent == null ? undefined : 'transition-[stroke-dashoffset] duration-200'}
+          />
+        </svg>
+        <Download className="h-3 w-3 animate-pulse" />
+      </span>
+    );
+  }
+
+  if (downloaded) {
+    return (
+      <span title={getString('downloaded')} className="shrink-0 text-[var(--color-primary)]">
+        <CheckCircle2 className="h-4 w-4" />
+      </span>
+    );
+  }
+
+  return null;
 }
 
 function useSongLike(track: SongItem | null | undefined) {
@@ -245,6 +296,8 @@ function SquareCard({
   const openAddToAlbum = useAlbumLibraryStore((s) => s.openAddToAlbum);
   const showToast = useUiStore((s) => s.showToast);
   const openMusicDownload = useDownloadStore((s) => s.openMusic);
+  const squareTrackId = isTrack ? videoIdOf(item) : null;
+  const trackDownloaded = useIsDownloaded(squareTrackId);
   const menuActions: MusicMenuAction[] = isTrack
     ? [
         {
@@ -267,8 +320,8 @@ function SquareCard({
         },
         {
           id: 'download',
-          label: getString('music_download'),
-          icon: <Download size={16} />,
+          label: trackDownloaded ? getString('downloaded') : getString('music_download'),
+          icon: trackDownloaded ? <CheckCircle2 size={16} /> : <Download size={16} />,
           onSelect: () => openMusicDownload(item),
         },
         {
@@ -508,6 +561,7 @@ function ListRow({
   const playerIsPlaying = useMusicPlayerStore((s) => s.isPlaying);
   const openAddToAlbum = useAlbumLibraryStore((s) => s.openAddToAlbum);
   const openMusicDownload = useDownloadStore((s) => s.openMusic);
+  const isDownloaded = useIsDownloaded(trackId);
   const menu = useMusicContextMenu(true);
   const isPlayingTrack = !!currentTrack && videoIdOf(currentTrack) === trackId && playerIsPlaying;
   const isHighlighted = isHovered || isPlayingTrack;
@@ -536,8 +590,8 @@ function ListRow({
     },
     {
       id: 'download',
-      label: getString('music_download'),
-      icon: <Download size={16} />,
+      label: isDownloaded ? getString('downloaded') : getString('music_download'),
+      icon: isDownloaded ? <CheckCircle2 size={16} /> : <Download size={16} />,
       onSelect: () => openMusicDownload(item),
     },
     {
@@ -620,12 +674,13 @@ function ListRow({
         </span>
       </div>
 
-      <div className="relative h-8 w-20 shrink-0">
-        {duration && (
-          <span className="absolute right-0 top-1/2 -translate-y-1/2 font-mono text-sm tabular-nums text-neutral-400 transition-opacity duration-200 ease-out group-hover:opacity-0">
-            {duration}
-          </span>
-        )}
+      <div className="relative h-8 w-24 shrink-0">
+        <span className="absolute right-0 top-1/2 flex -translate-y-1/2 items-center gap-1.5 transition-opacity duration-200 ease-out group-hover:opacity-0">
+          <TrackDownloadIndicator trackId={trackId} />
+          {duration && (
+            <span className="font-mono text-sm tabular-nums text-neutral-400">{duration}</span>
+          )}
+        </span>
         <div className="absolute right-0 top-0 flex items-center gap-1 opacity-0 transition-opacity duration-200 ease-out group-hover:opacity-100">
           <button
             type="button"

@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePlayerStore } from "../store/usePlayerStore";
 import { getStreamInfo, getYoutubeErrorMessage } from "./api/youtube";
+import { getOfflineStream } from "./api/downloads";
+import { findDownloadedRecord } from "./useDownloads";
 import { addWatchRecord } from "./api/db";
 import { isMusicVideo } from "./utils";
 import { SETTINGS } from "./settings/schema";
@@ -196,6 +198,36 @@ export function useVideoStream(videoId: string | undefined): VideoStream {
       setSourceMode("unavailable");
       setResumeTime(0);
       try {
+        // A saved video plays straight from disk — no stream resolution, no
+        // network. One progressive source, so source-mode fallback is skipped.
+        if (findDownloadedRecord(currentVideo.id, "video")) {
+          try {
+            const offline = await getOfflineStream(currentVideo.id, "video");
+            streamInfoRef.current = null;
+            attemptedModesRef.current = new Set(["direct"]);
+            setSelectedQualityId("auto");
+            setResumeTime(readSavedWatchProgress(currentVideo.id, currentVideo.durationSeconds ?? 0));
+            setSourceMode("direct");
+            setStreamUrl(offline.url);
+            setIsPlaying(true);
+            if (shouldRecordWatchHistory()) {
+              await addWatchRecord({
+                videoId: currentVideo.id,
+                title: currentVideo.title,
+                channelName: currentVideo.channelName,
+                channelId: currentVideo.channelId ?? null,
+                watchDate: new Date().toISOString(),
+                watchDurationSeconds: 0,
+                totalDurationSeconds: currentVideo.durationSeconds ?? 0,
+                isMusic: isMusicVideo(currentVideo),
+              });
+            }
+            return;
+          } catch (offlineError) {
+            console.warn("Offline video unavailable, falling back to stream", offlineError);
+          }
+        }
+
         const info = await getStreamInfo(currentVideo.id);
         streamInfoRef.current = info;
         attemptedModesRef.current = new Set();

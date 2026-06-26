@@ -13,9 +13,12 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::sync::{Notify, Semaphore};
 use uuid::Uuid;
 
+use sqlx::SqlitePool;
+
 use crate::api::innertube::download::{
     DownloadContainer, DownloadableFormat, container_from_mime, pair_downloadable_formats,
 };
+use crate::db::downloads::DownloadRecord;
 use crate::errors::{AppError, ErrorResponse};
 use crate::security::validation::validate_video_id;
 use crate::services::youtube_service::YoutubeService;
@@ -141,9 +144,12 @@ pub struct StartDownloadRequest {
     pub destination_directory: Option<String>,
     pub parallel: bool,
     pub threads: u8,
-    /// Source identifiers used to fetch companion files (poster, `SponsorBlock`, lyrics).
+    /// Source identifiers used to fetch companion files (poster, `SponsorBlock`, lyrics)
+    /// and to populate the persisted downloads library.
     pub video_id: Option<String>,
     pub thumbnail_url: Option<String>,
+    pub author: Option<String>,
+    pub duration_seconds: Option<u64>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -184,6 +190,8 @@ struct DownloadProgress {
     status: DownloadStatus,
     error: Option<String>,
     logs: Vec<String>,
+    video_id: Option<String>,
+    thumbnail_url: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize)]
@@ -213,6 +221,9 @@ struct DownloadContext {
     control: Arc<DownloadControl>,
     video_id: Option<String>,
     thumbnail_url: Option<String>,
+    author: Option<String>,
+    duration_seconds: Option<u64>,
+    pool: SqlitePool,
 }
 
 struct AdaptiveSources {
@@ -251,6 +262,8 @@ struct ProgressEmitter {
     last_emitted: Arc<AtomicU64>,
     total: Option<u64>,
     logs: Arc<Mutex<Vec<String>>>,
+    video_id: Option<String>,
+    thumbnail_url: Option<String>,
 }
 
 impl ProgressEmitter {
@@ -272,6 +285,8 @@ impl ProgressEmitter {
                     .lock()
                     .map(|logs| logs.clone())
                     .unwrap_or_default(),
+                video_id: self.video_id.clone(),
+                thumbnail_url: self.thumbnail_url.clone(),
             },
         );
     }
@@ -308,9 +323,11 @@ pub async fn start_download(
     app: AppHandle,
     manager: State<'_, DownloadManager>,
     streaming_manager: State<'_, StreamingManager>,
+    pool: State<'_, SqlitePool>,
 ) -> Result<DownloadStarted, ErrorResponse> {
     let download_manager = manager.inner().clone();
     let streaming_manager = streaming_manager.inner().clone();
+    let pool = pool.inner().clone();
     let StartDownloadRequest {
         source_url,
         adaptive,
@@ -322,6 +339,8 @@ pub async fn start_download(
         threads,
         video_id,
         thumbnail_url,
+        author,
+        duration_seconds,
     } = request;
     let title = title.trim().to_string();
 
@@ -425,6 +444,9 @@ pub async fn start_download(
         control,
         video_id,
         thumbnail_url,
+        author,
+        duration_seconds,
+        pool,
     };
     let _ = app.emit(
         DOWNLOAD_EVENT,
@@ -439,6 +461,8 @@ pub async fn start_download(
             status: DownloadStatus::Queued,
             error: None,
             logs: vec!["Download added to the queue".to_string()],
+            video_id: context.video_id.clone(),
+            thumbnail_url: context.thumbnail_url.clone(),
         },
     );
     let app_for_task = app.clone();
@@ -657,7 +681,7 @@ async fn run_download(mut context: DownloadContext, app: AppHandle) {
     };
     let remote_url = match &session.kind {
         StreamSessionKind::Remote { remote_url } => remote_url.clone(),
-        StreamSessionKind::Inline { .. } => return,
+        StreamSessionKind::Inline { .. } | StreamSessionKind::Local { .. } => return,
     };
     let client = match build_download_client(&session.user_agent) {
         Ok(client) => client,
@@ -684,6 +708,8 @@ async fn run_download(mut context: DownloadContext, app: AppHandle) {
         last_emitted: Arc::new(AtomicU64::new(0)),
         total,
         logs: Arc::new(Mutex::new(vec!["Download started".to_string()])),
+        video_id: context.video_id.clone(),
+        thumbnail_url: context.thumbnail_url.clone(),
     };
     emitter.emit(DownloadStatus::Queued, None);
 
@@ -695,7 +721,8 @@ async fn run_download(mut context: DownloadContext, app: AppHandle) {
             emitter.emit(DownloadStatus::Cancelled, None);
         }
         Ok(()) => {
-            if let Err(error) = finalize_download_file(&context.temp_path, &context.file_path).await {
+            if let Err(error) = finalize_download_file(&context.temp_path, &context.file_path).await
+            {
                 cleanup_partial_files(&context).await;
                 emitter.emit(DownloadStatus::Failed, Some(error));
                 return;
@@ -712,6 +739,7 @@ async fn run_download(mut context: DownloadContext, app: AppHandle) {
                 &emitter,
             )
             .await;
+            record_completed_download(&context).await;
             emitter.log("Download completed successfully");
             emitter.emit(DownloadStatus::Completed, None);
         }
@@ -739,11 +767,11 @@ async fn run_adaptive_download(
 ) {
     let video_url = match &adaptive.video_session.kind {
         StreamSessionKind::Remote { remote_url } => remote_url.clone(),
-        StreamSessionKind::Inline { .. } => return,
+        StreamSessionKind::Inline { .. } | StreamSessionKind::Local { .. } => return,
     };
     let audio_url = match &adaptive.audio_session.kind {
         StreamSessionKind::Remote { remote_url } => remote_url.clone(),
-        StreamSessionKind::Inline { .. } => return,
+        StreamSessionKind::Inline { .. } | StreamSessionKind::Local { .. } => return,
     };
     let video_client = match build_download_client(&adaptive.video_session.user_agent) {
         Ok(client) => client,
@@ -789,6 +817,8 @@ async fn run_adaptive_download(
         logs: Arc::new(Mutex::new(vec![
             "Adaptive video and audio download started".to_string(),
         ])),
+        video_id: context.video_id.clone(),
+        thumbnail_url: context.thumbnail_url.clone(),
     };
     emitter.emit(DownloadStatus::Downloading, None);
 
@@ -905,7 +935,8 @@ async fn run_adaptive_download(
         Ok(()) => {
             let _ = tokio::fs::remove_file(&adaptive.video_path).await;
             let _ = tokio::fs::remove_file(&adaptive.audio_path).await;
-            if let Err(error) = finalize_download_file(&context.temp_path, &context.file_path).await {
+            if let Err(error) = finalize_download_file(&context.temp_path, &context.file_path).await
+            {
                 cleanup_adaptive_files(&context, &adaptive).await;
                 emitter.emit(DownloadStatus::Failed, Some(error));
                 return;
@@ -919,6 +950,7 @@ async fn run_adaptive_download(
                 &emitter,
             )
             .await;
+            record_completed_download(&context).await;
             emitter.log("Download and native mux completed successfully");
             emitter.emit(DownloadStatus::Completed, None);
         }
@@ -958,6 +990,9 @@ fn child_download_context(context: &DownloadContext, temp_path: PathBuf) -> Down
         control: context.control.clone(),
         video_id: None,
         thumbnail_url: None,
+        author: None,
+        duration_seconds: None,
+        pool: context.pool.clone(),
     }
 }
 
@@ -1401,6 +1436,9 @@ async fn ensure_valid_adaptive_source(
         control: context.control.clone(),
         video_id: None,
         thumbnail_url: None,
+        author: None,
+        duration_seconds: None,
+        pool: context.pool.clone(),
     };
     cleanup_partial_files(&repair_context).await;
     download_sequential(client, url, &repair_context, emitter, total).await?;
@@ -1557,6 +1595,38 @@ fn is_transient_file_lock(error: &std::io::Error) -> bool {
     matches!(error.raw_os_error(), Some(5 | 32))
 }
 
+/// Persists a finished download into the library table so it shows on the Downloads
+/// page and marks its source as downloaded. Best-effort — a DB error never fails it.
+async fn record_completed_download(context: &DownloadContext) {
+    let file_size_bytes = tokio::fs::metadata(&context.file_path)
+        .await
+        .ok()
+        .and_then(|metadata| i64::try_from(metadata.len()).ok());
+    let media_kind = match context.media_kind {
+        DownloadMediaKind::Video => "video",
+        DownloadMediaKind::Music => "music",
+        DownloadMediaKind::Audio => "audio",
+    };
+    let record = DownloadRecord {
+        id: None,
+        video_id: context.video_id.clone(),
+        title: context.title.clone(),
+        author: context.author.clone(),
+        media_kind: media_kind.to_string(),
+        file_path: context.file_path.to_string_lossy().into_owned(),
+        thumbnail_url: context.thumbnail_url.clone(),
+        duration_seconds: context
+            .duration_seconds
+            .and_then(|seconds| i64::try_from(seconds).ok()),
+        quality_label: Some(context.quality_label.clone()),
+        file_size_bytes,
+        created_at: String::new(),
+    };
+    if let Err(error) = crate::db::downloads::upsert_download(&context.pool, &record).await {
+        tracing::warn!(%error, "Failed to record completed download in the library");
+    }
+}
+
 async fn cleanup_partial_files(context: &DownloadContext) {
     let _ = tokio::fs::remove_file(&context.temp_path).await;
     for worker in 0..u64::from(context.threads) {
@@ -1586,6 +1656,8 @@ fn emit_terminal_error(context: &DownloadContext, app: &AppHandle, error: String
             status: DownloadStatus::Failed,
             error: Some(error.clone()),
             logs: vec![error],
+            video_id: context.video_id.clone(),
+            thumbnail_url: context.thumbnail_url.clone(),
         },
     );
 }
@@ -1604,12 +1676,144 @@ fn emit_cancelled(context: &DownloadContext, app: &AppHandle) {
             status: DownloadStatus::Cancelled,
             error: None,
             logs: vec!["Download cancelled while queued".to_string()],
+            video_id: context.video_id.clone(),
+            thumbnail_url: context.thumbnail_url.clone(),
         },
     );
 }
 
 fn download_error(message: impl Into<String>) -> ErrorResponse {
     ErrorResponse::from(AppError::Streaming(message.into()))
+}
+
+#[tauri::command]
+pub async fn list_downloads(
+    pool: State<'_, SqlitePool>,
+) -> Result<Vec<DownloadRecord>, ErrorResponse> {
+    crate::db::downloads::list_downloads(&pool)
+        .await
+        .map_err(ErrorResponse::from)
+}
+
+#[tauri::command]
+pub async fn get_downloaded_video_ids(
+    pool: State<'_, SqlitePool>,
+) -> Result<Vec<String>, ErrorResponse> {
+    crate::db::downloads::downloaded_video_ids(&pool)
+        .await
+        .map_err(ErrorResponse::from)
+}
+
+#[tauri::command]
+pub async fn delete_downloads(
+    ids: Vec<i64>,
+    pool: State<'_, SqlitePool>,
+) -> Result<(), ErrorResponse> {
+    let records = crate::db::downloads::downloads_by_ids(&pool, &ids)
+        .await
+        .map_err(ErrorResponse::from)?;
+    for record in &records {
+        remove_download_files(Path::new(&record.file_path)).await;
+    }
+    crate::db::downloads::delete_downloads(&pool, &ids)
+        .await
+        .map_err(ErrorResponse::from)
+}
+
+#[tauri::command]
+pub async fn clear_downloads(pool: State<'_, SqlitePool>) -> Result<(), ErrorResponse> {
+    let records = crate::db::downloads::list_downloads(&pool)
+        .await
+        .map_err(ErrorResponse::from)?;
+    for record in &records {
+        remove_download_files(Path::new(&record.file_path)).await;
+    }
+    crate::db::downloads::clear_downloads(&pool)
+        .await
+        .map_err(ErrorResponse::from)
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OfflineStreamInfo {
+    pub url: String,
+    pub content_type: String,
+}
+
+/// Resolves a loopback URL that serves a downloaded file straight from disk, so
+/// playback is fully offline — no stream re-resolution, no network. The path is
+/// taken from the persisted download record (never from the caller), and the
+/// kind must match the playback surface (a saved audio track is not a video).
+#[tauri::command]
+pub async fn get_offline_stream(
+    video_id: String,
+    media_kind: DownloadMediaKind,
+    pool: State<'_, SqlitePool>,
+    streaming_manager: State<'_, StreamingManager>,
+) -> Result<OfflineStreamInfo, ErrorResponse> {
+    validate_video_id(&video_id).map_err(ErrorResponse::from)?;
+
+    let record = crate::db::downloads::download_by_video_id(&pool, &video_id)
+        .await
+        .map_err(ErrorResponse::from)?
+        .filter(|record| media_kind_matches(&record.media_kind, media_kind))
+        .ok_or_else(|| download_error("No saved download for this item"))?;
+
+    if tokio::fs::metadata(&record.file_path).await.is_err() {
+        return Err(download_error("The downloaded file is no longer available"));
+    }
+
+    let content_type = offline_content_type(&record.file_path, media_kind);
+    let token = Uuid::new_v4().to_string();
+    streaming_manager.register_local_session(
+        token.clone(),
+        record.file_path.clone(),
+        content_type.clone(),
+    );
+    let port = streaming_manager.get_port();
+
+    Ok(OfflineStreamInfo {
+        url: format!("http://127.0.0.1:{port}/stream/{token}"),
+        content_type,
+    })
+}
+
+fn media_kind_matches(stored: &str, requested: DownloadMediaKind) -> bool {
+    match requested {
+        DownloadMediaKind::Video => stored == "video",
+        DownloadMediaKind::Music | DownloadMediaKind::Audio => {
+            stored == "music" || stored == "audio"
+        }
+    }
+}
+
+// Best-effort MIME from the file extension. Our Matroska output (.mkv) carries
+// WebM-family codecs (VP8/VP9/AV1 + Opus), which Chromium plays when labelled
+// as webm.
+fn offline_content_type(path: &str, media_kind: DownloadMediaKind) -> String {
+    let extension = Path::new(path)
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    let is_video = matches!(media_kind, DownloadMediaKind::Video);
+    match extension.as_str() {
+        "mp4" | "m4v" => if is_video { "video/mp4" } else { "audio/mp4" },
+        "m4a" => "audio/mp4",
+        "webm" | "mkv" => if is_video { "video/webm" } else { "audio/webm" },
+        "opus" | "ogg" => "audio/ogg",
+        "mp3" => "audio/mpeg",
+        _ => if is_video { "video/mp4" } else { "audio/mp4" },
+    }
+    .to_string()
+}
+
+/// Removes a downloaded media file along with its best-effort companion sidecars.
+async fn remove_download_files(media_path: &Path) {
+    let _ = tokio::fs::remove_file(media_path).await;
+    for extension in ["jpg", "png", "webp", "sponsorblock.json", "lrc"] {
+        let _ = tokio::fs::remove_file(media_path.with_extension(extension)).await;
+    }
 }
 
 #[cfg(test)]
