@@ -5,6 +5,7 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  Expand,
   Gauge,
   ListVideo,
   Maximize2,
@@ -16,7 +17,7 @@ import {
   Settings as SettingsIcon,
   SkipBack,
   SkipForward,
-  Tv,
+  Shrink,
   Volume1,
   Volume2,
   VolumeX,
@@ -718,7 +719,7 @@ export const FlowPlayerControls: React.FC<FlowPlayerControlsProps> = ({
                   isTheaterMode && "bg-white/15"
                 )}
               >
-                <Tv size={19} />
+                {isTheaterMode ? <Shrink size={19} /> : <Expand size={19} />}
               </button>
               <button
                 type="button"

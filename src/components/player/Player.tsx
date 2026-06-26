@@ -96,6 +96,102 @@ type QualitySwitchSnapshot = {
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
+type AmbientSample = {
+  top: string;
+  right: string;
+  bottom: string;
+  left: string;
+  center: string;
+  key: string;
+};
+
+const AMBIENT_SAMPLE_WIDTH = 36;
+const AMBIENT_SAMPLE_HEIGHT = 20;
+const AMBIENT_SAMPLE_INTERVAL_MS = 520;
+const DEFAULT_AMBIENT_SAMPLE: AmbientSample = {
+  top: "rgba(10, 10, 10, 0.95)",
+  right: "rgba(8, 8, 8, 0.9)",
+  bottom: "rgba(10, 10, 10, 0.95)",
+  left: "rgba(8, 8, 8, 0.9)",
+  center: "rgba(18, 18, 18, 0.65)",
+  key: "default",
+};
+
+function ambientRgba([r, g, b]: [number, number, number], alpha: number) {
+  const lift = 1.08;
+  return `rgba(${Math.round(clamp(r * lift, 0, 255))}, ${Math.round(clamp(g * lift, 0, 255))}, ${Math.round(clamp(b * lift, 0, 255))}, ${alpha})`;
+}
+
+function sampleRegion(
+  imageData: ImageData,
+  startX: number,
+  startY: number,
+  endX: number,
+  endY: number,
+): [number, number, number] {
+  const { data, width, height } = imageData;
+  const x0 = Math.max(0, Math.min(width - 1, Math.floor(startX)));
+  const y0 = Math.max(0, Math.min(height - 1, Math.floor(startY)));
+  const x1 = Math.max(x0 + 1, Math.min(width, Math.ceil(endX)));
+  const y1 = Math.max(y0 + 1, Math.min(height, Math.ceil(endY)));
+
+  let red = 0;
+  let green = 0;
+  let blue = 0;
+  let totalWeight = 0;
+
+  for (let y = y0; y < y1; y += 1) {
+    for (let x = x0; x < x1; x += 1) {
+      const offset = (y * width + x) * 4;
+      const r = data[offset] ?? 0;
+      const g = data[offset + 1] ?? 0;
+      const b = data[offset + 2] ?? 0;
+      const max = Math.max(r, g, b);
+      const min = Math.min(r, g, b);
+      const saturation = max === 0 ? 0 : (max - min) / max;
+      const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+      const weight = (0.2 + saturation * 1.35) * (0.35 + clamp(luminance, 0, 1) * 0.65);
+
+      red += r * weight;
+      green += g * weight;
+      blue += b * weight;
+      totalWeight += weight;
+    }
+  }
+
+  if (totalWeight <= 0) return [10, 10, 10];
+  return [red / totalWeight, green / totalWeight, blue / totalWeight];
+}
+
+function extractAmbientSample(context: CanvasRenderingContext2D): AmbientSample {
+  const imageData = context.getImageData(0, 0, AMBIENT_SAMPLE_WIDTH, AMBIENT_SAMPLE_HEIGHT);
+  const edgeHeight = Math.max(4, Math.floor(AMBIENT_SAMPLE_HEIGHT * 0.32));
+  const edgeWidth = Math.max(6, Math.floor(AMBIENT_SAMPLE_WIDTH * 0.26));
+  const centerX = AMBIENT_SAMPLE_WIDTH * 0.22;
+  const centerY = AMBIENT_SAMPLE_HEIGHT * 0.22;
+  const centerWidth = AMBIENT_SAMPLE_WIDTH * 0.56;
+  const centerHeight = AMBIENT_SAMPLE_HEIGHT * 0.56;
+
+  const top = sampleRegion(imageData, 0, 0, AMBIENT_SAMPLE_WIDTH, edgeHeight);
+  const right = sampleRegion(imageData, AMBIENT_SAMPLE_WIDTH - edgeWidth, 0, AMBIENT_SAMPLE_WIDTH, AMBIENT_SAMPLE_HEIGHT);
+  const bottom = sampleRegion(imageData, 0, AMBIENT_SAMPLE_HEIGHT - edgeHeight, AMBIENT_SAMPLE_WIDTH, AMBIENT_SAMPLE_HEIGHT);
+  const left = sampleRegion(imageData, 0, 0, edgeWidth, AMBIENT_SAMPLE_HEIGHT);
+  const center = sampleRegion(imageData, centerX, centerY, centerX + centerWidth, centerY + centerHeight);
+
+  const key = [top, right, bottom, left, center]
+    .flatMap((color) => color.map((channel) => Math.round(channel / 6) * 6))
+    .join(",");
+
+  return {
+    top: ambientRgba(top, 0.92),
+    right: ambientRgba(right, 0.82),
+    bottom: ambientRgba(bottom, 0.92),
+    left: ambientRgba(left, 0.82),
+    center: ambientRgba(center, 0.5),
+    key,
+  };
+}
+
 function extractCodecMimeType(mimeType?: string | null) {
   if (!mimeType) return null;
   const [baseType, ...rest] = mimeType.split(";");
@@ -173,6 +269,8 @@ export const Player: React.FC<PlayerProps> = ({
   const qualitySwitchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mediaBufferingRef = useRef(false);
   const seekFeedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const ambientCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const ambientSampleKeyRef = useRef(DEFAULT_AMBIENT_SAMPLE.key);
   // Stall watchdog / source-fallback bookkeeping.
   const waitingSinceRef = useRef<number | null>(null);
   const stallCountRef = useRef(0);
@@ -276,6 +374,7 @@ export const Player: React.FC<PlayerProps> = ({
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [muted, setMuted] = useState(false);
   const [ambientMode] = useState(true);
+  const [ambientSample, setAmbientSample] = useState<AmbientSample>(DEFAULT_AMBIENT_SAMPLE);
   const {
     sponsorBlockEnabled,
     sponsorBlockActions,
@@ -344,9 +443,107 @@ export const Player: React.FC<PlayerProps> = ({
     (hasSelectedAlternateAudio || (!!selectedQuality && !selectedQuality.hasAudio));
 
   const isPipMode = videoPlayerMode === "pip";
+  const isTheaterSurface = isTheaterMode && !isPipMode;
   const shouldShowControls = controlsVisible || !isPlaying || settingsOpen || isScrubbing;
-  const showAmbient = ambientMode && !!poster && !error;
+  const showAmbient = ambientMode && isTheaterSurface && !error;
   const effectivePoster = hasStartedPlayback || resumeTime > 0 || isSourceSwitching ? undefined : poster || undefined;
+  const ambientBackdropStyle = useMemo<React.CSSProperties>(() => ({
+    background: [
+      `radial-gradient(ellipse at 50% -6%, ${ambientSample.top} 0%, transparent 58%)`,
+      `radial-gradient(ellipse at 50% 106%, ${ambientSample.bottom} 0%, transparent 58%)`,
+      `radial-gradient(ellipse at -6% 50%, ${ambientSample.left} 0%, transparent 54%)`,
+      `radial-gradient(ellipse at 106% 50%, ${ambientSample.right} 0%, transparent 54%)`,
+      `radial-gradient(circle at 50% 50%, ${ambientSample.center} 0%, transparent 46%)`,
+      "linear-gradient(180deg, rgba(0, 0, 0, 0.88) 0%, rgba(0, 0, 0, 0.5) 45%, rgba(0, 0, 0, 0.88) 100%)",
+    ].join(", "),
+  }), [ambientSample]);
+
+  useEffect(() => {
+    if (!showAmbient) {
+      ambientSampleKeyRef.current = DEFAULT_AMBIENT_SAMPLE.key;
+      setAmbientSample(DEFAULT_AMBIENT_SAMPLE);
+      return;
+    }
+
+    const video = videoRef.current;
+    if (!video) return;
+
+    let cancelled = false;
+    let frameHandle: number | null = null;
+    let intervalId: number | null = null;
+    let lastSampleAt = 0;
+    let samplingBlocked = false;
+    const frameVideo = video as {
+      requestVideoFrameCallback?: (callback: () => void) => number;
+      cancelVideoFrameCallback?: (handle: number) => void;
+    };
+
+    const sampleFrame = () => {
+      if (
+        cancelled ||
+        samplingBlocked ||
+        video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA ||
+        video.videoWidth <= 0 ||
+        video.videoHeight <= 0
+      ) {
+        return;
+      }
+
+      const now = performance.now();
+      if (now - lastSampleAt < AMBIENT_SAMPLE_INTERVAL_MS) return;
+      lastSampleAt = now;
+
+      const canvas = ambientCanvasRef.current ?? document.createElement("canvas");
+      ambientCanvasRef.current = canvas;
+      if (canvas.width !== AMBIENT_SAMPLE_WIDTH) canvas.width = AMBIENT_SAMPLE_WIDTH;
+      if (canvas.height !== AMBIENT_SAMPLE_HEIGHT) canvas.height = AMBIENT_SAMPLE_HEIGHT;
+
+      const context = canvas.getContext("2d", { willReadFrequently: true });
+      if (!context) return;
+
+      try {
+        context.drawImage(video, 0, 0, AMBIENT_SAMPLE_WIDTH, AMBIENT_SAMPLE_HEIGHT);
+        const nextSample = extractAmbientSample(context);
+        if (nextSample.key !== ambientSampleKeyRef.current) {
+          ambientSampleKeyRef.current = nextSample.key;
+          setAmbientSample(nextSample);
+        }
+      } catch (error) {
+        samplingBlocked = true;
+        ambientSampleKeyRef.current = DEFAULT_AMBIENT_SAMPLE.key;
+        setAmbientSample(DEFAULT_AMBIENT_SAMPLE);
+        console.warn("Video ambient sampling unavailable; using neutral backdrop", error);
+      }
+    };
+
+    const scheduleNextFrame = () => {
+      if (!frameVideo.requestVideoFrameCallback || cancelled) return;
+      frameHandle = frameVideo.requestVideoFrameCallback(() => {
+        sampleFrame();
+        scheduleNextFrame();
+      });
+    };
+
+    sampleFrame();
+    if (frameVideo.requestVideoFrameCallback) {
+      scheduleNextFrame();
+    } else {
+      intervalId = window.setInterval(sampleFrame, AMBIENT_SAMPLE_INTERVAL_MS);
+    }
+
+    video.addEventListener("loadeddata", sampleFrame);
+    video.addEventListener("seeked", sampleFrame);
+    video.addEventListener("play", sampleFrame);
+
+    return () => {
+      cancelled = true;
+      video.removeEventListener("loadeddata", sampleFrame);
+      video.removeEventListener("seeked", sampleFrame);
+      video.removeEventListener("play", sampleFrame);
+      if (intervalId !== null) window.clearInterval(intervalId);
+      if (frameHandle !== null) frameVideo.cancelVideoFrameCallback?.(frameHandle);
+    };
+  }, [dashManifestUrl, hlsManifestUrl, showAmbient, src]);
 
   const logPlayerEvent = useCallback((event: string, payload: Record<string, unknown> = {}) => {
     const entry = formatPlayerLogPayload({
@@ -1655,7 +1852,7 @@ export const Player: React.FC<PlayerProps> = ({
   };
 
   const playerRootClasses = cx(
-    isTheaterMode
+    isTheaterSurface
       ? "relative w-full aspect-video max-h-[calc(100vh-160px)] min-h-[480px] bg-black flex items-center justify-center rounded-none overflow-hidden text-white outline-none shadow-none"
       : "relative w-full aspect-video bg-black rounded-xl overflow-hidden text-white outline-none shadow-2xl",
     isFullscreen && "rounded-none",
@@ -1674,12 +1871,16 @@ export const Player: React.FC<PlayerProps> = ({
       }}
     >
       {showAmbient && (
-        <img
-          src={poster || undefined}
-          alt=""
+        <div
           aria-hidden="true"
-          className="pointer-events-none absolute inset-[-8%] h-[116%] w-[116%] scale-110 object-cover opacity-35 blur-3xl saturate-150"
-        />
+          className="pointer-events-none absolute inset-0 z-0 overflow-hidden bg-black"
+        >
+          <div
+            className="absolute inset-[-18%] opacity-95 blur-3xl saturate-150 transition-colors duration-700 ease-out"
+            style={ambientBackdropStyle}
+          />
+          <div className="absolute inset-0 bg-black/25" />
+        </div>
       )}
 
       <video
