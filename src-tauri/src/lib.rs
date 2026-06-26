@@ -22,8 +22,9 @@ use commands::db::{
     get_watch_history, set_setting,
 };
 use commands::downloads::{
-    DownloadManager, cancel_download, clear_downloads, delete_downloads, get_download_formats,
-    get_downloaded_video_ids, get_offline_stream, list_downloads, pause_download, resume_download,
+    DownloadManager, cancel_download, clear_downloads, create_download_collection,
+    delete_download_collections, delete_downloads, get_download_formats, get_downloaded_video_ids,
+    get_offline_stream, list_download_collections, list_downloads, pause_download, resume_download,
     start_download,
 };
 use commands::files::write_backup_file;
@@ -174,6 +175,9 @@ pub fn run() {
             get_offline_stream,
             delete_downloads,
             clear_downloads,
+            create_download_collection,
+            list_download_collections,
+            delete_download_collections,
             rank_videos,
             log_interaction,
             mark_not_interested,

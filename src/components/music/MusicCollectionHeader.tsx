@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Bookmark, Download, Music2, Play, Search, Shuffle } from 'lucide-react';
+import { Bookmark, Check, Download, Loader2, Music2, Play, Search, Shuffle } from 'lucide-react';
 
 import { getString } from '../../lib/i18n/index';
 import type { CollectionMeta } from '../../lib/useMusicCollection';
@@ -16,6 +16,8 @@ interface MusicCollectionHeaderProps {
   onToggleSave?: () => void;
   onAddTracks?: () => void;
   onDownload?: () => void;
+  downloadActive?: boolean;
+  downloadComplete?: boolean;
 }
 
 function Cover({ src, alt }: { src: string | null | undefined; alt: string }) {
@@ -51,6 +53,8 @@ export function MusicCollectionHeader({
   onToggleSave,
   onAddTracks,
   onDownload,
+  downloadActive,
+  downloadComplete,
 }: MusicCollectionHeaderProps) {
   const thumbnailUrl = useProxiedImageUrl(upgradeMusicImageUrl(meta.thumbnail));
   const metaParts = [
@@ -181,11 +185,20 @@ export function MusicCollectionHeader({
               <button
                 type="button"
                 aria-label={getString('music_download')}
-                title={getString('music_download')}
+                title={getString(
+                  downloadComplete ? 'downloaded' : downloadActive ? 'downloads_downloading' : 'music_download',
+                )}
                 onClick={onDownload}
-                className="grid h-12 w-12 place-items-center rounded-full bg-surface-container-high text-neutral-200 transition-colors duration-200 ease-out hover:bg-surface-container-highest"
+                disabled={downloadActive}
+                className="grid h-12 w-12 place-items-center rounded-full bg-surface-container-high text-neutral-200 transition-colors duration-200 ease-out hover:bg-surface-container-highest disabled:opacity-60"
               >
-                <Download className="h-5 w-5" />
+                {downloadActive ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : downloadComplete ? (
+                  <Check className="h-5 w-5 text-[var(--color-primary)]" />
+                ) : (
+                  <Download className="h-5 w-5" />
+                )}
               </button>
             ) : null}
           </div>

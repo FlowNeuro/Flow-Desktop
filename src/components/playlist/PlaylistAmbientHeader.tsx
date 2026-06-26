@@ -1,6 +1,7 @@
-import { Download, MoreVertical, Play, Shuffle } from "lucide-react";
+import { Check, Download, Loader2, MoreVertical, Play, Shuffle } from "lucide-react";
 import { Button } from "../ui/Button";
 import { IconButton } from "../ui/IconButton";
+import { getString } from "../../lib/i18n/index";
 import type { PlaylistDetailsMeta } from "../../lib/usePlaylistDetails";
 import { useVideoThumbnail } from "../../lib/useVideoThumbnail";
 
@@ -11,6 +12,9 @@ interface PlaylistAmbientHeaderProps {
   onPlayAll: () => void;
   onShuffle: () => void;
   canPlay: boolean;
+  onDownload?: () => void;
+  downloadActive?: boolean;
+  downloadComplete?: boolean;
 }
 
 function isUnknownOwner(name: string) {
@@ -24,6 +28,9 @@ export function PlaylistAmbientHeader({
   onPlayAll,
   onShuffle,
   canPlay,
+  onDownload,
+  downloadActive,
+  downloadComplete,
 }: PlaylistAmbientHeaderProps) {
   const { src: ambientSrc, onError: onThumbnailError } = useVideoThumbnail(
     heroVideoId,
@@ -98,10 +105,24 @@ export function PlaylistAmbientHeader({
 
           <div className="flex shrink-0 items-center gap-2">
             <IconButton
-              aria-label="Download playlist"
-              onClick={() => console.info("Download playlist", meta.id)}
+              aria-label={getString("downloads_download_playlist")}
+              title={getString(
+                downloadComplete
+                  ? "downloaded"
+                  : downloadActive
+                    ? "downloads_downloading"
+                    : "downloads_download_playlist",
+              )}
+              onClick={onDownload}
+              disabled={!onDownload || downloadActive}
             >
-              <Download size={18} />
+              {downloadActive ? (
+                <Loader2 size={18} className="animate-spin" />
+              ) : downloadComplete ? (
+                <Check size={18} className="text-[var(--color-primary)]" />
+              ) : (
+                <Download size={18} />
+              )}
             </IconButton>
             <IconButton aria-label="Playlist menu">
               <MoreVertical size={18} />

@@ -6,6 +6,8 @@ import { Button } from '../../components/ui/Button';
 import { AlbumTrackRow } from '../../components/music/AlbumTrackRow';
 import { MusicCollectionHeader } from '../../components/music/MusicCollectionHeader';
 import { useMusicCollection, type CollectionKind } from '../../lib/useMusicCollection';
+import { useCollectionDownloadState } from '../../lib/useCollectionDownloads';
+import { useCollectionDownloadStore } from '../../store/useCollectionDownloadStore';
 import { useMusicPlayerStore } from '../../store/useMusicPlayerStore';
 import { useAlbumLibraryStore } from '../../store/useAlbumLibraryStore';
 import { useUiStore } from '../../store/useUiStore';
@@ -68,6 +70,9 @@ export default function MusicCollectionPage({ kind }: { kind: CollectionKind }) 
   const { meta, songs, loading, loadingMore, error, hasMore, loadMore, reload, ownedAlbumId } =
     useMusicCollection(kind, id);
 
+  const startAlbumDownload = useCollectionDownloadStore((s) => s.startAlbum);
+  const albumDownloadState = useCollectionDownloadState(kind === 'album' ? id : undefined, 'album');
+
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
@@ -127,6 +132,19 @@ export default function MusicCollectionPage({ kind }: { kind: CollectionKind }) 
   };
 
   const isOnlineAlbum = kind === 'album' && !ownedAlbumId;
+
+  const handleDownloadAlbum = () => {
+    if (!id || songs.length === 0) return;
+    void startAlbumDownload(
+      {
+        collectionId: id,
+        title: meta.title,
+        author: meta.artistName || undefined,
+        thumbnailUrl: meta.thumbnail ?? undefined,
+      },
+      songs,
+    );
+  };
 
   const handleToggleSave = () => {
     if (!id) return;
@@ -193,6 +211,9 @@ export default function MusicCollectionPage({ kind }: { kind: CollectionKind }) 
         saved={isOnlineAlbum ? isAlbumSaved : undefined}
         onToggleSave={isOnlineAlbum ? handleToggleSave : undefined}
         onAddTracks={ownedAlbumId ? () => openTrackSearch(ownedAlbumId) : undefined}
+        onDownload={kind === 'album' ? handleDownloadAlbum : undefined}
+        downloadActive={albumDownloadState.active}
+        downloadComplete={albumDownloadState.isComplete}
       />
 
       <div className="mx-auto flex max-w-[1600px] flex-col gap-4 px-8 pt-6">

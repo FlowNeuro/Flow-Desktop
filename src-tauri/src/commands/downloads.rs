@@ -18,6 +18,7 @@ use sqlx::SqlitePool;
 use crate::api::innertube::download::{
     DownloadContainer, DownloadableFormat, container_from_mime, pair_downloadable_formats,
 };
+use crate::db::download_collections::DownloadCollectionRecord;
 use crate::db::downloads::DownloadRecord;
 use crate::errors::{AppError, ErrorResponse};
 use crate::security::validation::validate_video_id;
@@ -150,6 +151,7 @@ pub struct StartDownloadRequest {
     pub thumbnail_url: Option<String>,
     pub author: Option<String>,
     pub duration_seconds: Option<u64>,
+    pub collection_db_id: Option<i64>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -192,6 +194,7 @@ struct DownloadProgress {
     logs: Vec<String>,
     video_id: Option<String>,
     thumbnail_url: Option<String>,
+    collection_db_id: Option<i64>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize)]
@@ -223,6 +226,7 @@ struct DownloadContext {
     thumbnail_url: Option<String>,
     author: Option<String>,
     duration_seconds: Option<u64>,
+    collection_db_id: Option<i64>,
     pool: SqlitePool,
 }
 
@@ -264,6 +268,7 @@ struct ProgressEmitter {
     logs: Arc<Mutex<Vec<String>>>,
     video_id: Option<String>,
     thumbnail_url: Option<String>,
+    collection_db_id: Option<i64>,
 }
 
 impl ProgressEmitter {
@@ -287,6 +292,7 @@ impl ProgressEmitter {
                     .unwrap_or_default(),
                 video_id: self.video_id.clone(),
                 thumbnail_url: self.thumbnail_url.clone(),
+                collection_db_id: self.collection_db_id,
             },
         );
     }
@@ -341,6 +347,7 @@ pub async fn start_download(
         thumbnail_url,
         author,
         duration_seconds,
+        collection_db_id,
     } = request;
     let title = title.trim().to_string();
 
@@ -446,6 +453,7 @@ pub async fn start_download(
         thumbnail_url,
         author,
         duration_seconds,
+        collection_db_id,
         pool,
     };
     let _ = app.emit(
@@ -463,6 +471,7 @@ pub async fn start_download(
             logs: vec!["Download added to the queue".to_string()],
             video_id: context.video_id.clone(),
             thumbnail_url: context.thumbnail_url.clone(),
+            collection_db_id: context.collection_db_id,
         },
     );
     let app_for_task = app.clone();
@@ -710,6 +719,7 @@ async fn run_download(mut context: DownloadContext, app: AppHandle) {
         logs: Arc::new(Mutex::new(vec!["Download started".to_string()])),
         video_id: context.video_id.clone(),
         thumbnail_url: context.thumbnail_url.clone(),
+        collection_db_id: context.collection_db_id,
     };
     emitter.emit(DownloadStatus::Queued, None);
 
@@ -819,6 +829,7 @@ async fn run_adaptive_download(
         ])),
         video_id: context.video_id.clone(),
         thumbnail_url: context.thumbnail_url.clone(),
+        collection_db_id: context.collection_db_id,
     };
     emitter.emit(DownloadStatus::Downloading, None);
 
@@ -992,6 +1003,7 @@ fn child_download_context(context: &DownloadContext, temp_path: PathBuf) -> Down
         thumbnail_url: None,
         author: None,
         duration_seconds: None,
+        collection_db_id: None,
         pool: context.pool.clone(),
     }
 }
@@ -1438,6 +1450,7 @@ async fn ensure_valid_adaptive_source(
         thumbnail_url: None,
         author: None,
         duration_seconds: None,
+        collection_db_id: None,
         pool: context.pool.clone(),
     };
     cleanup_partial_files(&repair_context).await;
@@ -1620,6 +1633,7 @@ async fn record_completed_download(context: &DownloadContext) {
             .and_then(|seconds| i64::try_from(seconds).ok()),
         quality_label: Some(context.quality_label.clone()),
         file_size_bytes,
+        collection_db_id: context.collection_db_id,
         created_at: String::new(),
     };
     if let Err(error) = crate::db::downloads::upsert_download(&context.pool, &record).await {
@@ -1658,6 +1672,7 @@ fn emit_terminal_error(context: &DownloadContext, app: &AppHandle, error: String
             logs: vec![error],
             video_id: context.video_id.clone(),
             thumbnail_url: context.thumbnail_url.clone(),
+            collection_db_id: context.collection_db_id,
         },
     );
 }
@@ -1678,6 +1693,7 @@ fn emit_cancelled(context: &DownloadContext, app: &AppHandle) {
             logs: vec!["Download cancelled while queued".to_string()],
             video_id: context.video_id.clone(),
             thumbnail_url: context.thumbnail_url.clone(),
+            collection_db_id: context.collection_db_id,
         },
     );
 }
@@ -1798,14 +1814,170 @@ fn offline_content_type(path: &str, media_kind: DownloadMediaKind) -> String {
         .to_ascii_lowercase();
     let is_video = matches!(media_kind, DownloadMediaKind::Video);
     match extension.as_str() {
-        "mp4" | "m4v" => if is_video { "video/mp4" } else { "audio/mp4" },
+        "mp4" | "m4v" => {
+            if is_video {
+                "video/mp4"
+            } else {
+                "audio/mp4"
+            }
+        }
         "m4a" => "audio/mp4",
-        "webm" | "mkv" => if is_video { "video/webm" } else { "audio/webm" },
+        "webm" | "mkv" => {
+            if is_video {
+                "video/webm"
+            } else {
+                "audio/webm"
+            }
+        }
         "opus" | "ogg" => "audio/ogg",
         "mp3" => "audio/mpeg",
-        _ => if is_video { "video/mp4" } else { "audio/mp4" },
+        _ => {
+            if is_video {
+                "video/mp4"
+            } else {
+                "audio/mp4"
+            }
+        }
     }
     .to_string()
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateCollectionRequest {
+    pub collection_id: String,
+    pub kind: String,
+    pub title: String,
+    pub author: Option<String>,
+    pub thumbnail_url: Option<String>,
+    pub total_count: i64,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreatedCollection {
+    pub id: i64,
+    pub folder_path: String,
+    /// Items already saved in this collection, so the orchestrator can skip them.
+    pub existing_video_ids: Vec<String>,
+}
+
+/// Creates (or reuses) a playlist/album collection folder and DB row, returning the
+/// destination folder each item should download into. Re-downloading the same
+/// collection resumes into the existing folder instead of duplicating it.
+#[tauri::command]
+pub async fn create_download_collection(
+    request: CreateCollectionRequest,
+    app: AppHandle,
+    pool: State<'_, SqlitePool>,
+) -> Result<CreatedCollection, ErrorResponse> {
+    let title = request.title.trim().to_string();
+    if title.is_empty() || title.chars().count() > 240 {
+        return Err(ErrorResponse::from(AppError::Validation(
+            "Collection title must contain between 1 and 240 characters".into(),
+        )));
+    }
+    let media_kind = match request.kind.as_str() {
+        "album" => DownloadMediaKind::Music,
+        "playlist" => DownloadMediaKind::Video,
+        other => {
+            return Err(ErrorResponse::from(AppError::Validation(format!(
+                "Unknown collection kind `{other}`"
+            ))));
+        }
+    };
+
+    if let Some(existing) = crate::db::download_collections::find_collection(
+        &pool,
+        &request.collection_id,
+        &request.kind,
+    )
+    .await
+    .map_err(ErrorResponse::from)?
+    {
+        let id = existing.id.unwrap_or_default();
+        crate::db::download_collections::set_total_count(&pool, id, request.total_count)
+            .await
+            .map_err(ErrorResponse::from)?;
+        let existing_video_ids = crate::db::download_collections::collection_video_ids(&pool, id)
+            .await
+            .map_err(ErrorResponse::from)?;
+        tokio::fs::create_dir_all(&existing.folder_path)
+            .await
+            .map_err(|error| {
+                download_error(format!("Could not open collection folder: {error}"))
+            })?;
+        return Ok(CreatedCollection {
+            id,
+            folder_path: existing.folder_path,
+            existing_video_ids,
+        });
+    }
+
+    let base = resolve_destination_directory(&app, media_kind, None)?;
+    let folder = base.join(sanitize_file_stem(&title));
+    tokio::fs::create_dir_all(&folder)
+        .await
+        .map_err(|error| download_error(format!("Could not create collection folder: {error}")))?;
+    let folder_path = folder.to_string_lossy().into_owned();
+
+    let record = DownloadCollectionRecord {
+        id: None,
+        collection_id: request.collection_id,
+        kind: request.kind,
+        title,
+        author: request.author,
+        thumbnail_url: request.thumbnail_url,
+        folder_path: folder_path.clone(),
+        total_count: request.total_count,
+        created_at: String::new(),
+        downloaded_count: 0,
+    };
+    let id = crate::db::download_collections::insert_collection(&pool, &record)
+        .await
+        .map_err(ErrorResponse::from)?;
+    Ok(CreatedCollection {
+        id,
+        folder_path,
+        existing_video_ids: Vec::new(),
+    })
+}
+
+#[tauri::command]
+pub async fn list_download_collections(
+    pool: State<'_, SqlitePool>,
+) -> Result<Vec<DownloadCollectionRecord>, ErrorResponse> {
+    crate::db::download_collections::list_collections(&pool)
+        .await
+        .map_err(ErrorResponse::from)
+}
+
+#[tauri::command]
+pub async fn delete_download_collections(
+    ids: Vec<i64>,
+    pool: State<'_, SqlitePool>,
+) -> Result<(), ErrorResponse> {
+    let collections = crate::db::download_collections::collections_by_ids(&pool, &ids)
+        .await
+        .map_err(ErrorResponse::from)?;
+    for collection in &collections {
+        if let Some(id) = collection.id {
+            let records = crate::db::downloads::downloads_for_collection(&pool, id)
+                .await
+                .unwrap_or_default();
+            for record in &records {
+                remove_download_files(Path::new(&record.file_path)).await;
+            }
+        }
+        // Only removes the folder if our files left it empty (never nukes unrelated content).
+        let _ = tokio::fs::remove_dir(&collection.folder_path).await;
+    }
+    crate::db::download_collections::delete_collection_items(&pool, &ids)
+        .await
+        .map_err(ErrorResponse::from)?;
+    crate::db::download_collections::delete_collections(&pool, &ids)
+        .await
+        .map_err(ErrorResponse::from)
 }
 
 /// Removes a downloaded media file along with its best-effort companion sidecars.

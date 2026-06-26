@@ -15,26 +15,41 @@ pub struct DownloadRecord {
     pub duration_seconds: Option<i64>,
     pub quality_label: Option<String>,
     pub file_size_bytes: Option<i64>,
+    pub collection_db_id: Option<i64>,
     #[serde(default)]
     pub created_at: String,
 }
 
-const SELECT_COLUMNS: &str = "id, video_id, title, author, media_kind, file_path, thumbnail_url, duration_seconds, quality_label, file_size_bytes, created_at";
+const SELECT_COLUMNS: &str = "id, video_id, title, author, media_kind, file_path, thumbnail_url, duration_seconds, quality_label, file_size_bytes, collection_db_id, created_at";
 
 /// Inserts a completed download, replacing any prior entry for the same `video_id`
 /// (re-downloading a video updates its library entry rather than duplicating it).
 pub async fn upsert_download(pool: &SqlitePool, record: &DownloadRecord) -> AppResult<()> {
     if let Some(video_id) = record.video_id.as_deref() {
-        sqlx::query("DELETE FROM downloads WHERE video_id = ?")
-            .bind(video_id)
-            .execute(pool)
-            .await
-            .map_err(|e| AppError::Database(e.to_string()))?;
+        match record.collection_db_id {
+            Some(collection_db_id) => {
+                sqlx::query("DELETE FROM downloads WHERE video_id = ? AND collection_db_id = ?")
+                    .bind(video_id)
+                    .bind(collection_db_id)
+                    .execute(pool)
+                    .await
+                    .map_err(|e| AppError::Database(e.to_string()))?;
+            }
+            None => {
+                sqlx::query(
+                    "DELETE FROM downloads WHERE video_id = ? AND collection_db_id IS NULL",
+                )
+                .bind(video_id)
+                .execute(pool)
+                .await
+                .map_err(|e| AppError::Database(e.to_string()))?;
+            }
+        }
     }
 
     sqlx::query(
-        "INSERT INTO downloads (video_id, title, author, media_kind, file_path, thumbnail_url, duration_seconds, quality_label, file_size_bytes)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO downloads (video_id, title, author, media_kind, file_path, thumbnail_url, duration_seconds, quality_label, file_size_bytes, collection_db_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&record.video_id)
     .bind(&record.title)
@@ -45,6 +60,7 @@ pub async fn upsert_download(pool: &SqlitePool, record: &DownloadRecord) -> AppR
     .bind(record.duration_seconds)
     .bind(&record.quality_label)
     .bind(record.file_size_bytes)
+    .bind(record.collection_db_id)
     .execute(pool)
     .await
     .map_err(|e| AppError::Database(e.to_string()))?;
@@ -52,8 +68,22 @@ pub async fn upsert_download(pool: &SqlitePool, record: &DownloadRecord) -> AppR
     Ok(())
 }
 
+pub async fn downloads_for_collection(
+    pool: &SqlitePool,
+    collection_db_id: i64,
+) -> AppResult<Vec<DownloadRecord>> {
+    let query = format!("SELECT {SELECT_COLUMNS} FROM downloads WHERE collection_db_id = ?");
+    sqlx::query_as::<_, DownloadRecord>(&query)
+        .bind(collection_db_id)
+        .fetch_all(pool)
+        .await
+        .map_err(|e| AppError::Database(e.to_string()))
+}
+
 pub async fn list_downloads(pool: &SqlitePool) -> AppResult<Vec<DownloadRecord>> {
-    let query = format!("SELECT {SELECT_COLUMNS} FROM downloads ORDER BY datetime(created_at) DESC, id DESC");
+    let query = format!(
+        "SELECT {SELECT_COLUMNS} FROM downloads ORDER BY datetime(created_at) DESC, id DESC"
+    );
     sqlx::query_as::<_, DownloadRecord>(&query)
         .fetch_all(pool)
         .await
@@ -79,8 +109,7 @@ pub async fn downloads_by_ids(pool: &SqlitePool, ids: &[i64]) -> AppResult<Vec<D
         return Ok(Vec::new());
     }
     let placeholders = vec!["?"; ids.len()].join(", ");
-    let query =
-        format!("SELECT {SELECT_COLUMNS} FROM downloads WHERE id IN ({placeholders})");
+    let query = format!("SELECT {SELECT_COLUMNS} FROM downloads WHERE id IN ({placeholders})");
     let mut statement = sqlx::query_as::<_, DownloadRecord>(&query);
     for id in ids {
         statement = statement.bind(id);

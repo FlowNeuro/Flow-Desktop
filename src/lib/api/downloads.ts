@@ -26,6 +26,7 @@ export interface StartDownloadRequest {
   thumbnailUrl?: string;
   author?: string;
   durationSeconds?: number;
+  collectionDbId?: number;
 }
 
 export interface AdaptiveDownloadRequest {
@@ -54,6 +55,7 @@ export interface DownloadProgress {
   logs: string[];
   videoId: string | null;
   thumbnailUrl: string | null;
+  collectionDbId: number | null;
 }
 
 export type DownloadContainer = "mp4" | "mkv";
@@ -109,6 +111,7 @@ export interface DownloadRecord {
   durationSeconds: number | null;
   qualityLabel: string | null;
   fileSizeBytes: number | null;
+  collectionDbId: number | null;
   createdAt: string;
 }
 
@@ -138,4 +141,49 @@ export function getOfflineStream(
   mediaKind: DownloadMediaKind,
 ): Promise<OfflineStreamInfo> {
   return invokeBackend<OfflineStreamInfo>("get_offline_stream", { videoId, mediaKind });
+}
+
+export type DownloadCollectionKind = "playlist" | "album";
+
+export interface CreateCollectionRequest {
+  collectionId: string;
+  kind: DownloadCollectionKind;
+  title: string;
+  author?: string;
+  thumbnailUrl?: string;
+  totalCount: number;
+}
+
+export interface CreatedCollection {
+  id: number;
+  folderPath: string;
+  existingVideoIds: string[];
+}
+
+export interface DownloadCollectionRecord {
+  id: number;
+  collectionId: string;
+  kind: DownloadCollectionKind;
+  title: string;
+  author: string | null;
+  thumbnailUrl: string | null;
+  folderPath: string;
+  totalCount: number;
+  downloadedCount: number;
+  createdAt: string;
+}
+
+/** Creates (or reuses) a collection folder + record; returns the destination folder. */
+export function createDownloadCollection(
+  request: CreateCollectionRequest,
+): Promise<CreatedCollection> {
+  return invokeBackend<CreatedCollection>("create_download_collection", { request });
+}
+
+export function listDownloadCollections(): Promise<DownloadCollectionRecord[]> {
+  return invokeBackend<DownloadCollectionRecord[]>("list_download_collections");
+}
+
+export function deleteDownloadCollections(ids: number[]): Promise<void> {
+  return invokeBackend<void>("delete_download_collections", { ids });
 }

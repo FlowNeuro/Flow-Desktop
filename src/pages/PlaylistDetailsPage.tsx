@@ -9,7 +9,9 @@ import {
 } from "../lib/playlistSort";
 import { updateStoredPlaylistTracks } from "../lib/playlistLibrary";
 import { usePlaylistDetails } from "../lib/usePlaylistDetails";
+import { useCollectionDownloadState } from "../lib/useCollectionDownloads";
 import { usePlayerStore } from "../store/usePlayerStore";
+import { useCollectionDownloadStore } from "../store/useCollectionDownloadStore";
 import type { VideoSummary } from "../types/video";
 
 interface PlaylistDetailsPageProps {
@@ -49,6 +51,22 @@ export function PlaylistDetailsPage({
 
   const leadVideo = manualVideos[0];
   const heroThumbnailUrl = leadVideo?.thumbnailUrl ?? meta?.thumbnailUrl ?? null;
+
+  const startPlaylistDownload = useCollectionDownloadStore((state) => state.startPlaylist);
+  const downloadState = useCollectionDownloadState(meta?.id, "playlist");
+
+  const handleDownloadPlaylist = () => {
+    if (!meta || videos.length === 0) return;
+    void startPlaylistDownload(
+      {
+        collectionId: meta.id,
+        title: meta.title,
+        author: meta.channelName || undefined,
+        thumbnailUrl: heroThumbnailUrl ?? meta.thumbnailUrl ?? undefined,
+      },
+      videos,
+    );
+  };
 
   const handleReorder = async (nextVideos: VideoSummary[]) => {
     setManualVideos(nextVideos);
@@ -109,6 +127,9 @@ export function PlaylistDetailsPage({
           canPlay={displayVideos.length > 0}
           onPlayAll={() => playQueue(false)}
           onShuffle={() => playQueue(true)}
+          onDownload={handleDownloadPlaylist}
+          downloadActive={downloadState.active}
+          downloadComplete={downloadState.isComplete}
         />
 
         <PlaylistSortableList

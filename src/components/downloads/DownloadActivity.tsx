@@ -21,6 +21,8 @@ import { isTauriEnv } from "../../lib/api/env";
 import { getString } from "../../lib/i18n/index";
 import { useDownloadStore } from "../../store/useDownloadStore";
 import { useDownloadsLibraryStore } from "../../store/useDownloadsLibraryStore";
+import { useDownloadCollectionsLibraryStore } from "../../store/useDownloadCollectionsLibraryStore";
+import { useCollectionDownloadStore } from "../../store/useCollectionDownloadStore";
 import { DOWNLOAD_SURFACE_SPRING, downloadSurfaceLayoutId } from "./surface";
 
 function progressPercent(item: DownloadProgress): number | null {
@@ -145,8 +147,12 @@ export function DownloadActivity() {
       if (!tauri) return;
       const stop = await listen<DownloadProgress>("download-progress", (event) => {
         updateProgress(event.payload);
+        useCollectionDownloadStore.getState().handleProgress(event.payload);
         if (event.payload.status === "completed") {
           void useDownloadsLibraryStore.getState().load();
+          if (event.payload.collectionDbId != null) {
+            void useDownloadCollectionsLibraryStore.getState().load();
+          }
         }
       });
       if (disposed) stop();
@@ -158,7 +164,9 @@ export function DownloadActivity() {
     };
   }, [updateProgress]);
 
-  const items = Object.values(active).reverse();
+  const items = Object.values(active)
+    .filter((item) => item.collectionDbId == null)
+    .reverse();
   if (dialog || items.length === 0) return null;
 
   return (

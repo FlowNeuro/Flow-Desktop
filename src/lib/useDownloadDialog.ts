@@ -13,7 +13,7 @@ import { useAppSettingsStore } from "../store/useAppSettingsStore";
 import type { MusicStreamInfo, SongItem } from "../types/music";
 import type { VideoSummary } from "../types/video";
 
-const MUSIC_QUALITY_VALUES = new Set(["Auto", "High", "Medium", "Low"]);
+export const MUSIC_QUALITY_VALUES = new Set(["Auto", "High", "Medium", "Low"]);
 
 function codecLabel(mimeType?: string | null): string {
   const value = mimeType?.toLowerCase() ?? "";
@@ -22,7 +22,7 @@ function codecLabel(mimeType?: string | null): string {
   return "Original";
 }
 
-function selectDefaultFormat(
+export function selectDefaultFormat(
   formats: DownloadableFormat[],
   preferred: string,
 ): DownloadableFormat | null {

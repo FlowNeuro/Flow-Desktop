@@ -3,6 +3,7 @@ import { CheckCircle2, Disc3, Download, Heart, Library, ListPlus, MoreVertical, 
 import type { AlbumItem, ArtistItem, EpisodeItem, PlaylistItem, PodcastItem, SongItem } from '../../types/music';
 import { getString } from '../../lib/i18n/index';
 import { useActiveDownloadForVideo, useIsDownloaded } from '../../lib/useDownloads';
+import { downloadAlbum, useCollectionDownloadState } from '../../lib/useCollectionDownloads';
 import { upgradeAvatarUrl, upgradeMusicImageUrl } from '../../lib/thumbnails';
 import { extractDominantColorFromImage, useDominantColor } from '../../lib/useDominantColor';
 import { useMusicPlayerStore } from '../../store/useMusicPlayerStore';
@@ -298,6 +299,7 @@ function SquareCard({
   const openMusicDownload = useDownloadStore((s) => s.openMusic);
   const squareTrackId = isTrack ? videoIdOf(item) : null;
   const trackDownloaded = useIsDownloaded(squareTrackId);
+  const albumDownload = useCollectionDownloadState(albumBrowseId ?? undefined, "album");
   const menuActions: MusicMenuAction[] = isTrack
     ? [
         {
@@ -344,6 +346,17 @@ function SquareCard({
                 message: getString(nowSaved ? 'music_saved_to_library' : 'music_removed_from_library'),
               });
             },
+          },
+          {
+            id: 'download-album',
+            label: albumDownload.isComplete
+              ? getString('downloaded')
+              : albumDownload.active
+                ? getString('downloads_downloading')
+                : getString('downloads_download_album'),
+            icon:
+              albumDownload.isComplete ? <CheckCircle2 size={16} /> : <Download size={16} />,
+            onSelect: () => void downloadAlbum(item),
           },
           {
             id: 'share',

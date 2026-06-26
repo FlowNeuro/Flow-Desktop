@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Check, Download as DownloadIcon, Loader2, ListChecks, Trash2 } from "lucide-react";
 
 import type { VideoSummary } from "../types/video";
@@ -11,15 +12,21 @@ import {
   isActiveStatus,
   useDownloadsLibrary,
 } from "../lib/useDownloads";
+import {
+  collectionProgress,
+  useDownloadCollectionsLibrary,
+} from "../lib/useCollectionDownloads";
 import { useDownloadStore } from "../store/useDownloadStore";
+import { useCollectionDownloadStore } from "../store/useCollectionDownloadStore";
 import { useMusicPlayerStore } from "../store/useMusicPlayerStore";
 import { Button } from "../components/ui/Button";
 import { SearchInput } from "../components/ui/SearchInput";
 import { CategoryChips } from "../components/layout/CategoryChips";
 import { DownloadVideoCard } from "../components/downloads/DownloadVideoCard";
+import { DownloadCollectionCard } from "../components/downloads/DownloadCollectionCard";
 import { MusicItemCard } from "../components/music/MusicItemCard";
 
-type DownloadsFilter = "all" | "videos" | "music";
+type DownloadsFilter = "all" | "videos" | "music" | "playlists" | "albums";
 
 interface DownloadsProps {
   onPlay: (video: VideoSummary) => void;
@@ -108,7 +115,10 @@ function SelectableMusicRow({
 }
 
 export const Downloads: React.FC<DownloadsProps> = ({ onPlay }) => {
+  const navigate = useNavigate();
   const { records, loading, remove, clear } = useDownloadsLibrary();
+  const { records: collectionRecords, remove: removeCollections } = useDownloadCollectionsLibrary();
+  const collectionRuns = useCollectionDownloadStore((state) => state.runs);
   const active = useDownloadStore((state) => state.active);
   const playQueue = useMusicPlayerStore((state) => state.playQueue);
 
@@ -123,6 +133,8 @@ export const Downloads: React.FC<DownloadsProps> = ({ onPlay }) => {
       { key: "all" as const, label: getString("history_filter_all") },
       { key: "videos" as const, label: getString("history_filter_videos") },
       { key: "music" as const, label: getString("history_filter_music") },
+      { key: "playlists" as const, label: getString("downloads_filter_playlists") },
+      { key: "albums" as const, label: getString("downloads_filter_albums") },
     ],
     [],
   );
@@ -140,7 +152,7 @@ export const Downloads: React.FC<DownloadsProps> = ({ onPlay }) => {
       .filter((item) => item.mediaKind === "video")
       .map<VideoEntry>((item) => ({ key: `active-${item.id}`, video: progressToVideo(item), progress: item }));
     const fromRecords = records
-      .filter((record) => record.mediaKind === "video")
+      .filter((record) => record.mediaKind === "video" && record.collectionDbId == null)
       .map<VideoEntry>((record) => ({
         key: `record-${record.id}`,
         recordId: record.id,
@@ -156,7 +168,7 @@ export const Downloads: React.FC<DownloadsProps> = ({ onPlay }) => {
       .filter((item) => item.mediaKind !== "video")
       .map<MusicEntry>((item) => ({ key: `active-${item.id}`, song: progressToSong(item) }));
     const fromRecords = records
-      .filter((record) => record.mediaKind !== "video")
+      .filter((record) => record.mediaKind !== "video" && record.collectionDbId == null)
       .map<MusicEntry>((record) => ({
         key: `record-${record.id}`,
         recordId: record.id,
@@ -169,10 +181,50 @@ export const Downloads: React.FC<DownloadsProps> = ({ onPlay }) => {
 
   const musicSongs = useMemo(() => musicEntries.map((entry) => entry.song), [musicEntries]);
 
-  const showVideos = filter !== "music" && videoEntries.length > 0;
-  const showMusic = filter !== "videos" && musicEntries.length > 0;
-  const totalCount = records.length + inProgress.length;
-  const hasResults = videoEntries.length > 0 || musicEntries.length > 0;
+  const runByCollection = useMemo(() => {
+    const map = new Map<string, (typeof collectionRuns)[number]>();
+    for (const run of Object.values(collectionRuns)) map.set(`${run.kind}:${run.collectionId}`, run);
+    return map;
+  }, [collectionRuns]);
+
+  const collectionEntries = useMemo(
+    () =>
+      collectionRecords
+        .filter((record) => matchesQuery(query, record.title, record.author))
+        .map((record) => ({
+          record,
+          progress: collectionProgress(record, runByCollection.get(`${record.kind}:${record.collectionId}`)),
+        })),
+    [collectionRecords, runByCollection, query],
+  );
+  const playlistEntries = useMemo(
+    () => collectionEntries.filter((entry) => entry.record.kind === "playlist"),
+    [collectionEntries],
+  );
+  const albumEntries = useMemo(
+    () => collectionEntries.filter((entry) => entry.record.kind === "album"),
+    [collectionEntries],
+  );
+
+  const openCollection = (kind: "playlist" | "album", collectionId: string) => {
+    navigate(kind === "album" ? `/music/album/${collectionId}` : `/playlist/${collectionId}`);
+  };
+
+  const standaloneRecordCount = useMemo(
+    () => records.filter((record) => record.collectionDbId == null).length,
+    [records],
+  );
+
+  const showVideos = (filter === "all" || filter === "videos") && videoEntries.length > 0;
+  const showMusic = (filter === "all" || filter === "music") && musicEntries.length > 0;
+  const showPlaylists = (filter === "all" || filter === "playlists") && playlistEntries.length > 0;
+  const showAlbums = (filter === "all" || filter === "albums") && albumEntries.length > 0;
+  const isEmpty = standaloneRecordCount === 0 && collectionRecords.length === 0;
+  const hasResults =
+    videoEntries.length > 0 ||
+    musicEntries.length > 0 ||
+    playlistEntries.length > 0 ||
+    albumEntries.length > 0;
 
   const toggleSelected = (id: number) => {
     setSelectedIds((current) => {
@@ -197,6 +249,9 @@ export const Downloads: React.FC<DownloadsProps> = ({ onPlay }) => {
 
   const handleClearAll = async () => {
     await clear();
+    if (collectionRecords.length > 0) {
+      await removeCollections(collectionRecords.map((record) => record.id));
+    }
     setShowClearConfirm(false);
     stopSelecting();
   };
@@ -218,7 +273,7 @@ export const Downloads: React.FC<DownloadsProps> = ({ onPlay }) => {
               onChange={(event) => setSearchQuery(event.target.value)}
               placeholder={getString("downloads_search_placeholder")}
               containerClassName="w-full sm:w-72"
-              disabled={loading || totalCount === 0}
+              disabled={loading || isEmpty}
             />
 
             {selecting ? (
@@ -242,7 +297,7 @@ export const Downloads: React.FC<DownloadsProps> = ({ onPlay }) => {
                   type="button"
                   variant="secondary"
                   onClick={() => setSelecting(true)}
-                  disabled={loading || records.length === 0}
+                  disabled={loading || standaloneRecordCount === 0}
                 >
                   <ListChecks size={16} />
                   {getString("downloads_select")}
@@ -251,7 +306,7 @@ export const Downloads: React.FC<DownloadsProps> = ({ onPlay }) => {
                   type="button"
                   variant="destructive"
                   onClick={() => setShowClearConfirm(true)}
-                  disabled={loading || records.length === 0}
+                  disabled={loading || isEmpty}
                 >
                   <Trash2 size={16} />
                   {getString("clear_all")}
@@ -276,7 +331,7 @@ export const Downloads: React.FC<DownloadsProps> = ({ onPlay }) => {
             <Loader2 className="h-9 w-9 animate-spin text-[var(--color-primary)]" />
             <p className="mt-4 text-sm font-medium text-neutral-500">{getString("downloads_loading")}</p>
           </div>
-        ) : totalCount === 0 ? (
+        ) : isEmpty ? (
           <div className="mt-8 flex flex-col items-center justify-center rounded-2xl border border-dashed border-neutral-800 bg-surface-container-low p-10 text-center">
             <DownloadIcon className="mb-4 h-12 w-12 text-neutral-700" />
             <h3 className="font-bold text-neutral-300">{getString("downloads_empty_title")}</h3>
@@ -337,6 +392,44 @@ export const Downloads: React.FC<DownloadsProps> = ({ onPlay }) => {
                         onPlay={() => void playQueue(musicSongs, index)}
                       />
                     </SelectableMusicRow>
+                  ))}
+                </div>
+              </section>
+            ) : null}
+
+            {showPlaylists ? (
+              <section className="min-w-0">
+                <h2 className="mb-4 text-xs font-semibold uppercase tracking-widest text-neutral-500">
+                  {getString("downloads_playlists_section")}
+                </h2>
+                <div className="grid grid-cols-1 gap-x-4 gap-y-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                  {playlistEntries.map((entry) => (
+                    <DownloadCollectionCard
+                      key={`collection-${entry.record.id}`}
+                      collection={entry.record}
+                      progress={entry.progress}
+                      onOpen={() => openCollection("playlist", entry.record.collectionId)}
+                      onDelete={() => void removeCollections([entry.record.id])}
+                    />
+                  ))}
+                </div>
+              </section>
+            ) : null}
+
+            {showAlbums ? (
+              <section className="min-w-0">
+                <h2 className="mb-4 text-xs font-semibold uppercase tracking-widest text-neutral-500">
+                  {getString("downloads_albums_section")}
+                </h2>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+                  {albumEntries.map((entry) => (
+                    <DownloadCollectionCard
+                      key={`collection-${entry.record.id}`}
+                      collection={entry.record}
+                      progress={entry.progress}
+                      onOpen={() => openCollection("album", entry.record.collectionId)}
+                      onDelete={() => void removeCollections([entry.record.id])}
+                    />
                   ))}
                 </div>
               </section>

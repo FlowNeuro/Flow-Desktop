@@ -613,7 +613,8 @@ async fn relay_local_file(
     let total = match file.metadata().await {
         Ok(meta) => meta.len(),
         Err(_) => {
-            return write_status_only(socket, 500, "Internal Server Error", "Cannot read file").await
+            return write_status_only(socket, 500, "Internal Server Error", "Cannot read file")
+                .await;
         }
     };
 

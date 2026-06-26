@@ -92,11 +92,11 @@ export function useLibrary() {
         liked,
         savedShorts: savedShorts.slice(0, SHELF_PREVIEW_LIMIT),
         videoDownloads: downloadRecords
-          .filter((record) => record.mediaKind === "video")
+          .filter((record) => record.mediaKind === "video" && record.collectionDbId == null)
           .slice(0, SHELF_PREVIEW_LIMIT)
           .map(downloadRecordToVideo),
         musicDownloads: downloadRecords
-          .filter((record) => record.mediaKind !== "video")
+          .filter((record) => record.mediaKind !== "video" && record.collectionDbId == null)
           .slice(0, SHELF_PREVIEW_LIMIT)
           .map(downloadRecordToSong),
       });
