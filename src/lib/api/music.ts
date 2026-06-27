@@ -2,12 +2,14 @@
 // Mirrors the style of `youtube.ts`; every function maps 1:1 to a
 // `#[tauri::command]` in `src-tauri/src/commands/music.rs`.
 
+import { isDeepFlowCurrentlyActive } from "../deepFlow";
 import { invokeBackend } from "./errors";
 import type {
   AlbumItem,
   AlbumPage,
   ArtistPage,
   ChartsPage,
+  DailyMixSeed,
   ExplorePage,
   MoodAndGenreItem,
   MoodGenrePage,
@@ -20,6 +22,7 @@ import type {
   RelatedPage,
   SearchSummaryPage,
   SongContinuation,
+  SongItem,
 } from "../../types/music";
 
 export type MusicAudioQuality = "Auto" | "High" | "Medium" | "Low";
@@ -141,4 +144,78 @@ export function getMusicStream(
   audioQuality: MusicAudioQuality = "Auto",
 ): Promise<MusicStreamInfo> {
   return invokeBackend<MusicStreamInfo>("get_music_stream", { videoId, audioQuality });
+}
+
+// --- Music brain (dedicated, entity-based; separate from the video engine) -----
+
+export async function recordMusicInteraction(params: {
+  trackId: string;
+  artistId?: string | null;
+  artistName: string;
+  title?: string | null;
+  thumbnail?: string | null;
+  genre?: string | null;
+  percentPlayed: number;
+  isExplicitLike?: boolean;
+}): Promise<void> {
+  if (isDeepFlowCurrentlyActive()) return;
+  return invokeBackend<void>("record_music_interaction", {
+    trackId: params.trackId,
+    artistId: params.artistId ?? null,
+    artistName: params.artistName,
+    title: params.title ?? null,
+    thumbnail: params.thumbnail ?? null,
+    genre: params.genre ?? null,
+    percentPlayed: params.percentPlayed,
+    isExplicitLike: params.isExplicitLike ?? false,
+  });
+}
+
+/**
+ * The "On Repeat" tracks — what they currently play most (ACT-R activation),
+ * resolved to playable songs entirely from local state (no network). Empty until there
+ * is enough listening history.
+ */
+export function getHeavyRotation(limit = 16): Promise<SongItem[]> {
+  return invokeBackend<SongItem[]>("get_heavy_rotation", { limit });
+}
+
+/**
+ * Daily Mix clusters from the music brain (favorite artists grouped by co-listening).
+ * Each is a label + seed track ids the caller expands into a playlist via related songs.
+ * Empty until there's enough cross-session listening to form a co-occurrence graph.
+ */
+export function getDailyMixes(maxMixes = 3): Promise<DailyMixSeed[]> {
+  return invokeBackend<DailyMixSeed[]>("get_daily_mixes", { maxMixes });
+}
+
+/** Surfaces with distinct familiarity/discovery weighting in the music ranker. */
+export type MusicRankSurface =
+  | "quick_picks"
+  | "heavy_rotation"
+  | "radio"
+  | "similar"
+  | "discover"
+  | "daily_discover";
+
+/**
+ * Reorder YouTube Music candidates by local taste. YT Music is the recall engine; this
+ * is the local ranking stage that makes a generic shelf personal. A cold/empty brain is
+ * a stable pass-through (returns the input order), so it is always safe to call.
+ */
+export function rankMusicCandidates(
+  songs: SongItem[],
+  surface: MusicRankSurface,
+): Promise<SongItem[]> {
+  return invokeBackend<SongItem[]>("rank_music_candidates", { songs, surface });
+}
+
+/** Records a reversible dislike cooldown for an artist (not a permanent ban). */
+export function dislikeMusicArtist(artistId: string | null, artistName: string): Promise<void> {
+  return invokeBackend<void>("dislike_music_artist", { artistId, artistName });
+}
+
+/** Clears all learned music taste (and re-enables history backfill on next launch). */
+export function resetMusicBrain(): Promise<void> {
+  return invokeBackend<void>("reset_music_brain");
 }

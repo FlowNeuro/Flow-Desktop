@@ -9,6 +9,7 @@ mod db;
 mod errors;
 mod flow_neuro;
 mod models;
+mod music_brain;
 mod security;
 mod services;
 mod streaming;
@@ -36,6 +37,10 @@ use commands::music::{
     get_music_queue_continuation, get_music_related_typed, get_music_search_suggestions,
     get_music_search_summary, get_music_stream, get_music_watch_queue, lyrics_http_get,
     proxy_image_url, search_music_continuation, search_music_typed,
+};
+use commands::music_brain::{
+    dislike_music_artist, get_daily_mixes, get_heavy_rotation, get_music_brain_snapshot,
+    rank_music_candidates, record_music_interaction, reset_music_brain,
 };
 use commands::recommendation::{
     add_blocked_topic, add_preferred_topic, block_channel, complete_onboarding,
@@ -122,8 +127,19 @@ pub fn run() {
             })?;
 
             // Initialize and manage recommendation service
-            let rec_service = RecommendationService::new(pool, brain_store);
+            let rec_service = RecommendationService::new(pool.clone(), brain_store);
             app.manage(rec_service);
+
+            let music_brain_store = tauri::async_runtime::block_on(async {
+                music_brain::store::MusicBrainStore::load(pool.clone()).await
+            })
+            .map_err(|error| {
+                Box::new(std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    error.to_string(),
+                ))
+            })?;
+            app.manage(music_brain_store);
 
             // Manage the Shorts feed service (prefetch buffer + session de-dup)
             app.manage(ShortsService::new());
@@ -236,7 +252,15 @@ pub fn run() {
             get_music_lyrics_typed,
             lyrics_http_get,
             get_music_stream,
-            proxy_image_url
+            proxy_image_url,
+            // --- Dedicated music brain (separate from flow_neuro) ---
+            record_music_interaction,
+            dislike_music_artist,
+            rank_music_candidates,
+            get_heavy_rotation,
+            get_daily_mixes,
+            get_music_brain_snapshot,
+            reset_music_brain
         ])
         .build(tauri::generate_context!())
         .expect("error while building Flow Desktop")
@@ -245,6 +269,11 @@ pub fn run() {
             if let tauri::RunEvent::ExitRequested { .. } = event {
                 if let Some(service) = app_handle.try_state::<RecommendationService>() {
                     let _ = tauri::async_runtime::block_on(service.flush_brain());
+                }
+                if let Some(store) =
+                    app_handle.try_state::<std::sync::Arc<music_brain::store::MusicBrainStore>>()
+                {
+                    let _ = tauri::async_runtime::block_on(store.flush());
                 }
             }
         });

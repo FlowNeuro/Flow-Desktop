@@ -547,6 +547,7 @@ export interface MusicHomeChip {
   orderBy: number;
 }
 
+/** @deprecated Legacy cached Music Home. Unused — the Music tab uses `getMusicHomePage`. */
 export async function getMusicHome(): Promise<[MusicHomeSection[], MusicHomeChip[]]> {
   if (!(await isTauriEnv())) {
     console.warn("Tauri not detected. Returning mock Music Home.");
@@ -555,6 +556,7 @@ export async function getMusicHome(): Promise<[MusicHomeSection[], MusicHomeChip
   return invokeBackend<[MusicHomeSection[], MusicHomeChip[]]>("get_music_home");
 }
 
+/** @deprecated Legacy cached Music Home. Unused — the Music tab uses `getMusicHomePage`. */
 export async function refreshMusicHome(): Promise<[MusicHomeSection[], MusicHomeChip[]]> {
   if (!(await isTauriEnv())) {
     console.warn("Tauri not detected. Returning mock Music Home.");
@@ -563,13 +565,6 @@ export async function refreshMusicHome(): Promise<[MusicHomeSection[], MusicHome
   return invokeBackend<[MusicHomeSection[], MusicHomeChip[]]>("refresh_music_home");
 }
 
-export async function getPersonalizedMusicRecommendations(limit: number): Promise<VideoSummary[]> {
-  if (!(await isTauriEnv())) {
-    console.warn("Tauri not detected. Returning mock music recommendations.");
-    return [];
-  }
-  return invokeBackend<VideoSummary[]>("get_personalized_music_recommendations", { limit });
-}
 
 export async function getSubscriptionRotationFeed(): Promise<VideoSummary[]> {
   if (!(await isTauriEnv())) {

@@ -1,11 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
 import { getMusicHistory } from './api/db';
 import {
+  getDailyMixes,
+  getHeavyRotation,
   getMusicChartsPage,
   getMusicQueueContinuation,
   getMusicRelatedTyped,
   getMusicWatchQueue,
+  rankMusicCandidates,
   searchMusicTyped,
+  type MusicRankSurface,
 } from './api/music';
 import { getString } from './i18n/index';
 import { isMusicVideo } from './utils';
@@ -27,9 +31,9 @@ export interface MusicPersonalization {
 }
 
 const HISTORY_SEED_LIMIT = 50;
-const POPULAR_ARTISTS = ['The Weeknd', 'Taylor Swift', 'Drake', 'Billie Eilish', 'Bruno Mars', 'Dua Lipa'];
 const MIN_SHELF_ITEMS = 4;
 const QUICK_PICKS_TARGET = 24;
+const QUICK_PICKS_POOL = 60;
 const RADIO_MAX_PAGES = 6;
 
 const toYTSong = (s: SongItem): YTItem => ({ type: 'song', ...s });
@@ -79,6 +83,17 @@ function shuffle<T>(arr: T[]): T[] {
   return [...arr].sort(() => Math.random() - 0.5);
 }
 
+// Local taste ranking over YT Music recall. A cold/empty brain is a stable pass-through,
+// and any failure falls back to the original order — so this never breaks a shelf.
+async function ranked(songs: SongItem[], surface: MusicRankSurface): Promise<SongItem[]> {
+  if (songs.length <= 1) return songs;
+  try {
+    return await rankMusicCandidates(songs, surface);
+  } catch {
+    return songs;
+  }
+}
+
 async function relatedSongs(videoId: string): Promise<SongItem[]> {
   try {
     const page = await getMusicRelatedTyped(videoId);
@@ -100,20 +115,22 @@ async function chartsSongs(): Promise<SongItem[]> {
   }
 }
 
-async function fillFromRadio(seedId: string, picks: SongItem[], used: Set<string>): Promise<void> {
+async function gatherRadio(seedId: string, cap: number): Promise<SongItem[]> {
+  const pool: SongItem[] = [];
   try {
     const first = await getMusicWatchQueue(seedId);
-    picks.push(...takeUnused(audioMusicOnly(first.items), QUICK_PICKS_TARGET - picks.length, used));
+    pool.push(...first.items);
     let continuation = first.continuation;
     let page = 0;
-    while (picks.length < QUICK_PICKS_TARGET && continuation && page < RADIO_MAX_PAGES) {
+    while (pool.length < cap && continuation && page < RADIO_MAX_PAGES) {
       page += 1;
       const next = await getMusicQueueContinuation(continuation);
-      picks.push(...takeUnused(audioMusicOnly(next.items), QUICK_PICKS_TARGET - picks.length, used));
+      pool.push(...next.items);
       continuation = next.continuation;
     }
   } catch {
   }
+  return pool;
 }
 
 async function buildQuickPicks(
@@ -121,26 +138,26 @@ async function buildQuickPicks(
   nowPlayingId: string | null,
   used: Set<string>,
 ): Promise<SongItem[]> {
-  const picks: SongItem[] = [];
   if (nowPlayingId) used.add(nowPlayingId);
 
+  // Gather a deep candidate pool from radio → related → charts, then let the music brain
+  // rank it (familiarity + heavy rotation) instead of taking YT Music's raw order.
+  const pool: SongItem[] = [];
   const seedId = nowPlayingId ?? history.find((h) => h.videoId)?.videoId ?? null;
-  if (seedId) await fillFromRadio(seedId, picks, used);
+  if (seedId) pool.push(...(await gatherRadio(seedId, QUICK_PICKS_POOL)));
 
-  if (picks.length < QUICK_PICKS_TARGET) {
+  if (pool.length < QUICK_PICKS_POOL) {
     const seeds = history.slice(0, 5).map((h) => h.videoId).filter(Boolean);
     const results = await Promise.all(seeds.map(relatedSongs));
-    for (const r of results) {
-      if (picks.length >= QUICK_PICKS_TARGET) break;
-      picks.push(...takeUnused(r, QUICK_PICKS_TARGET - picks.length, used));
-    }
+    for (const r of results) pool.push(...r);
   }
 
-  if (picks.length < QUICK_PICKS_TARGET) {
-    picks.push(...takeUnused(await chartsSongs(), QUICK_PICKS_TARGET - picks.length, used));
+  if (pool.length < MIN_SHELF_ITEMS) {
+    pool.push(...(await chartsSongs()));
   }
 
-  return picks;
+  const rankedPool = await ranked(audioMusicOnly(pool), 'quick_picks');
+  return takeUnused(rankedPool, QUICK_PICKS_TARGET, used);
 }
 
 async function buildSimilarTo(
@@ -165,7 +182,7 @@ async function buildSimilarTo(
   for (const [artist, recs] of topArtists) {
     const seed = recs[0];
     if (!seed) continue;
-    const items = takeUnused(await relatedSongs(seed.videoId), 12, used);
+    const items = takeUnused(await ranked(await relatedSongs(seed.videoId), 'similar'), 12, used);
     if (items.length >= MIN_SHELF_ITEMS) {
       seenSeeds.add(seed.videoId);
       sections.push({
@@ -179,7 +196,7 @@ async function buildSimilarTo(
 
   const recent = history[0];
   if (recent && !seenSeeds.has(recent.videoId)) {
-    const items = takeUnused(await relatedSongs(recent.videoId), 12, used);
+    const items = takeUnused(await ranked(await relatedSongs(recent.videoId), 'similar'), 12, used);
     if (items.length >= MIN_SHELF_ITEMS) {
       sections.push({
         id: `similar-${recent.videoId}`,
@@ -199,7 +216,8 @@ async function buildDailyDiscover(
   if (history.length === 0) return null;
   const seeds = shuffle(history).slice(0, 8);
   const results = await Promise.all(seeds.map((seed) => relatedSongs(seed.videoId)));
-  const items = takeUnused(audioMusicOnly(results.flat()), 12, used).map(toYTSong);
+  const pool = await ranked(audioMusicOnly(results.flat()), 'discover');
+  const items = takeUnused(pool, 12, used).map(toYTSong);
   if (items.length < MIN_SHELF_ITEMS) return null;
   return { id: 'daily-discover', title: getString('music_daily_discover'), items };
 }
@@ -237,22 +255,50 @@ async function buildFromCommunity(history: WatchHistoryRecord[]): Promise<Person
   return { id: 'from-community', title: getString('music_from_community'), items: playlists };
 }
 
+// "On Repeat": the user's heavy-rotation tracks (ACT-R activation), resolved locally
+// by the music brain — no network. Empty until there's enough listening history.
+async function buildHeavyRotation(used: Set<string>): Promise<PersonalSection | null> {
+  try {
+    const songs = audioMusicOnly(await getHeavyRotation(16));
+    const items = takeUnused(songs, 16, used).map(toYTSong);
+    if (items.length < MIN_SHELF_ITEMS) return null;
+    return { id: 'on-repeat', title: getString('music_on_repeat'), items };
+  } catch {
+    return null;
+  }
+}
+
+// Daily Mixes: clusters of the user's favorite artists (grouped by co-listening in the
+// music brain), each expanded into a playlist via YT Music related songs and ranked.
+async function buildDailyMixes(used: Set<string>): Promise<PersonalSection[]> {
+  let mixes;
+  try {
+    mixes = await getDailyMixes(3);
+  } catch {
+    return [];
+  }
+  const sections: PersonalSection[] = [];
+  for (const mix of mixes) {
+    const seeds = mix.seedTrackIds.slice(0, 3);
+    const related = (await Promise.all(seeds.map(relatedSongs))).flat();
+    const pool = await ranked(audioMusicOnly(related), 'discover');
+    const items = takeUnused(pool, 14, used).map(toYTSong);
+    if (items.length >= MIN_SHELF_ITEMS) {
+      sections.push({
+        id: `mix-${mix.label}`,
+        title: `${mix.label} ${getString('music_mix')}`,
+        items,
+      });
+    }
+  }
+  return sections;
+}
+
+// Cold-start surface: real charts (what's genuinely popular now), discovery-ranked —
+// replaces the old hardcoded artist list.
 async function buildPopularArtists(used: Set<string>): Promise<PersonalSection | null> {
-  const picks = shuffle(POPULAR_ARTISTS).slice(0, 3);
-  const results = await Promise.all(
-    picks.map(async (artist) => {
-      try {
-        const res = await searchMusicTyped(`${artist} hits`, 'songs');
-        return res.sections.flatMap((s) => s.items);
-      } catch {
-        return [] as YTItem[];
-      }
-    }),
-  );
-  const songs = audioMusicOnly(
-    results.flat().filter((it): it is Extract<YTItem, { type: 'song' }> => it.type === 'song'),
-  );
-  const items = takeUnused(songs, 16, used).map(toYTSong);
+  const pool = await ranked(await chartsSongs(), 'discover');
+  const items = takeUnused(pool, 16, used).map(toYTSong);
   if (items.length < MIN_SHELF_ITEMS) return null;
   return { id: 'popular-artists', title: getString('music_popular_artists'), items };
 }
@@ -281,13 +327,19 @@ export function useMusicPersonalization(): MusicPersonalization {
 
       const communityP = buildFromCommunity(history);
       const used = new Set<string>();
+      // On Repeat runs first so its tracks aren't claimed by other shelves.
+      const heavy = await buildHeavyRotation(used);
+      const mixes = await buildDailyMixes(used);
       const similar = await buildSimilarTo(history, used);
       const daily = await buildDailyDiscover(history, used);
       const popular = await buildPopularArtists(used);
       const community = await communityP;
       if (sectionsReqRef.current !== req) return;
 
-      const next: PersonalSection[] = [...similar];
+      const next: PersonalSection[] = [];
+      if (heavy) next.push(heavy);
+      next.push(...mixes);
+      next.push(...similar);
       if (daily) next.push(daily);
       if (community) next.push(community);
       if (popular) next.push(popular);

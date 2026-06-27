@@ -2,7 +2,6 @@ import React, { useCallback, useRef, useState, useEffect } from "react";
 import { Loader2, ChevronDown } from "lucide-react";
 import {
   getChannelTab,
-  getPersonalizedMusicRecommendations,
   getRelatedVideos,
   getSubscriptionRotationFeed,
   getSubscriptionRssFeed,
@@ -784,13 +783,8 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
     }
   };
 
-  const fetchPersonalizedMusicPool = async () => {
-    try {
-      return uniqueByVideoId(await getPersonalizedMusicRecommendations(12));
-    } catch (error) {
-      console.warn("Failed to load personalized music candidates", error);
-      return [];
-    }
+  const fetchPersonalizedMusicPool = async (): Promise<VideoSummary[]> => {
+    return [];
   };
 
   const getRotatedSubscriptionBatch = (subscriptionIds: string[], batchSize: number) => {

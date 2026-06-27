@@ -1,7 +1,13 @@
 import { create } from "zustand";
 
 import type { SongItem } from "../types/music";
-import { getMusicStream, type MusicAudioQuality } from "../lib/api/music";
+import {
+  getMusicStream,
+  getMusicQueueContinuation,
+  getMusicWatchQueue,
+  rankMusicCandidates,
+  type MusicAudioQuality,
+} from "../lib/api/music";
 import { getOfflineStream } from "../lib/api/downloads";
 import { findDownloadedRecord } from "../lib/useDownloads";
 import { getBackendErrorMessage } from "../lib/api/errors";
@@ -34,6 +40,7 @@ interface PersistedMusicConfig {
   normalizationEnabled: boolean;
   repeatMode: MusicRepeatMode;
   isShuffle: boolean;
+  radioEnabled: boolean;
 }
 
 const DEFAULT_CONFIG: PersistedMusicConfig = {
@@ -44,6 +51,7 @@ const DEFAULT_CONFIG: PersistedMusicConfig = {
   normalizationEnabled: true,
   repeatMode: "none",
   isShuffle: false,
+  radioEnabled: true,
 };
 
 const loadConfig = (): PersistedMusicConfig => {
@@ -76,6 +84,7 @@ const saveConfig = (get: () => MusicPlayerState) => {
       normalizationEnabled: s.normalizationEnabled,
       repeatMode: s.repeatMode,
       isShuffle: s.isShuffle,
+      radioEnabled: s.radioEnabled,
     };
     localStorage.setItem(PERSIST_KEY, JSON.stringify(config));
   } catch (error) {
@@ -92,6 +101,29 @@ const pickRandomIndex = (length: number, exclude: number): number => {
 
 const PLAYBACK_ERROR_FALLBACK = "Playback failed";
 const MUSIC_AUDIO_QUALITY_VALUES = new Set(["Auto", "High", "Medium", "Low"]);
+
+// --- radio / autoplay -------------------------------------------------
+const RADIO_LOW_WATER = 3; 
+const RADIO_BATCH = 10; 
+
+let radioContinuation: string | null = null;
+const radioSessionSeen = new Set<string>();
+let radioInFlight: Promise<void> | null = null;
+
+const resetRadioSession = (seedIds: string[] = []) => {
+  radioContinuation = null;
+  radioInFlight = null;
+  radioSessionSeen.clear();
+  for (const id of seedIds) radioSessionSeen.add(id);
+};
+
+const isPlayableAudio = (s: SongItem): boolean => {
+  const vt = s.musicVideoType;
+  const isVideoSong = !!vt && vt !== "MUSIC_VIDEO_TYPE_ATV";
+  const dur = s.duration ?? 0;
+  const okDuration = dur === 0 || (dur >= 30 && dur <= 1200);
+  return !isVideoSong && okDuration && !!(s.videoId ?? s.id);
+};
 
 const getMusicAudioQualitySetting = (): MusicAudioQuality => {
   const value = getSettingValue(SETTINGS.MUSIC_AUDIO_QUALITY);
@@ -119,6 +151,10 @@ interface MusicPlayerState {
   // --- modes (persisted) ---
   repeatMode: MusicRepeatMode;
   isShuffle: boolean;
+  radioEnabled: boolean; // autoplay similar music when the queue runs out
+
+  // --- radio / autoplay ---
+  radioLoading: boolean;
 
   // --- overlay / surface ---
   viewState: MusicViewState;
@@ -142,6 +178,8 @@ interface MusicPlayerState {
   toggleMute: () => void;
   cycleRepeat: () => void;
   toggleShuffle: () => void;
+  toggleRadio: () => void;
+  startRadio: (seed?: SongItem) => Promise<void>;
 
   addToQueue: (track: SongItem) => void;
   playNextInQueue: (track: SongItem) => void;
@@ -159,6 +197,7 @@ interface MusicPlayerState {
   setNormalizationEnabled: (enabled: boolean) => void;
 
   // --- internal: driven by the root <audio> controller (element → store) ---
+  _ensureRadio: () => Promise<void>;
   _loadIndex: (index: number) => Promise<void>;
   _syncTime: (progress: number, duration: number) => void;
   _reflectPlaying: (isPlaying: boolean) => void;
@@ -185,6 +224,8 @@ export const useMusicPlayerStore = create<MusicPlayerState>((set, get) => ({
 
   repeatMode: initialConfig.repeatMode,
   isShuffle: initialConfig.isShuffle,
+  radioEnabled: initialConfig.radioEnabled,
+  radioLoading: false,
 
   viewState: "dock",
 
@@ -194,14 +235,52 @@ export const useMusicPlayerStore = create<MusicPlayerState>((set, get) => ({
   // --- intents ----------------------------------------------------------
 
   playTrack: async (track) => {
+    resetRadioSession([videoIdOf(track)]);
     set({ queue: [track] });
     await get()._loadIndex(0);
   },
 
   playQueue: async (tracks, startIndex = 0) => {
     if (tracks.length === 0) return;
+    resetRadioSession(tracks.map(videoIdOf));
     set({ queue: tracks });
     await get()._loadIndex(Math.max(0, Math.min(startIndex, tracks.length - 1)));
+  },
+
+  _ensureRadio: async () => {
+    if (radioInFlight) return radioInFlight;
+    const { queue, currentIndex, radioEnabled, isShuffle } = get();
+    if (!radioEnabled || isShuffle) return;
+    if (queue.length - 1 - currentIndex > RADIO_LOW_WATER) return;
+
+    const seed = queue[queue.length - 1] ?? get().currentTrack;
+    if (!seed) return;
+
+    radioInFlight = (async () => {
+      set({ radioLoading: true });
+      try {
+        const page = radioContinuation
+          ? await getMusicQueueContinuation(radioContinuation)
+          : await getMusicWatchQueue(videoIdOf(seed));
+        radioContinuation = page.continuation;
+
+        const inQueue = new Set(get().queue.map(videoIdOf));
+        const fresh = page.items.filter((t) => {
+          const id = videoIdOf(t);
+          return isPlayableAudio(t) && !inQueue.has(id) && !radioSessionSeen.has(id);
+        });
+        const ordered = await rankMusicCandidates(fresh, "radio").catch(() => fresh);
+        const batch = ordered.slice(0, RADIO_BATCH);
+        for (const t of batch) radioSessionSeen.add(videoIdOf(t));
+        if (batch.length > 0) set({ queue: [...get().queue, ...batch] });
+      } catch (error) {
+        console.warn("Radio autoplay fetch failed", error);
+      } finally {
+        set({ radioLoading: false });
+        radioInFlight = null;
+      }
+    })();
+    return radioInFlight;
   },
 
   _loadIndex: async (index) => {
@@ -219,6 +298,9 @@ export const useMusicPlayerStore = create<MusicPlayerState>((set, get) => ({
       streamError: null,
       loadingStreamId: videoId,
     });
+
+    // Prefetch the radio station ahead of time so the queue never dead-ends.
+    void get()._ensureRadio();
 
     try {
       if (findDownloadedRecord(videoId, "audio")) {
@@ -273,6 +355,7 @@ export const useMusicPlayerStore = create<MusicPlayerState>((set, get) => ({
   // dock/overlay. (The controller flushes a final history record on track clear.)
   dismiss: () => {
     musicAudioEngine.stop();
+    resetRadioSession();
     set({
       currentTrack: null,
       queue: [],
@@ -300,6 +383,18 @@ export const useMusicPlayerStore = create<MusicPlayerState>((set, get) => ({
       if (nextIndex >= queue.length) {
         if (repeatMode === "all") {
           nextIndex = 0;
+        } else if (get().radioEnabled) {
+          void (async () => {
+            await get()._ensureRadio();
+            const s = get();
+            if (s.currentIndex + 1 < s.queue.length) {
+              void s._loadIndex(s.currentIndex + 1);
+            } else {
+              musicAudioEngine.pause();
+              set({ isPlaying: false });
+            }
+          })();
+          return;
         } else {
           musicAudioEngine.pause();
           set({ isPlaying: false });
@@ -351,6 +446,22 @@ export const useMusicPlayerStore = create<MusicPlayerState>((set, get) => ({
   toggleShuffle: () => {
     set({ isShuffle: !get().isShuffle });
     saveConfig(get);
+  },
+
+  toggleRadio: () => {
+    const radioEnabled = !get().radioEnabled;
+    set({ radioEnabled });
+    saveConfig(get);
+    if (radioEnabled) void get()._ensureRadio();
+  },
+
+  startRadio: async (seed) => {
+    const base = seed ?? get().currentTrack;
+    if (!base) return;
+    resetRadioSession([videoIdOf(base)]);
+    set({ queue: [base], currentIndex: 0, radioEnabled: true });
+    saveConfig(get);
+    await get()._loadIndex(0);
   },
 
   addToQueue: (track) => {

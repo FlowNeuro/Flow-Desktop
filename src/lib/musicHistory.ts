@@ -1,5 +1,5 @@
 import { addWatchRecord } from "./api/db";
-import { logInteraction } from "./api/recommendation";
+import { recordMusicInteraction } from "./api/music";
 import { shouldRecordWatchHistory } from "./deepFlow";
 import type { SongItem } from "../types/music";
 
@@ -33,19 +33,15 @@ export async function recordSongHistory(
 
   const percentWatched = total > 0 ? Math.min(1, Math.max(0, progressSeconds / total)) : 0;
   try {
-    await logInteraction(
-      id,
-      track.title,
-      channelName,
-      track.artists[0]?.id ?? id,
-      null,
-      total || null,
-      false,
-      false, 
-      "WATCHED",
-      percentWatched,
-    );
+    await recordMusicInteraction({
+      trackId: id,
+      artistId: track.artists[0]?.id ?? null,
+      artistName: track.artists[0]?.name ?? channelName,
+      title: track.title,
+      thumbnail: track.thumbnail ?? null,
+      percentPlayed: percentWatched,
+    });
   } catch (e) {
-    console.warn("Failed to log song interaction to recommendation engine", e);
+    console.warn("Failed to log song interaction to music brain", e);
   }
 }

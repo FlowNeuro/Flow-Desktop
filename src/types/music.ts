@@ -184,6 +184,12 @@ export interface RelatedPage {
   playlists: PlaylistItem[];
 }
 
+/** A Daily Mix cluster from the music brain: a label + seed tracks to expand. */
+export interface DailyMixSeed {
+  label: string;
+  seedTrackIds: string[];
+}
+
 export interface QueuePage {
   items: SongItem[];
   currentIndex: number | null;
