@@ -188,6 +188,13 @@ fn context_score(brain: &MusicBrain, bucket: &TimeBucket, genre: Option<&str>) -
     share * confidence
 }
 
+fn is_in_dislike_cooldown(brain: &MusicBrain, artist: &str, now_ms: u64) -> bool {
+    matches!(
+        brain.disliked_artists.get(artist),
+        Some(ts) if now_ms.saturating_sub(*ts) < DISLIKE_COOLDOWN_MS
+    )
+}
+
 pub fn score_candidate(
     brain: &MusicBrain,
     input: &RankInput,
@@ -234,9 +241,10 @@ pub fn score_candidate(
         + weights.ctx * ctx
         + discovery;
 
-    let cooldown = match brain.disliked_artists.get(artist) {
-        Some(ts) if now_ms.saturating_sub(*ts) < DISLIKE_COOLDOWN_MS => 0.1,
-        _ => 1.0,
+    let cooldown = if is_in_dislike_cooldown(brain, artist, now_ms) {
+        0.1
+    } else {
+        1.0
     };
 
     base * cooldown
@@ -275,6 +283,12 @@ pub fn rank(brain: &MusicBrain, inputs: &[RankInput], surface: &str, now_ms: u64
             .then(a.0.cmp(&b.0))
     });
     let order: Vec<usize> = scored.into_iter().map(|(i, _)| i).collect();
+    let suppressed: Vec<bool> = inputs
+        .iter()
+        .map(|inp| is_in_dislike_cooldown(brain, &inp.artist_key, now_ms))
+        .collect();
+    let (primary_order, suppressed_order): (Vec<usize>, Vec<usize>) =
+        order.into_iter().partition(|&i| !suppressed[i]);
 
     // Compose to the surface's familiarity/discovery target (adjacency-gated novelty),
     // then break up long same-artist runs.
@@ -287,7 +301,8 @@ pub fn rank(brain: &MusicBrain, inputs: &[RankInput], surface: &str, now_ms: u64
         .map(|inp| is_taste_adjacent(brain, inp, &anchors))
         .collect();
     let target = surface_target_novelty(surface, brain.discovery_appetite);
-    let composed = compose_to_ratio(order, &novel, &adjacent, target);
+    let mut composed = compose_to_ratio(primary_order, &novel, &adjacent, target);
+    composed.extend(suppressed_order);
 
     spread_artists(composed, inputs, MAX_CONSECUTIVE_ARTIST)
 }
