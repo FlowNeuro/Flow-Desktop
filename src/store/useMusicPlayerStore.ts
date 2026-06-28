@@ -103,10 +103,12 @@ const PLAYBACK_ERROR_FALLBACK = "Playback failed";
 const MUSIC_AUDIO_QUALITY_VALUES = new Set(["Auto", "High", "Medium", "Low"]);
 
 // --- radio / autoplay -------------------------------------------------
-const RADIO_LOW_WATER = 3; 
-const RADIO_BATCH = 10; 
+const RADIO_LOW_WATER = 3;
+const RADIO_BATCH = 10;
+const RADIO_MAX_PAGES = 4;
 
 let radioContinuation: string | null = null;
+let radioPlaylistId: string | null = null;
 const radioSessionSeen = new Set<string>();
 let radioInFlight: Promise<void> | null = null;
 
@@ -116,10 +118,13 @@ let hiddenPredicate: (track: SongItem) => boolean = () => false;
 
 const resetRadioSession = (seedIds: string[] = []) => {
   radioContinuation = null;
+  radioPlaylistId = null;
   radioInFlight = null;
   radioSessionSeen.clear();
   for (const id of seedIds) radioSessionSeen.add(id);
 };
+
+const stationIdFor = (videoId: string): string => `RDAMVM${videoId}`;
 
 const isPlayableAudio = (s: SongItem): boolean => {
   const vt = s.musicVideoType;
@@ -159,6 +164,7 @@ interface MusicPlayerState {
 
   // --- radio / autoplay ---
   radioLoading: boolean;
+  radioQueuedIds: string[];
 
   // --- overlay / surface ---
   viewState: MusicViewState;
@@ -188,6 +194,7 @@ interface MusicPlayerState {
   addToQueue: (track: SongItem) => void;
   playNextInQueue: (track: SongItem) => void;
   removeFromQueue: (index: number) => void;
+  reorderQueue: (from: number, to: number) => void;
   clearQueue: () => void;
 
   // --- block list integration (driven by useMusicActionsStore) ---
@@ -234,6 +241,7 @@ export const useMusicPlayerStore = create<MusicPlayerState>((set, get) => ({
   isShuffle: initialConfig.isShuffle,
   radioEnabled: initialConfig.radioEnabled,
   radioLoading: false,
+  radioQueuedIds: [],
 
   viewState: "dock",
 
@@ -244,14 +252,14 @@ export const useMusicPlayerStore = create<MusicPlayerState>((set, get) => ({
 
   playTrack: async (track) => {
     resetRadioSession([videoIdOf(track)]);
-    set({ queue: [track] });
+    set({ queue: [track], radioQueuedIds: [] });
     await get()._loadIndex(0);
   },
 
   playQueue: async (tracks, startIndex = 0) => {
     if (tracks.length === 0) return;
     resetRadioSession(tracks.map(videoIdOf));
-    set({ queue: tracks });
+    set({ queue: tracks, radioQueuedIds: [] });
     await get()._loadIndex(Math.max(0, Math.min(startIndex, tracks.length - 1)));
   },
 
@@ -267,22 +275,43 @@ export const useMusicPlayerStore = create<MusicPlayerState>((set, get) => ({
     radioInFlight = (async () => {
       set({ radioLoading: true });
       try {
-        const page = radioContinuation
-          ? await getMusicQueueContinuation(radioContinuation)
-          : await getMusicWatchQueue(videoIdOf(seed));
-        radioContinuation = page.continuation;
+        const seedId = videoIdOf(seed);
+        const collected: SongItem[] = [];
 
-        const inQueue = new Set(get().queue.map(videoIdOf));
-        const fresh = page.items.filter((t) => {
-          const id = videoIdOf(t);
-          return (
-            isPlayableAudio(t) && !inQueue.has(id) && !radioSessionSeen.has(id) && !hiddenPredicate(t)
-          );
-        });
-        const ordered = await rankMusicCandidates(fresh, "radio").catch(() => fresh);
+        for (let page = 0; page < RADIO_MAX_PAGES && collected.length < RADIO_BATCH; page++) {
+          let result: Awaited<ReturnType<typeof getMusicWatchQueue>>;
+          if (radioContinuation) {
+            result = await getMusicQueueContinuation(radioContinuation);
+          } else {
+            result = await getMusicWatchQueue(seedId, radioPlaylistId ?? stationIdFor(seedId));
+          }
+          radioContinuation = result.continuation;
+          if (result.radioPlaylistId) radioPlaylistId = result.radioPlaylistId;
+
+          const seen = new Set([
+            ...get().queue.map(videoIdOf),
+            ...collected.map(videoIdOf),
+          ]);
+          for (const t of result.items) {
+            const id = videoIdOf(t);
+            if (isPlayableAudio(t) && !seen.has(id) && !radioSessionSeen.has(id) && !hiddenPredicate(t)) {
+              collected.push(t);
+              seen.add(id);
+            }
+          }
+
+          if (!radioContinuation) break;
+        }
+
+        const ordered = await rankMusicCandidates(collected, "radio").catch(() => collected);
         const batch = ordered.slice(0, RADIO_BATCH);
-        for (const t of batch) radioSessionSeen.add(videoIdOf(t));
-        if (batch.length > 0) set({ queue: [...get().queue, ...batch] });
+        if (batch.length > 0) {
+          for (const t of batch) radioSessionSeen.add(videoIdOf(t));
+          set({
+            queue: [...get().queue, ...batch],
+            radioQueuedIds: [...get().radioQueuedIds, ...batch.map(videoIdOf)],
+          });
+        }
       } catch (error) {
         console.warn("Radio autoplay fetch failed", error);
       } finally {
@@ -369,6 +398,7 @@ export const useMusicPlayerStore = create<MusicPlayerState>((set, get) => ({
     set({
       currentTrack: null,
       queue: [],
+      radioQueuedIds: [],
       currentIndex: -1,
       isPlaying: false,
       isBuffering: false,
@@ -469,7 +499,7 @@ export const useMusicPlayerStore = create<MusicPlayerState>((set, get) => ({
     const base = seed ?? get().currentTrack;
     if (!base) return;
     resetRadioSession([videoIdOf(base)]);
-    set({ queue: [base], currentIndex: 0, radioEnabled: true });
+    set({ queue: [base], radioQueuedIds: [], currentIndex: 0, radioEnabled: true });
     saveConfig(get);
     await get()._loadIndex(0);
   },
@@ -509,6 +539,18 @@ export const useMusicPlayerStore = create<MusicPlayerState>((set, get) => ({
     let nextCurrent = currentIndex;
     if (index < currentIndex) nextCurrent = currentIndex - 1;
     set({ queue: next, currentIndex: nextCurrent });
+  },
+
+  reorderQueue: (from, to) => {
+    const { queue, currentIndex } = get();
+    if (from === to) return;
+    if (from < 0 || to < 0 || from >= queue.length || to >= queue.length) return;
+    if (from <= currentIndex || to <= currentIndex) return;
+    const next = [...queue];
+    const [moved] = next.splice(from, 1);
+    if (!moved) return;
+    next.splice(to, 0, moved);
+    set({ queue: next });
   },
 
   clearQueue: () => {

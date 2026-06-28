@@ -36,6 +36,7 @@ export type MusicItemCardProps = BaseProps &
         variant: 'track-list';
         item: SongItem;
         onMenu?: () => void;
+        appendActions?: MusicMenuAction[];
       }
   );
 
@@ -553,11 +554,13 @@ function ListRow({
   item,
   onPlay,
   onMenu,
+  appendActions,
   className,
 }: {
   item: SongItem;
   onPlay?: () => void;
   onMenu?: () => void;
+  appendActions?: MusicMenuAction[];
   className?: string;
 }) {
   const trackId = videoIdOf(item);
@@ -618,6 +621,7 @@ function ListRow({
       onSelect: () => shareUrl(title, trackShareUrl(item)),
     },
     ...blockActions,
+    ...(appendActions ?? []),
   ];
   const resolveColor = (img?: HTMLImageElement) => {
     const source = img ?? artworkRef.current;
@@ -835,6 +839,7 @@ export function MusicItemCard(props: MusicItemCardProps) {
           item={props.item}
           onPlay={onPlay}
           onMenu={props.onMenu}
+          appendActions={props.appendActions}
           className={className}
         />
       );
