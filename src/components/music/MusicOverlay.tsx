@@ -4,7 +4,6 @@ import { AnimatePresence, motion } from "framer-motion";
 import {
   ChevronDown,
   Disc3,
-  Download,
   Play,
   Pause,
   SkipBack,
@@ -26,12 +25,13 @@ import { useMusicPlayerStore } from "../../store/useMusicPlayerStore";
 import { useLikesStore } from "../../store/useLikesStore";
 import { useUiStore } from "../../store/useUiStore";
 import { useAlbumLibraryStore } from "../../store/useAlbumLibraryStore";
-import { useDownloadStore } from "../../store/useDownloadStore";
 import { getString } from "../../lib/i18n/index";
 import { artistsText } from "../../lib/musicFormat";
 import type { SongItem } from "../../types/music";
 import { HapticButton } from "./HapticButton";
 import { MusicCardMenu, type MusicMenuAction, useMusicContextMenu } from "./MusicCardMenu";
+import { useTrackNavActions } from "./useTrackNavActions";
+import { useTrackDownloadAction } from "./useTrackDownloadAction";
 import { MusicArtwork } from "./MusicArtwork";
 import { MusicScrubber } from "./MusicScrubber";
 import { MusicQueuePane } from "./MusicQueuePane";
@@ -99,7 +99,6 @@ export function MusicOverlay() {
   const toggleSongLike = useLikesStore((s) => s.toggleSong);
   const showToast = useUiStore((s) => s.showToast);
   const openAddToAlbum = useAlbumLibraryStore((s) => s.openAddToAlbum);
-  const openMusicDownload = useDownloadStore((s) => s.openMusic);
   const menu = useMusicContextMenu(Boolean(currentTrack));
 
   const [eqOpen, setEqOpen] = useState(false);
@@ -117,20 +116,18 @@ export function MusicOverlay() {
   const loading = isBuffering || loadingStreamId !== null;
   const primaryArtist = currentTrack?.artists?.find((artist) => artist.id) ?? currentTrack?.artists?.[0] ?? null;
   const canOpenArtist = Boolean(primaryArtist?.id);
+  const navActions = useTrackNavActions(currentTrack, { onNavigate: closeOverlay });
+  const downloadActions = useTrackDownloadAction(currentTrack);
   const menuActions: MusicMenuAction[] = currentTrack
     ? [
+        ...navActions,
         {
           id: "add-to-album",
           label: getString("music_add_to_album"),
           icon: <Disc3 size={16} />,
           onSelect: () => openAddToAlbum(currentTrack),
         },
-        {
-          id: "download",
-          label: getString("music_download"),
-          icon: <Download size={16} />,
-          onSelect: () => openMusicDownload(currentTrack),
-        },
+        ...downloadActions,
         {
           id: "share",
           label: getString("music_share"),

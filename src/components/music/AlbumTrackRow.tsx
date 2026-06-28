@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Disc3, Download, Heart, ListPlus, MoreVertical, Music2, Play, Share2, Trash2, Volume2 } from 'lucide-react';
+import { Disc3, Heart, ListPlus, MoreVertical, Music2, Play, Share2, Trash2, Volume2 } from 'lucide-react';
 
 import { getString } from '../../lib/i18n/index';
 import { artistsText, formatTime } from '../../lib/musicFormat';
@@ -10,11 +10,12 @@ import { useMusicPlayerStore } from '../../store/useMusicPlayerStore';
 import { useAlbumLibraryStore } from '../../store/useAlbumLibraryStore';
 import { useLikesStore } from '../../store/useLikesStore';
 import { useUiStore } from '../../store/useUiStore';
-import { useDownloadStore } from '../../store/useDownloadStore';
 import type { SongItem } from '../../types/music';
 import { MusicCardMenu, type MusicMenuAction, useMusicContextMenu } from './MusicCardMenu';
 import { PlayingWave } from './PlayingWave';
 import { useTrackBlockActions } from './useTrackBlockActions';
+import { useTrackNavActions } from './useTrackNavActions';
+import { useTrackDownloadAction } from './useTrackDownloadAction';
 
 function cx(...parts: Array<string | false | null | undefined>): string {
   return parts.filter(Boolean).join(' ');
@@ -166,9 +167,10 @@ export function AlbumTrackRow({
   const preloadedColor = useDominantColor(colorImageSrc);
   const playNextInQueue = useMusicPlayerStore((s) => s.playNextInQueue);
   const menu = useMusicContextMenu(true);
+  const navActions = useTrackNavActions(track);
+  const downloadActions = useTrackDownloadAction(track);
   const blockActions = useTrackBlockActions(track);
   const openAddToAlbum = useAlbumLibraryStore((s) => s.openAddToAlbum);
-  const openMusicDownload = useDownloadStore((s) => s.openMusic);
   const isHighlighted = isHovered || showEq;
   const activeColor = dominantColor ?? preloadedColor;
   const menuActions: MusicMenuAction[] = [
@@ -187,18 +189,14 @@ export function AlbumTrackRow({
       icon: <Play size={16} />,
       onSelect: () => playNextInQueue(track),
     },
+    ...navActions,
     {
       id: 'add-to-album',
       label: getString('music_add_to_album'),
       icon: <Disc3 size={16} />,
       onSelect: () => openAddToAlbum(track),
     },
-    {
-      id: 'download',
-      label: getString('music_download'),
-      icon: <Download size={16} />,
-      onSelect: () => openMusicDownload(track),
-    },
+    ...downloadActions,
     {
       id: 'share',
       label: getString('music_share'),

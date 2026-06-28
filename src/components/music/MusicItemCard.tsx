@@ -10,11 +10,12 @@ import { useMusicPlayerStore } from '../../store/useMusicPlayerStore';
 import { useAlbumLibraryStore } from '../../store/useAlbumLibraryStore';
 import { useLikesStore } from '../../store/useLikesStore';
 import { useUiStore } from '../../store/useUiStore';
-import { useDownloadStore } from '../../store/useDownloadStore';
 import { useProxiedImageUrl } from '../../lib/useProxiedImageUrl';
 import { PlayingWave } from './PlayingWave';
 import { MusicCardMenu, type MusicMenuAction, useMusicContextMenu } from './MusicCardMenu';
 import { useTrackBlockActions } from './useTrackBlockActions';
+import { useTrackNavActions } from './useTrackNavActions';
+import { useTrackDownloadAction } from './useTrackDownloadAction';
 
 type BaseProps = {
   className?: string;
@@ -292,6 +293,8 @@ function SquareCard({
   const isTrack = menuKind === 'track' && item && 'videoId' in item;
   const isAlbum = menuKind === 'album' && item && 'browseId' in item;
   const songLike = useSongLike(isTrack ? item : null);
+  const navActions = useTrackNavActions(isTrack ? item : null);
+  const downloadActions = useTrackDownloadAction(isTrack ? item : null);
   const blockActions = useTrackBlockActions(isTrack ? item : null);
 
   const albumBrowseId = isAlbum ? item.browseId : null;
@@ -299,9 +302,6 @@ function SquareCard({
   const toggleAlbumLibrary = useAlbumLibraryStore((s) => s.toggle);
   const openAddToAlbum = useAlbumLibraryStore((s) => s.openAddToAlbum);
   const showToast = useUiStore((s) => s.showToast);
-  const openMusicDownload = useDownloadStore((s) => s.openMusic);
-  const squareTrackId = isTrack ? videoIdOf(item) : null;
-  const trackDownloaded = useIsDownloaded(squareTrackId);
   const albumDownload = useCollectionDownloadState(albumBrowseId ?? undefined, "album");
   const menuActions: MusicMenuAction[] = isTrack
     ? [
@@ -317,18 +317,14 @@ function SquareCard({
           icon: <Play size={16} />,
           onSelect: () => playNextInQueue(item),
         },
+        ...navActions,
         {
           id: 'add-to-album',
           label: getString('music_add_to_album'),
           icon: <Disc3 size={16} />,
           onSelect: () => openAddToAlbum(item),
         },
-        {
-          id: 'download',
-          label: trackDownloaded ? getString('downloaded') : getString('music_download'),
-          icon: trackDownloaded ? <CheckCircle2 size={16} /> : <Download size={16} />,
-          onSelect: () => openMusicDownload(item),
-        },
+        ...downloadActions,
         {
           id: 'share',
           label: getString('music_share'),
@@ -579,8 +575,8 @@ function ListRow({
   const currentTrack = useMusicPlayerStore((s) => s.currentTrack);
   const playerIsPlaying = useMusicPlayerStore((s) => s.isPlaying);
   const openAddToAlbum = useAlbumLibraryStore((s) => s.openAddToAlbum);
-  const openMusicDownload = useDownloadStore((s) => s.openMusic);
-  const isDownloaded = useIsDownloaded(trackId);
+  const navActions = useTrackNavActions(item);
+  const downloadActions = useTrackDownloadAction(item);
   const blockActions = useTrackBlockActions(item);
   const menu = useMusicContextMenu(true);
   const isPlayingTrack = !!currentTrack && videoIdOf(currentTrack) === trackId && playerIsPlaying;
@@ -602,18 +598,14 @@ function ListRow({
       icon: <Play size={16} />,
       onSelect: () => playNextInQueue(item),
     },
+    ...navActions,
     {
       id: 'add-to-album',
       label: getString('music_add_to_album'),
       icon: <Disc3 size={16} />,
       onSelect: () => openAddToAlbum(item),
     },
-    {
-      id: 'download',
-      label: isDownloaded ? getString('downloaded') : getString('music_download'),
-      icon: isDownloaded ? <CheckCircle2 size={16} /> : <Download size={16} />,
-      onSelect: () => openMusicDownload(item),
-    },
+    ...downloadActions,
     {
       id: 'share',
       label: getString('music_share'),

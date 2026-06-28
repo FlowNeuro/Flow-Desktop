@@ -2,7 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { useSubscriptionStore } from '../../store/useSubscriptionStore';
 import { useFeedActionsStore } from '../../store/useFeedActionsStore';
 import { useLiveStore } from '../../store/useLiveStore';
-import { Plus, Ban, Check, MoreVertical, Trash2, GripHorizontal, Sparkles, Eye, EyeOff, Clock, ListPlus, Download } from 'lucide-react';
+import { Plus, Ban, Check, MoreVertical, Trash2, GripHorizontal, Sparkles, Eye, EyeOff, Clock, ListPlus, Download, User } from 'lucide-react';
 import type { VideoSummary } from '../../types/video';
 import { Button } from '../ui/Button';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
@@ -25,7 +25,8 @@ import { useUiStore } from '../../store/useUiStore';
 import { usePlaylistModalStore } from '../../store/usePlaylistModalStore';
 import { usePlayerStore } from '../../store/usePlayerStore';
 import { useDownloadStore } from '../../store/useDownloadStore';
-import { useIsDownloaded } from '../../lib/useDownloads';
+import { useDownloadsLibraryStore } from '../../store/useDownloadsLibraryStore';
+import { findDownloadedRecord, useIsDownloaded } from '../../lib/useDownloads';
 
 export interface VideoCardProps {
   video: VideoSummary;
@@ -143,6 +144,7 @@ export function VideoCard({
   const showToast = useUiStore((s) => s.showToast);
   const openAddToPlaylist = usePlaylistModalStore((s) => s.openAddToPlaylist);
   const openVideoDownload = useDownloadStore((s) => s.openVideo);
+  const removeDownloads = useDownloadsLibraryStore((s) => s.remove);
   const isDownloaded = useIsDownloaded(video.id);
   const [overriddenTitle, setOverriddenTitle] = useState<string | null>(null);
   const [overriddenThumbnail, setOverriddenThumbnail] = useState<string | null>(null);
@@ -380,6 +382,20 @@ export function VideoCard({
     });
   };
 
+  const handleDownloadAction = async () => {
+    if (!isDownloaded) {
+      openVideoDownload(video);
+      return;
+    }
+    const record = findDownloadedRecord(video.id, "video");
+    if (!record) return;
+    await removeDownloads([record.id]);
+    showToast({
+      variant: "success",
+      message: getString("video_download_removed_toast"),
+    });
+  };
+
   // ── Menu dropdown ───
   const renderMenu = () => {
     if (!showMenu || !menuAnchor) return null;
@@ -417,13 +433,25 @@ export function VideoCard({
           type="button"
           onClick={(e) => {
             e.stopPropagation();
-            openVideoDownload(video);
+            void handleChannelNavigate(e);
             setShowMenu(false);
           }}
           className="w-full flex items-center gap-3 whitespace-nowrap px-3.5 py-2.5 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 transition-colors"
         >
-          {isDownloaded ? <Check size={16} /> : <Download size={16} />}
-          {getString(isDownloaded ? "downloaded" : "download")}
+          <User size={16} />
+          {getString("video_view_channel")}
+        </button>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            void handleDownloadAction();
+            setShowMenu(false);
+          }}
+          className="w-full flex items-center gap-3 whitespace-nowrap px-3.5 py-2.5 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 transition-colors"
+        >
+          {isDownloaded ? <Trash2 size={16} /> : <Download size={16} />}
+          {getString(isDownloaded ? "video_remove_download" : "download")}
         </button>
         <button
           type="button"
