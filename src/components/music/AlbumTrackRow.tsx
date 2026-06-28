@@ -14,6 +14,7 @@ import { useDownloadStore } from '../../store/useDownloadStore';
 import type { SongItem } from '../../types/music';
 import { MusicCardMenu, type MusicMenuAction, useMusicContextMenu } from './MusicCardMenu';
 import { PlayingWave } from './PlayingWave';
+import { useTrackBlockActions } from './useTrackBlockActions';
 
 function cx(...parts: Array<string | false | null | undefined>): string {
   return parts.filter(Boolean).join(' ');
@@ -165,6 +166,7 @@ export function AlbumTrackRow({
   const preloadedColor = useDominantColor(colorImageSrc);
   const playNextInQueue = useMusicPlayerStore((s) => s.playNextInQueue);
   const menu = useMusicContextMenu(true);
+  const blockActions = useTrackBlockActions(track);
   const openAddToAlbum = useAlbumLibraryStore((s) => s.openAddToAlbum);
   const openMusicDownload = useDownloadStore((s) => s.openMusic);
   const isHighlighted = isHovered || showEq;
@@ -213,6 +215,7 @@ export function AlbumTrackRow({
           },
         ] as MusicMenuAction[])
       : []),
+    ...blockActions,
   ];
   const resolveColor = (img?: HTMLImageElement) => {
     const source = img ?? artworkRef.current;

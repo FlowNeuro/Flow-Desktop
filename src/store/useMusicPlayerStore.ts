@@ -110,6 +110,10 @@ let radioContinuation: string | null = null;
 const radioSessionSeen = new Set<string>();
 let radioInFlight: Promise<void> | null = null;
 
+// Hide predicate pushed in by `useMusicActionsStore` (block list). Kept as a module-level
+// ref so radio autoplay can consult it without the store importing the actions store.
+let hiddenPredicate: (track: SongItem) => boolean = () => false;
+
 const resetRadioSession = (seedIds: string[] = []) => {
   radioContinuation = null;
   radioInFlight = null;
@@ -185,6 +189,10 @@ interface MusicPlayerState {
   playNextInQueue: (track: SongItem) => void;
   removeFromQueue: (index: number) => void;
   clearQueue: () => void;
+
+  // --- block list integration (driven by useMusicActionsStore) ---
+  setHiddenPredicate: (predicate: (track: SongItem) => boolean) => void;
+  pruneQueue: (shouldRemove: (track: SongItem) => boolean) => void;
 
   setViewState: (view: MusicViewState) => void;
   openOverlay: (view?: Exclude<MusicViewState, "dock">) => void;
@@ -267,7 +275,9 @@ export const useMusicPlayerStore = create<MusicPlayerState>((set, get) => ({
         const inQueue = new Set(get().queue.map(videoIdOf));
         const fresh = page.items.filter((t) => {
           const id = videoIdOf(t);
-          return isPlayableAudio(t) && !inQueue.has(id) && !radioSessionSeen.has(id);
+          return (
+            isPlayableAudio(t) && !inQueue.has(id) && !radioSessionSeen.has(id) && !hiddenPredicate(t)
+          );
         });
         const ordered = await rankMusicCandidates(fresh, "radio").catch(() => fresh);
         const batch = ordered.slice(0, RADIO_BATCH);
@@ -506,6 +516,21 @@ export const useMusicPlayerStore = create<MusicPlayerState>((set, get) => ({
     if (currentTrack) set({ queue: [currentTrack], currentIndex: 0 });
     else set({ queue: [], currentIndex: -1 });
     void currentIndex;
+  },
+
+  setHiddenPredicate: (predicate) => {
+    hiddenPredicate = predicate;
+  },
+
+  pruneQueue: (shouldRemove) => {
+    const { queue, currentIndex } = get();
+    if (queue.length === 0) return;
+    // Never yank the track that's playing; drop the rest that are now hidden.
+    const current = queue[currentIndex];
+    const kept = queue.filter((track, i) => i === currentIndex || !shouldRemove(track));
+    if (kept.length === queue.length) return;
+    const nextIndex = current ? Math.max(0, kept.indexOf(current)) : Math.min(currentIndex, kept.length - 1);
+    set({ queue: kept, currentIndex: nextIndex });
   },
 
   setViewState: (viewState) => set({ viewState }),

@@ -210,10 +210,19 @@ fn decay_rotation_if_due(brain: &mut MusicBrain, now_ms: u64) {
     brain.last_rotation_decay = now_ms;
 }
 
-/// Records an explicit dislike: a reversible cooldown (never a permanent ban) plus a
-/// downward nudge on the artist's affinity.
+/// Records an explicit dislike ("not interested"): a reversible cooldown plus a downward
+/// nudge on the artist's affinity. **Escalating** — a repeat dislike while the artist is
+/// still in cooldown promotes them to a permanent hard block (mirrors the video engine's
+/// suppress-then-block behavior).
 pub fn apply_music_dislike(brain: &mut MusicBrain, artist_key: &str, now_ms: u64) {
     if artist_key.is_empty() {
+        return;
+    }
+    if brain.blocked_artists.contains(artist_key) {
+        return; // already the strongest signal
+    }
+    if brain.disliked_artists.contains_key(artist_key) {
+        block_music_artist(brain, artist_key);
         return;
     }
     brain
@@ -228,6 +237,30 @@ pub fn apply_music_dislike(brain: &mut MusicBrain, artist_key: &str, now_ms: u64
     brain.discovery_appetite =
         (brain.discovery_appetite - APPETITE_DISLIKE_NUDGE).clamp(0.05, 0.95);
     prune(brain);
+}
+
+/// Hard-blocks an artist ("don't recommend this artist"): a permanent denylist entry plus
+/// removal of any positive signal so the brain stops surfacing them everywhere. Reversible
+/// via [`unblock_music_artist`].
+pub fn block_music_artist(brain: &mut MusicBrain, artist_key: &str) {
+    if artist_key.is_empty() {
+        return;
+    }
+    brain.blocked_artists.insert(artist_key.to_string());
+    // Blocking supersedes the soft cooldown and clears positive momentum.
+    brain.disliked_artists.remove(artist_key);
+    brain.recent_rotation.remove(artist_key);
+    if let Some(entry) = brain.artist_affinity.get_mut(artist_key) {
+        entry.liked = false;
+        entry.score = 0.0;
+    }
+    prune(brain);
+}
+
+/// Lifts a hard block, letting the artist be recommended again. Past affinity/history is
+/// preserved (blocking never deleted it), so the artist warms back up naturally.
+pub fn unblock_music_artist(brain: &mut MusicBrain, artist_key: &str) {
+    brain.blocked_artists.remove(artist_key);
 }
 
 /// Self-balancing discovery appetite. Each counted listen drifts it toward neutral; a
@@ -278,6 +311,14 @@ pub fn prune(brain: &mut MusicBrain) {
     }
     if brain.disliked_artists.len() > DISLIKED_MAX {
         keep_top_by(&mut brain.disliked_artists, DISLIKED_MAX, |ts| *ts as f64);
+    }
+    if brain.blocked_artists.len() > BLOCKED_ARTISTS_MAX {
+        // Membership matters, not ranking — drop arbitrary excess cheaply.
+        let excess = brain.blocked_artists.len() - BLOCKED_ARTISTS_MAX;
+        let drop: Vec<String> = brain.blocked_artists.iter().take(excess).cloned().collect();
+        for k in drop {
+            brain.blocked_artists.remove(&k);
+        }
     }
 }
 
@@ -420,6 +461,31 @@ mod tests {
         let c2 = newly_crossed(0.0, 1.0);
         apply_music_signal(&mut b, &sig("t1", "artistA", 1.0), &c2, 3_000, None);
         assert!(!b.disliked_artists.contains_key("artistA"));
+    }
+
+    #[test]
+    fn dislike_escalates_to_a_hard_block_on_repeat() {
+        let mut b = MusicBrain::default();
+        apply_music_dislike(&mut b, "artistA", 1_000);
+        assert!(b.disliked_artists.contains_key("artistA"));
+        assert!(!b.is_artist_blocked("artistA"));
+        // A second "not interested" while still in cooldown promotes to a permanent block.
+        apply_music_dislike(&mut b, "artistA", 2_000);
+        assert!(b.is_artist_blocked("artistA"));
+        assert!(!b.disliked_artists.contains_key("artistA"));
+    }
+
+    #[test]
+    fn block_is_reversible_and_preserves_history() {
+        let mut b = MusicBrain::default();
+        let c = newly_crossed(0.0, 1.0);
+        apply_music_signal(&mut b, &sig("t1", "artistA", 1.0), &c, 1_000, None);
+        block_music_artist(&mut b, "artistA");
+        assert!(b.is_artist_blocked("artistA"));
+        // History (the play timestamp) survives a block so unblock can warm back up.
+        assert!(b.track_plays.contains_key("t1"));
+        unblock_music_artist(&mut b, "artistA");
+        assert!(!b.is_artist_blocked("artistA"));
     }
 
     #[test]

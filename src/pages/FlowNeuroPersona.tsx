@@ -18,6 +18,7 @@ import { InterestWeights } from "../components/persona/InterestWeights";
 import { TimePatterns } from "../components/persona/TimePatterns";
 import { ChannelMemory } from "../components/persona/ChannelMemory";
 import { BlockedContent } from "../components/persona/BlockedContent";
+import { MusicBlockedArtists } from "../components/persona/MusicBlockedArtists";
 import { LearningActivity } from "../components/persona/LearningActivity";
 import { ProfileData } from "../components/persona/ProfileData";
 
@@ -162,15 +163,18 @@ export function FlowNeuroPersona() {
         {/* Blocked Filters Section (rendered conditionally if blocks exist) */}
         {(activeBrain.blocked_topics?.length > 0 || activeBrain.blocked_channels?.length > 0) && (
           <div className="col-span-12 lg:col-span-6">
-            <BlockedContent 
-              brain={activeBrain} 
-              onUnblockTopic={handleUnblockTopic} 
-              onUnblockChannel={handleUnblockChannel} 
+            <BlockedContent
+              brain={activeBrain}
+              onUnblockTopic={handleUnblockTopic}
+              onUnblockChannel={handleUnblockChannel}
             />
           </div>
         )}
 
-        <div className="col-span-12">
+        <div className="col-span-12 gap-6 flex flex-col">
+          {/* Blocked music artists */}
+          <MusicBlockedArtists />
+
           <LearningActivity />
         </div>
 

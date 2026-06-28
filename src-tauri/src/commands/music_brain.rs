@@ -113,6 +113,43 @@ pub async fn dislike_music_artist(
     Ok(())
 }
 
+/// Hard-block an artist ("don't recommend this artist") — a permanent denylist so they
+/// never appear in any music surface (ranked shelves, radio, On Repeat, Daily Mixes).
+#[tauri::command]
+pub async fn block_music_artist(
+    artist_id: Option<String>,
+    artist_name: String,
+    music_brain: State<'_, Arc<MusicBrainStore>>,
+) -> CmdResult<()> {
+    let key = artist_key(artist_id.as_deref(), &artist_name);
+    if !key.is_empty() {
+        music_brain.block_artist(&key).await;
+    }
+    Ok(())
+}
+
+/// Lift a hard block. `artist_key` is the resolved key (artist id, or normalized name) as
+/// returned by [`get_blocked_music_artists`].
+#[tauri::command]
+pub async fn unblock_music_artist(
+    artist_key: String,
+    music_brain: State<'_, Arc<MusicBrainStore>>,
+) -> CmdResult<()> {
+    let key = artist_key.trim();
+    if !key.is_empty() {
+        music_brain.unblock_artist(key).await;
+    }
+    Ok(())
+}
+
+/// The resolved keys of all hard-blocked artists, for the management UI.
+#[tauri::command]
+pub async fn get_blocked_music_artists(
+    music_brain: State<'_, Arc<MusicBrainStore>>,
+) -> CmdResult<Vec<String>> {
+    Ok(music_brain.blocked_artists().await)
+}
+
 /// Reorders YouTube Music candidates by local taste (familiarity / heavy rotation /
 /// discovery, per `surface`). A cold/empty brain is a stable pass-through, so this is
 /// always safe to call. Surfaces: `quick_picks`, `heavy_rotation`, `radio`, `similar`,
@@ -123,15 +160,19 @@ pub async fn rank_music_candidates(
     surface: String,
     music_brain: State<'_, Arc<MusicBrainStore>>,
 ) -> CmdResult<Vec<SongItem>> {
-    if songs.len() <= 1 {
-        return Ok(songs);
-    }
     let inputs: Vec<RankInput> = songs.iter().map(song_to_input).collect();
     let now = now_ms();
-    let order = {
-        let brain = music_brain.read().await;
-        rank(&brain, &inputs, &surface, now)
-    };
+    let brain = music_brain.read().await;
+    // Hard-block enforcement applies even to the trivial (<=1) case that skips ranking.
+    if songs.len() <= 1 {
+        return Ok(songs
+            .into_iter()
+            .zip(inputs.iter())
+            .filter(|(_, input)| !brain.is_artist_blocked(&input.artist_key))
+            .map(|(song, _)| song)
+            .collect());
+    }
+    let order = rank(&brain, &inputs, &surface, now);
     Ok(order.into_iter().map(|i| songs[i].clone()).collect())
 }
 

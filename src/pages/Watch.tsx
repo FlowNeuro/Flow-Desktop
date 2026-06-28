@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback, lazy, Suspense } from "react";
+import { useState, useEffect, useCallback, useMemo, lazy, Suspense } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { usePlayerStore } from "../store/usePlayerStore";
+import { useFeedHiddenFilter } from "../store/useFeedActionsStore";
 import { useSubscriptionStore } from "../store/useSubscriptionStore";
 import { useSettingsStore } from "../store/useSettingsStore";
 import { useAppSettingsStore } from "../store/useAppSettingsStore";
@@ -196,7 +197,6 @@ export function Watch() {
 
       if (cachedWatchPage?.relatedVideos && cachedWatchPage.relatedVideos.length > 0) {
         setRelatedVideos(cachedWatchPage.relatedVideos);
-        setAutoplayCandidates(cachedWatchPage.relatedVideos.map(mapRelatedItemToVideoSummary));
         setRelatedLoading(false);
         return;
       }
@@ -205,7 +205,6 @@ export function Watch() {
       try {
         const related = await getRelatedVideos(videoId);
         setRelatedVideos(related);
-        setAutoplayCandidates(related.map(mapRelatedItemToVideoSummary));
         setWatchPageCache(videoId, { relatedVideos: related });
       } catch (err) {
         console.warn("Failed to load related content", err);
@@ -231,6 +230,21 @@ export function Watch() {
     relatedVideosEnabled,
     offlineRecord,
   ]);
+
+  const isHidden = useFeedHiddenFilter();
+  // The watch page bypassed the feed block filter, so blocked/suppressed channels resurfaced
+  // in related content and autoplay. Filter them here (reactively, so a mid-watch block applies).
+  const visibleRelated = useMemo(
+    () =>
+      relatedVideos.filter((item) => {
+        if (item.itemType && item.itemType !== "video") return true; // keep playlists / mixes
+        return !isHidden({ id: item.videoId || item.id, channelId: item.channelId } as VideoSummary);
+      }),
+    [relatedVideos, isHidden],
+  );
+  useEffect(() => {
+    setAutoplayCandidates(visibleRelated.map(mapRelatedItemToVideoSummary));
+  }, [visibleRelated, setAutoplayCandidates]);
 
   const handleRelatedClick = useCallback(
     async (item: RelatedContentItem) => {
@@ -327,7 +341,7 @@ export function Watch() {
 
           {relatedVideosEnabled && (
             <RelatedVideos
-              items={relatedVideos}
+              items={visibleRelated}
               loading={relatedLoading}
               onSelect={handleRelatedClick}
               onAddToQueue={addToQueue}

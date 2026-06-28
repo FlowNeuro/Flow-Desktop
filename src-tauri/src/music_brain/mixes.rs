@@ -52,6 +52,8 @@ pub fn daily_mixes(
         .into_iter()
         .map(|(k, _)| k)
         .filter(|k| artists_with_tracks.contains(k.as_str()))
+        // Never seed a Daily Mix from a hard-blocked artist.
+        .filter(|k| !brain.is_artist_blocked(k))
         .collect();
 
     let mut assigned: HashSet<String> = HashSet::new();

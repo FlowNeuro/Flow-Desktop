@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
 import { usePlayerStore } from "./store/usePlayerStore";
 import { useFeedActionsStore } from "./store/useFeedActionsStore";
+import { useMusicActionsStore } from "./store/useMusicActionsStore";
 import { useAppSettingsStore } from "./store/useAppSettingsStore";
 import { useSettingsStore } from "./store/useSettingsStore";
 import { useAlbumLibraryStore } from "./store/useAlbumLibraryStore";
@@ -62,6 +63,7 @@ function App() {
 
   useEffect(() => {
     void useFeedActionsStore.getState().load();
+    void useMusicActionsStore.getState().load();
     void useAppSettingsStore.getState().loadSettings();
     void useSettingsStore.getState().loadSettings();
     void useAlbumLibraryStore.getState().load();

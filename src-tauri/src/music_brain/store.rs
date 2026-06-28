@@ -17,7 +17,8 @@ use crate::errors::AppResult;
 
 use super::backfill::backfill_if_needed;
 use super::learn::{
-    MusicSignal, SESSION_GAP_MS, apply_music_dislike, apply_music_signal, newly_crossed,
+    MusicSignal, SESSION_GAP_MS, apply_music_dislike, apply_music_signal, block_music_artist,
+    newly_crossed, unblock_music_artist,
 };
 use super::model::MusicBrain;
 
@@ -168,6 +169,29 @@ impl MusicBrainStore {
         let now = now_ms();
         let mut brain = self.write().await;
         apply_music_dislike(&mut brain, artist_key, now);
+    }
+
+    /// Hard-block an artist ("don't recommend this artist") — a permanent denylist entry.
+    pub async fn block_artist(&self, artist_key: &str) {
+        let mut brain = self.write().await;
+        block_music_artist(&mut brain, artist_key);
+    }
+
+    /// Lift a hard block, allowing the artist to be recommended again.
+    pub async fn unblock_artist(&self, artist_key: &str) {
+        let mut brain = self.write().await;
+        unblock_music_artist(&mut brain, artist_key);
+    }
+
+    /// Snapshot of the currently hard-blocked artist keys (for the management UI).
+    pub async fn blocked_artists(&self) -> Vec<String> {
+        self.brain
+            .read()
+            .await
+            .blocked_artists
+            .iter()
+            .cloned()
+            .collect()
     }
 
     pub async fn snapshot(&self) -> MusicBrain {

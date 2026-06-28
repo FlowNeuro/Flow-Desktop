@@ -8,6 +8,7 @@ import { MusicShelf } from '../../components/music/MusicShelf';
 import { useMusicChipFilter, useMusicHome } from '../../lib/useMusicHome';
 import { useMusicPersonalization } from '../../lib/useMusicPersonalization';
 import { useMusicPlayerStore } from '../../store/useMusicPlayerStore';
+import { useMusicArtistHidden, useMusicHiddenFilter } from '../../store/useMusicActionsStore';
 import { getString } from '../../lib/i18n/index';
 import type { AlbumItem, ArtistItem, PlaylistItem, SongItem, YTItem } from '../../types/music';
 
@@ -32,6 +33,13 @@ export default function MusicHome() {
   const addToQueue = useMusicPlayerStore((s) => s.addToQueue);
   const { data, loading, error, reload, loadMore, hasMore, loadingMore } = useMusicHome();
   const personalization = useMusicPersonalization();
+  const isHidden = useMusicHiddenFilter();
+  const isArtistHidden = useMusicArtistHidden();
+  // Drop blocked/dismissed songs and blocked-artist cards from every shelf.
+  const visible = (items: YTItem[]): YTItem[] =>
+    items.filter((it) =>
+      it.type === 'song' ? !isHidden(it) : it.type === 'artist' ? !isArtistHidden(it) : true,
+    );
 
   const fallbackMoods = useMemo(
     () => [
@@ -129,7 +137,7 @@ export default function MusicHome() {
     }
 
     if (activeChip) {
-      const items = chipFilter.items.filter(renderable);
+      const items = visible(chipFilter.items.filter(renderable));
       const songContext = songsOf(items);
       return (
         <div className="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
@@ -150,9 +158,9 @@ export default function MusicHome() {
       );
     }
 
-    const quickPicks = personalization.quickPicks.length
-      ? personalization.quickPicks
-      : data?.quickPicks ?? [];
+    const quickPicks = (
+      personalization.quickPicks.length ? personalization.quickPicks : data?.quickPicks ?? []
+    ).filter((track) => !isHidden(track));
     const personalSections = personalization.sections;
     const seenTitles = new Set(personalSections.map((s) => s.title.trim().toLowerCase()));
     const homeSections = (data?.sections ?? []).filter(
@@ -160,7 +168,7 @@ export default function MusicHome() {
     );
 
     const renderShelf = (key: string, title: string, rawItems: YTItem[]) => {
-      const items = rawItems.filter(renderable).slice(0, 20);
+      const items = visible(rawItems.filter(renderable)).slice(0, 20);
       if (items.length === 0) return null;
       const songContext = songsOf(items);
       const shape = items[0]?.type === 'artist' ? 'circle' : 'square';

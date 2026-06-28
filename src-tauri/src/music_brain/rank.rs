@@ -131,6 +131,13 @@ pub fn heavy_rotation(brain: &MusicBrain, now_ms: u64, limit: usize) -> Vec<Stri
     let mut scored: Vec<(String, f64)> = brain
         .track_plays
         .keys()
+        // Drop tracks by hard-blocked artists so On Repeat never resurfaces them.
+        .filter(|track| {
+            brain
+                .track_meta
+                .get(*track)
+                .map_or(true, |m| !brain.is_artist_blocked(&m.artist_key))
+        })
         .map(|track| (track.clone(), base_level_activation(brain, track, now_ms)))
         .filter(|(_, activation)| *activation > 0.0)
         .collect();
@@ -282,7 +289,12 @@ pub fn rank(brain: &MusicBrain, inputs: &[RankInput], surface: &str, now_ms: u64
             .unwrap_or(std::cmp::Ordering::Equal)
             .then(a.0.cmp(&b.0))
     });
-    let order: Vec<usize> = scored.into_iter().map(|(i, _)| i).collect();
+    // Hard-blocked artists ("don't recommend") are dropped entirely — never just down-ranked.
+    let order: Vec<usize> = scored
+        .into_iter()
+        .map(|(i, _)| i)
+        .filter(|&i| !brain.is_artist_blocked(&inputs[i].artist_key))
+        .collect();
     let suppressed: Vec<bool> = inputs
         .iter()
         .map(|inp| is_in_dislike_cooldown(brain, &inp.artist_key, now_ms))
@@ -600,6 +612,16 @@ mod tests {
         let adjacent = vec![false, true];
         let out = compose_to_ratio(order, &novel, &adjacent, 0.9);
         assert_eq!(out.first(), Some(&1));
+    }
+
+    #[test]
+    fn blocked_artist_is_dropped_from_ranking() {
+        let mut brain = MusicBrain::default();
+        crate::music_brain::learn::block_music_artist(&mut brain, "banned");
+        // Blocked candidate first in recall order; it must be removed entirely, not reordered.
+        let inputs = vec![input("t", "banned"), input("u", "ok")];
+        let order = rank(&brain, &inputs, "quick_picks", 1_000);
+        assert_eq!(order, vec![1]);
     }
 
     #[test]

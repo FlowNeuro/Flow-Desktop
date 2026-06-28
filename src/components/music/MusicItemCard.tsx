@@ -14,6 +14,7 @@ import { useDownloadStore } from '../../store/useDownloadStore';
 import { useProxiedImageUrl } from '../../lib/useProxiedImageUrl';
 import { PlayingWave } from './PlayingWave';
 import { MusicCardMenu, type MusicMenuAction, useMusicContextMenu } from './MusicCardMenu';
+import { useTrackBlockActions } from './useTrackBlockActions';
 
 type BaseProps = {
   className?: string;
@@ -290,6 +291,7 @@ function SquareCard({
   const isTrack = menuKind === 'track' && item && 'videoId' in item;
   const isAlbum = menuKind === 'album' && item && 'browseId' in item;
   const songLike = useSongLike(isTrack ? item : null);
+  const blockActions = useTrackBlockActions(isTrack ? item : null);
 
   const albumBrowseId = isAlbum ? item.browseId : null;
   const albumSaved = useAlbumLibraryStore((s) => (albumBrowseId ? s.isSaved(albumBrowseId) : false));
@@ -332,6 +334,7 @@ function SquareCard({
           icon: <Share2 size={16} />,
           onSelect: () => shareUrl(item.title, trackShareUrl(item)),
         },
+        ...blockActions,
       ]
     : isAlbum
       ? [
@@ -575,6 +578,7 @@ function ListRow({
   const openAddToAlbum = useAlbumLibraryStore((s) => s.openAddToAlbum);
   const openMusicDownload = useDownloadStore((s) => s.openMusic);
   const isDownloaded = useIsDownloaded(trackId);
+  const blockActions = useTrackBlockActions(item);
   const menu = useMusicContextMenu(true);
   const isPlayingTrack = !!currentTrack && videoIdOf(currentTrack) === trackId && playerIsPlaying;
   const isHighlighted = isHovered || isPlayingTrack;
@@ -613,6 +617,7 @@ function ListRow({
       icon: <Share2 size={16} />,
       onSelect: () => shareUrl(title, trackShareUrl(item)),
     },
+    ...blockActions,
   ];
   const resolveColor = (img?: HTMLImageElement) => {
     const source = img ?? artworkRef.current;

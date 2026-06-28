@@ -210,9 +210,24 @@ export function rankMusicCandidates(
   return invokeBackend<SongItem[]>("rank_music_candidates", { songs, surface });
 }
 
-/** Records a reversible dislike cooldown for an artist (not a permanent ban). */
+/** Records a reversible dislike cooldown for an artist (a repeat dislike escalates to a block). */
 export function dislikeMusicArtist(artistId: string | null, artistName: string): Promise<void> {
   return invokeBackend<void>("dislike_music_artist", { artistId, artistName });
+}
+
+/** Hard-blocks an artist ("don't recommend") — a permanent denylist across all music surfaces. */
+export function blockMusicArtist(artistId: string | null, artistName: string): Promise<void> {
+  return invokeBackend<void>("block_music_artist", { artistId, artistName });
+}
+
+/** Lifts a hard block. `artistKey` is the resolved key from {@link getBlockedMusicArtists}. */
+export function unblockMusicArtist(artistKey: string): Promise<void> {
+  return invokeBackend<void>("unblock_music_artist", { artistKey });
+}
+
+/** The resolved keys of all hard-blocked artists (id, or normalized name). */
+export function getBlockedMusicArtists(): Promise<string[]> {
+  return invokeBackend<string[]>("get_blocked_music_artists");
 }
 
 /** Clears all learned music taste (and re-enables history backfill on next launch). */

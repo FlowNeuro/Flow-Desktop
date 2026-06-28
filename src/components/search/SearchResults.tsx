@@ -8,6 +8,7 @@ import { ChannelCard } from '../channel/ChannelCard';
 import { PlaylistCard } from '../video/PlaylistCard';
 import { Button } from '../ui/Button';
 import { useMusicPlayerStore } from '../../store/useMusicPlayerStore';
+import { useMusicHiddenFilter } from '../../store/useMusicActionsStore';
 import { useInfiniteScroll } from '../../lib/useInfiniteScroll';
 import { getString } from '../../lib/i18n/index';
 import { upgradeAvatarUrl, upgradeMusicImageUrl } from '../../lib/thumbnails';
@@ -71,6 +72,10 @@ export function SearchResults({ search, onPlayVideo, onAddToQueue }: SearchResul
     isLoading: isLoading || isFetchingNextPage,
     onLoadMore: fetchNextPage,
   });
+
+  const isHidden = useMusicHiddenFilter();
+  // Hide blocked/dismissed songs from music search results.
+  const visibleSongs = r.songs.filter((song) => !isHidden(song));
 
   // --- actions ------------------------------------------------------------
   const playSong = (song: SongItem, context: SongItem[]) => {
@@ -159,7 +164,7 @@ export function SearchResults({ search, onPlayVideo, onAddToQueue }: SearchResul
           />
         )}
 
-        {r.songs.length > 0 && (
+        {visibleSongs.length > 0 && (
           <section className="flex flex-col">
             <ShelfHeader
               title={getString('search_section_songs')}
@@ -167,12 +172,12 @@ export function SearchResults({ search, onPlayVideo, onAddToQueue }: SearchResul
               seeAllLabel={getString('search_see_all_songs')}
             />
             <div className="flex flex-col gap-1">
-              {r.songs.slice(0, 4).map((song) => (
+              {visibleSongs.slice(0, 4).map((song) => (
                 <MusicItemCard
                   key={song.id}
                   variant="track-list"
                   item={song}
-                  onPlay={() => playSong(song, r.songs)}
+                  onPlay={() => playSong(song, visibleSongs)}
                   onMenu={() => addSongToQueue(song)}
                 />
               ))}
@@ -289,12 +294,12 @@ export function SearchResults({ search, onPlayVideo, onAddToQueue }: SearchResul
       {filterType === 'songs' && (
         <>
           <div className="flex flex-col gap-0.5">
-            {r.songs.map((song) => (
+            {visibleSongs.map((song) => (
               <MusicItemCard
                 key={song.id}
                 variant="track-list"
                 item={song}
-                onPlay={() => playSong(song, r.songs)}
+                onPlay={() => playSong(song, visibleSongs)}
                 onMenu={() => addSongToQueue(song)}
               />
             ))}

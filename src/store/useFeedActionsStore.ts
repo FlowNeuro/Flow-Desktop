@@ -130,6 +130,14 @@ export const useFeedActionsStore = create<FeedActionsState>((set, get) => {
 
     notInterested: async (video) => {
       const m = meta(video);
+      // Escalating: a second "not interested" on a still-suppressed channel promotes it to a
+      // permanent block (mirrors the backend, which blocks a channel on its 2nd dislike).
+      const active = activeSuppressedChannels(get().suppressedChannelIds);
+      if (m.channelId && active.has(m.channelId)) {
+        set((s) => ({ dismissedVideoIds: addCapped(s.dismissedVideoIds, video.id, DISMISSED_CAP) }));
+        await get().blockChannel(video);
+        return;
+      }
       set((s) => ({
         dismissedVideoIds: addCapped(s.dismissedVideoIds, video.id, DISMISSED_CAP),
         suppressedChannelIds: m.channelId

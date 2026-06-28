@@ -29,6 +29,9 @@ pub const GENRE_AFFINITY_MAX: usize = 200;
 pub const SEEN_ARTISTS_MAX: usize = 3000;
 pub const SEEN_ARTISTS_KEEP: usize = 2500;
 pub const DISLIKED_MAX: usize = 200;
+/// Hard-blocked artists ("don't recommend") — a permanent denylist, distinct from the
+/// reversible `disliked_artists` cooldown. Generously capped; users rarely block this many.
+pub const BLOCKED_ARTISTS_MAX: usize = 1000;
 
 pub const DEFAULT_DISCOVERY_APPETITE: f64 = 0.3;
 
@@ -81,6 +84,9 @@ pub struct MusicBrain {
     pub seen_artists: HashSet<String>,
     /// Cooldown timestamps (NOT permanent bans) for disliked artists.
     pub disliked_artists: HashMap<String, u64>,
+    /// Hard-blocked artists ("don't recommend this artist") — a permanent denylist. These
+    /// are never recommended in any surface and never appear in On Repeat / Daily Mixes.
+    pub blocked_artists: HashSet<String>,
     /// Learned per-user exploration appetite in `0.05..=0.95`.
     pub discovery_appetite: f64,
     pub total_plays: u32,
@@ -101,6 +107,7 @@ impl Default for MusicBrain {
             time_buckets: HashMap::new(),
             seen_artists: HashSet::new(),
             disliked_artists: HashMap::new(),
+            blocked_artists: HashSet::new(),
             discovery_appetite: DEFAULT_DISCOVERY_APPETITE,
             total_plays: 0,
             last_rotation_decay: 0,
@@ -119,6 +126,11 @@ pub fn pair_key(a: &str, b: &str) -> String {
 }
 
 impl MusicBrain {
+    /// Whether an artist is on the permanent "don't recommend" denylist.
+    pub fn is_artist_blocked(&self, artist_key: &str) -> bool {
+        !artist_key.is_empty() && self.blocked_artists.contains(artist_key)
+    }
+
     /// Top artists by affinity score (read side for ranking/shelves; descending).
     pub fn top_artists(&self, n: usize) -> Vec<(String, f64)> {
         let mut entries: Vec<(String, f64)> = self

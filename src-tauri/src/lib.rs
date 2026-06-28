@@ -39,8 +39,9 @@ use commands::music::{
     proxy_image_url, search_music_continuation, search_music_typed,
 };
 use commands::music_brain::{
-    dislike_music_artist, get_daily_mixes, get_heavy_rotation, get_music_brain_snapshot,
-    rank_music_candidates, record_music_interaction, reset_music_brain,
+    block_music_artist, dislike_music_artist, get_blocked_music_artists, get_daily_mixes,
+    get_heavy_rotation, get_music_brain_snapshot, rank_music_candidates, record_music_interaction,
+    reset_music_brain, unblock_music_artist,
 };
 use commands::recommendation::{
     add_blocked_topic, add_preferred_topic, block_channel, complete_onboarding,
@@ -256,6 +257,9 @@ pub fn run() {
             // --- Dedicated music brain (separate from flow_neuro) ---
             record_music_interaction,
             dislike_music_artist,
+            block_music_artist,
+            unblock_music_artist,
+            get_blocked_music_artists,
             rank_music_candidates,
             get_heavy_rotation,
             get_daily_mixes,
