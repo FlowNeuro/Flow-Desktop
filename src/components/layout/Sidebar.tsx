@@ -10,6 +10,7 @@ import {
   Compass,
   Disc3,
   Download,
+  HandCoins ,
   History,
   Home,
   ListVideo,
@@ -146,6 +147,9 @@ export function Sidebar({ mode = 'normal' }: SidebarProps) {
           {showMusicNav && <CompactRailItem path="/music" icon={<Music2 />} label={getString('sidebar_music')} />}
           <CompactRailItem path="/subscriptions" icon={<Users />} label={getString('sidebar_subscriptions')} />
           <CompactRailItem path="/library" icon={<UserCircle />} label={getString('sidebar_you')} />
+          <div className="mt-auto w-full pt-1">
+            <CompactRailItem path="/support" icon={<HandCoins />} label={getString('settings_group_support')} />
+          </div>
         </nav>
       </aside>
     );
@@ -218,13 +222,14 @@ export function Sidebar({ mode = 'normal' }: SidebarProps) {
         </nav>
       </section>
 
-      <hr className="border-neutral-800/50 my-3 mx-4" />
-
-      {/* System */}
-      <nav className="flex flex-col">
-        <SidebarItem to="/settings" icon={<Settings />} label={getString('settings_title')} onClick={closeOverlay} />
-        <SidebarItem to="/sponsorblock" icon={<Blocks />} label={getString('sidebar_extensions')} onClick={closeOverlay} />
-      </nav>
+      <div className="mt-auto">
+        <hr className="border-neutral-800/50 my-3 mx-4" />
+        <nav className="flex flex-col">
+          <SidebarItem to="/settings" icon={<Settings />} label={getString('settings_title')} onClick={closeOverlay} />
+          <SidebarItem to="/sponsorblock" icon={<Blocks />} label={getString('sidebar_extensions')} onClick={closeOverlay} />
+          <SidebarItem to="/support" icon={<HandCoins  />} label={getString('sidebar_support')} onClick={closeOverlay} />
+        </nav>
+      </div>
     </aside>
   );
 }

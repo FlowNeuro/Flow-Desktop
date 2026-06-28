@@ -32,6 +32,7 @@ import SavedShorts from "./pages/SavedShorts";
 import Playlists from "./pages/Playlists";
 import PlaylistDetailsPage from "./pages/PlaylistDetailsPage";
 import Settings from "./pages/Settings";
+import Donations from "./pages/Donations";
 import ImportData from "./pages/ImportData";
 import ExtensionsPage from "./pages/ExtensionsPage";
 import Channel from "./pages/Channel";
@@ -51,6 +52,7 @@ import { AddToPlaylistModal } from "./components/playlist/AddToPlaylistModal";
 import { DeepFlowController } from "./components/deep-flow/DeepFlowController";
 import { DownloadDialog } from "./components/downloads/DownloadDialog";
 import { DownloadActivity } from "./components/downloads/DownloadActivity";
+import { DonationPromptHost } from "./components/donations/DonationPrompt";
 
 import "./App.css";
 
@@ -186,6 +188,9 @@ function App() {
           <Route path="settings" element={
             <Settings />
           } />
+          <Route path="support" element={
+            <Donations />
+          } />
           <Route path="settings/import" element={
             <ImportData />
           } />
@@ -212,6 +217,7 @@ function App() {
         <DownloadDialog />
         <DownloadActivity />
       </LayoutGroup>
+      <DonationPromptHost enabled={location.pathname !== "/onboarding"} />
       <ToastHost />
     </div>
   );
