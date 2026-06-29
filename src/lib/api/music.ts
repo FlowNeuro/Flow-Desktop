@@ -18,6 +18,7 @@ import type {
   MusicSearchResponse,
   MusicSearchSuggestions,
   MusicStreamInfo,
+  MusicTasteProfile,
   QueuePage,
   RelatedPage,
   SearchSummaryPage,
@@ -233,4 +234,8 @@ export function getBlockedMusicArtists(): Promise<string[]> {
 /** Clears all learned music taste (and re-enables history backfill on next launch). */
 export function resetMusicBrain(): Promise<void> {
   return invokeBackend<void>("reset_music_brain");
+}
+
+export function getMusicTasteProfile(): Promise<MusicTasteProfile> {
+  return invokeBackend<MusicTasteProfile>("get_music_taste_profile");
 }

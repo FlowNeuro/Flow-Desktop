@@ -650,6 +650,7 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
 
   const fetchWatchHistoryRelatedPool = async (history: WatchHistoryRecord[], seedLimit = 4) => {
     const eligible = history.filter((record) => {
+      if (record.isMusic) return false;
       const total = record.totalDurationSeconds ?? 0;
       const ratio = total > 0 ? record.watchDurationSeconds / total : 0;
       return ratio >= 0.35 || record.watchDurationSeconds >= 180;

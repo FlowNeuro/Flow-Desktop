@@ -190,6 +190,45 @@ export interface DailyMixSeed {
   seedTrackIds: string[];
 }
 
+export type MusicMaturity = "cold_start" | "warming" | "mature";
+
+export interface MusicTopArtist {
+  /** Affinity key: a routable browseId when `idKeyed`, else a normalized name. */
+  key: string;
+  /** Display name (resolved from track metadata); falls back to the key. */
+  name: string;
+  score: number;
+  plays: number;
+  liked: boolean;
+  /** Whether `key` can be opened at `/music/artist/:key` (and seed an artist-graph fetch). */
+  idKeyed: boolean;
+}
+
+export interface MusicGenreWeight {
+  genre: string;
+  weight: number;
+}
+
+export interface MusicTimeOfDayBucket {
+  /** PascalCase `TimeBucket` variant name (e.g. `"WeekdayMorning"`). */
+  bucket: string;
+  plays: number;
+  topGenres: MusicGenreWeight[];
+}
+
+export interface MusicTasteProfile {
+  topArtists: MusicTopArtist[];
+  topGenres: MusicGenreWeight[];
+  discoveryAppetite: number;
+  totalPlays: number;
+  distinctArtists: number;
+  trackedTracks: number;
+  onRepeatCount: number;
+  maturity: MusicMaturity;
+  /** Always all 8 buckets, in canonical order (zero-play buckets included). */
+  timeOfDay: MusicTimeOfDayBucket[];
+}
+
 export interface QueuePage {
   items: SongItem[];
   currentIndex: number | null;

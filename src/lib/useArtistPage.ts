@@ -49,7 +49,7 @@ const moreOf = (s: ArtistSection): ArtistMoreEndpoint | null =>
     ? { browseId: s.moreEndpointBrowseId, params: s.moreEndpointParams }
     : null;
 
-function segment(page: ArtistPage): ArtistPageData {
+export function segmentArtistPage(page: ArtistPage): ArtistPageData {
   const data: ArtistPageData = {
     header: {
       id: page.artist.id,
@@ -117,7 +117,7 @@ export function useArtistPage(browseId: string | undefined) {
     try {
       const page = await getMusicArtistPage(browseId);
       if (reqRef.current !== req) return;
-      setData(segment(page));
+      setData(segmentArtistPage(page));
     } catch (e) {
       if (reqRef.current === req) {
         setError(getBackendErrorMessage(e));

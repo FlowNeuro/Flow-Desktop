@@ -9,6 +9,8 @@ import {
   type PersonaDetails
 } from "../lib/api/recommendation";
 import { setSetting } from "../lib/api/db";
+import { getMusicTasteProfile } from "../lib/api/music";
+import type { MusicTasteProfile } from "../types/music";
 
 import { SkeletonLoader } from "../components/persona/SkeletonLoader";
 import { PersonaOverview } from "../components/persona/PersonaOverview";
@@ -18,6 +20,10 @@ import { InterestWeights } from "../components/persona/InterestWeights";
 import { TimePatterns } from "../components/persona/TimePatterns";
 import { ChannelMemory } from "../components/persona/ChannelMemory";
 import { BlockedContent } from "../components/persona/BlockedContent";
+import { MusicTasteOverview } from "../components/persona/MusicTasteOverview";
+import { MusicTopArtists } from "../components/persona/MusicTopArtists";
+import { MusicGenreAffinity } from "../components/persona/MusicGenreAffinity";
+import { MusicListeningPatterns } from "../components/persona/MusicListeningPatterns";
 import { MusicBlockedArtists } from "../components/persona/MusicBlockedArtists";
 import { LearningActivity } from "../components/persona/LearningActivity";
 import { ProfileData } from "../components/persona/ProfileData";
@@ -27,6 +33,7 @@ import { RefreshCw, BrainCog  } from "lucide-react";
 export function FlowNeuroPersona() {
   const [brain, setBrain] = useState<UserBrain | null>(null);
   const [persona, setPersona] = useState<PersonaDetails | null>(null);
+  const [musicProfile, setMusicProfile] = useState<MusicTasteProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -40,6 +47,13 @@ export function FlowNeuroPersona() {
       setPersona(personaDetails);
     } catch (e) {
       console.error("Failed to load recommendation telemetry:", e);
+    }
+
+    try {
+      const tasteProfile = await getMusicTasteProfile();
+      setMusicProfile(tasteProfile);
+    } catch (e) {
+      console.error("Failed to load music taste profile:", e);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -169,6 +183,24 @@ export function FlowNeuroPersona() {
               onUnblockChannel={handleUnblockChannel}
             />
           </div>
+        )}
+
+        {/* Music taste profile — learned locally by the dedicated music engine */}
+        {musicProfile && (
+          <>
+            <div className="col-span-12">
+              <MusicTasteOverview profile={musicProfile} />
+            </div>
+            <div className="col-span-12 lg:col-span-7">
+              <MusicTopArtists profile={musicProfile} />
+            </div>
+            <div className="col-span-12 lg:col-span-5">
+              <MusicGenreAffinity profile={musicProfile} />
+            </div>
+            <div className="col-span-12">
+              <MusicListeningPatterns profile={musicProfile} />
+            </div>
+          </>
         )}
 
         <div className="col-span-12 gap-6 flex flex-col">

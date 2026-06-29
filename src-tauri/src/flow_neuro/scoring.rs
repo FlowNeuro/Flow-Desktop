@@ -232,11 +232,11 @@ pub enum TimeBucket {
 impl TimeBucket {
     pub fn current() -> Self {
         let now = Local::now();
-        let hour = now.hour();
-        let weekday = now.weekday();
+        let is_weekend = matches!(now.weekday(), Weekday::Sat | Weekday::Sun);
+        Self::from_parts(now.hour(), is_weekend)
+    }
 
-        let is_weekend = weekday == Weekday::Sat || weekday == Weekday::Sun;
-
+    pub fn from_parts(hour: u32, is_weekend: bool) -> Self {
         if is_weekend {
             match hour {
                 6..=11 => TimeBucket::WeekendMorning,

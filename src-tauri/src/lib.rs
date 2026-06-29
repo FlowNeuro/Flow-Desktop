@@ -40,8 +40,8 @@ use commands::music::{
 };
 use commands::music_brain::{
     block_music_artist, dislike_music_artist, get_blocked_music_artists, get_daily_mixes,
-    get_heavy_rotation, get_music_brain_snapshot, rank_music_candidates, record_music_interaction,
-    reset_music_brain, unblock_music_artist,
+    get_heavy_rotation, get_music_brain_snapshot, get_music_taste_profile, rank_music_candidates,
+    record_music_interaction, reset_music_brain, unblock_music_artist,
 };
 use commands::recommendation::{
     add_blocked_topic, add_preferred_topic, block_channel, complete_onboarding,
@@ -264,6 +264,7 @@ pub fn run() {
             get_heavy_rotation,
             get_daily_mixes,
             get_music_brain_snapshot,
+            get_music_taste_profile,
             reset_music_brain
         ])
         .build(tauri::generate_context!())

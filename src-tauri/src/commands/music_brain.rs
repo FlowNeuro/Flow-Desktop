@@ -6,6 +6,7 @@ use crate::errors::ErrorResponse;
 use crate::models::music::{Artist, SongItem};
 use crate::music_brain::mixes::{DailyMixSeed, daily_mixes};
 use crate::music_brain::model::MusicBrain;
+use crate::music_brain::profile::{MusicTasteProfile, taste_profile};
 use crate::music_brain::rank::{RankInput, heavy_rotation, rank};
 use crate::music_brain::store::MusicBrainStore;
 
@@ -194,6 +195,15 @@ pub async fn get_music_brain_snapshot(
     music_brain: State<'_, Arc<MusicBrainStore>>,
 ) -> CmdResult<MusicBrain> {
     Ok(music_brain.snapshot().await)
+}
+
+#[tauri::command]
+pub async fn get_music_taste_profile(
+    music_brain: State<'_, Arc<MusicBrainStore>>,
+) -> CmdResult<MusicTasteProfile> {
+    let now = now_ms();
+    let brain = music_brain.read().await;
+    Ok(taste_profile(&brain, now))
 }
 
 #[tauri::command]
