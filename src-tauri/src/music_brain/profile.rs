@@ -138,7 +138,9 @@ pub fn taste_profile(brain: &MusicBrain, now_ms: u64) -> MusicTasteProfile {
         if meta.artist_key.is_empty() || meta.artist.is_empty() {
             continue;
         }
-        names.entry(meta.artist_key.as_str()).or_insert(meta.artist.as_str());
+        names
+            .entry(meta.artist_key.as_str())
+            .or_insert(meta.artist.as_str());
     }
 
     // Top artists by affinity score, excluding hard-blocked ("don't recommend") artists.
@@ -155,7 +157,11 @@ pub fn taste_profile(brain: &MusicBrain, now_ms: u64) -> MusicTasteProfile {
         .take(TOP_ARTISTS)
         .map(|(key, score, plays, liked)| TopArtist {
             key: key.clone(),
-            name: names.get(key.as_str()).copied().unwrap_or(key.as_str()).to_string(),
+            name: names
+                .get(key.as_str())
+                .copied()
+                .unwrap_or(key.as_str())
+                .to_string(),
             score,
             plays,
             liked,
@@ -202,7 +208,9 @@ pub fn taste_profile(brain: &MusicBrain, now_ms: u64) -> MusicTasteProfile {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::music_brain::learn::{MusicSignal, apply_music_signal, block_music_artist, newly_crossed};
+    use crate::music_brain::learn::{
+        MusicSignal, apply_music_signal, block_music_artist, newly_crossed,
+    };
     use crate::music_brain::model::Affinity;
 
     fn listen(brain: &mut MusicBrain, track: &str, key: &str, display: &str, now: u64) {
@@ -239,13 +247,26 @@ mod tests {
         // An affinity-only artist with no track_meta (e.g. from backfill) keeps its key.
         brain.artist_affinity.insert(
             "nameonly".to_string(),
-            Affinity { plays: 9, score: 0.99, last_played: 1, liked: false },
+            Affinity {
+                plays: 9,
+                score: 0.99,
+                last_played: 1,
+                liked: false,
+            },
         );
         let p = taste_profile(&brain, 2_000);
-        let drake = p.top_artists.iter().find(|a| a.key == "UCdrake").expect("drake present");
+        let drake = p
+            .top_artists
+            .iter()
+            .find(|a| a.key == "UCdrake")
+            .expect("drake present");
         assert_eq!(drake.name, "Drake");
         assert!(drake.id_keyed, "UC-prefixed key is routable");
-        let nameonly = p.top_artists.iter().find(|a| a.key == "nameonly").expect("present");
+        let nameonly = p
+            .top_artists
+            .iter()
+            .find(|a| a.key == "nameonly")
+            .expect("present");
         assert_eq!(nameonly.name, "nameonly");
         assert!(!nameonly.id_keyed, "lowercase name key is not routable");
     }
