@@ -333,6 +333,7 @@ async fn apply_playlists_unions_tracks_by_video_id() {
         youtube_id: None,
         title: "Gym".to_string(),
         description: None,
+        thumbnail_url: None,
         is_music: false,
         is_user_created: true,
         is_protected: false,

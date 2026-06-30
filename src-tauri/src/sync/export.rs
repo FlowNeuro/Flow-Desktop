@@ -10,14 +10,17 @@
 //! relay everything it has converged from other devices, so a 3rd device converges transitively.
 //! Callers MUST flush the resident brain stores to the DB before calling this (see the Phase  so the freshest learning is included.
 
+use std::collections::BTreeMap;
+
 use serde::Serialize;
+use serde_json::Value;
 use sqlx::SqlitePool;
 
 use crate::flow_neuro::scoring::UserBrain;
 use crate::music_brain::model::MusicBrain;
 use crate::sync::apply::{MUSIC_BRAIN_KEY, MUSIC_MERGED_KEY, NEURO_BRAIN_KEY, NEURO_MERGED_KEY};
 use crate::sync::brainmap;
-use crate::sync::canonical::{Collection, Hlc, SettingEntry, WatchHistoryRecord};
+use crate::sync::canonical::{Collection, Hlc, Playlist, SettingEntry, WatchHistoryRecord};
 use crate::sync::error::SyncError;
 use crate::sync::mapping::{self, WatchRow};
 use crate::sync::merge::{MergedFlowNeuroBrain, MergedMusicBrain};
@@ -75,11 +78,79 @@ async fn export_playlists(pool: &SqlitePool, device_id: &str) -> Result<Vec<u8>,
         Some(raw) => mapping::parse_playlists_blob(&raw, device_id),
         None => Vec::new(),
     };
+    if let Some(raw) = get_setting(pool, mapping::ALBUMS_SETTING_KEY).await? {
+        playlists.extend(mapping::parse_albums_blob(&raw, device_id));
+    }
     for p in &mut playlists {
         p.items.sort_by(|a, b| a.video_id.cmp(&b.video_id));
     }
     playlists.sort_by(|a, b| a.sync_id.cmp(&b.sync_id));
     Ok(to_ndjson(&playlists))
+}
+
+fn parse_all_playlists(ndjson: &[u8]) -> Option<Vec<Playlist>> {
+    ndjson
+        .split(|&b| b == b'\n')
+        .filter(|l| !l.is_empty())
+        .map(|l| serde_json::from_slice::<Playlist>(l).ok())
+        .collect()
+}
+
+fn album_needs_tracks(p: &Playlist) -> Option<String> {
+    if mapping::is_album_playlist(p) && p.items.iter().all(|i| i.deleted) {
+        p.youtube_id.clone().filter(|y| !y.is_empty())
+    } else {
+        None
+    }
+}
+
+pub fn album_browse_ids_missing_tracks(ndjson: &[u8]) -> Vec<String> {
+    let Some(playlists) = parse_all_playlists(ndjson) else {
+        return Vec::new();
+    };
+    let mut ids = Vec::new();
+    for p in &playlists {
+        if let Some(id) = album_needs_tracks(p) {
+            if !ids.contains(&id) {
+                ids.push(id);
+            }
+        }
+    }
+    ids
+}
+
+pub fn fill_album_tracks(ndjson: &[u8], tracks: &BTreeMap<String, Vec<Value>>) -> Vec<u8> {
+    let Some(mut playlists) = parse_all_playlists(ndjson) else {
+        return ndjson.to_vec();
+    };
+    for p in &mut playlists {
+        if album_needs_tracks(p).is_none() {
+            continue;
+        }
+        let Some(songs) = p.youtube_id.as_ref().and_then(|y| tracks.get(y)) else {
+            continue;
+        };
+        let hlc = p.updated_hlc.clone();
+        let created = p.created_at_ms;
+        let items: Vec<_> = songs
+            .iter()
+            .enumerate()
+            .map(|(i, s)| mapping::song_to_item(s, i as i64, created, &hlc))
+            .filter(|it| !it.video_id.is_empty())
+            .collect();
+        if items.is_empty() {
+            continue;
+        }
+        if p.thumbnail_url.as_deref().unwrap_or("").is_empty() {
+            p.thumbnail_url = items.iter().find_map(|it| it.thumbnail_url.clone());
+        }
+        p.items = items;
+    }
+    for p in &mut playlists {
+        p.items.sort_by(|a, b| a.video_id.cmp(&b.video_id));
+    }
+    playlists.sort_by(|a, b| a.sync_id.cmp(&b.sync_id));
+    to_ndjson(&playlists)
 }
 
 async fn export_settings(pool: &SqlitePool, device_id: &str) -> Result<Vec<u8>, SyncError> {

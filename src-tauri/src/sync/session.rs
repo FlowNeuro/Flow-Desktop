@@ -38,10 +38,13 @@ use crate::sync::export;
 use crate::sync::frames::{CapabilitiesFrame, Capability, HelloFrame, ManifestFrame, Platform};
 use crate::sync::ledger;
 use crate::sync::protocol::{
-    ClientOutcome, HostOutcome, run_client_sender, run_host_receiver, run_receiver, run_sender,
+    ClientOutcome, HostOutcome, OutgoingCollection, run_client_sender, run_host_receiver,
+    run_receiver, run_sender,
 };
 use crate::sync::qr::QrPayload;
 use crate::sync::transport;
+use crate::services::music_service::MusicService;
+use serde_json::Value;
 
 /// Per-collection schema version this build advertises in its capabilities.
 const CAP_SCHEMA: i32 = 1;
@@ -363,6 +366,61 @@ fn pool_of(app: &AppHandle) -> SqlitePool {
     app.state::<SqlitePool>().inner().clone()
 }
 
+async fn enrich_outgoing_albums(app: &AppHandle, outgoing: &mut [OutgoingCollection]) {
+    let Some(pl) = outgoing
+        .iter_mut()
+        .find(|o| o.collection == Collection::Playlists)
+    else {
+        return;
+    };
+    let browse_ids = export::album_browse_ids_missing_tracks(&pl.ndjson);
+    if browse_ids.is_empty() {
+        return;
+    }
+    let Some(music) = app.try_state::<MusicService>() else {
+        return;
+    };
+    let mut tracks: BTreeMap<String, Vec<Value>> = BTreeMap::new();
+    for id in browse_ids {
+        match music.album(&id).await {
+            Ok(page) => {
+                let cover = page.album.thumbnail.clone();
+                let songs: Vec<Value> = page
+                    .songs
+                    .iter()
+                    .filter_map(|s| {
+                        let mut v = serde_json::to_value(s).ok()?;
+                        if !cover.is_empty() {
+                            if let Some(obj) = v.as_object_mut() {
+                                let has = obj
+                                    .get("thumbnail")
+                                    .and_then(Value::as_str)
+                                    .is_some_and(|t| !t.is_empty());
+                                if !has {
+                                    obj.insert(
+                                        "thumbnail".to_string(),
+                                        Value::String(cover.clone()),
+                                    );
+                                }
+                            }
+                        }
+                        Some(v)
+                    })
+                    .collect();
+                if !songs.is_empty() {
+                    tracks.insert(id, songs);
+                }
+            }
+            Err(error) => {
+                tracing::warn!(target: "flow::sync::session", album = %id, %error, "album track fetch failed; album sent without tracks");
+            }
+        }
+    }
+    if !tracks.is_empty() {
+        pl.ndjson = export::fill_album_tracks(&pl.ndjson, &tracks);
+    }
+}
+
 // --------------------------------------------------------------------------------------------
 // Host (sender) entry + task
 // --------------------------------------------------------------------------------------------
@@ -593,7 +651,8 @@ async fn host_run(
 
     let cipher = SessionCipher::new(&master, session_id, Role::Host);
     let pool = pool_of(app);
-    let outgoing = export::export_collections(&pool, device_id, selection).await?;
+    let mut outgoing = export::export_collections(&pool, device_id, selection).await?;
+    enrich_outgoing_albums(app, &mut outgoing).await;
     let hello = our_hello(device_id, device_name);
     let caps = desktop_capabilities();
 
@@ -730,7 +789,8 @@ async fn client_send_session(
     // Send the freshest data: flush resident brains before exporting.
     flush_brains(app).await;
     let selection = producible_collections();
-    let outgoing = export::export_collections(&pool, &device_id, &selection).await?;
+    let mut outgoing = export::export_collections(&pool, &device_id, &selection).await?;
+    enrich_outgoing_albums(app, &mut outgoing).await;
 
     let ch = match timeout(CONNECT_TIMEOUT, transport::connect(&payload.ip, payload.p)).await {
         Ok(ch) => ch?,

@@ -236,14 +236,17 @@ async fn apply_playlists(
     device_id: &str,
     ndjson: &[u8],
 ) -> Result<ApplyStats, SyncError> {
-    let local = match get_setting(tx, mapping::PLAYLISTS_SETTING_KEY).await? {
+    let mut local = match get_setting(tx, mapping::PLAYLISTS_SETTING_KEY).await? {
         Some(raw) => mapping::parse_playlists_blob(&raw, device_id),
         None => Vec::new(),
     };
+    if let Some(raw) = get_setting(tx, mapping::ALBUMS_SETTING_KEY).await? {
+        local.extend(mapping::parse_albums_blob(&raw, device_id));
+    }
     let incoming = parse_ndjson::<Playlist>(ndjson)?;
     let local_map: BTreeMap<String, Playlist> = local
         .iter()
-        .map(|p| (p.sync_id.clone(), p.clone()))
+        .map(|p| (merge::playlist_merge_key(p), p.clone()))
         .collect();
 
     let merged = merge::merge_playlists(local, incoming);
@@ -253,7 +256,7 @@ async fn apply_playlists(
         ..Default::default()
     };
     for rec in &merged {
-        match local_map.get(&rec.sync_id) {
+        match local_map.get(&merge::playlist_merge_key(rec)) {
             Some(existing) if existing == rec => stat.skipped += 1,
             Some(_) if rec.deleted => stat.tombstoned += 1,
             Some(_) => stat.updated += 1,
@@ -262,10 +265,19 @@ async fn apply_playlists(
         }
     }
 
+    let (albums, playlists): (Vec<Playlist>, Vec<Playlist>) =
+        merged.into_iter().partition(mapping::is_album_playlist);
+
     set_setting(
         tx,
         mapping::PLAYLISTS_SETTING_KEY,
-        &mapping::playlists_to_blob(&merged),
+        &mapping::playlists_to_blob(&playlists),
+    )
+    .await?;
+    set_setting(
+        tx,
+        mapping::ALBUMS_SETTING_KEY,
+        &mapping::albums_to_blob(&albums),
     )
     .await?;
     Ok(stat)
@@ -513,6 +525,8 @@ async fn backup_snapshot(
             Collection::Playlists => {
                 let raw = setting_value(pool, mapping::PLAYLISTS_SETTING_KEY).await?;
                 obj.insert("user_playlists".to_string(), serde_json::json!(raw));
+                let albums = setting_value(pool, mapping::ALBUMS_SETTING_KEY).await?;
+                obj.insert("saved_albums".to_string(), serde_json::json!(albums));
             }
             Collection::Settings => {
                 let mut map = serde_json::Map::new();

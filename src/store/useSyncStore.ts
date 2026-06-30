@@ -18,6 +18,7 @@ import { getBackendErrorMessage } from "../lib/api/errors";
 import { isTauriEnv } from "../lib/api/env";
 import { LIKES_LIBRARY_UPDATED_EVENT, useLikesStore } from "./useLikesStore";
 import { useAppSettingsStore } from "./useAppSettingsStore";
+import { useAlbumLibraryStore } from "./useAlbumLibraryStore";
 import { PLAYLIST_LIBRARY_UPDATED_EVENT } from "../lib/playlistLibrary";
 
 const IDLE_STATUS: SyncStatus = { phase: "idle" };
@@ -35,8 +36,11 @@ async function applyRefresh(collections: string[]) {
     if (collections.includes("settings")) {
       await useAppSettingsStore.getState().loadSettings();
     }
-    if (collections.includes("playlists") && typeof window !== "undefined") {
-      window.dispatchEvent(new Event(PLAYLIST_LIBRARY_UPDATED_EVENT));
+    if (collections.includes("playlists")) {
+      await useAlbumLibraryStore.getState().load();
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event(PLAYLIST_LIBRARY_UPDATED_EVENT));
+      }
     }
   } catch (error) {
     console.warn("Failed to refresh local stores after sync", error);

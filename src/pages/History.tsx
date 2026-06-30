@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Clock, Loader2, Trash2 } from "lucide-react";
 import type { VideoSummary } from "../types/video";
 import { getString } from "../lib/i18n/index";
@@ -22,9 +22,26 @@ export const History: React.FC<HistoryProps> = ({ onPlay }) => {
   const {
     history,
     loading,
+    loadingMore,
+    hasMore,
+    loadMore,
     removeHistoryItem,
     clearHistory,
   } = useHistory();
+
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const node = sentinelRef.current;
+    if (!node || !hasMore || loading) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) void loadMore();
+      },
+      { rootMargin: "600px" },
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [hasMore, loading, loadingMore, loadMore]);
 
   const filters = useMemo(
     () => [
@@ -150,6 +167,17 @@ export const History: React.FC<HistoryProps> = ({ onPlay }) => {
                   onRemoveFromHistory={handleDeleteItem}
                 />
               ),
+            )}
+
+            {hasMore && (
+              <div
+                ref={sentinelRef}
+                className="flex items-center justify-center py-6"
+              >
+                {loadingMore && (
+                  <Loader2 className="h-6 w-6 animate-spin text-neutral-600" />
+                )}
+              </div>
             )}
           </div>
         )}

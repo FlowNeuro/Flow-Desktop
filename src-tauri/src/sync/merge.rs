@@ -10,7 +10,8 @@
 //! * watch_history — key `video_id`; `watched_at`/`progress` = max, `is_music`/`is_short` = OR,
 //!   metadata + `deleted` = LWW(hlc).
 //! * likes — key `(kind,id)`; whole record LWW(hlc) (`state:none` is the unlike tombstone).
-//! * playlists — key `sync_id`; metadata LWW; items are an OR-Map keyed by `video_id`, each LWW.
+//! * playlists — key `playlist_merge_key` (reserved id / `yt:<id>` / `owned:<title>`) so the
+//!   "same" entry on two devices coalesces; metadata LWW; items OR-Map keyed by `video_id`, each LWW.
 //! * settings — key `key`; LWW(hlc).
 //! * subscriptions — key `name`; `channel_ids` OR-Set union, `sort_order` LWW, `deleted` LWW.
 //! * flow_neuro_brain — additive counters as G-Counters, sets as OR-Sets, per-video maps as
@@ -27,8 +28,8 @@ use serde::Serialize;
 use crate::sync::canonical::{
     AffinityWire, BrainCounters, BrainFlags, BrainLwwMaps, BrainPerVideo, BrainSets, BrainVectors,
     ContentVectorWire, FlowNeuroBrainSnapshot, GCounter, Hlc, Like, LikeKind, Lww,
-    MusicBrainSnapshot, OrSet, Playlist, PlaylistItem, SettingEntry, SubscriptionGroup,
-    TrackMetaWire, WatchHistoryRecord,
+    MusicBrainSnapshot, OrSet, Playlist, PlaylistItem, PlaylistOrigin, SettingEntry,
+    SubscriptionGroup, TrackMetaWire, WatchHistoryRecord,
 };
 
 // ===========================================================================================
@@ -213,14 +214,44 @@ pub fn merge_likes(a: Vec<Like>, b: Vec<Like>) -> Vec<Like> {
 // Playlists
 // ===========================================================================================
 
+#[must_use]
+pub fn normalize_title(title: &str) -> String {
+    title.split_whitespace().collect::<Vec<_>>().join(" ").to_lowercase()
+}
+
+#[must_use]
+pub fn playlist_merge_key(p: &Playlist) -> String {
+    if p.is_protected {
+        return p.sync_id.clone();
+    }
+    if p.origin == PlaylistOrigin::Youtube {
+        if let Some(y) = p.youtube_id.as_deref() {
+            if !y.is_empty() {
+                return format!("yt:{y}");
+            }
+        }
+    }
+    if p.is_user_created {
+        let t = normalize_title(&p.title);
+        if !t.is_empty() {
+            return if p.is_music {
+                format!("owned-music:{t}")
+            } else {
+                format!("owned:{t}")
+            };
+        }
+    }
+    p.sync_id.clone()
+}
+
 pub fn merge_playlists(a: Vec<Playlist>, b: Vec<Playlist>) -> Vec<Playlist> {
-    let mut map: BTreeMap<String, Playlist> =
-        a.into_iter().map(|p| (p.sync_id.clone(), p)).collect();
-    for p in b {
-        match map.get_mut(&p.sync_id) {
+    let mut map: BTreeMap<String, Playlist> = BTreeMap::new();
+    for p in a.into_iter().chain(b) {
+        let k = playlist_merge_key(&p);
+        match map.get_mut(&k) {
             Some(e) => *e = merge_one_playlist(e, &p),
             None => {
-                map.insert(p.sync_id.clone(), p);
+                map.insert(k, p);
             }
         }
     }
@@ -268,12 +299,19 @@ fn merge_one_playlist(a: &Playlist, b: &Playlist) -> Playlist {
             .then(x.video_id.cmp(&y.video_id))
     });
 
+    let sync_id = if a.sync_id <= b.sync_id {
+        a.sync_id.clone()
+    } else {
+        b.sync_id.clone()
+    };
+
     Playlist {
-        sync_id: a.sync_id.clone(),
+        sync_id,
         origin: hi.origin,
         youtube_id: hi.youtube_id.clone(),
         title: hi.title.clone(),
         description: hi.description.clone(),
+        thumbnail_url: hi.thumbnail_url.clone(),
         is_music: hi.is_music,
         is_user_created: hi.is_user_created,
         is_protected: hi.is_protected,

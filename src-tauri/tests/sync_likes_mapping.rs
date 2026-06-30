@@ -133,6 +133,73 @@ fn foreign_flat_video_like_gets_a_synthesized_video_object() {
     );
 }
 
+fn artist_names(song: &Value) -> Vec<String> {
+    song.get("artists")
+        .and_then(Value::as_array)
+        .map(|a| {
+            a.iter()
+                .filter_map(|x| x.get("name").and_then(Value::as_str).map(String::from))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+#[test]
+fn nested_song_with_string_array_artists_is_normalized() {
+    // A foreign song whose `artists` is an array of plain strings — the frontend maps over
+    // `artist.name`, so without normalization every track read as "Unknown Artist".
+    let foreign = like(
+        LikeKind::Music,
+        "song-3",
+        serde_json::json!({
+            "kind": "music", "id": "song-3", "likedAt": "2023-11-14T22:13:20.000Z",
+            "song": { "id": "song-3", "title": "T", "artists": ["STOSLIV", "LOVIXX"] }
+        }),
+    );
+    let blob = likes_to_blob(&[foreign]);
+    let arr: Vec<Value> = serde_json::from_str(&blob).unwrap();
+    let song = arr[0].get("song").unwrap();
+    assert_eq!(artist_names(song), vec!["STOSLIV", "LOVIXX"]);
+}
+
+#[test]
+fn nested_song_missing_artists_is_filled_from_the_parent_meta() {
+    // The nested song carries no artist at all, but the parent like object does (flat `artist`).
+    let foreign = like(
+        LikeKind::Music,
+        "song-4",
+        serde_json::json!({
+            "kind": "music", "id": "song-4", "likedAt": "2023-11-14T22:13:20.000Z",
+            "artist": "Bruno Mars",
+            "song": { "id": "song-4", "title": "T", "thumbnail": "t.jpg" }
+        }),
+    );
+    let blob = likes_to_blob(&[foreign]);
+    let arr: Vec<Value> = serde_json::from_str(&blob).unwrap();
+    let song = arr[0].get("song").unwrap();
+    assert_eq!(artist_names(song), vec!["Bruno Mars"]);
+    // existing song fields are kept (fill, don't clobber).
+    assert_eq!(song.get("title").and_then(Value::as_str), Some("T"));
+    assert_eq!(song.get("thumbnail").and_then(Value::as_str), Some("t.jpg"));
+}
+
+#[test]
+fn artists_from_subtitle_field_are_recovered() {
+    // YTM-style flat like with the artist tucked into `subtitle`.
+    let foreign = like(
+        LikeKind::Music,
+        "song-5",
+        serde_json::json!({
+            "kind": "music", "id": "song-5", "likedAt": "2023-11-14T22:13:20.000Z",
+            "title": "Track", "subtitle": "Some Artist", "videoId": "vid-5"
+        }),
+    );
+    let blob = likes_to_blob(&[foreign]);
+    let arr: Vec<Value> = serde_json::from_str(&blob).unwrap();
+    let song = arr[0].get("song").unwrap();
+    assert_eq!(artist_names(song), vec!["Some Artist"]);
+}
+
 #[test]
 fn a_like_with_no_meta_still_yields_a_valid_item() {
     // `meta: None` (or a non-object meta) must not panic and must still synthesize a usable item.

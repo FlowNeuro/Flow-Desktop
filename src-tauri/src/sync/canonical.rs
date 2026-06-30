@@ -346,6 +346,7 @@ pub struct Playlist {
     pub youtube_id: Option<String>,
     pub title: String,
     pub description: Option<String>,
+    pub thumbnail_url: Option<String>,
     pub is_music: bool,
     pub is_user_created: bool,
     pub is_protected: bool,

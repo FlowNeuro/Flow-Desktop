@@ -140,6 +140,7 @@ fn playlists_merge_obeys_crdt_laws() {
                     youtube_id: None,
                     title: format!("n{}", r.gen_range(0..3)),
                     description: None,
+                    thumbnail_url: None,
                     is_music: false,
                     is_user_created: true,
                     is_protected: false,

@@ -22,6 +22,7 @@ use crate::sync::canonical::{
 pub const LIKES_SETTING_KEY: &str = "liked_items";
 /// Frontend settings key holding the playlists JSON array.
 pub const PLAYLISTS_SETTING_KEY: &str = "user_playlists";
+pub const ALBUMS_SETTING_KEY: &str = "saved_albums";
 /// Reserved cross-device id for the protected "Watch Later" playlist.
 pub const WATCH_LATER_SYNC_ID: &str = "reserved:watch-later";
 
@@ -287,7 +288,7 @@ fn like_to_frontend_value(l: &Like) -> Value {
         );
     }
     match l.kind {
-        LikeKind::Music if !obj.get("song").is_some_and(Value::is_object) => {
+        LikeKind::Music => {
             let song = build_song(&obj, &l.id);
             obj.insert("song".to_string(), song);
         }
@@ -318,22 +319,68 @@ fn first_num(obj: &serde_json::Map<String, Value>, keys: &[&str]) -> Option<i64>
     })
 }
 
-/// Build an `Artist[]`-shaped value from an existing `artists` array or a flat artist/author string.
+fn normalize_artists_value(v: &Value) -> Vec<Value> {
+    match v {
+        Value::Array(arr) => arr
+            .iter()
+            .filter_map(|a| match a {
+                Value::String(s) if !s.is_empty() => {
+                    Some(serde_json::json!({ "name": s, "id": Value::Null }))
+                }
+                Value::Object(m) => {
+                    let name = m
+                        .get("name")
+                        .and_then(Value::as_str)
+                        .or_else(|| m.get("text").and_then(Value::as_str))
+                        .filter(|s| !s.is_empty())?;
+                    Some(serde_json::json!({
+                        "name": name,
+                        "id": m.get("id").cloned().unwrap_or(Value::Null),
+                    }))
+                }
+                _ => None,
+            })
+            .collect(),
+        Value::String(s) if !s.is_empty() => {
+            vec![serde_json::json!({ "name": s, "id": Value::Null })]
+        }
+        _ => Vec::new(),
+    }
+}
+
+/// Build an `Artist[]`-shaped value from an `artists` field (objects or strings), a nested
+/// container that carries one, or a flat artist/author string. Empty if nothing usable is found.
 fn build_artists(obj: &serde_json::Map<String, Value>) -> Value {
-    if let Some(arr) = obj.get("artists").and_then(Value::as_array) {
-        if !arr.is_empty() {
-            return Value::Array(arr.clone());
+    // 1. an explicit `artists` field (array of objects/strings, or a single string).
+    if let Some(v) = obj.get("artists") {
+        let norm = normalize_artists_value(v);
+        if !norm.is_empty() {
+            return Value::Array(norm);
         }
     }
+    // 2. a nested container (`song`/`track`/…) that itself carries the artists.
+    for nk in ["song", "track", "item", "content"] {
+        if let Some(inner) = obj.get(nk).and_then(Value::as_object) {
+            let a = build_artists(inner);
+            if a.as_array().is_some_and(|x| !x.is_empty()) {
+                return a;
+            }
+        }
+    }
+    // 3. a flat single-string field (kept as ONE name; the UI joins multiple names with ", ").
     match first_str(
         obj,
         &[
             "artist",
+            "artistsText",
+            "artistText",
             "author",
+            "byline",
+            "subtitle",
+            "uploaderName",
             "channelName",
             "channel_name",
-            "subtitle",
-            "artistText",
+            "channel",
         ],
     ) {
         Some(name) => serde_json::json!([{ "name": name, "id": Value::Null }]),
@@ -341,22 +388,63 @@ fn build_artists(obj: &serde_json::Map<String, Value>) -> Value {
     }
 }
 
-/// Synthesize a `SongItem`-shaped object from a flat/foreign like meta (best-effort, lossy-tolerant).
-fn build_song(obj: &serde_json::Map<String, Value>, fallback_id: &str) -> Value {
-    let id = first_str(obj, &["id", "videoId"]).unwrap_or_else(|| fallback_id.to_string());
-    serde_json::json!({
-        "id": id,
-        "title": first_str(obj, &["title", "name"]).unwrap_or_default(),
-        "artists": build_artists(obj),
-        "album": Value::Null,
-        "duration": first_num(obj, &["duration", "durationSeconds", "duration_seconds"]),
-        "musicVideoType": Value::Null,
-        "thumbnail": first_str(obj, &["thumbnail", "thumbnailUrl", "thumbnail_url", "artworkUrl"]).unwrap_or_default(),
-        "explicit": false,
-        "videoId": first_str(obj, &["videoId", "videoID"]),
-        "playlistId": Value::Null,
-        "params": Value::Null,
-    })
+fn build_song(parent: &serde_json::Map<String, Value>, fallback_id: &str) -> Value {
+    let mut song: serde_json::Map<String, Value> = parent
+        .get("song")
+        .and_then(Value::as_object)
+        .cloned()
+        .unwrap_or_default();
+
+    let artists = {
+        let existing = song
+            .get("artists")
+            .map(normalize_artists_value)
+            .unwrap_or_default();
+        if existing.is_empty() {
+            let from_song = build_artists(&song);
+            if from_song.as_array().is_some_and(|a| !a.is_empty()) {
+                from_song
+            } else {
+                build_artists(parent)
+            }
+        } else {
+            Value::Array(existing)
+        }
+    };
+    song.insert("artists".to_string(), artists);
+
+    if first_str(&song, &["id"]).is_none() {
+        let id = first_str(parent, &["id", "videoId"]).unwrap_or_else(|| fallback_id.to_string());
+        song.insert("id".to_string(), Value::String(id));
+    }
+    if first_str(&song, &["videoId"]).is_none() {
+        if let Some(v) =
+            first_str(parent, &["videoId", "videoID"]).or_else(|| first_str(&song, &["id"]))
+        {
+            song.insert("videoId".to_string(), Value::String(v));
+        }
+    }
+    if song.get("title").and_then(Value::as_str).is_none() {
+        let t = first_str(&song, &["name"])
+            .or_else(|| first_str(parent, &["title", "name"]))
+            .unwrap_or_default();
+        song.insert("title".to_string(), Value::String(t));
+    }
+    if first_str(&song, &["thumbnail"]).is_none() {
+        if let Some(th) = first_str(&song, &["thumbnailUrl", "thumbnail_url", "artworkUrl"])
+            .or_else(|| first_str(parent, &["thumbnail", "thumbnailUrl", "thumbnail_url", "artworkUrl"]))
+        {
+            song.insert("thumbnail".to_string(), Value::String(th));
+        }
+    }
+    if song.get("duration").is_none() {
+        if let Some(d) = first_num(&song, &["durationSeconds", "duration_seconds"])
+            .or_else(|| first_num(parent, &["duration", "durationSeconds", "duration_seconds"]))
+        {
+            song.insert("duration".to_string(), Value::Number(d.into()));
+        }
+    }
+    Value::Object(song)
 }
 
 /// Synthesize a `VideoSummary`-shaped object from a flat/foreign like meta (best-effort).
@@ -486,12 +574,23 @@ fn playlist_from_mirror(m: StoredPlaylistMirror, device_id: &str) -> Playlist {
         "extra": m.extra,
     });
 
+    let thumbnail_url = m
+        .thumbnail_url
+        .clone()
+        .filter(|s| !s.is_empty())
+        .or_else(|| {
+            m.tracks
+                .iter()
+                .find_map(|t| t.thumbnail_url.clone().filter(|s| !s.is_empty()))
+        });
+
     Playlist {
         sync_id,
         origin,
         youtube_id,
         title: m.name,
         description: m.description,
+        thumbnail_url,
         is_music: false,
         is_user_created,
         is_protected,
@@ -553,7 +652,11 @@ fn playlist_to_mirror(p: &Playlist) -> StoredPlaylistMirror {
             }
             .to_string(),
         ),
-        thumbnail_url: str_field("thumbnailUrl"),
+        thumbnail_url: p
+            .thumbnail_url
+            .clone()
+            .filter(|s| !s.is_empty())
+            .or_else(|| str_field("thumbnailUrl")),
         video_count_text: str_field("videoCountText"),
         video_count: raw.get("videoCount").and_then(Value::as_i64),
         is_protected: if p.is_protected { Some(true) } else { None },
@@ -577,4 +680,286 @@ fn item_to_mirror(i: &PlaylistItem) -> VideoSummaryMirror {
         is_live: None,
         extra: BTreeMap::new(),
     }
+}
+
+// ===========================================================================================
+// Albums  (frontend `saved_albums` JSON blob  ⇄  canonical playlists, tagged `is_music`)
+// ===========================================================================================
+
+/// A `StoredAlbum` (desktop `useAlbumLibraryStore`) ⇄ canonical mirror.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct StoredAlbumMirror {
+    id: String,
+    #[serde(default)]
+    title: String,
+    #[serde(default)]
+    source: Option<String>, // "Owned" | "Saved"
+    #[serde(default)]
+    description: Option<String>,
+    #[serde(default)]
+    artists: Option<Value>, // Artist[] | null
+    #[serde(default)]
+    year: Option<i64>,
+    #[serde(default)]
+    thumbnail: Option<String>,
+    #[serde(default)]
+    explicit: Option<bool>,
+    #[serde(default)]
+    browse_id: Option<String>,
+    #[serde(default)]
+    playlist_id: Option<String>,
+    #[serde(default)]
+    tracks: Option<Vec<Value>>, // SongItem[]
+    #[serde(default)]
+    created_at: Option<String>,
+    #[serde(flatten)]
+    extra: BTreeMap<String, Value>,
+}
+#[must_use]
+pub fn is_album_playlist(p: &Playlist) -> bool {
+    if p.is_music {
+        return true;
+    }
+    if p.sync_id.starts_with("album:") {
+        return true;
+    }
+    if let Some(y) = p.youtube_id.as_deref() {
+        if y.starts_with("OLAK5uy_") || y.starts_with("MPRE") {
+            return true;
+        }
+    }
+    p.raw
+        .as_ref()
+        .and_then(|r| r.get("album"))
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+}
+
+/// The comma-joined artist display string for a song value (frontend `artistsText` shape).
+fn song_artists_text(song: &Value) -> Option<String> {
+    let obj = song.as_object()?;
+    let names: Vec<String> = build_artists(obj)
+        .as_array()?
+        .iter()
+        .filter_map(|a| a.get("name").and_then(Value::as_str).map(String::from))
+        .collect();
+    (!names.is_empty()).then(|| names.join(", "))
+}
+
+/// A `SongItem` value → canonical playlist item (the full song is kept in `raw` for a lossless trip).
+pub fn song_to_item(song: &Value, position: i64, added_ms: u64, hlc: &Hlc) -> PlaylistItem {
+    let obj = song.as_object().cloned().unwrap_or_default();
+    PlaylistItem {
+        video_id: first_str(&obj, &["videoId", "id"]).unwrap_or_default(),
+        position,
+        added_at_ms: added_ms,
+        deleted: false,
+        title: first_str(&obj, &["title", "name"]),
+        channel_name: song_artists_text(song),
+        channel_id: None,
+        thumbnail_url: first_str(&obj, &["thumbnail", "thumbnailUrl", "thumbnail_url", "artworkUrl"]),
+        duration_seconds: first_num(&obj, &["duration", "durationSeconds", "duration_seconds"])
+            .map(|d| d.max(0) as u64),
+        is_music: true,
+        hlc: hlc.clone(),
+        raw: Some(song.clone()),
+    }
+}
+
+/// A canonical playlist item → `SongItem` value (prefers the lossless `raw`, else synthesizes).
+fn item_to_song(i: &PlaylistItem) -> Value {
+    if let Some(raw) = &i.raw {
+        if raw.is_object() {
+            let mut song = raw.clone();
+            let has_thumb = song
+                .get("thumbnail")
+                .and_then(Value::as_str)
+                .is_some_and(|t| !t.is_empty());
+            if !has_thumb {
+                if let Some(t) = i.thumbnail_url.clone().filter(|s| !s.is_empty()) {
+                    if let Some(obj) = song.as_object_mut() {
+                        obj.insert("thumbnail".to_string(), Value::String(t));
+                    }
+                }
+            }
+            return song;
+        }
+    }
+    let artists = i
+        .channel_name
+        .as_deref()
+        .filter(|s| !s.is_empty())
+        .map_or_else(|| serde_json::json!([]), |n| serde_json::json!([{ "name": n, "id": Value::Null }]));
+    serde_json::json!({
+        "id": i.video_id,
+        "videoId": i.video_id,
+        "title": i.title.clone().unwrap_or_default(),
+        "artists": artists,
+        "album": Value::Null,
+        "duration": i.duration_seconds.map(|d| d as i64),
+        "musicVideoType": Value::Null,
+        "thumbnail": i.thumbnail_url.clone().unwrap_or_default(),
+        "explicit": false,
+        "playlistId": Value::Null,
+        "params": Value::Null,
+    })
+}
+
+fn album_to_playlist(m: StoredAlbumMirror, device_id: &str) -> Playlist {
+    let browse = m
+        .browse_id
+        .clone()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| m.id.clone());
+    let created_ms = m.created_at.as_deref().map(iso_to_ms).unwrap_or(0);
+    let hlc = Hlc::new(created_ms, 0, device_id);
+
+    // A "Saved" album is a YouTube-Music album (a globally stable id, so it dedupes by `yt:`);
+    // an "Owned" album is a local user collection (keyed by normalized title, like an owned playlist).
+    let saved = m.source.as_deref() == Some("Saved")
+        || m.playlist_id.as_deref().is_some_and(|p| !p.is_empty())
+        || browse.starts_with("MPRE")
+        || browse.starts_with("OLAK5uy_");
+
+    let (origin, youtube_id, sync_id, is_user_created) = if saved {
+        (
+            PlaylistOrigin::Youtube,
+            Some(browse.clone()),
+            format!("album:{browse}"),
+            false,
+        )
+    } else {
+        (PlaylistOrigin::Local, None, format!("album:{}", m.id), true)
+    };
+
+    let items: Vec<PlaylistItem> = m
+        .tracks
+        .clone()
+        .unwrap_or_default()
+        .iter()
+        .enumerate()
+        .map(|(i, t)| song_to_item(t, i as i64, created_ms, &hlc))
+        .collect();
+
+    let thumbnail_url = m.thumbnail.clone().filter(|s| !s.is_empty()).or_else(|| {
+        items
+            .iter()
+            .find_map(|t| t.thumbnail_url.clone().filter(|s| !s.is_empty()))
+    });
+
+    let raw = serde_json::json!({
+        "album": true,
+        "albumId": m.id,
+        "browseId": m.browse_id,
+        "playlistId": m.playlist_id,
+        "albumArtists": m.artists,
+        "year": m.year,
+        "explicit": m.explicit,
+        "thumbnail": m.thumbnail,
+        "source": m.source,
+        "extra": m.extra,
+    });
+
+    Playlist {
+        sync_id,
+        origin,
+        youtube_id,
+        title: m.title,
+        description: m.description,
+        thumbnail_url,
+        is_music: true,
+        is_user_created,
+        is_protected: false,
+        created_at_ms: created_ms,
+        updated_hlc: hlc,
+        deleted: false,
+        items,
+        raw: Some(raw),
+    }
+}
+
+fn playlist_to_album(p: &Playlist) -> StoredAlbumMirror {
+    let raw = p.raw.clone().unwrap_or(Value::Null);
+    let raw_str = |k: &str| {
+        raw.get(k)
+            .and_then(Value::as_str)
+            .map(String::from)
+            .filter(|s| !s.is_empty())
+    };
+
+    let browse = raw_str("browseId")
+        .or_else(|| p.youtube_id.clone())
+        .or_else(|| p.sync_id.strip_prefix("album:").map(String::from))
+        .unwrap_or_else(|| p.sync_id.clone());
+    let id = raw_str("albumId").unwrap_or_else(|| browse.clone());
+
+    // Album artists: explicit passthrough, else lifted from the first track's artist list.
+    let artists = raw
+        .get("albumArtists")
+        .cloned()
+        .filter(|v| !v.is_null())
+        .or_else(|| {
+            p.items
+                .iter()
+                .find_map(|i| i.raw.as_ref().and_then(|s| s.get("artists").cloned()))
+        });
+
+    let thumbnail = p
+        .thumbnail_url
+        .clone()
+        .filter(|s| !s.is_empty())
+        .or_else(|| raw_str("thumbnail"))
+        .or_else(|| {
+            p.items
+                .iter()
+                .find_map(|i| i.thumbnail_url.clone().filter(|s| !s.is_empty()))
+        });
+
+    let tracks: Vec<Value> = p
+        .items
+        .iter()
+        .filter(|i| !i.deleted)
+        .map(item_to_song)
+        .collect();
+
+    let extra = raw
+        .get("extra")
+        .and_then(Value::as_object)
+        .map(|o| o.iter().map(|(k, v)| (k.clone(), v.clone())).collect())
+        .unwrap_or_default();
+
+    StoredAlbumMirror {
+        id,
+        title: p.title.clone(),
+        source: Some(if p.is_user_created { "Owned" } else { "Saved" }.to_string()),
+        description: p.description.clone(),
+        artists,
+        year: raw.get("year").and_then(Value::as_i64),
+        thumbnail,
+        explicit: raw.get("explicit").and_then(Value::as_bool),
+        browse_id: Some(browse),
+        playlist_id: raw_str("playlistId").or_else(|| p.youtube_id.clone()),
+        tracks: Some(tracks),
+        created_at: Some(ms_to_iso(p.created_at_ms)),
+        extra,
+    }
+}
+
+/// Parse the `saved_albums` blob into canonical playlists (tagged `is_music`).
+pub fn parse_albums_blob(json: &str, device_id: &str) -> Vec<Playlist> {
+    let arr: Vec<StoredAlbumMirror> = serde_json::from_str(json).unwrap_or_default();
+    arr.into_iter()
+        .map(|m| album_to_playlist(m, device_id))
+        .collect()
+}
+
+/// Serialize canonical album-playlists back to the `saved_albums` blob (tombstones dropped).
+pub fn albums_to_blob(albums: &[Playlist]) -> String {
+    let arr: Vec<StoredAlbumMirror> = albums
+        .iter()
+        .filter(|p| !p.deleted)
+        .map(playlist_to_album)
+        .collect();
+    serde_json::to_string(&arr).unwrap_or_else(|_| "[]".to_string())
 }
