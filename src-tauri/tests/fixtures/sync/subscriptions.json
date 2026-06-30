@@ -1,0 +1,15 @@
+[
+  {
+    "name": "Tech",
+    "channelIds": {
+      "adds": {
+        "UCabc": "1781000000000:0:device-aaa",
+        "UCdef": "1781000000000:0:device-aaa"
+      },
+      "removes": {}
+    },
+    "sortOrder": { "value": 0, "hlc": "1781000000000:0:device-aaa" },
+    "deleted": false,
+    "hlc": "1781000000000:0:device-aaa"
+  }
+]

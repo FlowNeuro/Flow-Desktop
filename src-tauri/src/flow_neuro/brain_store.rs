@@ -81,6 +81,13 @@ impl BrainStore {
         Ok(())
     }
 
+    pub async fn reload(&self) -> AppResult<()> {
+        let fresh = get_or_create_brain(&self.pool).await?;
+        *self.brain.write().await = fresh;
+        self.dirty.store(false, Ordering::Relaxed);
+        Ok(())
+    }
+
     fn spawn_flush_loop(self: Arc<Self>) {
         tauri::async_runtime::spawn(async move {
             let mut ticker = tokio::time::interval(FLUSH_INTERVAL);

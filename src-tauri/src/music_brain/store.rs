@@ -233,6 +233,17 @@ impl MusicBrainStore {
         Ok(())
     }
 
+    /// Replace the resident brain with the latest copy persisted in the DB (after the sync merge
+    /// wrote `user_music_brain` directly). Clears dirty + ephemeral session state.
+    pub async fn reload(&self) -> AppResult<()> {
+        let fresh = get_or_create(&self.pool).await?;
+        *self.brain.write().await = fresh;
+        self.dirty.store(false, Ordering::Relaxed);
+        self.live_progress.lock().unwrap().clear();
+        *self.last_counted.lock().unwrap() = None;
+        Ok(())
+    }
+
     fn spawn_flush_loop(self: Arc<Self>) {
         tauri::async_runtime::spawn(async move {
             let mut ticker = tokio::time::interval(FLUSH_INTERVAL);

@@ -14,6 +14,7 @@ import {
   History,
   Home,
   ListVideo,
+  MonitorSmartphone,
   Music2,
   Settings,
   ThumbsUp,
@@ -226,6 +227,7 @@ export function Sidebar({ mode = 'normal' }: SidebarProps) {
         <hr className="border-neutral-800/50 my-3 mx-4" />
         <nav className="flex flex-col">
           <SidebarItem to="/settings" icon={<Settings />} label={getString('settings_title')} onClick={closeOverlay} />
+          <SidebarItem to="/sync" icon={<MonitorSmartphone />} label="Sync" onClick={closeOverlay} />
           <SidebarItem to="/sponsorblock" icon={<Blocks />} label={getString('sidebar_extensions')} onClick={closeOverlay} />
           <SidebarItem to="/support" icon={<HandCoins  />} label={getString('sidebar_support')} onClick={closeOverlay} />
         </nav>
