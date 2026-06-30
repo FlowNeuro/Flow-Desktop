@@ -308,6 +308,11 @@ impl RecommendationService {
         self.brain_store.flush().await
     }
 
+    /// Reload the resident brain from the database after a sync merge wrote it directly.
+    pub async fn reload_brain(&self) -> AppResult<()> {
+        self.brain_store.reload().await
+    }
+
     fn get_current_time_ms(&self) -> u64 {
         SystemTime::now()
             .duration_since(UNIX_EPOCH)

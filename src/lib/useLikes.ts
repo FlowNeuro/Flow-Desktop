@@ -8,15 +8,16 @@ const artistText = (song: SongItem) => (
   song.artists?.map((artist) => artist.name).filter(Boolean).join(", ") || "Unknown Artist"
 );
 
-export const songVideoId = (song: SongItem) => song.videoId ?? song.id;
+export const songVideoId = (song?: SongItem | null) => song?.videoId ?? song?.id ?? "";
 
 export function likedSongToHistoryVideo(item: Extract<LikedItem, { kind: "music" }>): HistoryVideo {
+  const song = item.song ?? ({} as SongItem);
   return {
-    id: songVideoId(item.song),
-    title: item.song.title,
-    channelName: artistText(item.song),
-    thumbnailUrl: item.song.thumbnail || null,
-    durationSeconds: item.song.duration ?? null,
+    id: songVideoId(song) || item.id,
+    title: song.title ?? "",
+    channelName: artistText(song),
+    thumbnailUrl: song.thumbnail || null,
+    durationSeconds: song.duration ?? null,
     publishedText: getHistoryDateLabel(item.likedAt),
     viewCountText: "Liked",
     watchDate: item.likedAt,
@@ -26,10 +27,12 @@ export function likedSongToHistoryVideo(item: Extract<LikedItem, { kind: "music"
 }
 
 export function likedVideoToHistoryVideo(item: Extract<LikedItem, { kind: "video" }>): HistoryVideo {
+  const video = item.video ?? ({ id: item.id, title: "", channelName: "" } as VideoSummary);
   return {
-    ...item.video,
+    ...video,
+    id: video.id || item.id,
     publishedText: getHistoryDateLabel(item.likedAt),
-    viewCountText: item.video.viewCountText ?? "Liked",
+    viewCountText: video.viewCountText ?? "Liked",
     watchDate: item.likedAt,
     watchProgressPercent: 0,
     isMusic: false,

@@ -1,0 +1,510 @@
+//! apply-pipeline tests. Exercise the full atomic apply against an in-memory SQLite DB:
+//! merge-on-apply, the `sync_log` idempotency guard, tombstone deletes, and transactional rollback
+//! (a bad payload must leave the database completely untouched).
+
+use sqlx::SqlitePool;
+use sqlx::sqlite::SqlitePoolOptions;
+
+use flow_desktop_lib::sync::apply::apply_payload;
+use flow_desktop_lib::sync::canonical::{
+    Collection, FlowNeuroBrainSnapshot, GCounter, Hlc, Like, LikeKind, LikeState,
+    MusicBrainSnapshot, Playlist, PlaylistItem, PlaylistOrigin, SettingEntry, WatchHistoryRecord,
+};
+use flow_desktop_lib::sync::mapping;
+use flow_desktop_lib::sync::protocol::StagedCollection;
+
+const OUR: &str = "dlocal";
+const PEER: &str = "dpeer";
+
+async fn memory_pool() -> SqlitePool {
+    let pool = SqlitePoolOptions::new()
+        .max_connections(1)
+        .connect("sqlite::memory:")
+        .await
+        .unwrap();
+    sqlx::migrate!("./migrations").run(&pool).await.unwrap();
+    pool
+}
+
+/// Seed two local rows: v1 (50% watched) and v2 (70% watched).
+async fn seed(pool: &SqlitePool) {
+    for (id, title, watched, total, hlc) in [
+        ("v1", "t1", 100_i64, 200_i64, "100:0:dlocal"),
+        ("v2", "t2", 140_i64, 200_i64, "150:0:dlocal"),
+    ] {
+        sqlx::query(
+            "INSERT INTO watch_history
+                (video_id, title, channel_name, channel_id, watch_date, watch_duration_seconds,
+                 total_duration_seconds, is_music, is_short, updated_hlc)
+             VALUES (?, ?, NULL, NULL, ?, ?, ?, 0, 0, ?)",
+        )
+        .bind(id)
+        .bind(title)
+        .bind("2025-01-01T00:00:00+00:00")
+        .bind(watched)
+        .bind(total)
+        .bind(hlc)
+        .execute(pool)
+        .await
+        .unwrap();
+    }
+}
+
+fn wh(
+    id: &str,
+    title: &str,
+    progress: f32,
+    dur: u64,
+    hlc: &str,
+    deleted: bool,
+) -> WatchHistoryRecord {
+    WatchHistoryRecord {
+        video_id: id.to_string(),
+        title: title.to_string(),
+        channel_name: None,
+        channel_id: None,
+        watched_at_ms: 1_700_000_000_000,
+        progress,
+        duration_seconds: Some(dur),
+        is_music: false,
+        is_short: false,
+        hlc: hlc.parse().unwrap(),
+        deleted,
+    }
+}
+
+fn ndjson(recs: &[WatchHistoryRecord]) -> Vec<u8> {
+    let mut out = Vec::new();
+    for (i, r) in recs.iter().enumerate() {
+        if i > 0 {
+            out.push(b'\n');
+        }
+        out.extend_from_slice(&serde_json::to_vec(r).unwrap());
+    }
+    out
+}
+
+fn staged(recs: &[WatchHistoryRecord], hash: &str) -> StagedCollection {
+    StagedCollection {
+        collection: Collection::WatchHistory,
+        ndjson: ndjson(recs),
+        record_count: recs.len() as u64,
+        hash: hash.to_string(),
+    }
+}
+
+async fn watch_duration(pool: &SqlitePool, video_id: &str) -> Option<i64> {
+    sqlx::query_scalar::<_, i64>(
+        "SELECT watch_duration_seconds FROM watch_history WHERE video_id = ?",
+    )
+    .bind(video_id)
+    .fetch_optional(pool)
+    .await
+    .unwrap()
+}
+
+async fn row_count(pool: &SqlitePool) -> i64 {
+    sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM watch_history")
+        .fetch_one(pool)
+        .await
+        .unwrap()
+}
+
+#[tokio::test]
+async fn apply_merges_progress_updates_metadata_and_inserts_new_rows() {
+    let pool = memory_pool().await;
+    seed(&pool).await;
+
+    // Incoming: v1 advanced to 90% with newer metadata, plus a brand-new v3.
+    let payload = staged(
+        &[
+            wh("v1", "t1-new", 0.9, 200, "200:0:dpeer", false),
+            wh("v3", "t3", 0.3, 100, "120:0:dpeer", false),
+        ],
+        "hash-1",
+    );
+
+    let report = apply_payload(&pool, OUR, PEER, &[payload]).await.unwrap();
+    let st = &report.stats[0];
+    assert_eq!(st.added, 1, "v3 is new");
+    assert_eq!(st.updated, 1, "v1 changed");
+    assert_eq!(st.skipped, 1, "v2 unchanged");
+    assert_eq!(st.tombstoned, 0);
+    assert!(
+        report.backup.contains("watch_history"),
+        "a pre-merge backup was captured"
+    );
+
+    assert_eq!(row_count(&pool).await, 3);
+    // progress merged to max(0.5, 0.9) = 0.9 -> 0.9 * 200 = 180s
+    assert_eq!(watch_duration(&pool, "v1").await, Some(180));
+    let title: String = sqlx::query_scalar("SELECT title FROM watch_history WHERE video_id = 'v1'")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(title, "t1-new", "metadata follows the higher-HLC record");
+}
+
+#[tokio::test]
+async fn re_applying_the_same_payload_is_a_no_op() {
+    let pool = memory_pool().await;
+    seed(&pool).await;
+
+    let recs = [wh("v1", "t1-new", 0.9, 200, "200:0:dpeer", false)];
+    let first = apply_payload(&pool, OUR, PEER, &[staged(&recs, "hash-1")])
+        .await
+        .unwrap();
+    assert_eq!(first.stats[0].updated, 1);
+
+    // Same payload hash again -> the sync_log guard short-circuits the whole collection.
+    let second = apply_payload(&pool, OUR, PEER, &[staged(&recs, "hash-1")])
+        .await
+        .unwrap();
+    assert_eq!(second.stats[0].updated, 0);
+    assert_eq!(second.stats[0].skipped, 1, "guarded as already applied");
+
+    assert_eq!(
+        watch_duration(&pool, "v1").await,
+        Some(180),
+        "no double-apply"
+    );
+    assert_eq!(row_count(&pool).await, 2);
+}
+
+#[tokio::test]
+async fn tombstone_deletes_the_local_row() {
+    let pool = memory_pool().await;
+    seed(&pool).await;
+
+    let payload = staged(&[wh("v2", "t2", 0.7, 200, "300:0:dpeer", true)], "hash-del");
+    let report = apply_payload(&pool, OUR, PEER, &[payload]).await.unwrap();
+    assert_eq!(report.stats[0].tombstoned, 1);
+
+    assert_eq!(row_count(&pool).await, 1);
+    assert!(
+        watch_duration(&pool, "v2").await.is_none(),
+        "v2 was deleted"
+    );
+    assert!(watch_duration(&pool, "v1").await.is_some(), "v1 untouched");
+}
+
+#[tokio::test]
+async fn a_malformed_payload_rolls_back_the_whole_transaction() {
+    let pool = memory_pool().await;
+    seed(&pool).await;
+
+    let bad = StagedCollection {
+        collection: Collection::WatchHistory,
+        ndjson: b"{\"videoId\":\"v9\"}\nthis is not json".to_vec(),
+        record_count: 2,
+        hash: "hash-bad".to_string(),
+    };
+
+    let result = apply_payload(&pool, OUR, PEER, &[bad]).await;
+    assert!(result.is_err(), "malformed NDJSON must fail the apply");
+
+    // Nothing partially applied: still exactly the two seeded rows, v1 unchanged.
+    assert_eq!(row_count(&pool).await, 2);
+    assert_eq!(watch_duration(&pool, "v1").await, Some(100));
+    // ...and the failed attempt left no sync_log entry.
+    let logged: Option<i64> =
+        sqlx::query_scalar("SELECT 1 FROM sync_log WHERE payload_hash = 'hash-bad' LIMIT 1")
+            .fetch_optional(&pool)
+            .await
+            .unwrap();
+    assert!(logged.is_none());
+}
+
+// --------------------------------------------------------------------------------------------
+// Likes & playlists (frontend JSON blobs in `settings`)
+// --------------------------------------------------------------------------------------------
+
+async fn seed_setting(pool: &SqlitePool, key: &str, value: &str) {
+    sqlx::query(
+        "INSERT INTO settings (key, value, updated_at) VALUES (?, ?, '2025-01-01T00:00:00Z')",
+    )
+    .bind(key)
+    .bind(value)
+    .execute(pool)
+    .await
+    .unwrap();
+}
+
+async fn read_setting(pool: &SqlitePool, key: &str) -> String {
+    sqlx::query_scalar::<_, String>("SELECT value FROM settings WHERE key = ?")
+        .bind(key)
+        .fetch_one(pool)
+        .await
+        .unwrap()
+}
+
+fn vlike(id: &str, liked_at: &str) -> Like {
+    let ms = mapping::iso_to_ms(liked_at);
+    Like {
+        kind: LikeKind::Video,
+        id: id.to_string(),
+        state: LikeState::Liked,
+        updated_at_ms: ms,
+        hlc: Hlc::new(ms, 0, PEER),
+        meta: Some(serde_json::json!({
+            "kind": "video", "id": id, "likedAt": liked_at,
+            "video": { "id": id, "title": format!("title-{id}"), "channelName": "chan" }
+        })),
+    }
+}
+
+fn likes_ndjson(likes: &[Like]) -> Vec<u8> {
+    let mut out = Vec::new();
+    for (i, l) in likes.iter().enumerate() {
+        if i > 0 {
+            out.push(b'\n');
+        }
+        out.extend_from_slice(&serde_json::to_vec(l).unwrap());
+    }
+    out
+}
+
+#[tokio::test]
+async fn apply_likes_unions_into_the_blob_losslessly() {
+    let pool = memory_pool().await;
+    seed_setting(
+        &pool,
+        "liked_items",
+        r#"[{"kind":"video","id":"v1","likedAt":"2025-01-01T00:00:00+00:00","video":{"id":"v1","title":"t1","channelName":"c"}}]"#,
+    )
+    .await;
+
+    let incoming = [
+        vlike("v2", "2025-02-01T00:00:00+00:00"),
+        vlike("v3", "2025-03-01T00:00:00+00:00"),
+    ];
+    let payload = StagedCollection {
+        collection: Collection::Likes,
+        ndjson: likes_ndjson(&incoming),
+        record_count: 2,
+        hash: "likes-1".to_string(),
+    };
+
+    let report = apply_payload(&pool, OUR, PEER, &[payload]).await.unwrap();
+    assert_eq!(report.stats[0].added, 2);
+    assert_eq!(
+        report.stats[0].skipped, 1,
+        "existing v1 retained, unchanged"
+    );
+
+    let blob = read_setting(&pool, "liked_items").await;
+    let arr: Vec<serde_json::Value> = serde_json::from_str(&blob).unwrap();
+    assert_eq!(arr.len(), 3);
+    let ids: Vec<&str> = arr.iter().filter_map(|x| x["id"].as_str()).collect();
+    assert!(ids.contains(&"v1") && ids.contains(&"v2") && ids.contains(&"v3"));
+    // v1's original nested object survived (lossless meta passthrough).
+    let v1 = arr.iter().find(|x| x["id"] == "v1").unwrap();
+    assert_eq!(v1["video"]["title"], "t1");
+}
+
+#[tokio::test]
+async fn apply_playlists_unions_tracks_by_video_id() {
+    let pool = memory_pool().await;
+    seed_setting(
+        &pool,
+        "user_playlists",
+        r#"[{"id":"playlist-1","name":"Gym","source":"Owned","createdAt":"2025-01-01T00:00:00+00:00","tracks":[{"id":"a","title":"A","channelName":"CA","viewCountText":"1M views"}]}]"#,
+    )
+    .await;
+
+    let created = mapping::iso_to_ms("2025-01-01T00:00:00+00:00");
+    let item = |id: &str| PlaylistItem {
+        video_id: id.to_string(),
+        position: 0,
+        added_at_ms: created,
+        deleted: false,
+        title: Some(format!("T{id}")),
+        channel_name: Some("C".to_string()),
+        channel_id: None,
+        thumbnail_url: None,
+        duration_seconds: None,
+        is_music: false,
+        hlc: Hlc::new(created, 0, PEER),
+        raw: None,
+    };
+    let incoming = Playlist {
+        sync_id: "playlist-1".to_string(),
+        origin: PlaylistOrigin::Local,
+        youtube_id: None,
+        title: "Gym".to_string(),
+        description: None,
+        thumbnail_url: None,
+        is_music: false,
+        is_user_created: true,
+        is_protected: false,
+        created_at_ms: created,
+        updated_hlc: Hlc::new(created, 0, PEER),
+        deleted: false,
+        items: vec![item("b")], // peer contributes a new track; local 'a' stays untouched
+        raw: None,
+    };
+    let payload = StagedCollection {
+        collection: Collection::Playlists,
+        ndjson: serde_json::to_vec(&incoming).unwrap(),
+        record_count: 1,
+        hash: "pl-1".to_string(),
+    };
+
+    let report = apply_payload(&pool, OUR, PEER, &[payload]).await.unwrap();
+    assert_eq!(report.stats[0].updated, 1);
+
+    let blob = read_setting(&pool, "user_playlists").await;
+    let arr: Vec<serde_json::Value> = serde_json::from_str(&blob).unwrap();
+    assert_eq!(arr.len(), 1);
+    let tracks = arr[0]["tracks"].as_array().unwrap();
+    assert_eq!(tracks.len(), 2, "track 'b' was unioned in");
+    let track_ids: Vec<&str> = tracks.iter().filter_map(|t| t["id"].as_str()).collect();
+    assert!(track_ids.contains(&"a") && track_ids.contains(&"b"));
+    // The local track 'a' kept its cached display metadata (lossless raw passthrough).
+    let a = tracks.iter().find(|t| t["id"] == "a").unwrap();
+    assert_eq!(a["viewCountText"], "1M views");
+}
+
+// --------------------------------------------------------------------------------------------
+// Settings & brains
+// --------------------------------------------------------------------------------------------
+
+fn ndjson_of<T: serde::Serialize>(items: &[T]) -> Vec<u8> {
+    let mut out = Vec::new();
+    for (i, x) in items.iter().enumerate() {
+        if i > 0 {
+            out.push(b'\n');
+        }
+        out.extend_from_slice(&serde_json::to_vec(x).unwrap());
+    }
+    out
+}
+
+#[tokio::test]
+async fn apply_settings_merges_whitelisted_and_ignores_excluded() {
+    let pool = memory_pool().await;
+    seed_setting(&pool, "autoplay_enabled", "true").await;
+    seed_setting(&pool, "playback_speed", "1.0").await;
+
+    let newer = Hlc::new(mapping::iso_to_ms("2030-01-01T00:00:00+00:00"), 0, PEER);
+    let sv = |k: &str, v: &str| SettingEntry {
+        key: k.to_string(),
+        value: serde_json::Value::String(v.to_string()),
+        hlc: newer.clone(),
+    };
+    let incoming = vec![
+        sv("autoplay_enabled", "false"),       // updates an existing key
+        sv("default_quality_wifi", "720p"),    // adds a new whitelisted key
+        sv("download_location", "/somewhere"), // EXCLUDED — must be ignored
+    ];
+    let payload = StagedCollection {
+        collection: Collection::Settings,
+        ndjson: ndjson_of(&incoming),
+        record_count: 3,
+        hash: "set-1".to_string(),
+    };
+
+    let report = apply_payload(&pool, OUR, PEER, &[payload]).await.unwrap();
+    assert!(report.stats[0].updated >= 1 && report.stats[0].added >= 1);
+
+    assert_eq!(read_setting(&pool, "autoplay_enabled").await, "false");
+    assert_eq!(read_setting(&pool, "default_quality_wifi").await, "720p");
+    assert_eq!(
+        read_setting(&pool, "playback_speed").await,
+        "1.0",
+        "untouched key kept"
+    );
+    let excluded: Option<String> =
+        sqlx::query_scalar("SELECT value FROM settings WHERE key = 'download_location'")
+            .fetch_optional(&pool)
+            .await
+            .unwrap();
+    assert!(excluded.is_none(), "download path must never be synced");
+}
+
+#[tokio::test]
+async fn apply_flow_neuro_brain_merges_into_effective_userbrain() {
+    let pool = memory_pool().await;
+    seed_setting(
+        &pool,
+        "user_neuro_brain",
+        r#"{"idf_total_documents":100,"total_interactions":50,"blocked_topics":["politics"]}"#,
+    )
+    .await;
+
+    let mut snap = FlowNeuroBrainSnapshot {
+        schema: 14,
+        device_id: PEER.to_string(),
+        hlc: Hlc::new(1000, 0, PEER),
+        ..Default::default()
+    };
+    snap.counters.idf_total_documents = GCounter::single(PEER, 200);
+    snap.sets
+        .blocked_topics
+        .add("gaming", Hlc::new(1000, 0, PEER));
+    snap.vectors
+        .global_vector
+        .topics
+        .insert("coding".to_string(), 0.5);
+
+    let payload = StagedCollection {
+        collection: Collection::FlowNeuroBrain,
+        ndjson: ndjson_of(&[snap]),
+        record_count: 1,
+        hash: "fn-1".to_string(),
+    };
+    apply_payload(&pool, OUR, PEER, &[payload]).await.unwrap();
+
+    let brain: serde_json::Value =
+        serde_json::from_str(&read_setting(&pool, "user_neuro_brain").await).unwrap();
+    // G-Counter: local 100 + peer 200 (no double-count)
+    assert_eq!(brain["idf_total_documents"], 300);
+    let blocked: Vec<String> = serde_json::from_value(brain["blocked_topics"].clone()).unwrap();
+    assert!(blocked.contains(&"politics".to_string()) && blocked.contains(&"gaming".to_string()));
+    assert!(
+        brain["global_vector"]["topics"].get("coding").is_some(),
+        "peer's learned topic blended into the effective vector"
+    );
+
+    // The per-device merged CRDT state is persisted for idempotent future syncs.
+    let merged: Option<String> =
+        sqlx::query_scalar("SELECT value FROM settings WHERE key = 'sync_neuro_merged'")
+            .fetch_optional(&pool)
+            .await
+            .unwrap();
+    assert!(merged.is_some());
+}
+
+#[tokio::test]
+async fn apply_music_brain_merges_into_effective() {
+    let pool = memory_pool().await;
+    seed_setting(
+        &pool,
+        "user_music_brain",
+        r#"{"total_plays":100,"blocked_artists":["UCspam"]}"#,
+    )
+    .await;
+
+    let mut snap = MusicBrainSnapshot {
+        schema: 3,
+        device_id: PEER.to_string(),
+        hlc: Hlc::new(1000, 0, PEER),
+        ..Default::default()
+    };
+    snap.total_plays = GCounter::single(PEER, 50);
+    snap.blocked_artists.add("UCbad", Hlc::new(1000, 0, PEER));
+
+    let payload = StagedCollection {
+        collection: Collection::MusicBrain,
+        ndjson: ndjson_of(&[snap]),
+        record_count: 1,
+        hash: "mb-1".to_string(),
+    };
+    apply_payload(&pool, OUR, PEER, &[payload]).await.unwrap();
+
+    let brain: serde_json::Value =
+        serde_json::from_str(&read_setting(&pool, "user_music_brain").await).unwrap();
+    assert_eq!(brain["total_plays"], 150); // 100 + 50
+    let blocked: Vec<String> = serde_json::from_value(brain["blocked_artists"].clone()).unwrap();
+    assert!(blocked.contains(&"UCspam".to_string()) && blocked.contains(&"UCbad".to_string()));
+}

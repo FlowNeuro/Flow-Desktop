@@ -13,6 +13,7 @@ mod music_brain;
 mod security;
 mod services;
 mod streaming;
+pub mod sync;
 
 use std::sync::Arc;
 use tauri::Manager;
@@ -51,6 +52,10 @@ use commands::recommendation::{
     unblock_topic,
 };
 use commands::shorts::{get_shorts_feed, load_more_shorts, reset_shorts_feed};
+use commands::sync::{
+    sync_cancel, sync_device_info, sync_host_receive, sync_respond_consent, sync_scan_join,
+    sync_start_host, sync_status,
+};
 use commands::youtube::{
     fetch_subtitles, get_channel_details, get_channel_tab, get_comments, get_dearrow_override,
     get_live_chat, get_music_album, get_music_artist, get_music_charts, get_music_explore,
@@ -67,7 +72,12 @@ use services::youtube_service::YoutubeService;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tracing_subscriber::fmt::init();
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
+        )
+        .init();
 
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
@@ -141,6 +151,8 @@ pub fn run() {
                 ))
             })?;
             app.manage(music_brain_store);
+
+            app.manage(Arc::new(sync::session::SyncManager::new()));
 
             // Manage the Shorts feed service (prefetch buffer + session de-dup)
             app.manage(ShortsService::new());
@@ -265,7 +277,15 @@ pub fn run() {
             get_daily_mixes,
             get_music_brain_snapshot,
             get_music_taste_profile,
-            reset_music_brain
+            reset_music_brain,
+            // --- Flow Local Sync (P2P LAN) ---
+            sync_device_info,
+            sync_status,
+            sync_start_host,
+            sync_host_receive,
+            sync_scan_join,
+            sync_respond_consent,
+            sync_cancel
         ])
         .build(tauri::generate_context!())
         .expect("error while building Flow Desktop")

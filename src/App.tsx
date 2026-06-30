@@ -32,6 +32,7 @@ import SavedShorts from "./pages/SavedShorts";
 import Playlists from "./pages/Playlists";
 import PlaylistDetailsPage from "./pages/PlaylistDetailsPage";
 import Settings from "./pages/Settings";
+import Sync from "./pages/Sync";
 import Donations from "./pages/Donations";
 import ImportData from "./pages/ImportData";
 import ExtensionsPage from "./pages/ExtensionsPage";
@@ -187,6 +188,9 @@ function App() {
           } />
           <Route path="settings" element={
             <Settings />
+          } />
+          <Route path="sync" element={
+            <Sync />
           } />
           <Route path="support" element={
             <Donations />

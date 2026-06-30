@@ -5,4 +5,5 @@ pub mod music;
 pub mod music_brain;
 pub mod recommendation;
 pub mod shorts;
+pub mod sync;
 pub mod youtube;

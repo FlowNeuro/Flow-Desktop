@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   clearWatchHistory,
   deleteWatchRecord,
@@ -36,7 +36,7 @@ export interface HistoryDateGroup {
   videos: HistoryVideo[];
 }
 
-const HISTORY_LIMIT = 100;
+const HISTORY_PAGE_SIZE = 200;
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
 
 function startOfLocalDay(date: Date) {
@@ -105,17 +105,45 @@ export function groupHistoryByDate(records: WatchHistoryRecord[]): HistoryDateGr
 export function useHistory() {
   const [history, setHistory] = useState<WatchHistoryRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const offsetRef = useRef(0);
+  const inFlightRef = useRef(false);
 
   const refreshHistory = useCallback(async () => {
     setLoading(true);
-
+    inFlightRef.current = true;
     try {
-      const records = await getWatchHistory(HISTORY_LIMIT, 0);
+      const records = await getWatchHistory(HISTORY_PAGE_SIZE, 0);
       setHistory(records);
+      offsetRef.current = records.length;
+      setHasMore(records.length === HISTORY_PAGE_SIZE);
     } catch (error) {
       console.error("Failed to fetch history", error);
     } finally {
+      inFlightRef.current = false;
       setLoading(false);
+    }
+  }, []);
+
+  const loadMore = useCallback(async () => {
+    if (inFlightRef.current) return;
+    inFlightRef.current = true;
+    setLoadingMore(true);
+    try {
+      const records = await getWatchHistory(HISTORY_PAGE_SIZE, offsetRef.current);
+      offsetRef.current += records.length;
+      setHistory((current) => {
+        const seen = new Set(current.map((r) => r.videoId));
+        const fresh = records.filter((r) => !seen.has(r.videoId));
+        return fresh.length > 0 ? [...current, ...fresh] : current;
+      });
+      setHasMore(records.length === HISTORY_PAGE_SIZE);
+    } catch (error) {
+      console.error("Failed to fetch more history", error);
+    } finally {
+      inFlightRef.current = false;
+      setLoadingMore(false);
     }
   }, []);
 
@@ -126,11 +154,14 @@ export function useHistory() {
   const removeHistoryItem = useCallback(async (videoId: string) => {
     await deleteWatchRecord(videoId);
     setHistory((current) => current.filter((item) => item.videoId !== videoId));
+    offsetRef.current = Math.max(0, offsetRef.current - 1);
   }, []);
 
   const clearHistory = useCallback(async () => {
     await clearWatchHistory();
     setHistory([]);
+    offsetRef.current = 0;
+    setHasMore(false);
   }, []);
 
   const groupedHistory = useMemo(() => groupHistoryByDate(history), [history]);
@@ -139,6 +170,9 @@ export function useHistory() {
     history,
     groupedHistory,
     loading,
+    loadingMore,
+    hasMore,
+    loadMore,
     refreshHistory,
     removeHistoryItem,
     clearHistory,
