@@ -216,7 +216,11 @@ pub fn merge_likes(a: Vec<Like>, b: Vec<Like>) -> Vec<Like> {
 
 #[must_use]
 pub fn normalize_title(title: &str) -> String {
-    title.split_whitespace().collect::<Vec<_>>().join(" ").to_lowercase()
+    title
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .to_lowercase()
 }
 
 #[must_use]

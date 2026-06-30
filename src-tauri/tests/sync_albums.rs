@@ -81,7 +81,10 @@ async fn albums_round_trip_into_the_album_library_not_playlists() {
         .await
         .unwrap();
     let wire = String::from_utf8(outgoing[0].ndjson.clone()).unwrap();
-    assert!(wire.contains("ASTROWORLD"), "album rides the playlists wire");
+    assert!(
+        wire.contains("ASTROWORLD"),
+        "album rides the playlists wire"
+    );
     assert!(wire.contains("\"isMusic\":true"), "album tagged isMusic");
     assert!(
         wire.contains("https://img/gym.jpg"),
@@ -212,10 +215,7 @@ async fn same_titled_owned_playlists_coalesce_and_union_tracks() {
 
     let blob = get_setting(&b, "user_playlists").await.unwrap();
     let arr: Vec<serde_json::Value> = serde_json::from_str(&blob).unwrap();
-    let gyms: Vec<&serde_json::Value> = arr
-        .iter()
-        .filter(|p| p["name"] == "Gym")
-        .collect();
+    let gyms: Vec<&serde_json::Value> = arr.iter().filter(|p| p["name"] == "Gym").collect();
     assert_eq!(gyms.len(), 1, "the two 'Gym' playlists coalesced into one");
     let tracks = gyms[0]["tracks"].as_array().unwrap();
     let ids: Vec<&str> = tracks.iter().filter_map(|t| t["id"].as_str()).collect();

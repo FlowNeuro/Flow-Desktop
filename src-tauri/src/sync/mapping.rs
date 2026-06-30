@@ -432,7 +432,12 @@ fn build_song(parent: &serde_json::Map<String, Value>, fallback_id: &str) -> Val
     }
     if first_str(&song, &["thumbnail"]).is_none() {
         if let Some(th) = first_str(&song, &["thumbnailUrl", "thumbnail_url", "artworkUrl"])
-            .or_else(|| first_str(parent, &["thumbnail", "thumbnailUrl", "thumbnail_url", "artworkUrl"]))
+            .or_else(|| {
+                first_str(
+                    parent,
+                    &["thumbnail", "thumbnailUrl", "thumbnail_url", "artworkUrl"],
+                )
+            })
         {
             song.insert("thumbnail".to_string(), Value::String(th));
         }
@@ -758,7 +763,10 @@ pub fn song_to_item(song: &Value, position: i64, added_ms: u64, hlc: &Hlc) -> Pl
         title: first_str(&obj, &["title", "name"]),
         channel_name: song_artists_text(song),
         channel_id: None,
-        thumbnail_url: first_str(&obj, &["thumbnail", "thumbnailUrl", "thumbnail_url", "artworkUrl"]),
+        thumbnail_url: first_str(
+            &obj,
+            &["thumbnail", "thumbnailUrl", "thumbnail_url", "artworkUrl"],
+        ),
         duration_seconds: first_num(&obj, &["duration", "durationSeconds", "duration_seconds"])
             .map(|d| d.max(0) as u64),
         is_music: true,
@@ -790,7 +798,10 @@ fn item_to_song(i: &PlaylistItem) -> Value {
         .channel_name
         .as_deref()
         .filter(|s| !s.is_empty())
-        .map_or_else(|| serde_json::json!([]), |n| serde_json::json!([{ "name": n, "id": Value::Null }]));
+        .map_or_else(
+            || serde_json::json!([]),
+            |n| serde_json::json!([{ "name": n, "id": Value::Null }]),
+        );
     serde_json::json!({
         "id": i.video_id,
         "videoId": i.video_id,

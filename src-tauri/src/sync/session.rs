@@ -26,6 +26,7 @@ use tokio::sync::{Mutex, oneshot};
 use tokio::time::timeout;
 
 use crate::music_brain::store::MusicBrainStore;
+use crate::services::music_service::MusicService;
 use crate::services::recommendation_service::RecommendationService;
 use crate::sync::PROTOCOL_VERSION;
 use crate::sync::apply;
@@ -43,7 +44,6 @@ use crate::sync::protocol::{
 };
 use crate::sync::qr::QrPayload;
 use crate::sync::transport;
-use crate::services::music_service::MusicService;
 use serde_json::Value;
 
 /// Per-collection schema version this build advertises in its capabilities.
