@@ -120,7 +120,11 @@ async fn one_way_transfer_succeeds_for_all_selected_collections() {
     match host_outcome {
         HostOutcome::Completed(s) => {
             assert_eq!(s.peer.device_id, "client-1");
-            assert_eq!(s.results.collections.len(), 2, "one apply-result entry per collection");
+            assert_eq!(
+                s.results.collections.len(),
+                2,
+                "one apply-result entry per collection"
+            );
             assert_eq!(
                 s.results.collections.values().map(|e| e.added).sum::<u64>(),
                 3
@@ -236,7 +240,10 @@ async fn host_receives_while_client_sends() {
         .iter()
         .find(|c| c.collection == WatchHistory)
         .unwrap();
-    assert_eq!(wh.ndjson, WH_NDJSON, "payload survives the reversed direction");
+    assert_eq!(
+        wh.ndjson, WH_NDJSON,
+        "payload survives the reversed direction"
+    );
 
     match send_outcome {
         HostOutcome::Completed(s) => assert_eq!(s.peer.device_id, "host-1"),

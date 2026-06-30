@@ -38,16 +38,24 @@ fn foreign_flat_music_like_gets_a_synthesized_song_object() {
     let blob = likes_to_blob(&[foreign]);
     let arr: Vec<Value> = serde_json::from_str(&blob).unwrap();
     assert_eq!(arr.len(), 1);
-    let song = arr[0].get("song").expect("a nested song object is synthesized");
+    let song = arr[0]
+        .get("song")
+        .expect("a nested song object is synthesized");
     assert!(song.is_object(), "song must be an object, not absent");
     // songVideoId(song) = song.videoId ?? song.id — must resolve, never undefined.
     assert_eq!(song.get("videoId").and_then(Value::as_str), Some("yt-abc"));
     assert_eq!(song.get("id").and_then(Value::as_str), Some("song-1"));
-    assert_eq!(song.get("title").and_then(Value::as_str), Some("Some Track"));
+    assert_eq!(
+        song.get("title").and_then(Value::as_str),
+        Some("Some Track")
+    );
     assert_eq!(song.get("duration").and_then(Value::as_i64), Some(215));
     // artists becomes an array the frontend can map over.
     let artists = song.get("artists").and_then(Value::as_array).unwrap();
-    assert_eq!(artists[0].get("name").and_then(Value::as_str), Some("Some Artist"));
+    assert_eq!(
+        artists[0].get("name").and_then(Value::as_str),
+        Some("Some Artist")
+    );
 
     // And it round-trips back through the parser (kind/id/likedAt preserved).
     let reparsed = parse_likes_blob(&blob, "dev-b");
@@ -85,7 +93,10 @@ fn desktop_origin_music_like_passes_through_losslessly() {
     let blob = likes_to_blob(&[native]);
     let arr: Vec<Value> = serde_json::from_str(&blob).unwrap();
     let song = arr[0].get("song").unwrap();
-    assert_eq!(song.get("title").and_then(Value::as_str), Some("Native Track"));
+    assert_eq!(
+        song.get("title").and_then(Value::as_str),
+        Some("Native Track")
+    );
     assert_eq!(song.get("explicit").and_then(Value::as_bool), Some(false));
 }
 
@@ -107,11 +118,19 @@ fn foreign_flat_video_like_gets_a_synthesized_video_object() {
 
     let blob = likes_to_blob(&[foreign]);
     let arr: Vec<Value> = serde_json::from_str(&blob).unwrap();
-    let video = arr[0].get("video").expect("a nested video object is synthesized");
+    let video = arr[0]
+        .get("video")
+        .expect("a nested video object is synthesized");
     assert_eq!(video.get("id").and_then(Value::as_str), Some("vid-1"));
     assert_eq!(video.get("title").and_then(Value::as_str), Some("A Video"));
-    assert_eq!(video.get("channelName").and_then(Value::as_str), Some("A Channel"));
-    assert_eq!(video.get("durationSeconds").and_then(Value::as_i64), Some(600));
+    assert_eq!(
+        video.get("channelName").and_then(Value::as_str),
+        Some("A Channel")
+    );
+    assert_eq!(
+        video.get("durationSeconds").and_then(Value::as_i64),
+        Some(600)
+    );
 }
 
 #[test]

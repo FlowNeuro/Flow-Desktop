@@ -9,8 +9,10 @@ use sqlx::sqlite::SqlitePoolOptions;
 use flow_desktop_lib::sync::apply::apply_payload;
 use flow_desktop_lib::sync::canonical::{Collection, Hlc, WatchHistoryRecord, to_canonical_json};
 use flow_desktop_lib::sync::codec::sha256_hex;
-use flow_desktop_lib::sync::crypto::{Role, SessionCipher, generate_master_secret, generate_session_id};
-use flow_desktop_lib::sync::frames::{Capability, CapabilitiesFrame, HelloFrame, Platform};
+use flow_desktop_lib::sync::crypto::{
+    Role, SessionCipher, generate_master_secret, generate_session_id,
+};
+use flow_desktop_lib::sync::frames::{CapabilitiesFrame, Capability, HelloFrame, Platform};
 use flow_desktop_lib::sync::protocol::{
     ClientOutcome, HostOutcome, OutgoingCollection, StagedCollection, run_receiver, run_sender,
 };
@@ -47,7 +49,11 @@ fn caps() -> CapabilitiesFrame {
     let mut c = BTreeMap::new();
     c.insert(
         Collection::WatchHistory.key().to_string(),
-        Capability { schema: 1, produce: true, consume: true },
+        Capability {
+            schema: 1,
+            produce: true,
+            consume: true,
+        },
     );
     CapabilitiesFrame { collections: c }
 }
@@ -81,7 +87,10 @@ async fn large_watch_history_streams_across_chunks_intact() {
             cipher,
             hello("host"),
             caps(),
-            vec![OutgoingCollection { collection: Collection::WatchHistory, ndjson: send_nd }],
+            vec![OutgoingCollection {
+                collection: Collection::WatchHistory,
+                ndjson: send_nd,
+            }],
             vec![Collection::WatchHistory],
             false,
         )
@@ -91,11 +100,20 @@ async fn large_watch_history_streams_across_chunks_intact() {
 
     let ch = transport::connect("127.0.0.1", port).await.unwrap();
     let cipher = SessionCipher::new(&master, sid, Role::Client);
-    let outcome = run_receiver(ch, cipher, hello("client"), caps(), |_, manifest| async move {
-        // The manifest preview reports the full count before any chunk is sent.
-        assert_eq!(manifest.collections.get("watch_history").unwrap().records, N as u64);
-        true
-    })
+    let outcome = run_receiver(
+        ch,
+        cipher,
+        hello("client"),
+        caps(),
+        |_, manifest| async move {
+            // The manifest preview reports the full count before any chunk is sent.
+            assert_eq!(
+                manifest.collections.get("watch_history").unwrap().records,
+                N as u64
+            );
+            true
+        },
+    )
     .await
     .unwrap();
 
@@ -104,9 +122,18 @@ async fn large_watch_history_streams_across_chunks_intact() {
         ClientOutcome::Declined => panic!("receiver declined"),
     };
     let col = &received.collections[0];
-    assert_eq!(col.record_count, N as u64, "all records re-assembled across chunks");
-    assert_eq!(col.hash, expected_hash, "payload hash matches after multi-chunk reassembly");
-    assert_eq!(col.ndjson, ndjson, "byte-for-byte identical after streaming");
+    assert_eq!(
+        col.record_count, N as u64,
+        "all records re-assembled across chunks"
+    );
+    assert_eq!(
+        col.hash, expected_hash,
+        "payload hash matches after multi-chunk reassembly"
+    );
+    assert_eq!(
+        col.ndjson, ndjson,
+        "byte-for-byte identical after streaming"
+    );
 
     assert!(matches!(host.await.unwrap(), HostOutcome::Completed(_)));
 }
@@ -142,7 +169,11 @@ async fn applying_a_large_watch_history_merges_every_row_in_one_txn() {
         .unwrap();
     assert_eq!(count, N as i64, "every streamed row landed in the DB");
 
-    let stat = report.stats.iter().find(|s| s.collection_key == "watch_history").unwrap();
+    let stat = report
+        .stats
+        .iter()
+        .find(|s| s.collection_key == "watch_history")
+        .unwrap();
     assert_eq!(stat.added, N as u64);
 
     // Idempotent re-apply: same payload changes nothing and adds no rows.

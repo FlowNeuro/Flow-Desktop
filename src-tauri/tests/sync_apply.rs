@@ -7,8 +7,8 @@ use sqlx::sqlite::SqlitePoolOptions;
 
 use flow_desktop_lib::sync::apply::apply_payload;
 use flow_desktop_lib::sync::canonical::{
-    Collection, FlowNeuroBrainSnapshot, GCounter, Hlc, Like, LikeKind, LikeState, MusicBrainSnapshot,
-    Playlist, PlaylistItem, PlaylistOrigin, SettingEntry, WatchHistoryRecord,
+    Collection, FlowNeuroBrainSnapshot, GCounter, Hlc, Like, LikeKind, LikeState,
+    MusicBrainSnapshot, Playlist, PlaylistItem, PlaylistOrigin, SettingEntry, WatchHistoryRecord,
 };
 use flow_desktop_lib::sync::mapping;
 use flow_desktop_lib::sync::protocol::StagedCollection;
@@ -50,7 +50,14 @@ async fn seed(pool: &SqlitePool) {
     }
 }
 
-fn wh(id: &str, title: &str, progress: f32, dur: u64, hlc: &str, deleted: bool) -> WatchHistoryRecord {
+fn wh(
+    id: &str,
+    title: &str,
+    progress: f32,
+    dur: u64,
+    hlc: &str,
+    deleted: bool,
+) -> WatchHistoryRecord {
     WatchHistoryRecord {
         video_id: id.to_string(),
         title: title.to_string(),
@@ -87,11 +94,13 @@ fn staged(recs: &[WatchHistoryRecord], hash: &str) -> StagedCollection {
 }
 
 async fn watch_duration(pool: &SqlitePool, video_id: &str) -> Option<i64> {
-    sqlx::query_scalar::<_, i64>("SELECT watch_duration_seconds FROM watch_history WHERE video_id = ?")
-        .bind(video_id)
-        .fetch_optional(pool)
-        .await
-        .unwrap()
+    sqlx::query_scalar::<_, i64>(
+        "SELECT watch_duration_seconds FROM watch_history WHERE video_id = ?",
+    )
+    .bind(video_id)
+    .fetch_optional(pool)
+    .await
+    .unwrap()
 }
 
 async fn row_count(pool: &SqlitePool) -> i64 {
@@ -121,16 +130,18 @@ async fn apply_merges_progress_updates_metadata_and_inserts_new_rows() {
     assert_eq!(st.updated, 1, "v1 changed");
     assert_eq!(st.skipped, 1, "v2 unchanged");
     assert_eq!(st.tombstoned, 0);
-    assert!(report.backup.contains("watch_history"), "a pre-merge backup was captured");
+    assert!(
+        report.backup.contains("watch_history"),
+        "a pre-merge backup was captured"
+    );
 
     assert_eq!(row_count(&pool).await, 3);
     // progress merged to max(0.5, 0.9) = 0.9 -> 0.9 * 200 = 180s
     assert_eq!(watch_duration(&pool, "v1").await, Some(180));
-    let title: String =
-        sqlx::query_scalar("SELECT title FROM watch_history WHERE video_id = 'v1'")
-            .fetch_one(&pool)
-            .await
-            .unwrap();
+    let title: String = sqlx::query_scalar("SELECT title FROM watch_history WHERE video_id = 'v1'")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
     assert_eq!(title, "t1-new", "metadata follows the higher-HLC record");
 }
 
@@ -152,7 +163,11 @@ async fn re_applying_the_same_payload_is_a_no_op() {
     assert_eq!(second.stats[0].updated, 0);
     assert_eq!(second.stats[0].skipped, 1, "guarded as already applied");
 
-    assert_eq!(watch_duration(&pool, "v1").await, Some(180), "no double-apply");
+    assert_eq!(
+        watch_duration(&pool, "v1").await,
+        Some(180),
+        "no double-apply"
+    );
     assert_eq!(row_count(&pool).await, 2);
 }
 
@@ -166,7 +181,10 @@ async fn tombstone_deletes_the_local_row() {
     assert_eq!(report.stats[0].tombstoned, 1);
 
     assert_eq!(row_count(&pool).await, 1);
-    assert!(watch_duration(&pool, "v2").await.is_none(), "v2 was deleted");
+    assert!(
+        watch_duration(&pool, "v2").await.is_none(),
+        "v2 was deleted"
+    );
     assert!(watch_duration(&pool, "v1").await.is_some(), "v1 untouched");
 }
 
@@ -202,12 +220,14 @@ async fn a_malformed_payload_rolls_back_the_whole_transaction() {
 // --------------------------------------------------------------------------------------------
 
 async fn seed_setting(pool: &SqlitePool, key: &str, value: &str) {
-    sqlx::query("INSERT INTO settings (key, value, updated_at) VALUES (?, ?, '2025-01-01T00:00:00Z')")
-        .bind(key)
-        .bind(value)
-        .execute(pool)
-        .await
-        .unwrap();
+    sqlx::query(
+        "INSERT INTO settings (key, value, updated_at) VALUES (?, ?, '2025-01-01T00:00:00Z')",
+    )
+    .bind(key)
+    .bind(value)
+    .execute(pool)
+    .await
+    .unwrap();
 }
 
 async fn read_setting(pool: &SqlitePool, key: &str) -> String {
@@ -267,7 +287,10 @@ async fn apply_likes_unions_into_the_blob_losslessly() {
 
     let report = apply_payload(&pool, OUR, PEER, &[payload]).await.unwrap();
     assert_eq!(report.stats[0].added, 2);
-    assert_eq!(report.stats[0].skipped, 1, "existing v1 retained, unchanged");
+    assert_eq!(
+        report.stats[0].skipped, 1,
+        "existing v1 retained, unchanged"
+    );
 
     let blob = read_setting(&pool, "liked_items").await;
     let arr: Vec<serde_json::Value> = serde_json::from_str(&blob).unwrap();
@@ -385,7 +408,11 @@ async fn apply_settings_merges_whitelisted_and_ignores_excluded() {
 
     assert_eq!(read_setting(&pool, "autoplay_enabled").await, "false");
     assert_eq!(read_setting(&pool, "default_quality_wifi").await, "720p");
-    assert_eq!(read_setting(&pool, "playback_speed").await, "1.0", "untouched key kept");
+    assert_eq!(
+        read_setting(&pool, "playback_speed").await,
+        "1.0",
+        "untouched key kept"
+    );
     let excluded: Option<String> =
         sqlx::query_scalar("SELECT value FROM settings WHERE key = 'download_location'")
             .fetch_optional(&pool)
@@ -411,8 +438,13 @@ async fn apply_flow_neuro_brain_merges_into_effective_userbrain() {
         ..Default::default()
     };
     snap.counters.idf_total_documents = GCounter::single(PEER, 200);
-    snap.sets.blocked_topics.add("gaming", Hlc::new(1000, 0, PEER));
-    snap.vectors.global_vector.topics.insert("coding".to_string(), 0.5);
+    snap.sets
+        .blocked_topics
+        .add("gaming", Hlc::new(1000, 0, PEER));
+    snap.vectors
+        .global_vector
+        .topics
+        .insert("coding".to_string(), 0.5);
 
     let payload = StagedCollection {
         collection: Collection::FlowNeuroBrain,

@@ -53,7 +53,9 @@ pub async fn sync_device_info(pool: State<'_, SqlitePool>) -> Result<DeviceInfo,
 
 /// Current session status (also pushed live via the `sync://status` event).
 #[tauri::command]
-pub async fn sync_status(manager: State<'_, Arc<SyncManager>>) -> Result<SyncStatus, ErrorResponse> {
+pub async fn sync_status(
+    manager: State<'_, Arc<SyncManager>>,
+) -> Result<SyncStatus, ErrorResponse> {
     Ok(manager.status().await)
 }
 

@@ -47,7 +47,11 @@ fn hlc_uses_the_short_device_id_form() {
     // Round-trips, and parsing normalizes a non-conformant full id to the same short form.
     let parsed: Hlc = "1700000000000:3:75dbc20b".parse().unwrap();
     assert_eq!(parsed, h);
-    assert_eq!(short_device_id("ab"), "ab", "ids shorter than 8 are kept as-is");
+    assert_eq!(
+        short_device_id("ab"),
+        "ab",
+        "ids shorter than 8 are kept as-is"
+    );
 }
 
 #[test]

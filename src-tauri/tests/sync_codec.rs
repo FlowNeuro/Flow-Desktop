@@ -26,9 +26,16 @@ fn wire_header_is_ver_then_type_then_seq() {
     let seq = 0x0102_0304_0506_0708u64;
     let wire = encode_message(&host, ft, seq, b"{}").unwrap();
 
-    assert_eq!(wire[0], PROTOCOL_VERSION, "byte 0 must be the protocol version");
+    assert_eq!(
+        wire[0], PROTOCOL_VERSION,
+        "byte 0 must be the protocol version"
+    );
     assert_eq!(wire[1], ft, "byte 1 must be the frame type");
-    assert_eq!(&wire[2..10], &seq.to_be_bytes(), "bytes 2..10 are the big-endian seq");
+    assert_eq!(
+        &wire[2..10],
+        &seq.to_be_bytes(),
+        "bytes 2..10 are the big-endian seq"
+    );
 }
 
 #[test]

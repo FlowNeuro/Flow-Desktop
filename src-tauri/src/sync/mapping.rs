@@ -327,7 +327,14 @@ fn build_artists(obj: &serde_json::Map<String, Value>) -> Value {
     }
     match first_str(
         obj,
-        &["artist", "author", "channelName", "channel_name", "subtitle", "artistText"],
+        &[
+            "artist",
+            "author",
+            "channelName",
+            "channel_name",
+            "subtitle",
+            "artistText",
+        ],
     ) {
         Some(name) => serde_json::json!([{ "name": name, "id": Value::Null }]),
         None => serde_json::json!([]),
@@ -524,7 +531,11 @@ fn playlist_to_mirror(p: &Playlist) -> StoredPlaylistMirror {
         .unwrap_or_default();
 
     let mut tracks: Vec<&PlaylistItem> = p.items.iter().filter(|i| !i.deleted).collect();
-    tracks.sort_by(|a, b| a.position.cmp(&b.position).then(a.video_id.cmp(&b.video_id)));
+    tracks.sort_by(|a, b| {
+        a.position
+            .cmp(&b.position)
+            .then(a.video_id.cmp(&b.video_id))
+    });
     let tracks = tracks.into_iter().map(item_to_mirror).collect();
 
     StoredPlaylistMirror {

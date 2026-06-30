@@ -27,7 +27,11 @@ async fn memory_pool() -> SqlitePool {
 }
 
 fn stage(out: &OutgoingCollection) -> StagedCollection {
-    let count = out.ndjson.split(|&b| b == b'\n').filter(|l| !l.is_empty()).count() as u64;
+    let count = out
+        .ndjson
+        .split(|&b| b == b'\n')
+        .filter(|l| !l.is_empty())
+        .count() as u64;
     StagedCollection {
         collection: out.collection,
         ndjson: out.ndjson.clone(),
@@ -131,11 +135,19 @@ async fn export_then_apply_round_trips_watch_likes_playlists_settings() {
     assert!(pls.contains("Mix") && pls.contains("t1"));
 
     // syncable setting applied; excluded one absent on B.
-    assert_eq!(get_setting(&b, "autoplay_enabled").await.as_deref(), Some("true"));
+    assert_eq!(
+        get_setting(&b, "autoplay_enabled").await.as_deref(),
+        Some("true")
+    );
     assert_eq!(get_setting(&b, "download_location").await, None);
 }
 
-fn flow_snapshot(device: &str, docs: u64, topic: &str, weight_topic: f64) -> FlowNeuroBrainSnapshot {
+fn flow_snapshot(
+    device: &str,
+    docs: u64,
+    topic: &str,
+    weight_topic: f64,
+) -> FlowNeuroBrainSnapshot {
     let mut global = ContentVectorWire::default();
     global.topics.insert(topic.to_string(), weight_topic);
     FlowNeuroBrainSnapshot {
@@ -196,6 +208,10 @@ fn music_decompose_then_remerge_preserves_counts() {
     let snap2 = brainmap::merged_music_to_snapshot(&merged, "dA", Hlc::new(20, 0, "dA"));
     let remerged = merge_music(std::slice::from_ref(&snap2));
 
-    assert_eq!(remerged.total_plays.total(), 100, "no double-count on relay");
+    assert_eq!(
+        remerged.total_plays.total(),
+        100,
+        "no double-count on relay"
+    );
     assert_eq!(remerged.genre_affinity.get("jazz"), Some(&0.8));
 }

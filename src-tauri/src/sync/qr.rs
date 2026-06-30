@@ -88,7 +88,14 @@ impl QrPayload {
     ) -> Self {
         Self {
             role: Some("receiver".to_string()),
-            ..Self::new(session_id, master, ip, port, device_name, expires_at_epoch_s)
+            ..Self::new(
+                session_id,
+                master,
+                ip,
+                port,
+                device_name,
+                expires_at_epoch_s,
+            )
         }
     }
 

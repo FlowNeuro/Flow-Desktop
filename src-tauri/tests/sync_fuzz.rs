@@ -3,8 +3,12 @@
 //! panic = a remote crash. These tests feed undersized, wrong-version, garbage, and randomized wire
 //! bytes, plus a gzip-bomb, and assert graceful failures.
 
-use flow_desktop_lib::sync::codec::{decode_chunk, decode_message, encode_message, gunzip, gunzip_limited, gzip};
-use flow_desktop_lib::sync::crypto::{Role, SessionCipher, generate_master_secret, generate_session_id};
+use flow_desktop_lib::sync::codec::{
+    decode_chunk, decode_message, encode_message, gunzip, gunzip_limited, gzip,
+};
+use flow_desktop_lib::sync::crypto::{
+    Role, SessionCipher, generate_master_secret, generate_session_id,
+};
 use flow_desktop_lib::sync::frames::{ChunkHeader, FrameType};
 
 fn cipher_pair() -> (SessionCipher, SessionCipher) {
@@ -39,7 +43,10 @@ fn undersized_and_wrong_version_frames_are_rejected_cleanly() {
     // Anything shorter than the 10-byte header.
     for len in 0..10usize {
         let wire = vec![0u8; len];
-        assert!(decode_message(&client, &wire).is_err(), "len {len} must error");
+        assert!(
+            decode_message(&client, &wire).is_err(),
+            "len {len} must error"
+        );
     }
     // Header-length but wrong version byte.
     let mut wire = vec![0u8; 10];
@@ -64,11 +71,20 @@ fn garbage_body_fails_aead_not_panics() {
 #[test]
 fn a_tampered_valid_frame_fails_to_open() {
     let (host, client) = cipher_pair();
-    let mut wire = encode_message(&host, FrameType::Manifest.to_u8(), 0, b"{\"collections\":{}}").unwrap();
+    let mut wire = encode_message(
+        &host,
+        FrameType::Manifest.to_u8(),
+        0,
+        b"{\"collections\":{}}",
+    )
+    .unwrap();
     // Flip a byte in the ciphertext region (after the 10-byte header).
     let i = wire.len() - 1;
     wire[i] ^= 0xff;
-    assert!(decode_message(&client, &wire).is_err(), "tampered tag must fail");
+    assert!(
+        decode_message(&client, &wire).is_err(),
+        "tampered tag must fail"
+    );
 }
 
 #[test]
@@ -89,7 +105,11 @@ fn decode_chunk_handles_edge_shapes() {
     // No newline at all → error, no panic.
     assert!(decode_chunk(b"no-newline-here").is_err());
     // Valid header then empty ndjson (newline is the last byte).
-    let header = ChunkHeader { collection: None, seq: 0, last: true };
+    let header = ChunkHeader {
+        collection: None,
+        seq: 0,
+        last: true,
+    };
     let mut body = serde_json::to_vec(&header).unwrap();
     body.push(b'\n');
     let (h, nd) = decode_chunk(&body).unwrap();
@@ -105,7 +125,10 @@ fn gzip_bomb_is_rejected_by_the_size_cap() {
     let payload = vec![0u8; 1024 * 1024];
     let bomb = gzip(&payload);
     assert!(bomb.len() < payload.len(), "sanity: zeros compress well");
-    assert!(gunzip_limited(&bomb, 4096).is_err(), "over-cap decompression must error");
+    assert!(
+        gunzip_limited(&bomb, 4096).is_err(),
+        "over-cap decompression must error"
+    );
     // Under a sufficient cap it still works, byte-for-byte.
     assert_eq!(gunzip_limited(&bomb, 2 * 1024 * 1024).unwrap(), payload);
     // The default `gunzip` happily handles normal payloads.

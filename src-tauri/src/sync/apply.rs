@@ -87,18 +87,26 @@ pub async fn apply_payload(
         }
 
         let (stat, applied) = match sc.collection {
-            Collection::WatchHistory => {
-                (apply_watch_history(&mut tx, our_device_id, &sc.ndjson).await?, true)
-            }
+            Collection::WatchHistory => (
+                apply_watch_history(&mut tx, our_device_id, &sc.ndjson).await?,
+                true,
+            ),
             Collection::Likes => (apply_likes(&mut tx, our_device_id, &sc.ndjson).await?, true),
-            Collection::Playlists => {
-                (apply_playlists(&mut tx, our_device_id, &sc.ndjson).await?, true)
+            Collection::Playlists => (
+                apply_playlists(&mut tx, our_device_id, &sc.ndjson).await?,
+                true,
+            ),
+            Collection::Settings => (
+                apply_settings(&mut tx, our_device_id, &sc.ndjson).await?,
+                true,
+            ),
+            Collection::FlowNeuroBrain => (
+                apply_flow_neuro(&mut tx, our_device_id, &sc.ndjson).await?,
+                true,
+            ),
+            Collection::MusicBrain => {
+                (apply_music(&mut tx, our_device_id, &sc.ndjson).await?, true)
             }
-            Collection::Settings => (apply_settings(&mut tx, our_device_id, &sc.ndjson).await?, true),
-            Collection::FlowNeuroBrain => {
-                (apply_flow_neuro(&mut tx, our_device_id, &sc.ndjson).await?, true)
-            }
-            Collection::MusicBrain => (apply_music(&mut tx, our_device_id, &sc.ndjson).await?, true),
             // Not yet wired through the pipeline — accept but don't record, so a later build can
             // apply it.
             _ => (
@@ -143,8 +151,10 @@ async fn apply_watch_history(
         .fetch_all(&mut **tx)
         .await?;
     let local: Vec<WatchHistoryRecord> = rows.iter().map(|r| r.to_canonical(device_id)).collect();
-    let local_map: BTreeMap<String, WatchHistoryRecord> =
-        local.iter().map(|r| (r.video_id.clone(), r.clone())).collect();
+    let local_map: BTreeMap<String, WatchHistoryRecord> = local
+        .iter()
+        .map(|r| (r.video_id.clone(), r.clone()))
+        .collect();
 
     let merged = merge::merge_watch_history(local.clone(), incoming);
 
@@ -190,8 +200,10 @@ async fn apply_likes(
         None => Vec::new(),
     };
     let incoming = parse_ndjson::<Like>(ndjson)?;
-    let local_map: BTreeMap<String, Like> =
-        local.iter().map(|l| (mapping::like_key(l), l.clone())).collect();
+    let local_map: BTreeMap<String, Like> = local
+        .iter()
+        .map(|l| (mapping::like_key(l), l.clone()))
+        .collect();
 
     let merged = merge::merge_likes(local, incoming);
 
@@ -210,7 +222,12 @@ async fn apply_likes(
         }
     }
 
-    set_setting(tx, mapping::LIKES_SETTING_KEY, &mapping::likes_to_blob(&merged)).await?;
+    set_setting(
+        tx,
+        mapping::LIKES_SETTING_KEY,
+        &mapping::likes_to_blob(&merged),
+    )
+    .await?;
     Ok(stat)
 }
 
@@ -224,8 +241,10 @@ async fn apply_playlists(
         None => Vec::new(),
     };
     let incoming = parse_ndjson::<Playlist>(ndjson)?;
-    let local_map: BTreeMap<String, Playlist> =
-        local.iter().map(|p| (p.sync_id.clone(), p.clone())).collect();
+    let local_map: BTreeMap<String, Playlist> = local
+        .iter()
+        .map(|p| (p.sync_id.clone(), p.clone()))
+        .collect();
 
     let merged = merge::merge_playlists(local, incoming);
 
@@ -313,7 +332,8 @@ async fn apply_flow_neuro(
     // Fold in this device's current brain so local learning isn't lost (idempotent re-fold).
     if let Some(s) = get_setting(tx, NEURO_BRAIN_KEY).await? {
         if let Ok(ub) = serde_json::from_str::<UserBrain>(&s) {
-            let snap = brainmap::userbrain_to_snapshot(&ub, device_id, Hlc::new(now_ms(), 0, device_id));
+            let snap =
+                brainmap::userbrain_to_snapshot(&ub, device_id, Hlc::new(now_ms(), 0, device_id));
             merged.merge_snapshot(&snap);
         }
     }
@@ -350,7 +370,8 @@ async fn apply_music(
     };
     if let Some(s) = get_setting(tx, MUSIC_BRAIN_KEY).await? {
         if let Ok(mb) = serde_json::from_str::<MusicBrain>(&s) {
-            let snap = brainmap::musicbrain_to_snapshot(&mb, device_id, Hlc::new(now_ms(), 0, device_id));
+            let snap =
+                brainmap::musicbrain_to_snapshot(&mb, device_id, Hlc::new(now_ms(), 0, device_id));
             merged.merge_snapshot(&snap);
         }
     }
@@ -377,12 +398,12 @@ async fn get_setting_with_time(
     tx: &mut Transaction<'_, Sqlite>,
     key: &str,
 ) -> Result<Option<(String, String)>, SyncError> {
-    Ok(
-        sqlx::query_as::<_, (String, String)>("SELECT value, updated_at FROM settings WHERE key = ?")
-            .bind(key)
-            .fetch_optional(&mut **tx)
-            .await?,
+    Ok(sqlx::query_as::<_, (String, String)>(
+        "SELECT value, updated_at FROM settings WHERE key = ?",
     )
+    .bind(key)
+    .fetch_optional(&mut **tx)
+    .await?)
 }
 
 async fn write_setting_value(
@@ -461,10 +482,7 @@ async fn insert_watch(
     Ok(())
 }
 
-async fn delete_watch(
-    tx: &mut Transaction<'_, Sqlite>,
-    video_id: &str,
-) -> Result<(), SyncError> {
+async fn delete_watch(tx: &mut Transaction<'_, Sqlite>, video_id: &str) -> Result<(), SyncError> {
     sqlx::query("DELETE FROM watch_history WHERE video_id = ?")
         .bind(video_id)
         .execute(&mut **tx)

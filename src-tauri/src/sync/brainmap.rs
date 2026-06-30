@@ -244,11 +244,7 @@ pub fn merged_flow_to_userbrain(m: &MergedFlowNeuroBrain, base: &UserBrain) -> U
         .iter()
         .filter_map(|(s, w)| {
             string_to_bucket(s).map(|bucket| {
-                let base_cv = base
-                    .time_vectors
-                    .get(&bucket)
-                    .cloned()
-                    .unwrap_or_default();
+                let base_cv = base.time_vectors.get(&bucket).cloned().unwrap_or_default();
                 (bucket, wire_to_cv(w, &base_cv))
             })
         })

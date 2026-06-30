@@ -186,7 +186,10 @@ pub fn key_fingerprints(master: &MasterSecret, session_id: &SessionId) -> (Strin
     let (h2c, c2h) = derive_direction_keys(master, session_id);
     let fp = |k: &DirectionKey| {
         let digest = <Sha256 as sha2::Digest>::digest(&k.0);
-        digest[..4].iter().map(|b| format!("{b:02x}")).collect::<String>()
+        digest[..4]
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect::<String>()
     };
     (fp(&h2c), fp(&c2h))
 }
@@ -230,7 +233,13 @@ pub fn seal_with_nonce(
     let cipher = Aes256Gcm::new_from_slice(key).map_err(|_| CryptoError::InvalidKey)?;
     let aad = build_aad(session_id, frame_type, seq);
     let ciphertext = cipher
-        .encrypt(Nonce::from_slice(nonce), Payload { msg: plaintext, aad: &aad })
+        .encrypt(
+            Nonce::from_slice(nonce),
+            Payload {
+                msg: plaintext,
+                aad: &aad,
+            },
+        )
         .map_err(|_| CryptoError::AuthFailed)?;
     let mut out = Vec::with_capacity(NONCE_LEN + ciphertext.len());
     out.extend_from_slice(nonce);

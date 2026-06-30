@@ -33,7 +33,9 @@ fn hex(b: &[u8]) -> String {
     b.iter().map(|x| format!("{x:02x}")).collect()
 }
 fn s<'a>(v: &'a Value, k: &str) -> &'a str {
-    v.get(k).and_then(Value::as_str).unwrap_or_else(|| panic!("fixture missing string `{k}`"))
+    v.get(k)
+        .and_then(Value::as_str)
+        .unwrap_or_else(|| panic!("fixture missing string `{k}`"))
 }
 
 #[test]

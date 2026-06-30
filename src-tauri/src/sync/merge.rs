@@ -15,7 +15,7 @@
 //! * subscriptions — key `name`; `channel_ids` OR-Set union, `sort_order` LWW, `deleted` LWW.
 //! * flow_neuro_brain — additive counters as G-Counters, sets as OR-Sets, per-video maps as
 //!   max-registers, LWW-maps per key, flags OR, and learned **vectors via per-device snapshots
-//!   recomputed deterministically** 
+//!   recomputed deterministically**
 //! * music_brain — analogous; scalar affinity maps use max-register (idempotent) for v1.
 
 #![allow(clippy::must_use_candidate)]

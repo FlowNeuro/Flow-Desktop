@@ -32,8 +32,8 @@ use crate::sync::crypto::SessionCipher;
 use crate::sync::error::SyncError;
 use crate::sync::frames::{
     ApplyResultEntry, ApplyResultFrame, CapabilitiesFrame, ChunkAckFrame, ChunkHeader,
-    CompleteFrame, ConsentFrame, FrameType, HelloAckFrame, HelloFrame, ManifestEntry, ManifestFrame,
-    SelectionFrame,
+    CompleteFrame, ConsentFrame, FrameType, HelloAckFrame, HelloFrame, ManifestEntry,
+    ManifestFrame, SelectionFrame,
 };
 use crate::sync::transport::WsChannel;
 
@@ -244,7 +244,15 @@ where
     let their_caps = exchange_caps(&mut peer, &our_caps, "sender").await?;
 
     // 3+. Drive the data-send phase (transport-role-independent).
-    send_data(&mut peer, client_hello, &our_caps, &their_caps, outgoing, chosen).await
+    send_data(
+        &mut peer,
+        client_hello,
+        &our_caps,
+        &their_caps,
+        outgoing,
+        chosen,
+    )
+    .await
 }
 
 /// Drive the **client that sends** (it scanned a QR whose host wants to *receive*). Same data path
@@ -264,7 +272,15 @@ where
     tracing::info!(target: "flow::sync::protocol", role = "client-sender", "session started, sending HELLO");
     let host_hello = handshake_client(&mut peer, &our_hello).await?;
     let their_caps = exchange_caps(&mut peer, &our_caps, "client-sender").await?;
-    send_data(&mut peer, host_hello, &our_caps, &their_caps, outgoing, chosen).await
+    send_data(
+        &mut peer,
+        host_hello,
+        &our_caps,
+        &their_caps,
+        outgoing,
+        chosen,
+    )
+    .await
 }
 
 // --------------------------------------------------------------------------------------------

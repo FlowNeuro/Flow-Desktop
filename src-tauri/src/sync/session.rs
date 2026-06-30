@@ -35,7 +35,7 @@ use crate::sync::crypto::{
 };
 use crate::sync::error::SyncError;
 use crate::sync::export;
-use crate::sync::frames::{Capability, CapabilitiesFrame, HelloFrame, ManifestFrame, Platform};
+use crate::sync::frames::{CapabilitiesFrame, Capability, HelloFrame, ManifestFrame, Platform};
 use crate::sync::ledger;
 use crate::sync::protocol::{
     ClientOutcome, HostOutcome, run_client_sender, run_host_receiver, run_receiver, run_sender,
@@ -380,7 +380,9 @@ pub async fn start_host(
     receive: bool,
 ) -> Result<HostStartInfo, SyncError> {
     if manager.is_busy().await {
-        return Err(SyncError::Protocol("a sync session is already active".into()));
+        return Err(SyncError::Protocol(
+            "a sync session is already active".into(),
+        ));
     }
 
     let pool = pool_of(&app);
@@ -397,9 +399,23 @@ pub async fn start_host(
     })?;
     let expires_at = now_s() + HOST_TTL.as_secs();
     let qr = if receive {
-        QrPayload::new_receiving(&session_id, &master, ip.clone(), port, &device_name, expires_at)
+        QrPayload::new_receiving(
+            &session_id,
+            &master,
+            ip.clone(),
+            port,
+            &device_name,
+            expires_at,
+        )
     } else {
-        QrPayload::new(&session_id, &master, ip.clone(), port, &device_name, expires_at)
+        QrPayload::new(
+            &session_id,
+            &master,
+            ip.clone(),
+            port,
+            &device_name,
+            expires_at,
+        )
     }
     .to_json();
 
@@ -447,7 +463,14 @@ pub async fn start_host(
                 }
             } else {
                 host_session(
-                    app, manager, listener, master, session_id, selection, device_id, device_name,
+                    app,
+                    manager,
+                    listener,
+                    master,
+                    session_id,
+                    selection,
+                    device_id,
+                    device_name,
                     sas,
                 )
                 .await;
@@ -606,7 +629,9 @@ pub async fn scan_join(
     qr_text: String,
 ) -> Result<(), SyncError> {
     if manager.is_busy().await {
-        return Err(SyncError::Protocol("a sync session is already active".into()));
+        return Err(SyncError::Protocol(
+            "a sync session is already active".into(),
+        ));
     }
     let payload = QrPayload::from_json(&qr_text)?;
     if payload.is_expired(now_s()) {
@@ -738,8 +763,10 @@ fn merge_consent(
     manager: &Arc<SyncManager>,
     sas: String,
     role: &'static str,
-) -> impl FnOnce(HelloFrame, ManifestFrame) -> std::pin::Pin<Box<dyn std::future::Future<Output = bool> + Send>>
-{
+) -> impl FnOnce(
+    HelloFrame,
+    ManifestFrame,
+) -> std::pin::Pin<Box<dyn std::future::Future<Output = bool> + Send>> {
     let app = app.clone();
     let manager = manager.clone();
     move |peer: HelloFrame, manifest: ManifestFrame| {
@@ -790,9 +817,13 @@ async fn finish_receive(
         .await;
 
     flush_brains(app).await;
-    let report =
-        apply::apply_payload(pool, device_id, &received.peer.device_id, &received.collections)
-            .await?;
+    let report = apply::apply_payload(
+        pool,
+        device_id,
+        &received.peer.device_id,
+        &received.collections,
+    )
+    .await?;
     reload_brains(app).await;
     for s in &report.stats {
         tracing::info!(

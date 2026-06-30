@@ -107,7 +107,8 @@ async fn export_flow_neuro(pool: &SqlitePool, device_id: &str) -> Result<Vec<u8>
 
 async fn export_music(pool: &SqlitePool, device_id: &str) -> Result<Vec<u8>, SyncError> {
     let merged = current_merged_music(pool, device_id).await?;
-    let snapshot = brainmap::merged_music_to_snapshot(&merged, device_id, Hlc::new(now_ms(), 0, device_id));
+    let snapshot =
+        brainmap::merged_music_to_snapshot(&merged, device_id, Hlc::new(now_ms(), 0, device_id));
     Ok(to_ndjson(std::slice::from_ref(&snapshot)))
 }
 
@@ -180,14 +181,12 @@ async fn get_setting_with_time(
     pool: &SqlitePool,
     key: &str,
 ) -> Result<Option<(String, String)>, SyncError> {
-    Ok(
-        sqlx::query_as::<_, (String, String)>(
-            "SELECT value, updated_at FROM settings WHERE key = ?",
-        )
-        .bind(key)
-        .fetch_optional(pool)
-        .await?,
+    Ok(sqlx::query_as::<_, (String, String)>(
+        "SELECT value, updated_at FROM settings WHERE key = ?",
     )
+    .bind(key)
+    .fetch_optional(pool)
+    .await?)
 }
 
 fn now_ms() -> u64 {
