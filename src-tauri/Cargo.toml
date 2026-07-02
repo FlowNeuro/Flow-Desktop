@@ -20,6 +20,7 @@ tauri = { version = "2", features = [] }
 tauri-plugin-opener = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-os = "2"
+tauri-plugin-notification = "2"
 
 # Core Async & Serialization
 tokio = { version = "1", features = ["full"] }
@@ -64,6 +65,14 @@ zeroize = { version = "1", features = ["derive"] }
 tokio-tungstenite = "0.24"
 flate2 = "1"
 local-ip-address = "0.6"
+
+# Native Windows toast notifications: build the toast XML directly so we can attach
+# the app logo + a video thumbnail (hero image) and register a proper AppUserModelID,
+# so the system attributes notifications to "Flow" instead of PowerShell.
+[target.'cfg(windows)'.dependencies]
+tauri-winrt-notification = "0.7"
+windows-registry = "0.6"
+windows = { version = "0.61", features = ["Win32_UI_Shell"] }
 
 [profile.release]
 # Keep production binaries compact without sacrificing the normal release optimizer.

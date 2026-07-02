@@ -99,7 +99,10 @@ fn format_relative_published(published: &str) -> Option<String> {
     Some(text)
 }
 
-fn parse_rss_feed(channel_id: &str, xml: &str) -> (Option<String>, Vec<(i64, VideoSummary)>) {
+pub(crate) fn parse_rss_feed(
+    channel_id: &str,
+    xml: &str,
+) -> (Option<String>, Vec<(i64, VideoSummary)>) {
     let channel_name = xml_text(xml, "name");
     let videos = xml
         .split("<entry>")
@@ -169,6 +172,77 @@ async fn fetch_channel_avatar(client: &reqwest::Client, channel_id: &str) -> Opt
     let url = format!("https://www.youtube.com/channel/{channel_id}");
     let html = client.get(url).send().await.ok()?.text().await.ok()?;
     extract_channel_avatar_from_html(&html)
+}
+
+fn extract_channel_id_from_html(html: &str) -> Option<String> {
+    const MARKERS: [&str; 4] = [
+        "\"externalId\":\"",
+        "\"channelId\":\"",
+        "browse.youtube.com/channel/",
+        "/channel/",
+    ];
+    for marker in MARKERS {
+        let mut from = 0;
+        while let Some(rel) = html[from..].find(marker) {
+            let start = from + rel + marker.len();
+            let candidate: String = html[start..].chars().take(24).collect();
+            if candidate.len() == 24
+                && candidate.starts_with("UC")
+                && candidate
+                    .chars()
+                    .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+            {
+                return Some(candidate);
+            }
+            from = start;
+        }
+    }
+    None
+}
+
+#[tauri::command]
+pub async fn resolve_channel_id(url: String) -> Result<String, ErrorResponse> {
+    let parsed = reqwest::Url::parse(url.trim()).map_err(|_| {
+        ErrorResponse::from(crate::errors::AppError::Validation("Invalid URL".into()))
+    })?;
+    let host = parsed.host_str().unwrap_or("").to_lowercase();
+    let host = host.strip_prefix("www.").unwrap_or(&host);
+    let allowed = matches!(
+        host,
+        "youtube.com" | "m.youtube.com" | "music.youtube.com" | "gaming.youtube.com"
+    );
+    if !allowed {
+        return Err(ErrorResponse::from(crate::errors::AppError::Validation(
+            "Not a YouTube URL".into(),
+        )));
+    }
+
+    let client = reqwest::Client::builder()
+        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+        .build()
+        .unwrap_or_default();
+    let html = client
+        .get(parsed)
+        .send()
+        .await
+        .map_err(|e| {
+            ErrorResponse::from(crate::errors::AppError::Extractor(format!(
+                "Channel resolve failed: {e}"
+            )))
+        })?
+        .text()
+        .await
+        .map_err(|e| {
+            ErrorResponse::from(crate::errors::AppError::Extractor(format!(
+                "Channel resolve read failed: {e}"
+            )))
+        })?;
+
+    extract_channel_id_from_html(&html).ok_or_else(|| {
+        ErrorResponse::from(crate::errors::AppError::Extractor(
+            "Could not find a channel id at that URL".into(),
+        ))
+    })
 }
 
 fn extract_codecs(mime_type: Option<&str>) -> Option<String> {

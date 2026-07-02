@@ -282,16 +282,13 @@ fn our_hello(device_id: &str, device_name: &str) -> HelloFrame {
 pub fn desktop_capabilities() -> CapabilitiesFrame {
     let mut collections = BTreeMap::new();
     for c in Collection::ALL {
-        let (produce, consume) = match c {
-            Collection::Subscriptions => (false, false),
-            _ => (true, true),
-        };
+        // The desktop produces and consumes every collection.
         collections.insert(
             c.key().to_string(),
             Capability {
                 schema: CAP_SCHEMA,
-                produce,
-                consume,
+                produce: true,
+                consume: true,
             },
         );
     }
@@ -834,7 +831,7 @@ fn merge_consent(
         let manager = manager.clone();
         let sas = sas.clone();
         Box::pin(async move {
-            manager
+            let accepted = manager
                 .request_consent(
                     &app,
                     SyncStatus {
@@ -847,7 +844,13 @@ fn merge_consent(
                         ..SyncStatus::idle()
                     },
                 )
-                .await
+                .await;
+            if accepted {
+                manager
+                    .set_status(&app, SyncStatus::simple("transferring", Some(role)))
+                    .await;
+            }
+            accepted
         })
     }
 }

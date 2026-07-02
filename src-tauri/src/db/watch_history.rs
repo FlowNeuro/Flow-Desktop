@@ -66,6 +66,73 @@ pub async fn upsert_watch_record(pool: &SqlitePool, record: &WatchHistoryRecord)
     Ok(())
 }
 
+pub async fn upsert_watch_records_bulk(
+    pool: &SqlitePool,
+    records: &[WatchHistoryRecord],
+) -> AppResult<()> {
+    if records.is_empty() {
+        return Ok(());
+    }
+
+    let mut tx = pool
+        .begin()
+        .await
+        .map_err(|e| AppError::Database(e.to_string()))?;
+
+    for record in records {
+        let existing = sqlx::query("SELECT id FROM watch_history WHERE video_id = ? LIMIT 1")
+            .bind(&record.video_id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(|e| AppError::Database(e.to_string()))?;
+
+        if let Some(row) = existing {
+            let id: i64 = sqlx::Row::get(&row, 0);
+            sqlx::query(
+                "UPDATE watch_history SET
+                    title = ?,
+                    channel_name = ?,
+                    watch_date = ?,
+                    watch_duration_seconds = ?,
+                    total_duration_seconds = ?,
+                    is_music = ?
+                 WHERE id = ?",
+            )
+            .bind(&record.title)
+            .bind(&record.channel_name)
+            .bind(&record.watch_date)
+            .bind(record.watch_duration_seconds)
+            .bind(record.total_duration_seconds)
+            .bind(record.is_music)
+            .bind(id)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| AppError::Database(e.to_string()))?;
+        } else {
+            sqlx::query(
+                "INSERT INTO watch_history (video_id, title, channel_name, watch_date, watch_duration_seconds, total_duration_seconds, is_music)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)"
+            )
+            .bind(&record.video_id)
+            .bind(&record.title)
+            .bind(&record.channel_name)
+            .bind(&record.watch_date)
+            .bind(record.watch_duration_seconds)
+            .bind(record.total_duration_seconds)
+            .bind(record.is_music)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| AppError::Database(e.to_string()))?;
+        }
+    }
+
+    tx.commit()
+        .await
+        .map_err(|e| AppError::Database(e.to_string()))?;
+
+    Ok(())
+}
+
 pub async fn get_watch_history(
     pool: &SqlitePool,
     limit: i64,
@@ -74,7 +141,7 @@ pub async fn get_watch_history(
     let records = sqlx::query_as::<_, WatchHistoryRecord>(
         "SELECT id, video_id, title, channel_name, watch_date, watch_duration_seconds, total_duration_seconds, is_music
          FROM watch_history
-         ORDER BY datetime(watch_date) DESC, created_at DESC
+         ORDER BY watch_date DESC, created_at DESC
          LIMIT ? OFFSET ?"
     )
     .bind(limit)
@@ -95,7 +162,7 @@ pub async fn get_music_history(
         "SELECT id, video_id, title, channel_name, watch_date, watch_duration_seconds, total_duration_seconds, is_music
          FROM watch_history
          WHERE is_music = 1
-         ORDER BY datetime(watch_date) DESC, created_at DESC
+         ORDER BY watch_date DESC, created_at DESC
          LIMIT ? OFFSET ?"
     )
     .bind(limit)

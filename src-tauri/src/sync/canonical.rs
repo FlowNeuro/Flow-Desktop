@@ -595,12 +595,12 @@ pub struct MusicBrainSnapshot {
 // Collection: subscription groups
 // ===========================================================================================
 
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct SubscriptionGroup {
-    pub name: String,
-    pub channel_ids: OrSet,
-    pub sort_order: Option<Lww<i32>>,
+    pub channel_ids: Vec<String>,
     pub deleted: bool,
     pub hlc: Hlc,
+    pub name: String,
+    pub sort_order: i32,
 }

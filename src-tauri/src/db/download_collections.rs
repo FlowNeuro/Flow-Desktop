@@ -82,7 +82,7 @@ pub async fn list_collections(pool: &SqlitePool) -> AppResult<Vec<DownloadCollec
         "SELECT {SELECT_COLUMNS},
             (SELECT COUNT(*) FROM downloads d WHERE d.collection_db_id = c.id) AS downloaded_count
          FROM download_collections c
-         ORDER BY datetime(created_at) DESC, id DESC"
+         ORDER BY created_at DESC, id DESC"
     );
     sqlx::query_as::<_, DownloadCollectionRecord>(&query)
         .fetch_all(pool)

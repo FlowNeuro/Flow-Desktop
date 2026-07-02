@@ -1,16 +1,11 @@
-import { useState, useEffect } from "react";
-import { 
-  getBrainSnapshot, 
-  getFlowPersona, 
-  unblockTopic, 
-  unblockChannel, 
+import {
+  unblockTopic,
+  unblockChannel,
   resetBrain,
   type UserBrain,
-  type PersonaDetails
 } from "../lib/api/recommendation";
 import { setSetting } from "../lib/api/db";
-import { getMusicTasteProfile } from "../lib/api/music";
-import type { MusicTasteProfile } from "../types/music";
+import { usePersonaData } from "../lib/usePersonaData";
 
 import { SkeletonLoader } from "../components/persona/SkeletonLoader";
 import { PersonaOverview } from "../components/persona/PersonaOverview";
@@ -31,43 +26,12 @@ import { ProfileData } from "../components/persona/ProfileData";
 import { RefreshCw, BrainCog  } from "lucide-react";
 
 export function FlowNeuroPersona() {
-  const [brain, setBrain] = useState<UserBrain | null>(null);
-  const [persona, setPersona] = useState<PersonaDetails | null>(null);
-  const [musicProfile, setMusicProfile] = useState<MusicTasteProfile | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-
-  const fetchBrainData = async (force = false) => {
-    if (force) setRefreshing(true);
-    try {
-      const snapshot = await getBrainSnapshot(force);
-      setBrain(snapshot);
-
-      const personaDetails = await getFlowPersona();
-      setPersona(personaDetails);
-    } catch (e) {
-      console.error("Failed to load recommendation telemetry:", e);
-    }
-
-    try {
-      const tasteProfile = await getMusicTasteProfile();
-      setMusicProfile(tasteProfile);
-    } catch (e) {
-      console.error("Failed to load music taste profile:", e);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchBrainData();
-  }, []);
+  const { brain, persona, musicProfile, loading, refreshing, refresh } = usePersonaData();
 
   const handleUnblockTopic = async (topic: string) => {
     try {
       await unblockTopic(topic);
-      await fetchBrainData(true);
+      await refresh(true);
     } catch (e) {
       console.error("Failed to unblock topic:", e);
     }
@@ -76,7 +40,7 @@ export function FlowNeuroPersona() {
   const handleUnblockChannel = async (channelId: string) => {
     try {
       await unblockChannel(channelId);
-      await fetchBrainData(true);
+      await refresh(true);
     } catch (e) {
       console.error("Failed to unblock channel:", e);
     }
@@ -85,7 +49,7 @@ export function FlowNeuroPersona() {
   const handleImportBrain = async (importedBrain: UserBrain) => {
     try {
       await setSetting("user_neuro_brain", JSON.stringify(importedBrain));
-      await fetchBrainData(true);
+      await refresh(true);
     } catch (e) {
       console.error("Failed to import brain:", e);
       throw e;
@@ -95,7 +59,7 @@ export function FlowNeuroPersona() {
   const handleResetBrain = async () => {
     try {
       await resetBrain();
-      await fetchBrainData(true);
+      await refresh(true);
     } catch (e) {
       console.error("Failed to reset brain:", e);
       throw e;
@@ -137,7 +101,7 @@ export function FlowNeuroPersona() {
           </div>
 
           <button
-            onClick={() => fetchBrainData(true)}
+            onClick={() => refresh(true)}
             disabled={refreshing}
             className="flex items-center gap-2 bg-[var(--color-surface-container-high)] hover:bg-[var(--color-surface-container-highest)] disabled:opacity-50 text-[var(--color-on-surface)] py-2.5 px-4 rounded-full text-xs font-semibold border border-[var(--color-outline-variant)] transition-colors active:scale-95 cursor-pointer shrink-0"
           >

@@ -15,7 +15,7 @@ use serde::de::DeserializeOwned;
 
 use flow_desktop_lib::sync::canonical::{
     FlowNeuroBrainSnapshot, Like, LikeKind, LikeState, MusicBrainSnapshot, Playlist,
-    PlaylistOrigin, SettingEntry, SubscriptionGroup, WatchHistoryRecord,
+    PlaylistOrigin, SettingEntry, SubscriptionGroup, WatchHistoryRecord, to_canonical_json,
 };
 use flow_desktop_lib::sync::frames::CapabilitiesFrame;
 
@@ -133,9 +133,28 @@ fn subscriptions_fixture_locks() {
     let groups: Vec<SubscriptionGroup> = load_stable("subscriptions.json");
     assert_eq!(groups.len(), 1);
     assert_eq!(groups[0].name, "Tech");
-    let mut members = groups[0].channel_ids.members();
-    members.sort();
-    assert_eq!(members, vec!["UCabc".to_string(), "UCdef".to_string()]);
+    assert_eq!(
+        groups[0].channel_ids,
+        vec!["UCabc".to_string(), "UCdef".to_string()]
+    );
+    assert_eq!(groups[0].sort_order, 0);
+    assert!(!groups[0].deleted);
+}
+
+#[test]
+fn subscription_group_canonical_bytes_match_android() {
+    let group = SubscriptionGroup {
+        channel_ids: vec!["UC1".to_string(), "UC2".to_string()],
+        deleted: false,
+        hlc: "1781000000000:0:deviceaa".parse().unwrap(),
+        name: "Tech".to_string(),
+        sort_order: 0,
+    };
+    let json = String::from_utf8(to_canonical_json(&group)).unwrap();
+    assert_eq!(
+        json,
+        r#"{"channelIds":["UC1","UC2"],"deleted":false,"hlc":"1781000000000:0:deviceaa","name":"Tech","sortOrder":0}"#
+    );
 }
 
 #[test]
@@ -146,5 +165,7 @@ fn capabilities_fixture_locks() {
     // music_brain is producible by desktop but not consumable by a peer without a MusicBrain
     assert!(caps.collections["music_brain"].produce);
     assert!(!caps.collections["music_brain"].consume);
-    assert!(!caps.collections["subscriptions"].produce);
+    // subscription groups now sync in both directions
+    assert!(caps.collections["subscriptions"].produce);
+    assert!(caps.collections["subscriptions"].consume);
 }

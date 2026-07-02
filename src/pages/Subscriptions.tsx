@@ -1,9 +1,10 @@
 import React, { useMemo, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Check, ChevronDown, ChevronUp, ListChecks, Loader2, Pencil, Plus, Trash2, Upload, User } from "lucide-react";
+import { Bell, BellOff, Check, ChevronDown, ChevronUp, ListChecks, Loader2, Pencil, Plus, Trash2, Upload, User } from "lucide-react";
 import { parseSubscriptionExport } from "../lib/api/youtube";
 import { SETTINGS } from "../lib/settings/schema";
 import { useSubscriptionStore } from "../store/useSubscriptionStore";
+import { useNotificationStore } from "../store/useNotificationStore";
 import { useAppSettingsStore } from "../store/useAppSettingsStore";
 import { useFeedHiddenFilter } from "../store/useFeedActionsStore";
 import { getString } from "../lib/i18n/index";
@@ -63,6 +64,10 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ onPlay, onAddToQue
     deleteSubscriptionGroup,
     moveSubscriptionGroup,
   } = useSubscriptionStore();
+  const channelNotifications = useNotificationStore((state) => state.channelNotifications);
+  const channelPrefsLoaded = useNotificationStore((state) => state.channelPrefsLoaded);
+  const loadChannelPreferences = useNotificationStore((state) => state.loadChannelPreferences);
+  const setChannelNotification = useNotificationStore((state) => state.setChannelNotification);
   const { videos, rssChannels, loading: feedLoading, error: feedError } = useSubscriptionFeed(subscriptions);
   const channelDetails = useSubscriptionChannelDetails(subscriptions);
   const showSubscriptionVideos = useAppSettingsStore((state) => state.values[SETTINGS.SUBSCRIPTION_SHOW_VIDEOS] !== "false");
@@ -85,6 +90,10 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ onPlay, onAddToQue
     loadSubscriptions();
     loadSubscriptionGroups();
   }, [loadSubscriptionGroups, loadSubscriptions]);
+
+  useEffect(() => {
+    if (!channelPrefsLoaded) void loadChannelPreferences();
+  }, [channelPrefsLoaded, loadChannelPreferences]);
 
   useEffect(() => {
     subscriptions.forEach((channel) => {
@@ -421,6 +430,26 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ onPlay, onAddToQue
                               {channel.subscriberCountText || details?.subscriberCountText || getString("subscriptions_subscribers_unavailable")}
                             </div>
                           </button>
+
+                          {(() => {
+                            const notifOn = channelNotifications[channel.id] !== false;
+                            return (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                title={getString(
+                                  notifOn
+                                    ? "subscription_notifications_on"
+                                    : "subscription_notifications_off",
+                                )}
+                                aria-pressed={notifOn}
+                                className={notifOn ? "text-[var(--color-primary)]" : "text-neutral-400"}
+                                onClick={() => setChannelNotification(channel.id, !notifOn)}
+                              >
+                                {notifOn ? <Bell size={16} /> : <BellOff size={16} />}
+                              </Button>
+                            );
+                          })()}
 
                           <Button
                             variant="ghost"

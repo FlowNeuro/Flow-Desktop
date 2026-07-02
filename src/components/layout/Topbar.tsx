@@ -1,20 +1,23 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Bell, HatGlasses, Menu, Search, Settings } from 'lucide-react';
+import { ArrowLeft, ArrowRight, HatGlasses, Loader2, Menu, Search, Settings } from 'lucide-react';
 import { useUiStore } from '../../store/useUiStore';
 import { useAppSettingsStore } from '../../store/useAppSettingsStore';
 import Logo from '../common/Logo';
 import { IconButton } from '../ui/IconButton';
-import { getSearchSuggestions } from '../../lib/api/youtube';
+import { getSearchSuggestions, resolveChannelId } from '../../lib/api/youtube';
+import { parseYoutubeUrl } from '../../lib/youtubeUrl';
 import { SETTINGS } from '../../lib/settings/schema';
 import { getString } from '../../lib/i18n/index';
 import { toggleDeepFlow } from '../../lib/deepFlow';
+import { NotificationsBell } from '../notifications/NotificationsBell';
 
 export function Topbar() {
   const { toggleSidebar, toggleWatchSidebar, setSearchQuery } = useUiStore();
   const [localSearch, setLocalSearch] = useState('');
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [resolving, setResolving] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const suggestionRef = useRef<HTMLDivElement>(null);
@@ -64,13 +67,56 @@ export function Topbar() {
     return () => clearTimeout(delay);
   }, [localSearch]);
 
-  const handleSearch = (e: React.FormEvent) => {
+  const runTextSearch = (query: string) => {
+    setSearchQuery(query);
+    navigate(`/search?q=${encodeURIComponent(query)}`);
+  };
+
+  const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (localSearch.trim()) {
-      setSearchQuery(localSearch);
-      setShowSuggestions(false);
-      navigate(`/search?q=${encodeURIComponent(localSearch)}`);
+    const query = localSearch.trim();
+    if (!query || resolving) return;
+    setShowSuggestions(false);
+
+    // A pasted YouTube / YT-Music URL opens the target directly instead of searching.
+    const parsed = parseYoutubeUrl(query);
+    if (parsed) {
+      switch (parsed.kind) {
+        case 'video':
+          navigate(`/watch/${parsed.videoId}`);
+          return;
+        case 'playlist':
+          navigate(`/playlist/${parsed.playlistId}`);
+          return;
+        case 'musicPlaylist':
+          navigate(`/music/playlist/${parsed.playlistId}`);
+          return;
+        case 'musicAlbum':
+          navigate(`/music/album/${parsed.browseId}`);
+          return;
+        case 'channel':
+          navigate(`/channel/${parsed.channelId}`);
+          return;
+        case 'musicArtist':
+          navigate(`/music/artist/${parsed.channelId}`);
+          return;
+        case 'resolveChannel': {
+          // Handle / custom URLs have no channel id — resolve it via the backend.
+          setResolving(true);
+          try {
+            const channelId = await resolveChannelId(parsed.url);
+            navigate(parsed.music ? `/music/artist/${channelId}` : `/channel/${channelId}`);
+          } catch {
+            runTextSearch(parsed.query || query); // couldn't resolve — search instead
+          } finally {
+            setResolving(false);
+          }
+          return;
+        }
+      }
     }
+
+    runTextSearch(query);
   };
 
   return (
@@ -126,12 +172,13 @@ export function Topbar() {
               Ctrl K
             </kbd>
           </div>
-          <button 
-            type="submit" 
-            className="flex h-10 w-14 items-center justify-center border-l border-zinc-800 bg-zinc-900 text-zinc-200 transition-colors hover:bg-zinc-800"
+          <button
+            type="submit"
+            disabled={resolving}
+            className="flex h-10 w-14 items-center justify-center border-l border-zinc-800 bg-zinc-900 text-zinc-200 transition-colors hover:bg-zinc-800 disabled:opacity-70"
             title="Search"
           >
-            <Search className="h-5 w-5" />
+            {resolving ? <Loader2 className="h-5 w-5 animate-spin" /> : <Search className="h-5 w-5" />}
           </button>
         </form>
 
@@ -159,9 +206,7 @@ export function Topbar() {
 
       {/* Right */}
       <div className="flex items-center gap-2">
-        <IconButton title="Notifications">
-          <Bell />
-        </IconButton>
+        <NotificationsBell />
         <IconButton
           onClick={() => {
             void toggleDeepFlow();

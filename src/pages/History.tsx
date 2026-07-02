@@ -1,5 +1,6 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import { Clock, Loader2, Trash2 } from "lucide-react";
+import { VList, type VListHandle } from "virtua";
 import type { VideoSummary } from "../types/video";
 import { getString } from "../lib/i18n/index";
 import { HistoryDateGroup } from "../components/history/HistoryDateGroup";
@@ -8,6 +9,7 @@ import { Button } from "../components/ui/Button";
 import { SearchInput } from "../components/ui/SearchInput";
 import { CategoryChips } from "../components/layout/CategoryChips";
 import { useHistory, groupHistoryByDate } from "../lib/useHistory";
+import { useDebounce } from "../lib/useDebounce";
 
 type HistoryFilter = "all" | "videos" | "music";
 
@@ -19,6 +21,7 @@ export const History: React.FC<HistoryProps> = ({ onPlay }) => {
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [filter, setFilter] = useState<HistoryFilter>("all");
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const {
     history,
     loading,
@@ -29,19 +32,25 @@ export const History: React.FC<HistoryProps> = ({ onPlay }) => {
     clearHistory,
   } = useHistory();
 
-  const sentinelRef = useRef<HTMLDivElement | null>(null);
-  useEffect(() => {
-    const node = sentinelRef.current;
-    if (!node || !hasMore || loading) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((e) => e.isIntersecting)) void loadMore();
-      },
-      { rootMargin: "600px" },
-    );
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, [hasMore, loading, loadingMore, loadMore]);
+  const debouncedQuery = useDebounce(searchQuery, 200);
+
+  const toggleGroup = useCallback((dateLabel: string) => {
+    setExpandedGroups((current) => {
+      const next = new Set(current);
+      if (next.has(dateLabel)) next.delete(dateLabel);
+      else next.add(dateLabel);
+      return next;
+    });
+  }, []);
+
+  const listRef = useRef<VListHandle>(null);
+  const handleListScroll = useCallback(() => {
+    const el = listRef.current;
+    if (!el || !hasMore) return;
+    if (el.scrollOffset + el.viewportSize >= el.scrollSize - 800) {
+      void loadMore();
+    }
+  }, [hasMore, loadMore]);
 
   const filters = useMemo(
     () => [
@@ -54,7 +63,7 @@ export const History: React.FC<HistoryProps> = ({ onPlay }) => {
   const activeLabel = filters.find((f) => f.key === filter)?.label ?? filters[0]?.label ?? "";
 
   const visibleGroups = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
+    const query = debouncedQuery.trim().toLowerCase();
     const filtered = history.filter((record) => {
       if (filter === "music" && !record.isMusic) return false;
       if (filter === "videos" && record.isMusic) return false;
@@ -65,7 +74,7 @@ export const History: React.FC<HistoryProps> = ({ onPlay }) => {
       return true;
     });
     return groupHistoryByDate(filtered);
-  }, [history, filter, searchQuery]);
+  }, [history, filter, debouncedQuery]);
 
   const handleClearAll = async () => {
     try {
@@ -84,9 +93,35 @@ export const History: React.FC<HistoryProps> = ({ onPlay }) => {
     }
   };
 
+  const groupItems = useMemo(() => {
+    const items = visibleGroups.map((group) => (
+      <div key={group.dateLabel} className="pb-10">
+        {filter === "music" ? (
+          <MusicHistoryGroup group={group} onRemoveFromHistory={handleDeleteItem} />
+        ) : (
+          <HistoryDateGroup
+            group={group}
+            onPlay={onPlay}
+            onRemoveFromHistory={handleDeleteItem}
+            isExpanded={expandedGroups.has(group.dateLabel)}
+            onToggleExpand={() => toggleGroup(group.dateLabel)}
+          />
+        )}
+      </div>
+    ));
+    if (hasMore && loadingMore) {
+      items.push(
+        <div key="__loading_more" className="flex items-center justify-center py-6">
+          <Loader2 className="h-6 w-6 animate-spin text-neutral-600" />
+        </div>,
+      );
+    }
+    return items;
+  }, [visibleGroups, filter, expandedGroups, hasMore, loadingMore]);
+
   return (
-    <div className="flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-8">
-      <div className="mx-auto w-full pb-20">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 py-6 sm:px-6 lg:px-8">
+      <div className="mx-auto w-full shrink-0">
         <header className="flex flex-col gap-5 border-b border-neutral-800 pb-6 lg:flex-row lg:items-end lg:justify-between">
           <div className="min-w-0">
             <h1 className="text-3xl font-bold tracking-tight text-neutral-100 lg:text-4xl">
@@ -128,60 +163,38 @@ export const History: React.FC<HistoryProps> = ({ onPlay }) => {
           sticky={false}
           className="mt-2"
         />
-
-        {loading ? (
-          <div className="flex flex-col items-center justify-center py-32">
-            <Loader2 className="h-9 w-9 animate-spin text-[var(--color-primary)]" />
-            <p className="mt-4 text-sm font-medium text-neutral-500">
-              {getString("history_loading")}
-            </p>
-          </div>
-        ) : history.length === 0 ? (
-          <div className="mt-8 flex flex-col items-center justify-center rounded-2xl border border-dashed border-neutral-800 bg-surface-container-low p-10 text-center">
-            <Clock className="mb-4 h-12 w-12 text-neutral-700" />
-            <h3 className="font-bold text-neutral-300">{getString("empty_watch_history")}</h3>
-            <p className="mt-1 max-w-sm text-sm text-neutral-500">
-              {getString("empty_watch_history_body")}
-            </p>
-          </div>
-        ) : visibleGroups.length === 0 ? (
-          <div className="mt-8 rounded-2xl border border-neutral-800 bg-surface-container-low p-8 text-center">
-            <p className="text-sm font-medium text-neutral-300">
-              No history results match your search.
-            </p>
-          </div>
-        ) : (
-          <div className="mt-8 flex flex-col gap-10">
-            {visibleGroups.map((group) =>
-              filter === "music" ? (
-                <MusicHistoryGroup
-                  key={group.dateLabel}
-                  group={group}
-                  onRemoveFromHistory={handleDeleteItem}
-                />
-              ) : (
-                <HistoryDateGroup
-                  key={group.dateLabel}
-                  group={group}
-                  onPlay={onPlay}
-                  onRemoveFromHistory={handleDeleteItem}
-                />
-              ),
-            )}
-
-            {hasMore && (
-              <div
-                ref={sentinelRef}
-                className="flex items-center justify-center py-6"
-              >
-                {loadingMore && (
-                  <Loader2 className="h-6 w-6 animate-spin text-neutral-600" />
-                )}
-              </div>
-            )}
-          </div>
-        )}
       </div>
+
+      {loading ? (
+        <div className="flex flex-1 flex-col items-center justify-center py-32">
+          <Loader2 className="h-9 w-9 animate-spin text-[var(--color-primary)]" />
+          <p className="mt-4 text-sm font-medium text-neutral-500">
+            {getString("history_loading")}
+          </p>
+        </div>
+      ) : history.length === 0 ? (
+        <div className="mx-auto mt-8 flex w-full flex-col items-center justify-center rounded-2xl border border-dashed border-neutral-800 bg-surface-container-low p-10 text-center">
+          <Clock className="mb-4 h-12 w-12 text-neutral-700" />
+          <h3 className="font-bold text-neutral-300">{getString("empty_watch_history")}</h3>
+          <p className="mt-1 max-w-sm text-sm text-neutral-500">
+            {getString("empty_watch_history_body")}
+          </p>
+        </div>
+      ) : visibleGroups.length === 0 ? (
+        <div className="mx-auto mt-8 w-full rounded-2xl border border-neutral-800 bg-surface-container-low p-8 text-center">
+          <p className="text-sm font-medium text-neutral-300">
+            No history results match your search.
+          </p>
+        </div>
+      ) : (
+        <VList
+          ref={listRef}
+          onScroll={handleListScroll}
+          className="mx-auto mt-8 w-full flex-1 min-h-0"
+        >
+          {groupItems}
+        </VList>
+      )}
 
       {/* Clear watch history confirmation overlay modal */}
       {showClearConfirm && (

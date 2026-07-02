@@ -10,6 +10,7 @@ import {
 } from "../lib/api/music";
 import { getOfflineStream } from "../lib/api/downloads";
 import { findDownloadedRecord } from "../lib/useDownloads";
+import { useDownloadsLibraryStore } from "./useDownloadsLibraryStore";
 import { getBackendErrorMessage } from "../lib/api/errors";
 import { musicAudioEngine } from "../lib/audio/musicAudioEngine";
 import { SETTINGS } from "../lib/settings/schema";
@@ -342,6 +343,11 @@ export const useMusicPlayerStore = create<MusicPlayerState>((set, get) => ({
     void get()._ensureRadio();
 
     try {
+      if (!useDownloadsLibraryStore.getState().loaded) {
+        await useDownloadsLibraryStore.getState().ensureLoaded();
+        if (get().loadingStreamId !== videoId) return;
+      }
+
       if (findDownloadedRecord(videoId, "audio")) {
         try {
           const offline = await getOfflineStream(videoId, "music");

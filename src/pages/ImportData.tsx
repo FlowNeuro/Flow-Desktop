@@ -2,7 +2,8 @@ import React, { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Upload, Check, AlertCircle, FolderHeart, History, Tv, Loader2, Brain, Database, FileText, SlidersHorizontal } from "lucide-react";
 import { unzipSync } from "fflate";
-import { getSetting, setSetting, addWatchRecord } from "../lib/api/db";
+import { getSetting, setSetting, addWatchRecordsBulk } from "../lib/api/db";
+import { useHistoryStore } from "../store/useHistoryStore";
 import { logInteraction } from "../lib/api/recommendation";
 import {
   convertFlowNeuroBrainData,
@@ -216,17 +217,26 @@ export const ImportData: React.FC = () => {
           else if (isHtml) ph = parseHtmlWatchHistory(text);
           if (ph.length > 0) {
             setStatusMessage(getString("import_importing_history", ph.length));
-            const seedLimit = Math.min(ph.length, 50);
-            for (let i = 0; i < ph.length; i++) {
-              const r = ph[i]; if (r) { await addWatchRecord(r); timelineCount++;
-                if (i < seedLimit) {
-                  const total = r.totalDurationSeconds ?? 0;
-                  const frac = total > 0 ? Math.min(1, Math.max(0, (r.watchDurationSeconds ?? 0) / total)) : 0.8;
-                  try { await logInteraction(r.videoId, r.title, r.channelName || "Unknown", r.channelName || r.videoId, "Seeded from backup", r.totalDurationSeconds || 300, false, false, "WATCHED", frac); } catch {}
-                }
-              } setProgress(75 + Math.round((timelineCount / ph.length) * 20));
+            const valid = ph.filter(Boolean) as WatchHistoryRecord[];
+
+            const CHUNK = 500;
+            for (let i = 0; i < valid.length; i += CHUNK) {
+              const chunk = valid.slice(i, i + CHUNK);
+              await addWatchRecordsBulk(chunk);
+              timelineCount += chunk.length;
+              setProgress(75 + Math.round((timelineCount / valid.length) * 20));
+            }
+
+            const seedLimit = Math.min(valid.length, 50);
+            for (let i = 0; i < seedLimit; i++) {
+              const r = valid[i];
+              if (!r) continue;
+              const total = r.totalDurationSeconds ?? 0;
+              const frac = total > 0 ? Math.min(1, Math.max(0, (r.watchDurationSeconds ?? 0) / total)) : 0.8;
+              try { await logInteraction(r.videoId, r.title, r.channelName || "Unknown", r.channelName || r.videoId, "Seeded from backup", r.totalDurationSeconds || 300, false, false, "WATCHED", frac); } catch {}
             }
             setHistoryCount(timelineCount);
+            void useHistoryStore.getState().load(true);
           }
         }
 

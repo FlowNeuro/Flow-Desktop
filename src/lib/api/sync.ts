@@ -72,6 +72,7 @@ export const SYNC_COLLECTIONS: ReadonlyArray<{ key: string; label: string; descr
   { key: "settings", label: "Player & UI settings", description: "Playback, content and quality preferences" },
   { key: "flow_neuro_brain", label: "Recommendation brain", description: "Your FlowNeuro taste profile" },
   { key: "music_brain", label: "Music taste", description: "Artist affinities and listening history" },
+  { key: "subscriptions", label: "Subscription groups", description: "Your channel folders" },
 ];
 
 export const SYNC_STATUS_EVENT = "sync://status";

@@ -8,7 +8,8 @@ use sqlx::sqlite::SqlitePoolOptions;
 use flow_desktop_lib::sync::apply::apply_payload;
 use flow_desktop_lib::sync::canonical::{
     Collection, FlowNeuroBrainSnapshot, GCounter, Hlc, Like, LikeKind, LikeState,
-    MusicBrainSnapshot, Playlist, PlaylistItem, PlaylistOrigin, SettingEntry, WatchHistoryRecord,
+    MusicBrainSnapshot, Playlist, PlaylistItem, PlaylistOrigin, SettingEntry, SubscriptionGroup,
+    WatchHistoryRecord,
 };
 use flow_desktop_lib::sync::mapping;
 use flow_desktop_lib::sync::protocol::StagedCollection;
@@ -420,6 +421,68 @@ async fn apply_settings_merges_whitelisted_and_ignores_excluded() {
             .await
             .unwrap();
     assert!(excluded.is_none(), "download path must never be synced");
+}
+
+#[tokio::test]
+async fn apply_subscriptions_unions_groups_and_channels() {
+    let pool = memory_pool().await;
+    seed_setting(
+        &pool,
+        "subscription_groups",
+        r#"[{"name":"Tech","channelIds":["UCa"],"sortOrder":0},{"name":"Music","channelIds":["UCm"],"sortOrder":1}]"#,
+    )
+    .await;
+
+    let peer_hlc = "9999999999999:0:dpeer";
+    let incoming = vec![
+        SubscriptionGroup {
+            channel_ids: vec!["UCb".to_string()],
+            deleted: false,
+            hlc: peer_hlc.parse().unwrap(),
+            name: "Tech".to_string(),
+            sort_order: 0,
+        },
+        SubscriptionGroup {
+            channel_ids: vec!["UCn".to_string()],
+            deleted: false,
+            hlc: peer_hlc.parse().unwrap(),
+            name: "News".to_string(),
+            sort_order: 2,
+        },
+    ];
+    let payload = StagedCollection {
+        collection: Collection::Subscriptions,
+        ndjson: ndjson_of(&incoming),
+        record_count: 2,
+        hash: "subs-1".to_string(),
+    };
+
+    let report = apply_payload(&pool, OUR, PEER, &[payload]).await.unwrap();
+    assert_eq!(report.stats[0].collection_key, "subscriptions");
+
+    let raw = read_setting(&pool, "subscription_groups").await;
+    let arr: Vec<serde_json::Value> = serde_json::from_str(&raw).unwrap();
+    assert_eq!(arr.len(), 3, "Tech + Music (kept) + News (added)");
+
+    let tech = arr.iter().find(|g| g["name"] == "Tech").unwrap();
+    let ch: Vec<&str> = tech["channelIds"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|c| c.as_str().unwrap())
+        .collect();
+    assert!(
+        ch.contains(&"UCa") && ch.contains(&"UCb"),
+        "the group's channel ids were unioned across devices"
+    );
+    assert!(
+        arr.iter().any(|g| g["name"] == "News"),
+        "new group imported"
+    );
+    assert!(
+        arr.iter().any(|g| g["name"] == "Music"),
+        "untouched local group preserved"
+    );
 }
 
 #[tokio::test]

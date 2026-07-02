@@ -19,6 +19,7 @@ import { isTauriEnv } from "../lib/api/env";
 import { LIKES_LIBRARY_UPDATED_EVENT, useLikesStore } from "./useLikesStore";
 import { useAppSettingsStore } from "./useAppSettingsStore";
 import { useAlbumLibraryStore } from "./useAlbumLibraryStore";
+import { useSubscriptionStore } from "./useSubscriptionStore";
 import { PLAYLIST_LIBRARY_UPDATED_EVENT } from "../lib/playlistLibrary";
 
 const IDLE_STATUS: SyncStatus = { phase: "idle" };
@@ -41,6 +42,9 @@ async function applyRefresh(collections: string[]) {
       if (typeof window !== "undefined") {
         window.dispatchEvent(new Event(PLAYLIST_LIBRARY_UPDATED_EVENT));
       }
+    }
+    if (collections.includes("subscriptions")) {
+      await useSubscriptionStore.getState().loadSubscriptionGroups();
     }
   } catch (error) {
     console.warn("Failed to refresh local stores after sync", error);

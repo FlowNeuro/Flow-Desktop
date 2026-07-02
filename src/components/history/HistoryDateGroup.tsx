@@ -11,14 +11,24 @@ interface HistoryDateGroupProps {
   group: HistoryDateGroupData;
   onPlay: (video: VideoSummary) => void;
   onRemoveFromHistory: (videoId: string) => void;
+  isExpanded?: boolean;
+  onToggleExpand?: () => void;
 }
 
 export function HistoryDateGroup({
   group,
   onPlay,
   onRemoveFromHistory,
+  isExpanded: isExpandedProp,
+  onToggleExpand,
 }: HistoryDateGroupProps) {
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [internalExpanded, setInternalExpanded] = useState(false);
+  const isControlled = isExpandedProp !== undefined;
+  const isExpanded = isControlled ? isExpandedProp : internalExpanded;
+  const toggleExpand = () => {
+    if (isControlled) onToggleExpand?.();
+    else setInternalExpanded((current) => !current);
+  };
   const { dateLabel, videos } = group;
   const musicVideos = videos.filter((video) => video.isMusic);
   const plainVideos = videos.filter((video) => !video.isMusic);
@@ -54,7 +64,7 @@ export function HistoryDateGroup({
             type="button"
             variant="ghost"
             size="sm"
-            onClick={() => setIsExpanded((current) => !current)}
+            onClick={toggleExpand}
             className="shrink-0 text-[var(--color-primary)] hover:text-[var(--color-primary)]"
             aria-expanded={isExpanded}
           >

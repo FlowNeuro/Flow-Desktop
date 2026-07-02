@@ -15,7 +15,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::sync::canonical::{
-    Hlc, Like, LikeKind, LikeState, Playlist, PlaylistItem, PlaylistOrigin, WatchHistoryRecord,
+    Hlc, Like, LikeKind, LikeState, Playlist, PlaylistItem, PlaylistOrigin, SubscriptionGroup,
+    WatchHistoryRecord,
 };
 
 /// Frontend settings key holding the liked-items JSON array.
@@ -23,8 +24,65 @@ pub const LIKES_SETTING_KEY: &str = "liked_items";
 /// Frontend settings key holding the playlists JSON array.
 pub const PLAYLISTS_SETTING_KEY: &str = "user_playlists";
 pub const ALBUMS_SETTING_KEY: &str = "saved_albums";
+pub const SUBSCRIPTION_GROUPS_SETTING_KEY: &str = "subscription_groups";
 /// Reserved cross-device id for the protected "Watch Later" playlist.
 pub const WATCH_LATER_SYNC_ID: &str = "reserved:watch-later";
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GroupBlobIn {
+    #[serde(default)]
+    name: String,
+    #[serde(default)]
+    channel_ids: Vec<String>,
+    #[serde(default)]
+    sort_order: i32,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct GroupBlobOut<'a> {
+    name: &'a str,
+    channel_ids: &'a [String],
+    sort_order: i32,
+}
+
+pub fn parse_subscription_groups_blob(raw: &str, hlc: &Hlc) -> Vec<SubscriptionGroup> {
+    let entries: Vec<GroupBlobIn> = serde_json::from_str(raw).unwrap_or_default();
+    entries
+        .into_iter()
+        .filter(|e| !e.name.trim().is_empty())
+        .map(|e| {
+            let mut channel_ids: Vec<String> = e
+                .channel_ids
+                .into_iter()
+                .filter(|c| !c.trim().is_empty())
+                .collect();
+            channel_ids.sort();
+            channel_ids.dedup();
+            SubscriptionGroup {
+                channel_ids,
+                deleted: false,
+                hlc: hlc.clone(),
+                name: e.name,
+                sort_order: e.sort_order,
+            }
+        })
+        .collect()
+}
+
+pub fn subscription_groups_to_blob(groups: &[SubscriptionGroup]) -> String {
+    let live: Vec<GroupBlobOut> = groups
+        .iter()
+        .filter(|g| !g.deleted && !g.name.trim().is_empty())
+        .map(|g| GroupBlobOut {
+            name: &g.name,
+            channel_ids: &g.channel_ids,
+            sort_order: g.sort_order,
+        })
+        .collect();
+    serde_json::to_string(&live).unwrap_or_else(|_| "[]".to_string())
+}
 
 /// The curated set of settings that sync across devices: **player, content/UI, and quality**
 /// preferences plus the SponsorBlock/DeArrow feature toggles — i.e. behavior that should feel the

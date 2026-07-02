@@ -20,8 +20,8 @@ use tauri::Manager;
 
 use api::innertube::InnertubeClient;
 use commands::db::{
-    add_watch_record, clear_watch_history, delete_watch_record, get_music_history, get_setting,
-    get_watch_history, set_setting,
+    add_watch_record, add_watch_records_bulk, clear_watch_history, delete_watch_record,
+    get_music_history, get_setting, get_watch_history, set_setting,
 };
 use commands::downloads::{
     DownloadManager, cancel_download, clear_downloads, create_download_collection,
@@ -44,6 +44,10 @@ use commands::music_brain::{
     get_heavy_rotation, get_music_brain_snapshot, get_music_taste_profile, rank_music_candidates,
     record_music_interaction, reset_music_brain, unblock_music_artist,
 };
+use commands::notifications::{
+    check_subscriptions_now, clear_notifications, delete_notification, get_notifications,
+    get_unread_notification_count, mark_notifications_read,
+};
 use commands::recommendation::{
     add_blocked_topic, add_preferred_topic, block_channel, complete_onboarding,
     generate_discovery_queries, get_brain_snapshot, get_feed_quotas, get_flow_persona,
@@ -63,7 +67,8 @@ use commands::youtube::{
     get_playlist_details, get_post_comments, get_related_videos, get_sabr_debug_state,
     get_search_suggestions, get_sponsorblock_segments, get_stream_info,
     get_subscription_rotation_feed, get_subscription_rss_feed, get_trending_videos,
-    get_video_details, parse_subscription_export, refresh_music_home, search_music, search_videos,
+    get_video_details, parse_subscription_export, refresh_music_home, resolve_channel_id,
+    search_music, search_videos,
 };
 use services::music_service::MusicService;
 use services::recommendation_service::RecommendationService;
@@ -83,10 +88,16 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_notification::init())
         .setup(|app| {
             // Let the BotGuard minter open a hidden WebView for a real-browser
             // poToken (falls back to the headless Node sidecar without this).
             api::innertube::core::webview_pot::set_app_handle(app.handle().clone());
+
+            // Register Flow's AppUserModelID + logo so Windows attributes toasts to
+            // "Flow" instead of the launching shell / PowerShell.
+            #[cfg(windows)]
+            services::win_notify::ensure_setup(app.handle());
 
             // Resolve app data directory
             let app_data_dir = app.path().app_data_dir().map_err(|error| {
@@ -166,6 +177,8 @@ pub fn run() {
             ));
             app.manage(streaming_manager);
 
+            services::notification_service::spawn_poll_loop(app.handle().clone(), pool.clone());
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -189,6 +202,7 @@ pub fn run() {
             get_watch_history,
             get_music_history,
             add_watch_record,
+            add_watch_records_bulk,
             delete_watch_record,
             clear_watch_history,
             get_setting,
@@ -232,6 +246,7 @@ pub fn run() {
             get_personalized_music_recommendations,
             get_subscription_rotation_feed,
             get_subscription_rss_feed,
+            resolve_channel_id,
             get_music_artist,
             get_music_explore,
             get_music_charts,
@@ -285,7 +300,13 @@ pub fn run() {
             sync_host_receive,
             sync_scan_join,
             sync_respond_consent,
-            sync_cancel
+            sync_cancel,
+            get_notifications,
+            get_unread_notification_count,
+            mark_notifications_read,
+            delete_notification,
+            clear_notifications,
+            check_subscriptions_now
         ])
         .build(tauri::generate_context!())
         .expect("error while building Flow Desktop")
