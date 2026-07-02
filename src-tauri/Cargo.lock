@@ -1332,6 +1332,7 @@ dependencies = [
  "tauri-plugin-notification",
  "tauri-plugin-opener",
  "tauri-plugin-os",
+ "tauri-winrt-notification",
  "thiserror 2.0.18",
  "tokio",
  "tokio-tungstenite",
@@ -1340,6 +1341,8 @@ dependencies = [
  "uuid",
  "webm-iterable",
  "whatlang",
+ "windows",
+ "windows-registry",
  "zeroize",
 ]
 

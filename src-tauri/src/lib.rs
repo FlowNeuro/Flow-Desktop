@@ -94,6 +94,11 @@ pub fn run() {
             // poToken (falls back to the headless Node sidecar without this).
             api::innertube::core::webview_pot::set_app_handle(app.handle().clone());
 
+            // Register Flow's AppUserModelID + logo so Windows attributes toasts to
+            // "Flow" instead of the launching shell / PowerShell.
+            #[cfg(windows)]
+            services::win_notify::ensure_setup(app.handle());
+
             // Resolve app data directory
             let app_data_dir = app.path().app_data_dir().map_err(|error| {
                 Box::new(std::io::Error::new(

@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::time::Duration;
 
 use tauri::{AppHandle, Emitter};
+#[cfg(not(windows))]
 use tauri_plugin_notification::NotificationExt;
 
 use crate::commands::youtube::parse_rss_feed;
@@ -127,7 +128,68 @@ async fn check_channel(
     }))
 }
 
-fn post_native_toast(app: &AppHandle, pending: &[PendingNotification]) {
+
+#[cfg(windows)]
+async fn download_thumbnail(
+    client: &reqwest::Client,
+    video_id: &str,
+) -> Option<std::path::PathBuf> {
+    let url = format!("https://i.ytimg.com/vi/{video_id}/mqdefault.jpg");
+    let bytes = client.get(url).send().await.ok()?.bytes().await.ok()?;
+    if bytes.is_empty() {
+        return None;
+    }
+    let path = std::env::temp_dir().join(format!("flow-toast-{video_id}.jpg"));
+    tokio::fs::write(&path, &bytes).await.ok()?;
+    Some(path)
+}
+
+#[cfg(windows)]
+async fn post_native_toast(
+    app: &AppHandle,
+    client: &reqwest::Client,
+    pending: &[PendingNotification],
+) {
+    use crate::services::win_notify::{self, Toastable};
+
+    match pending {
+        [] => {}
+        [single] => {
+            let hero = download_thumbnail(client, &single.video_id).await;
+            win_notify::show(
+                app,
+                &Toastable {
+                    title: &single.channel_name,
+                    body: &single.title,
+                    hero: hero.as_deref(),
+                },
+            );
+        }
+        many => {
+            let body = many
+                .iter()
+                .take(4)
+                .map(|entry| format!("{}: {}", entry.channel_name, entry.title))
+                .collect::<Vec<_>>()
+                .join("\n");
+            win_notify::show(
+                app,
+                &Toastable {
+                    title: &format!("{} new videos", many.len()),
+                    body: &body,
+                    hero: None,
+                },
+            );
+        }
+    }
+}
+
+#[cfg(not(windows))]
+async fn post_native_toast(
+    app: &AppHandle,
+    _client: &reqwest::Client,
+    pending: &[PendingNotification],
+) {
     let (title, body) = match pending {
         [] => return,
         [single] => (single.channel_name.clone(), single.title.clone()),
@@ -215,7 +277,7 @@ pub async fn poll_subscriptions(app: &AppHandle, pool: &sqlx::SqlitePool) -> App
     if let Err(error) = app.emit(NEW_NOTIFICATIONS_EVENT, &created) {
         tracing::warn!(%error, "Failed to emit new-notifications event");
     }
-    post_native_toast(app, &pending);
+    post_native_toast(app, &client, &pending).await;
 
     Ok(created.len())
 }
