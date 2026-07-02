@@ -76,16 +76,19 @@ fn register_aumid(logo: &Path) -> windows_registry::Result<()> {
     Ok(())
 }
 
-/// A single toast card. `hero` is an optional local image path (a downloaded
-/// video thumbnail) shown as the large banner at the top of the toast.
-pub struct Toastable<'a> {
+/// A single toast card for one new video. `thumbnail` is an optional local image
+/// path (a downloaded video thumbnail) shown as the large banner at the top.
+pub struct ToastCard<'a> {
+    pub video_id: &'a str,
     pub title: &'a str,
     pub body: &'a str,
-    pub hero: Option<&'a Path>,
+    pub thumbnail: Option<&'a Path>,
 }
 
-/// Shows a native toast attributed to Flow. Falls back silently on any error.
-pub fn show(app: &AppHandle, card: &Toastable<'_>) {
+/// Shows a native toast attributed to Flow. Each new video gets its own toast
+/// (its own pane), with the app logo, the video thumbnail as a hero banner, and
+/// a click handler that plays the video in the app. Fails silently.
+pub fn show(app: &AppHandle, card: &ToastCard<'_>) {
     let mut toast = Toast::new(AUMID)
         .title(card.title)
         .text1(card.body)
@@ -95,11 +98,38 @@ pub fn show(app: &AppHandle, card: &Toastable<'_>) {
     if let Some(logo) = logo_path(app).filter(|path| path.exists()) {
         toast = toast.icon(&logo, IconCrop::Square, DISPLAY_NAME);
     }
-    if let Some(hero) = card.hero.filter(|path| path.exists()) {
-        toast = toast.hero(hero, "");
+    if let Some(thumbnail) = card.thumbnail.filter(|path| path.exists()) {
+        toast = toast.hero(thumbnail, "");
     }
+
+    // Deep link: clicking the toast (while the app is running) plays this video.
+    // We post one toast per video, so the closure can capture the exact id —
+    // no dependency on the toast carrying a launch argument.
+    let app = app.clone();
+    let video_id = card.video_id.to_string();
+    toast = toast.on_activated(move |_argument| {
+        activate_video(&app, &video_id);
+        Ok(())
+    });
 
     if let Err(error) = toast.show() {
         tracing::warn!(%error, "Failed to show native Windows toast");
+    }
+}
+
+/// Brings the main window forward and asks the frontend to play `video_id`.
+fn activate_video(app: &AppHandle, video_id: &str) {
+    use tauri::Emitter;
+
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.unminimize();
+        let _ = window.show();
+        let _ = window.set_focus();
+    }
+    if let Err(error) = app.emit(
+        crate::services::notification_service::ACTIVATE_NOTIFICATION_EVENT,
+        video_id,
+    ) {
+        tracing::warn!(%error, "Failed to emit notification activation event");
     }
 }

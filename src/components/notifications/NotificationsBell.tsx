@@ -4,7 +4,11 @@ import { Bell, BellOff, X } from "lucide-react";
 import { IconButton } from "../ui/IconButton";
 import { AnchoredPortalMenu, type MenuAnchor } from "../ui/AnchoredPortalMenu";
 import { useNotificationStore } from "../../store/useNotificationStore";
-import { onNewNotifications, type NotificationRecord } from "../../lib/api/notifications";
+import {
+  onNewNotifications,
+  onNotificationActivated,
+  type NotificationRecord,
+} from "../../lib/api/notifications";
 import { useProxiedImageUrl } from "../../lib/useProxiedImageUrl";
 import { getString } from "../../lib/i18n/index";
 
@@ -148,6 +152,20 @@ export function NotificationsBell() {
       unlisten?.();
     };
   }, [loadNotifications, prependNotifications]);
+
+  // Clicking a native system toast opens and plays that video in the app.
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    let active = true;
+    void onNotificationActivated((videoId) => navigate(`/watch/${videoId}`)).then((fn) => {
+      if (active) unlisten = fn;
+      else fn();
+    });
+    return () => {
+      active = false;
+      unlisten?.();
+    };
+  }, [navigate]);
 
   const open = anchor !== null;
 

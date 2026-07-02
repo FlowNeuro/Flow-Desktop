@@ -18,6 +18,8 @@ export interface NotificationRecord {
 
 /** Event name emitted by the Rust poll worker when new notifications land. */
 const NEW_NOTIFICATIONS_EVENT = "notifications://new";
+/** Emitted with a video id when the user clicks a native system toast. */
+const ACTIVATE_NOTIFICATION_EVENT = "notifications://activate";
 
 export async function getNotifications(limit = 200): Promise<NotificationRecord[]> {
   if (!(await isTauriEnv())) return [];
@@ -57,5 +59,15 @@ export async function onNewNotifications(
   if (!(await isTauriEnv())) return () => {};
   return listen<NotificationRecord[]>(NEW_NOTIFICATIONS_EVENT, (event) => {
     callback(event.payload ?? []);
+  });
+}
+
+/** Fires when the user clicks a native system toast; payload is the video id. */
+export async function onNotificationActivated(
+  callback: (videoId: string) => void,
+): Promise<UnlistenFn> {
+  if (!(await isTauriEnv())) return () => {};
+  return listen<string>(ACTIVATE_NOTIFICATION_EVENT, (event) => {
+    if (event.payload) callback(event.payload);
   });
 }

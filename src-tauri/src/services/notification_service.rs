@@ -10,6 +10,9 @@ use crate::db;
 use crate::errors::AppResult;
 
 pub const NEW_NOTIFICATIONS_EVENT: &str = "notifications://new";
+pub const ACTIVATE_NOTIFICATION_EVENT: &str = "notifications://activate";
+
+const MAX_NATIVE_TOASTS: usize = 8;
 
 const KEY_SUBSCRIPTIONS: &str = "subscriptions";
 const KEY_CHANNEL_NOTIFICATIONS: &str = "subscription_notifications";
@@ -128,7 +131,6 @@ async fn check_channel(
     }))
 }
 
-
 #[cfg(windows)]
 async fn download_thumbnail(
     client: &reqwest::Client,
@@ -150,37 +152,19 @@ async fn post_native_toast(
     client: &reqwest::Client,
     pending: &[PendingNotification],
 ) {
-    use crate::services::win_notify::{self, Toastable};
+    use crate::services::win_notify::{self, ToastCard};
 
-    match pending {
-        [] => {}
-        [single] => {
-            let hero = download_thumbnail(client, &single.video_id).await;
-            win_notify::show(
-                app,
-                &Toastable {
-                    title: &single.channel_name,
-                    body: &single.title,
-                    hero: hero.as_deref(),
-                },
-            );
-        }
-        many => {
-            let body = many
-                .iter()
-                .take(4)
-                .map(|entry| format!("{}: {}", entry.channel_name, entry.title))
-                .collect::<Vec<_>>()
-                .join("\n");
-            win_notify::show(
-                app,
-                &Toastable {
-                    title: &format!("{} new videos", many.len()),
-                    body: &body,
-                    hero: None,
-                },
-            );
-        }
+    for entry in pending.iter().take(MAX_NATIVE_TOASTS) {
+        let thumbnail = download_thumbnail(client, &entry.video_id).await;
+        win_notify::show(
+            app,
+            &ToastCard {
+                video_id: &entry.video_id,
+                title: &entry.channel_name,
+                body: &entry.title,
+                thumbnail: thumbnail.as_deref(),
+            },
+        );
     }
 }
 
@@ -190,21 +174,16 @@ async fn post_native_toast(
     _client: &reqwest::Client,
     pending: &[PendingNotification],
 ) {
-    let (title, body) = match pending {
-        [] => return,
-        [single] => (single.channel_name.clone(), single.title.clone()),
-        many => (
-            format!("{} new videos", many.len()),
-            many.iter()
-                .take(4)
-                .map(|entry| format!("{}: {}", entry.channel_name, entry.title))
-                .collect::<Vec<_>>()
-                .join("\n"),
-        ),
-    };
-
-    if let Err(error) = app.notification().builder().title(title).body(body).show() {
-        tracing::warn!(%error, "Failed to post native subscription notification");
+    for entry in pending.iter().take(MAX_NATIVE_TOASTS) {
+        if let Err(error) = app
+            .notification()
+            .builder()
+            .title(&entry.channel_name)
+            .body(&entry.title)
+            .show()
+        {
+            tracing::warn!(%error, "Failed to post native subscription notification");
+        }
     }
 }
 
