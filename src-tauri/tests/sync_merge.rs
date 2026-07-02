@@ -10,8 +10,8 @@ use rand::{Rng, SeedableRng};
 
 use flow_desktop_lib::sync::canonical::{
     AffinityWire, FlowNeuroBrainSnapshot, GCounter, Hlc, Like, LikeKind, LikeState, Lww,
-    MusicBrainSnapshot, OrSet, Playlist, PlaylistItem, PlaylistOrigin, SettingEntry,
-    SubscriptionGroup, WatchHistoryRecord,
+    MusicBrainSnapshot, Playlist, PlaylistItem, PlaylistOrigin, SettingEntry, SubscriptionGroup,
+    WatchHistoryRecord,
 };
 use flow_desktop_lib::sync::merge;
 
@@ -185,26 +185,18 @@ fn subscriptions_merge_obeys_crdt_laws() {
         let mut v = Vec::new();
         for name in ["Tech", "News"] {
             if r.gen_bool(0.8) {
-                let mut channel_ids = OrSet::default();
+                let mut channel_ids: Vec<String> = Vec::new();
                 for c in ["c1", "c2", "c3"] {
                     if r.gen_bool(0.6) {
-                        channel_ids.add(c, hlc(&mut r));
-                    }
-                    if r.gen_bool(0.3) {
-                        channel_ids.remove(c, hlc(&mut r));
+                        channel_ids.push(c.to_string());
                     }
                 }
-                let sort_order = if r.gen_bool(0.7) {
-                    Some(Lww::new(r.gen_range(0..5), hlc(&mut r)))
-                } else {
-                    None
-                };
                 v.push(SubscriptionGroup {
-                    name: name.to_string(),
                     channel_ids,
-                    sort_order,
                     deleted: r.gen_bool(0.2),
                     hlc: hlc(&mut r),
+                    name: name.to_string(),
+                    sort_order: r.gen_range(0..5),
                 });
             }
         }

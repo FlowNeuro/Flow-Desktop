@@ -6,6 +6,6 @@
     "settings": { "schema": 1, "produce": true, "consume": true },
     "flow_neuro_brain": { "schema": 14, "produce": true, "consume": true },
     "music_brain": { "schema": 3, "produce": true, "consume": false },
-    "subscriptions": { "schema": 1, "produce": false, "consume": true }
+    "subscriptions": { "schema": 1, "produce": true, "consume": true }
   }
 }

@@ -99,7 +99,10 @@ fn format_relative_published(published: &str) -> Option<String> {
     Some(text)
 }
 
-fn parse_rss_feed(channel_id: &str, xml: &str) -> (Option<String>, Vec<(i64, VideoSummary)>) {
+pub(crate) fn parse_rss_feed(
+    channel_id: &str,
+    xml: &str,
+) -> (Option<String>, Vec<(i64, VideoSummary)>) {
     let channel_name = xml_text(xml, "name");
     let videos = xml
         .split("<entry>")

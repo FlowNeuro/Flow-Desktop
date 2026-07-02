@@ -21,7 +21,7 @@ use crate::music_brain::model::MusicBrain;
 use crate::sync::brainmap;
 use crate::sync::canonical::{
     Collection, FlowNeuroBrainSnapshot, Hlc, Like, MusicBrainSnapshot, Playlist, SettingEntry,
-    WatchHistoryRecord,
+    SubscriptionGroup, WatchHistoryRecord,
 };
 use crate::sync::error::SyncError;
 use crate::sync::mapping::{self, WatchInsert, WatchRow};
@@ -107,8 +107,12 @@ pub async fn apply_payload(
             Collection::MusicBrain => {
                 (apply_music(&mut tx, our_device_id, &sc.ndjson).await?, true)
             }
-            // Not yet wired through the pipeline — accept but don't record, so a later build can
-            // apply it.
+            Collection::Subscriptions => (
+                apply_subscriptions(&mut tx, our_device_id, &sc.ndjson).await?,
+                true,
+            ),
+
+            #[allow(unreachable_patterns)]
             _ => (
                 ApplyStats {
                     collection_key: key.to_string(),
@@ -406,6 +410,47 @@ async fn apply_music(
     })
 }
 
+async fn apply_subscriptions(
+    tx: &mut Transaction<'_, Sqlite>,
+    device_id: &str,
+    ndjson: &[u8],
+) -> Result<ApplyStats, SyncError> {
+    let incoming = parse_ndjson::<SubscriptionGroup>(ndjson)?;
+    let stamp = Hlc::new(now_ms(), 0, device_id);
+    let local = match get_setting(tx, mapping::SUBSCRIPTION_GROUPS_SETTING_KEY).await? {
+        Some(raw) => mapping::parse_subscription_groups_blob(&raw, &stamp),
+        None => Vec::new(),
+    };
+    let local_map: BTreeMap<String, SubscriptionGroup> =
+        local.iter().map(|g| (g.name.clone(), g.clone())).collect();
+
+    let merged = merge::merge_subscriptions(local, incoming);
+
+    let mut stat = ApplyStats {
+        collection_key: Collection::Subscriptions.key().to_string(),
+        ..Default::default()
+    };
+    for rec in &merged {
+        match local_map.get(&rec.name) {
+            Some(existing) if existing.channel_ids == rec.channel_ids && existing.deleted == rec.deleted => {
+                stat.skipped += 1
+            }
+            Some(_) if rec.deleted => stat.tombstoned += 1,
+            Some(_) => stat.updated += 1,
+            None if rec.deleted => stat.skipped += 1,
+            None => stat.added += 1,
+        }
+    }
+
+    set_setting(
+        tx,
+        mapping::SUBSCRIPTION_GROUPS_SETTING_KEY,
+        &mapping::subscription_groups_to_blob(&merged),
+    )
+    .await?;
+    Ok(stat)
+}
+
 async fn get_setting_with_time(
     tx: &mut Transaction<'_, Sqlite>,
     key: &str,
@@ -545,6 +590,11 @@ async fn backup_snapshot(
                 let raw = setting_value(pool, MUSIC_BRAIN_KEY).await?;
                 obj.insert("user_music_brain".to_string(), serde_json::json!(raw));
             }
+            Collection::Subscriptions => {
+                let raw = setting_value(pool, mapping::SUBSCRIPTION_GROUPS_SETTING_KEY).await?;
+                obj.insert("subscription_groups".to_string(), serde_json::json!(raw));
+            }
+            #[allow(unreachable_patterns)]
             _ => {}
         }
     }

@@ -24,6 +24,7 @@ use std::future::Future;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use tokio::io::{AsyncRead, AsyncWrite};
+use tokio::time::{Duration, timeout};
 
 use crate::sync::PROTOCOL_VERSION;
 use crate::sync::canonical::Collection;
@@ -39,6 +40,8 @@ use crate::sync::transport::WsChannel;
 
 /// Records per chunk when streaming a collection.
 pub const CHUNK_RECORDS: usize = 1000;
+
+const RECV_STALL_TIMEOUT: Duration = Duration::from_secs(90);
 
 /// One collection's data the sender will offer, as canonical NDJSON (one record per line).
 #[derive(Debug, Clone)]
@@ -565,9 +568,22 @@ where
     let mut result = ApplyResultFrame::default();
     for col in selection.send.iter() {
         let key = col.key();
+
+        if !manifest.collections.contains_key(key) {
+            tracing::info!(
+                target: "flow::sync::protocol", role = "receiver", collection = key,
+                "collection declared in SELECTION but absent from MANIFEST — skipping (nothing to receive)"
+            );
+            continue;
+        }
+
         let mut acc: Vec<u8> = Vec::new();
         loop {
-            let (ft, plaintext) = peer.recv_bytes().await?;
+            let (ft, plaintext) = timeout(RECV_STALL_TIMEOUT, peer.recv_bytes())
+                .await
+                .map_err(|_| {
+                    SyncError::Protocol(format!("timed out waiting for data of {key}"))
+                })??;
             if ft != FrameType::Chunk {
                 return Err(SyncError::Protocol(format!(
                     "expected Chunk during transfer of {key}, got {ft:?}"
@@ -610,6 +626,15 @@ where
         } else {
             acc.split(|&b| b == b'\n').filter(|l| !l.is_empty()).count() as u64
         };
+
+        if !consumes(our_caps, *col) {
+            tracing::info!(
+                target: "flow::sync::protocol", role = "receiver", collection = key, records = count,
+                "received a collection this device cannot consume — discarding after drain"
+            );
+            continue;
+        }
+
         tracing::info!(target: "flow::sync::protocol", role = "receiver", collection = key, records = count, "collection received + staged");
 
         // The protocol-level ack reports what was received; the real merge stats are computed

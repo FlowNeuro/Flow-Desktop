@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Bell, HatGlasses, Menu, Search, Settings } from 'lucide-react';
+import { ArrowLeft, ArrowRight, HatGlasses, Menu, Search, Settings } from 'lucide-react';
 import { useUiStore } from '../../store/useUiStore';
 import { useAppSettingsStore } from '../../store/useAppSettingsStore';
 import Logo from '../common/Logo';
@@ -9,6 +9,7 @@ import { getSearchSuggestions } from '../../lib/api/youtube';
 import { SETTINGS } from '../../lib/settings/schema';
 import { getString } from '../../lib/i18n/index';
 import { toggleDeepFlow } from '../../lib/deepFlow';
+import { NotificationsBell } from '../notifications/NotificationsBell';
 
 export function Topbar() {
   const { toggleSidebar, toggleWatchSidebar, setSearchQuery } = useUiStore();
@@ -159,9 +160,7 @@ export function Topbar() {
 
       {/* Right */}
       <div className="flex items-center gap-2">
-        <IconButton title="Notifications">
-          <Bell />
-        </IconButton>
+        <NotificationsBell />
         <IconButton
           onClick={() => {
             void toggleDeepFlow();

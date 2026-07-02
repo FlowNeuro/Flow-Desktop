@@ -357,9 +357,9 @@ pub fn merge_subscriptions(
     a: Vec<SubscriptionGroup>,
     b: Vec<SubscriptionGroup>,
 ) -> Vec<SubscriptionGroup> {
-    let mut map: BTreeMap<String, SubscriptionGroup> =
-        a.into_iter().map(|g| (g.name.clone(), g)).collect();
-    for g in b {
+    let mut map: BTreeMap<String, SubscriptionGroup> = BTreeMap::new();
+    for mut g in a.into_iter().chain(b) {
+        normalize_channel_ids(&mut g.channel_ids);
         match map.remove(&g.name) {
             Some(existing) => {
                 map.insert(g.name.clone(), merge_one_subscription(&existing, &g));
@@ -372,16 +372,43 @@ pub fn merge_subscriptions(
     map.into_values().collect()
 }
 
+fn normalize_channel_ids(ids: &mut Vec<String>) {
+    let set: BTreeSet<String> = ids.drain(..).filter(|c| !c.is_empty()).collect();
+    *ids = set.into_iter().collect();
+}
+
 fn merge_one_subscription(a: &SubscriptionGroup, b: &SubscriptionGroup) -> SubscriptionGroup {
-    let hi = if a_wins(a, &a.hlc, b, &b.hlc) { a } else { b };
-    let mut channel_ids = a.channel_ids.clone();
-    channel_ids.merge(&b.channel_ids);
+    let mut set: BTreeSet<String> = a.channel_ids.iter().cloned().collect();
+    set.extend(b.channel_ids.iter().cloned());
+    let channel_ids: Vec<String> = set.into_iter().collect();
+
+    let sort_order = match a.hlc.cmp(&b.hlc) {
+        std::cmp::Ordering::Greater => a.sort_order,
+        std::cmp::Ordering::Less => b.sort_order,
+        std::cmp::Ordering::Equal => {
+            if a.sort_order.to_string() >= b.sort_order.to_string() {
+                a.sort_order
+            } else {
+                b.sort_order
+            }
+        }
+    };
+
     SubscriptionGroup {
-        name: a.name.clone(),
         channel_ids,
-        sort_order: merge_opt_lww(a.sort_order.clone(), &b.sort_order),
-        deleted: hi.deleted,
+        deleted: tombstone_wins(a, b),
         hlc: Hlc::max(&a.hlc, &b.hlc),
+        name: a.name.clone(),
+        sort_order,
+    }
+}
+
+fn tombstone_wins(a: &SubscriptionGroup, b: &SubscriptionGroup) -> bool {
+    match (a.deleted, b.deleted) {
+        (true, true) => true,
+        (false, false) => false,
+        (true, false) => a.hlc >= b.hlc,
+        (false, true) => b.hlc >= a.hlc,
     }
 }
 

@@ -44,6 +44,10 @@ use commands::music_brain::{
     get_heavy_rotation, get_music_brain_snapshot, get_music_taste_profile, rank_music_candidates,
     record_music_interaction, reset_music_brain, unblock_music_artist,
 };
+use commands::notifications::{
+    check_subscriptions_now, clear_notifications, delete_notification, get_notifications,
+    get_unread_notification_count, mark_notifications_read,
+};
 use commands::recommendation::{
     add_blocked_topic, add_preferred_topic, block_channel, complete_onboarding,
     generate_discovery_queries, get_brain_snapshot, get_feed_quotas, get_flow_persona,
@@ -83,6 +87,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_notification::init())
         .setup(|app| {
             // Let the BotGuard minter open a hidden WebView for a real-browser
             // poToken (falls back to the headless Node sidecar without this).
@@ -165,6 +170,8 @@ pub fn run() {
                 proxy_listener,
             ));
             app.manage(streaming_manager);
+
+            services::notification_service::spawn_poll_loop(app.handle().clone(), pool.clone());
 
             Ok(())
         })
@@ -286,7 +293,13 @@ pub fn run() {
             sync_host_receive,
             sync_scan_join,
             sync_respond_consent,
-            sync_cancel
+            sync_cancel,
+            get_notifications,
+            get_unread_notification_count,
+            mark_notifications_read,
+            delete_notification,
+            clear_notifications,
+            check_subscriptions_now
         ])
         .build(tauri::generate_context!())
         .expect("error while building Flow Desktop")

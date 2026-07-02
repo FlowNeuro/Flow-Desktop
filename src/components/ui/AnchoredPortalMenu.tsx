@@ -14,6 +14,7 @@ interface AnchoredPortalMenuProps {
   onClose: () => void;
   className?: string;
   children: React.ReactNode;
+  closeOnScroll?: boolean;
 }
 
 export function AnchoredPortalMenu({
@@ -21,6 +22,7 @@ export function AnchoredPortalMenu({
   onClose,
   className,
   children,
+  closeOnScroll = true,
 }: AnchoredPortalMenuProps) {
   const ref = useRef<HTMLDivElement>(null);
   const [style, setStyle] = useState<React.CSSProperties>({
@@ -58,16 +60,16 @@ export function AnchoredPortalMenu({
       if (event.key === "Escape") onClose();
     };
     document.addEventListener("mousedown", onPointerDown);
-    window.addEventListener("scroll", onClose, true);
+    if (closeOnScroll) window.addEventListener("scroll", onClose, true);
     window.addEventListener("resize", onClose);
     document.addEventListener("keydown", onKey);
     return () => {
       document.removeEventListener("mousedown", onPointerDown);
-      window.removeEventListener("scroll", onClose, true);
+      if (closeOnScroll) window.removeEventListener("scroll", onClose, true);
       window.removeEventListener("resize", onClose);
       document.removeEventListener("keydown", onKey);
     };
-  }, [onClose]);
+  }, [onClose, closeOnScroll]);
 
   return createPortal(
     <div

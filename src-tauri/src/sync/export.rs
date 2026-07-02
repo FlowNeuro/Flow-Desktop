@@ -47,7 +47,7 @@ pub async fn export_collections(
             Collection::Settings => export_settings(pool, device_id).await?,
             Collection::FlowNeuroBrain => export_flow_neuro(pool, device_id).await?,
             Collection::MusicBrain => export_music(pool, device_id).await?,
-            Collection::Subscriptions => continue,
+            Collection::Subscriptions => export_subscriptions(pool, device_id).await?,
         };
         out.push(OutgoingCollection { collection, ndjson });
     }
@@ -151,6 +151,16 @@ pub fn fill_album_tracks(ndjson: &[u8], tracks: &BTreeMap<String, Vec<Value>>) -
     }
     playlists.sort_by(|a, b| a.sync_id.cmp(&b.sync_id));
     to_ndjson(&playlists)
+}
+
+async fn export_subscriptions(pool: &SqlitePool, device_id: &str) -> Result<Vec<u8>, SyncError> {
+    let hlc = Hlc::new(now_ms(), 0, device_id);
+    let mut groups = match get_setting(pool, mapping::SUBSCRIPTION_GROUPS_SETTING_KEY).await? {
+        Some(raw) => mapping::parse_subscription_groups_blob(&raw, &hlc),
+        None => Vec::new(),
+    };
+    groups.sort_by(|a, b| a.name.cmp(&b.name));
+    Ok(to_ndjson(&groups))
 }
 
 async fn export_settings(pool: &SqlitePool, device_id: &str) -> Result<Vec<u8>, SyncError> {

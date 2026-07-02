@@ -47,13 +47,13 @@ pub fn faststart_in_place(path: &Path) -> Result<(), String> {
         let mut src = BufReader::new(File::open(path)?);
         let mut out = BufWriter::new(File::create(&tmp_path)?);
 
-        copy_range(&mut src, &mut out, first.start, first.total)?; 
-        out.write_all(&moov_buf)?; 
+        copy_range(&mut src, &mut out, first.start, first.total)?;
+        out.write_all(&moov_buf)?;
         for b in &boxes {
             if &b.fourcc == b"ftyp" || &b.fourcc == b"moov" {
                 continue;
             }
-            copy_range(&mut src, &mut out, b.start, b.total)?; 
+            copy_range(&mut src, &mut out, b.start, b.total)?;
         }
         out.flush()?;
         Ok(())

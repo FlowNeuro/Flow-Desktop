@@ -20,6 +20,7 @@ tauri = { version = "2", features = [] }
 tauri-plugin-opener = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-os = "2"
+tauri-plugin-notification = "2"
 
 # Core Async & Serialization
 tokio = { version = "1", features = ["full"] }
