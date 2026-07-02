@@ -1,0 +1,6 @@
+# SQLx hashes each migration file's raw bytes and stores the checksum in the DB.
+# On Windows, core.autocrlf would rewrite these to CRLF on checkout, changing the
+# bytes and breaking the checksum ("migration N was previously applied but has been
+# modified"). Pin all SQL (migrations especially) to LF so checksums stay stable
+# and cross-platform.
+*.sql text eol=lf
