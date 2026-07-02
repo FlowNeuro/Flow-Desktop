@@ -164,7 +164,7 @@ fn patch_boxes(data: &mut [u8], delta: u64) -> Result<(), String> {
             b"stco" => patch_stco(payload, delta)?,
             b"co64" => patch_co64(payload, delta)?,
             // Container boxes on the path to (and around) the sample tables.
-            b"trak" | b"mdia" | b"minf" | b"stbl" | b"edts" | b"udta" | b"mvex" => {
+            b"moov" | b"trak" | b"mdia" | b"minf" | b"stbl" | b"edts" | b"udta" | b"mvex" => {
                 patch_boxes(payload, delta)?;
             }
             _ => {}

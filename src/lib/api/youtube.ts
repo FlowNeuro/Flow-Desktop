@@ -214,6 +214,14 @@ export async function getChannelDetails(channelId: string): Promise<ChannelDetai
   return invokeBackend<ChannelDetails>("get_channel_details", { channelId });
 }
 
+/** Resolve a channel URL (handle / custom / user) to its canonical `UC…` id. */
+export async function resolveChannelId(url: string): Promise<string> {
+  if (!(await isTauriEnv())) {
+    throw new Error("Channel resolution requires the desktop app.");
+  }
+  return invokeBackend<string>("resolve_channel_id", { url });
+}
+
 export async function getChannelTab(
   channelId: string,
   params?: string | null,
