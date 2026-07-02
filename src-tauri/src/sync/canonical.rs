@@ -595,7 +595,6 @@ pub struct MusicBrainSnapshot {
 // Collection: subscription groups
 // ===========================================================================================
 
-
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct SubscriptionGroup {

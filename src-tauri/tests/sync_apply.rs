@@ -475,7 +475,10 @@ async fn apply_subscriptions_unions_groups_and_channels() {
         ch.contains(&"UCa") && ch.contains(&"UCb"),
         "the group's channel ids were unioned across devices"
     );
-    assert!(arr.iter().any(|g| g["name"] == "News"), "new group imported");
+    assert!(
+        arr.iter().any(|g| g["name"] == "News"),
+        "new group imported"
+    );
     assert!(
         arr.iter().any(|g| g["name"] == "Music"),
         "untouched local group preserved"

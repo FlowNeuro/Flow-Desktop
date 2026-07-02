@@ -432,7 +432,9 @@ async fn apply_subscriptions(
     };
     for rec in &merged {
         match local_map.get(&rec.name) {
-            Some(existing) if existing.channel_ids == rec.channel_ids && existing.deleted == rec.deleted => {
+            Some(existing)
+                if existing.channel_ids == rec.channel_ids && existing.deleted == rec.deleted =>
+            {
                 stat.skipped += 1
             }
             Some(_) if rec.deleted => stat.tombstoned += 1,

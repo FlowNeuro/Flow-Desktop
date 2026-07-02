@@ -1,4 +1,3 @@
-
 use std::collections::HashMap;
 use std::time::Duration;
 
@@ -102,7 +101,7 @@ async fn check_channel(
 
     let previous = db::notifications::get_watermark(pool, &sub.id).await?;
     if previous.as_deref() == Some(latest.id.as_str()) {
-        return Ok(None); 
+        return Ok(None);
     }
 
     let should_notify = previous.is_some();
