@@ -3,6 +3,7 @@ import { usePlayerStore } from "../store/usePlayerStore";
 import { getStreamInfo, getYoutubeErrorMessage } from "./api/youtube";
 import { getOfflineStream } from "./api/downloads";
 import { findDownloadedRecord } from "./useDownloads";
+import { useDownloadsLibraryStore } from "../store/useDownloadsLibraryStore";
 import { addWatchRecord } from "./api/db";
 import { isMusicVideo } from "./utils";
 import { SETTINGS } from "./settings/schema";
@@ -198,6 +199,10 @@ export function useVideoStream(videoId: string | undefined): VideoStream {
       setSourceMode("unavailable");
       setResumeTime(0);
       try {
+        if (!useDownloadsLibraryStore.getState().loaded) {
+          await useDownloadsLibraryStore.getState().ensureLoaded();
+        }
+
         // A saved video plays straight from disk — no stream resolution, no
         // network. One progressive source, so source-mode fallback is skipped.
         if (findDownloadedRecord(currentVideo.id, "video")) {

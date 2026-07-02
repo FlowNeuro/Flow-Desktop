@@ -22,6 +22,7 @@ import { useMusicPlayerStore } from "../store/useMusicPlayerStore";
 import { Button } from "../components/ui/Button";
 import { SearchInput } from "../components/ui/SearchInput";
 import { CategoryChips } from "../components/layout/CategoryChips";
+import { useDebounce } from "../lib/useDebounce";
 import { DownloadVideoCard } from "../components/downloads/DownloadVideoCard";
 import { DownloadCollectionCard } from "../components/downloads/DownloadCollectionCard";
 import { MusicItemCard } from "../components/music/MusicItemCard";
@@ -140,7 +141,7 @@ export const Downloads: React.FC<DownloadsProps> = ({ onPlay }) => {
   );
   const activeLabel = filters.find((entry) => entry.key === filter)?.label ?? filters[0]?.label ?? "";
 
-  const query = searchQuery.trim().toLowerCase();
+  const query = useDebounce(searchQuery, 200).trim().toLowerCase();
 
   const inProgress = useMemo(
     () => Object.values(active).filter((item) => isActiveStatus(item.status)),

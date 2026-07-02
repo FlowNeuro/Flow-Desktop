@@ -39,6 +39,20 @@ export async function addWatchRecord(
   return invokeBackend<void>("add_watch_record", { record });
 }
 
+export async function addWatchRecordsBulk(
+  records: WatchHistoryRecord[],
+): Promise<void> {
+  if (records.length === 0) return;
+  if (!(await isTauriEnv())) {
+    const current = await getWatchHistory(10000, 0);
+    const byId = new Map(current.map((r) => [r.videoId, r]));
+    for (const record of records) byId.set(record.videoId, record);
+    localStorage.setItem("mock_watch_history", JSON.stringify([...byId.values()]));
+    return;
+  }
+  return invokeBackend<void>("add_watch_records_bulk", { records });
+}
+
 export async function deleteWatchRecord(videoId: string): Promise<void> {
   if (!(await isTauriEnv())) {
     const current = await getWatchHistory(100, 0);

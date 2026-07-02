@@ -1887,7 +1887,7 @@ impl RecommendationService {
         limit: usize,
     ) -> AppResult<Vec<VideoSummary>> {
         let rows = sqlx::query(
-            "SELECT video_id, title, channel_name, total_duration_seconds FROM watch_history ORDER BY datetime(watch_date) DESC, created_at DESC"
+            "SELECT video_id, title, channel_name, total_duration_seconds FROM watch_history ORDER BY watch_date DESC, created_at DESC LIMIT 500"
         )
         .fetch_all(&self.pool)
         .await

@@ -37,6 +37,16 @@ pub async fn add_watch_record(
 }
 
 #[tauri::command]
+pub async fn add_watch_records_bulk(
+    records: Vec<WatchHistoryRecord>,
+    pool: State<'_, SqlitePool>,
+) -> Result<(), ErrorResponse> {
+    watch_history::upsert_watch_records_bulk(&pool, &records)
+        .await
+        .map_err(ErrorResponse::from)
+}
+
+#[tauri::command]
 pub async fn delete_watch_record(
     video_id: String,
     pool: State<'_, SqlitePool>,

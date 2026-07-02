@@ -12,6 +12,7 @@ use webm_iterable::{WebmIterator, WebmWriter, WriteOptions};
 
 use crate::api::innertube::download::DownloadContainer;
 
+mod faststart;
 mod mp4_demux;
 
 /// Which half of an adaptive pair a track is, used for diagnostics and demuxer selection.
@@ -169,7 +170,13 @@ fn mux_mp4(
     }
     writer
         .write_end()
-        .map_err(|error| format!("Could not finalize MP4 output: {error}"))
+        .map_err(|error| format!("Could not finalize MP4 output: {error}"))?;
+    drop(writer);
+
+    if let Err(error) = faststart::faststart_in_place(output_path) {
+        tracing::warn!("MP4 faststart skipped: {error}");
+    }
+    Ok(())
 }
 
 fn write_mp4_sample(

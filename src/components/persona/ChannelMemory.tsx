@@ -26,16 +26,18 @@ export function ChannelMemory({ brain }: ChannelMemoryProps) {
       if (pendingIds.length === 0) return;
 
       const resolved: Record<string, string> = {};
-      for (const id of pendingIds) {
-        try {
-          const details = await getChannelDetails(id);
-          if (details?.name) {
-            resolved[id] = details.name;
+      await Promise.all(
+        pendingIds.map(async (id) => {
+          try {
+            const details = await getChannelDetails(id);
+            if (details?.name) {
+              resolved[id] = details.name;
+            }
+          } catch (e) {
+            console.warn("Failed to fetch channel details for", id, e);
           }
-        } catch (e) {
-          console.warn("Failed to fetch channel details for", id, e);
-        }
-      }
+        }),
+      );
 
       if (Object.keys(resolved).length > 0) {
         setChannelNames((prev) => ({ ...prev, ...resolved }));

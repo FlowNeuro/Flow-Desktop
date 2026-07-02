@@ -15,6 +15,7 @@ export function PageWrapper() {
   const isMusicCollectionPage =
     location.pathname.startsWith('/music/album/') ||
     location.pathname.startsWith('/music/playlist/');
+  const isHistoryPage = location.pathname === '/history';
 
   const mainRef = useRef<HTMLElement>(null);
   useEffect(() => {
@@ -31,6 +32,7 @@ export function PageWrapper() {
           className={
             isPlaylistDetailsPage
               || isMusicCollectionPage
+              || isHistoryPage
               ? "flex min-h-0 flex-1 flex-col overflow-hidden"
               : "flex-1 overflow-y-auto"
           }

@@ -81,9 +81,7 @@ pub async fn downloads_for_collection(
 }
 
 pub async fn list_downloads(pool: &SqlitePool) -> AppResult<Vec<DownloadRecord>> {
-    let query = format!(
-        "SELECT {SELECT_COLUMNS} FROM downloads ORDER BY datetime(created_at) DESC, id DESC"
-    );
+    let query = format!("SELECT {SELECT_COLUMNS} FROM downloads ORDER BY created_at DESC, id DESC");
     sqlx::query_as::<_, DownloadRecord>(&query)
         .fetch_all(pool)
         .await

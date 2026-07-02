@@ -14,9 +14,12 @@ interface DownloadsLibraryState {
   loaded: boolean;
   loading: boolean;
   load: () => Promise<void>;
+  ensureLoaded: () => Promise<void>;
   remove: (ids: number[]) => Promise<void>;
   clear: () => Promise<void>;
 }
+
+let loadInFlight: Promise<void> | null = null;
 
 export const useDownloadsLibraryStore = create<DownloadsLibraryState>((set, get) => ({
   records: [],
@@ -24,16 +27,24 @@ export const useDownloadsLibraryStore = create<DownloadsLibraryState>((set, get)
   loaded: false,
   loading: false,
   load: async () => {
-    if (get().loading) return;
-    set({ loading: true });
-    try {
-      const [records, ids] = await Promise.all([listDownloads(), getDownloadedVideoIds()]);
-      set({ records, downloadedIds: new Set(ids), loaded: true });
-    } catch (error) {
-      console.warn("Failed to load the downloads library", error);
-    } finally {
-      set({ loading: false });
-    }
+    if (loadInFlight) return loadInFlight;
+    loadInFlight = (async () => {
+      set({ loading: true });
+      try {
+        const [records, ids] = await Promise.all([listDownloads(), getDownloadedVideoIds()]);
+        set({ records, downloadedIds: new Set(ids), loaded: true });
+      } catch (error) {
+        console.warn("Failed to load the downloads library", error);
+      } finally {
+        set({ loading: false });
+        loadInFlight = null;
+      }
+    })();
+    return loadInFlight;
+  },
+  ensureLoaded: async () => {
+    if (get().loaded) return;
+    await get().load();
   },
   remove: async (ids) => {
     if (ids.length === 0) return;

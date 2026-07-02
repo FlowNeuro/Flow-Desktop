@@ -1,9 +1,5 @@
-import { useEffect, useState } from "react";
 import { Activity } from "lucide-react";
-import {
-  getRecommendationEvents,
-  type RecommendationEvent,
-} from "../../lib/api/recommendation";
+import { useLearningActivity } from "../../lib/useLearningActivity";
 
 const EVENT_STYLES: Record<string, { label: string; tone: string }> = {
   CLICK: { label: "Opened", tone: "text-sky-400" },
@@ -27,23 +23,7 @@ function relativeTime(raw: string): string {
 }
 
 export function LearningActivity() {
-  const [events, setEvents] = useState<RecommendationEvent[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let active = true;
-    getRecommendationEvents(40)
-      .then((rows) => {
-        if (active) setEvents(rows);
-      })
-      .catch((e) => console.warn("Failed to load learning activity", e))
-      .finally(() => {
-        if (active) setLoading(false);
-      });
-    return () => {
-      active = false;
-    };
-  }, []);
+  const { events, loading } = useLearningActivity(40);
 
   return (
     <section className="rounded-2xl bg-[var(--color-surface-container-low)] border border-[var(--color-outline-variant)] p-5">

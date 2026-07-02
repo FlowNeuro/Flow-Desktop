@@ -35,7 +35,11 @@ pub async fn initialize_database(app_data_dir: PathBuf) -> AppResult<SqlitePool>
         .create_if_missing(true)
         .journal_mode(SqliteJournalMode::Wal) // Allows concurrent readers!
         .synchronous(SqliteSynchronous::Normal) // Massive write speed improvement
-        .busy_timeout(Duration::from_secs(5)); // Prevent "database is locked" errors
+        .busy_timeout(Duration::from_secs(5)) // Prevent "database is locked" errors
+        .pragma("cache_size", "-16000") // ~16 MB page cache per connection
+        .pragma("mmap_size", "134217728") // 128 MB memory-mapped I/O
+        .pragma("temp_store", "MEMORY") // keep ORDER BY / temp b-trees in RAM
+        .optimize_on_close(true, Some(400));
 
     // 2. Build the optimized Connection Pool
     let pool = SqlitePoolOptions::new()
@@ -63,6 +67,10 @@ pub async fn initialize_database(app_data_dir: PathBuf) -> AppResult<SqlitePool>
         .run(&pool)
         .await
         .map_err(|error| AppError::Database(error.to_string()))?;
+
+    if let Err(error) = sqlx::query("PRAGMA optimize;").execute(&pool).await {
+        tracing::warn!(%error, "PRAGMA optimize after migrations failed");
+    }
 
     // Bound the recommendation event log so it cannot grow without limit across sessions.
     if let Err(error) = recommendations::prune_recommendation_events(&pool, 2000).await {

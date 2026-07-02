@@ -20,8 +20,8 @@ use tauri::Manager;
 
 use api::innertube::InnertubeClient;
 use commands::db::{
-    add_watch_record, clear_watch_history, delete_watch_record, get_music_history, get_setting,
-    get_watch_history, set_setting,
+    add_watch_record, add_watch_records_bulk, clear_watch_history, delete_watch_record,
+    get_music_history, get_setting, get_watch_history, set_setting,
 };
 use commands::downloads::{
     DownloadManager, cancel_download, clear_downloads, create_download_collection,
@@ -189,6 +189,7 @@ pub fn run() {
             get_watch_history,
             get_music_history,
             add_watch_record,
+            add_watch_records_bulk,
             delete_watch_record,
             clear_watch_history,
             get_setting,
