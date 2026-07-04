@@ -107,6 +107,8 @@ pub fn run() {
                 ))
             })?;
 
+            api::http::warm_shared_client();
+
             // Initialize native Innertube extractor (shared by the video path and
             // the additive YouTube Music subsystem).
             let extractor = Arc::new(InnertubeClient::new(app.handle()));

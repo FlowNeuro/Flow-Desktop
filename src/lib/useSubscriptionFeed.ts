@@ -7,6 +7,7 @@ import {
 } from './api/youtube';
 import type { SubscribedChannel } from '../store/useSubscriptionStore';
 import type { ChannelDetails, VideoSummary } from '../types/video';
+import { mapWithConcurrency } from './concurrency';
 
 export function useSubscriptionFeed(channels: SubscribedChannel[]) {
   const [videos, setVideos] = useState<VideoSummary[]>([]);
@@ -97,17 +98,15 @@ export function useSubscriptionChannelDetails(channels: SubscribedChannel[]) {
     const ids = channelIds.split('|').filter(Boolean);
 
     const loadDetails = async () => {
-      const entries = await Promise.all(
-        ids.map(async (channelId) => {
-          try {
-            const details = await getChannelDetails(channelId);
-            return [channelId, details] as const;
-          } catch (err) {
-            console.warn('Failed to load subscription channel details', channelId, err);
-            return null;
-          }
-        }),
-      );
+      const entries = await mapWithConcurrency(ids, 6, async (channelId) => {
+        try {
+          const details = await getChannelDetails(channelId);
+          return [channelId, details] as const;
+        } catch (err) {
+          console.warn('Failed to load subscription channel details', channelId, err);
+          return null;
+        }
+      });
 
       if (!active) return;
 

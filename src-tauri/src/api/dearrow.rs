@@ -37,13 +37,14 @@ pub struct DeArrowOverride {
 }
 
 pub async fn fetch_dearrow_override_api(video_id: &str) -> AppResult<Option<DeArrowOverride>> {
-    let client = reqwest::Client::builder()
-        .user_agent("FlowYouTube/1.0")
-        .build()
-        .unwrap_or_default();
+    let client = crate::api::http::shared_client();
 
     let url = format!("https://sponsor.ajay.app/api/branding?videoID={}", video_id);
-    let res = client.get(&url).send().await;
+    let res = client
+        .get(&url)
+        .header(reqwest::header::USER_AGENT, "FlowYouTube/1.0")
+        .send()
+        .await;
 
     let response = match res {
         Ok(r) => r,

@@ -217,10 +217,7 @@ pub async fn resolve_channel_id(url: String) -> Result<String, ErrorResponse> {
         )));
     }
 
-    let client = reqwest::Client::builder()
-        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-        .build()
-        .unwrap_or_default();
+    let client = crate::api::http::shared_client();
     let html = client
         .get(parsed)
         .send()
@@ -1082,47 +1079,58 @@ async fn populate_video_durations(
     youtube_service: &YoutubeService,
     pool: &sqlx::SqlitePool,
 ) {
-    let fetches = videos.iter_mut().map(|video| {
-        let youtube_service = youtube_service.clone();
-        let pool = pool.clone();
-        let video_id = video.id.clone();
-        let title = video.title.clone();
-        let channel_name = video.channel_name.clone();
-        let thumbnail_url = video.thumbnail_url.clone();
-        async move {
-            // 1. Try cache first
-            if let Ok(Some(cached)) =
-                crate::db::cache::get_cached_video_summary(&pool, &video_id).await
-            {
-                if cached.duration_seconds.is_some() {
-                    return (video_id, cached.duration_seconds);
+    let items: Vec<(String, String, String, Option<String>)> = videos
+        .iter()
+        .map(|video| {
+            (
+                video.id.clone(),
+                video.title.clone(),
+                video.channel_name.clone(),
+                video.thumbnail_url.clone(),
+            )
+        })
+        .collect();
+
+    let results = crate::api::http::bounded_join(
+        items,
+        crate::api::http::DEFAULT_FETCH_CONCURRENCY,
+        move |(video_id, title, channel_name, thumbnail_url)| {
+            let youtube_service = youtube_service.clone();
+            let pool = pool.clone();
+            async move {
+                // 1. Try cache first
+                if let Ok(Some(cached)) =
+                    crate::db::cache::get_cached_video_summary(&pool, &video_id).await
+                {
+                    if cached.duration_seconds.is_some() {
+                        return (video_id, cached.duration_seconds);
+                    }
+                }
+
+                // 2. Fetch from API
+                if let Ok(details) = youtube_service.get_video_details(&video_id).await {
+                    let summary = VideoSummary {
+                        id: video_id.clone(),
+                        title,
+                        channel_name,
+                        channel_id: details.channel_id,
+                        thumbnail_url,
+                        duration_seconds: details.duration_seconds,
+                        published_text: None,
+                        view_count_text: None,
+                        channel_avatar_url: None,
+                        is_live: false,
+                    };
+                    // Cache it for 7 days
+                    let _ = crate::db::cache::cache_video_summary(&pool, &summary, 604800).await;
+                    (video_id, details.duration_seconds)
+                } else {
+                    (video_id, None)
                 }
             }
-
-            // 2. Fetch from API
-            if let Ok(details) = youtube_service.get_video_details(&video_id).await {
-                let summary = VideoSummary {
-                    id: video_id.clone(),
-                    title,
-                    channel_name,
-                    channel_id: details.channel_id,
-                    thumbnail_url,
-                    duration_seconds: details.duration_seconds,
-                    published_text: None,
-                    view_count_text: None,
-                    channel_avatar_url: None,
-                    is_live: false,
-                };
-                // Cache it for 7 days
-                let _ = crate::db::cache::cache_video_summary(&pool, &summary, 604800).await;
-                (video_id, details.duration_seconds)
-            } else {
-                (video_id, None)
-            }
-        }
-    });
-
-    let results = futures_util::future::join_all(fetches).await;
+        },
+    )
+    .await;
     let mut durations = std::collections::HashMap::new();
     for (id, dur) in results {
         if let Some(d) = dur {
@@ -1156,15 +1164,12 @@ pub async fn get_subscription_rss_feed(
     }
 
     let limit = limit.unwrap_or(1500).clamp(1, 1500);
-    let client = reqwest::Client::builder()
-        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-        .build()
-        .unwrap_or_default();
+    let client = crate::api::http::shared_client();
 
-    let fetches = unique_channel_ids.iter().map(|channel_id| {
-        let client = client.clone();
-        let channel_id = channel_id.clone();
-        async move {
+    let results = crate::api::http::bounded_join(
+        unique_channel_ids.iter().cloned(),
+        crate::api::http::DEFAULT_FETCH_CONCURRENCY,
+        move |channel_id| async move {
             let rss_url =
                 format!("https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}");
             let xml = client
@@ -1185,7 +1190,7 @@ pub async fn get_subscription_rss_feed(
                 })?;
 
             let (name, videos) = parse_rss_feed(&channel_id, &xml);
-            let avatar_url = fetch_channel_avatar(&client, &channel_id).await;
+            let avatar_url = fetch_channel_avatar(client, &channel_id).await;
 
             Ok::<_, crate::errors::AppError>((
                 SubscriptionRssChannel {
@@ -1195,10 +1200,9 @@ pub async fn get_subscription_rss_feed(
                 },
                 videos,
             ))
-        }
-    });
-
-    let results = futures_util::future::join_all(fetches).await;
+        },
+    )
+    .await;
     let mut channels = Vec::new();
     let mut videos = Vec::new();
 
@@ -1297,24 +1301,28 @@ pub async fn fetch_subtitles(
                 match session.kind {
                     crate::streaming::proxy::StreamSessionKind::Remote { remote_url } => {
                         info!("[fetch_subtitles] Remote URL session found: {}", remote_url);
-                        let mut client_builder = reqwest::Client::builder();
-                        if !session.user_agent.is_empty() {
+                        let user_agent = if session.user_agent.is_empty() {
+                            crate::api::http::BROWSER_USER_AGENT
+                        } else {
                             info!(
                                 "[fetch_subtitles] Using session User-Agent: {}",
                                 session.user_agent
                             );
-                            client_builder = client_builder.user_agent(&session.user_agent);
-                        } else {
-                            client_builder = client_builder.user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
-                        }
-                        let client = client_builder.build().unwrap_or_default();
+                            session.user_agent.as_str()
+                        };
+                        let client = crate::api::http::shared_client();
 
-                        let res = client.get(&remote_url).send().await.map_err(|e| {
-                            crate::errors::AppError::Extractor(format!(
-                                "Network error fetching subtitles: {}",
-                                e
-                            ))
-                        })?;
+                        let res = client
+                            .get(&remote_url)
+                            .header(reqwest::header::USER_AGENT, user_agent)
+                            .send()
+                            .await
+                            .map_err(|e| {
+                                crate::errors::AppError::Extractor(format!(
+                                    "Network error fetching subtitles: {}",
+                                    e
+                                ))
+                            })?;
 
                         let text = res.text().await.map_err(|e| {
                             crate::errors::AppError::Extractor(format!(
@@ -1365,10 +1373,7 @@ pub async fn fetch_subtitles(
         "[fetch_subtitles] Falling back to direct URL fetch: {}",
         url
     );
-    let client = reqwest::Client::builder()
-        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-        .build()
-        .unwrap_or_default();
+    let client = crate::api::http::shared_client();
 
     let res = client
         .get(&url)
