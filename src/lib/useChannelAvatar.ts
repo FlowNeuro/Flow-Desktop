@@ -112,7 +112,11 @@ function enqueueAvatarFetch(channelId: string) {
 export function useChannelAvatar(
   channelId: string | null | undefined,
 ): string | null {
-  const { subscriptions } = useSubscriptionStore();
+  const subAvatar = useSubscriptionStore((state) => {
+    if (!channelId) return null;
+    const sub = state.subscriptions.find((s) => s.id === channelId);
+    return sub && isValidAvatarUrl(sub.avatarUrl) ? sub.avatarUrl : null;
+  });
 
   // Subscribe to cache updates for re-rendering when fetches complete
   useSyncExternalStore(subscribeToCacheUpdates, getCacheVersion);
@@ -123,20 +127,16 @@ export function useChannelAvatar(
     // Already resolved in cache
     if (avatarCache.has(channelId)) return;
     // Already available from subscriptions
-    const sub = subscriptions.find((s) => s.id === channelId);
-    if (sub && isValidAvatarUrl(sub.avatarUrl)) return;
+    if (subAvatar) return;
 
     enqueueAvatarFetch(channelId);
-  }, [channelId, subscriptions]);
+  }, [channelId, subAvatar]);
 
   // ── Resolve synchronously ────────────────────────────────────
   if (!channelId) return null;
 
-  // 1. Check subscription store
-  const sub = subscriptions.find((s) => s.id === channelId);
-  if (sub && isValidAvatarUrl(sub.avatarUrl)) {
-    return sub.avatarUrl;
-  }
+  // 1. Avatar from the subscription store
+  if (subAvatar) return subAvatar;
 
   // 2. Check cache
   if (avatarCache.has(channelId)) {

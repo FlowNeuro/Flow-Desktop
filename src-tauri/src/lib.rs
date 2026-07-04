@@ -68,7 +68,7 @@ use commands::youtube::{
     get_search_suggestions, get_sponsorblock_segments, get_stream_info,
     get_subscription_rotation_feed, get_subscription_rss_feed, get_trending_videos,
     get_video_details, parse_subscription_export, refresh_music_home, resolve_channel_id,
-    search_music, search_videos,
+    search_music, search_videos, stream_subscription_rss_feed,
 };
 use services::music_service::MusicService;
 use services::recommendation_service::RecommendationService;
@@ -248,6 +248,7 @@ pub fn run() {
             get_personalized_music_recommendations,
             get_subscription_rotation_feed,
             get_subscription_rss_feed,
+            stream_subscription_rss_feed,
             resolve_channel_id,
             get_music_artist,
             get_music_explore,

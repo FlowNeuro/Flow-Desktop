@@ -123,7 +123,7 @@ function extractDominantColor(img: HTMLImageElement): string | null {
   }
 }
 
-export function VideoCard({
+function VideoCardComponent({
   video,
   onPlay,
   onAddToQueue,
@@ -136,7 +136,8 @@ export function VideoCard({
   isDragActive = false,
 }: VideoCardProps) {
   const navigate = useNavigate();
-  const { isSubscribed, subscribe, unsubscribe } = useSubscriptionStore();
+  const subscribe = useSubscriptionStore((s) => s.subscribe);
+  const unsubscribe = useSubscriptionStore((s) => s.unsubscribe);
   const notInterested = useFeedActionsStore((s) => s.notInterested);
   const blockChannelAction = useFeedActionsStore((s) => s.blockChannel);
   const markWatched = useFeedActionsStore((s) => s.markWatched);
@@ -278,7 +279,10 @@ export function VideoCard({
     setShowMenu((prev) => !prev);
   }, []);
 
-  const subStatus = isSubscribed(isChannel ? cleanId : channelId);
+  const subTargetId = isChannel ? cleanId : channelId;
+  const subStatus = useSubscriptionStore((s) =>
+    subTargetId ? s.subscriptions.some((c) => c.id === subTargetId) : false,
+  );
   const isHistoryCard = variant === 'history';
   const isContinueCard = variant === 'continue';
   const isListVariant = variant === 'list';
@@ -858,3 +862,5 @@ export function VideoCard({
     </div>
   );
 }
+
+export const VideoCard = React.memo(VideoCardComponent);

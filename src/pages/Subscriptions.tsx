@@ -12,6 +12,7 @@ import { Button } from "../components/ui/Button";
 import { SearchInput } from "../components/ui/SearchInput";
 import { CategoryChips } from "../components/layout/CategoryChips";
 import { ChannelSwiper } from "../components/subscriptions/ChannelSwiper";
+import { ScanProgressBar } from "../components/subscriptions/ScanProgressBar";
 import { VideoGrid } from "../components/video/VideoGrid";
 import { ShortsShelf } from "../components/shelf/ShortsShelf";
 import { useSubscriptionChannelDetails, useSubscriptionFeed } from "../lib/useSubscriptionFeed";
@@ -58,7 +59,7 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ onPlay, onAddToQue
     loading,
     unsubscribe,
     subscribe,
-    updateSubscription,
+    mergeSubscriptions,
     createSubscriptionGroup,
     updateSubscriptionGroup,
     deleteSubscriptionGroup,
@@ -68,7 +69,7 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ onPlay, onAddToQue
   const channelPrefsLoaded = useNotificationStore((state) => state.channelPrefsLoaded);
   const loadChannelPreferences = useNotificationStore((state) => state.loadChannelPreferences);
   const setChannelNotification = useNotificationStore((state) => state.setChannelNotification);
-  const { videos, rssChannels, loading: feedLoading, error: feedError } = useSubscriptionFeed(subscriptions);
+  const { videos, rssChannels, loading: feedLoading, error: feedError, scanProgress } = useSubscriptionFeed(subscriptions);
   const channelDetails = useSubscriptionChannelDetails(subscriptions);
   const showSubscriptionVideos = useAppSettingsStore((state) => state.values[SETTINGS.SUBSCRIPTION_SHOW_VIDEOS] !== "false");
   const showSubscriptionShorts = useAppSettingsStore((state) => state.values[SETTINGS.SUBSCRIPTION_SHOW_SHORTS] !== "false");
@@ -96,6 +97,7 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ onPlay, onAddToQue
   }, [channelPrefsLoaded, loadChannelPreferences]);
 
   useEffect(() => {
+    const updates: Record<string, Partial<Omit<SubscribedChannel, "id">>> = {};
     subscriptions.forEach((channel) => {
       const details = channelDetails[channel.id];
       if (!details) return;
@@ -103,38 +105,36 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ onPlay, onAddToQue
       const avatarUrl = getAvatarUrl(details.avatarUrl);
       const nextName = details.name || channel.name;
       const nextSubscriberCountText = details.subscriberCountText || channel.subscriberCountText;
-      const hasBetterAvatar = avatarUrl && avatarUrl !== channel.avatarUrl;
-      const hasBetterName = nextName && nextName !== channel.name;
-      const hasBetterSubCount = nextSubscriberCountText && nextSubscriberCountText !== channel.subscriberCountText;
-
-      if (hasBetterAvatar || hasBetterName || hasBetterSubCount) {
-        updateSubscription(channel.id, {
-          ...(hasBetterAvatar ? { avatarUrl } : {}),
-          ...(hasBetterName ? { name: nextName } : {}),
-          ...(hasBetterSubCount ? { subscriberCountText: nextSubscriberCountText } : {}),
-        });
+      const patch: Partial<Omit<SubscribedChannel, "id">> = {};
+      if (avatarUrl && avatarUrl !== channel.avatarUrl) patch.avatarUrl = avatarUrl;
+      if (nextName && nextName !== channel.name) patch.name = nextName;
+      if (nextSubscriberCountText && nextSubscriberCountText !== channel.subscriberCountText) {
+        patch.subscriberCountText = nextSubscriberCountText;
       }
+      if (Object.keys(patch).length > 0) updates[channel.id] = patch;
     });
-  }, [channelDetails, subscriptions, updateSubscription]);
+
+    if (Object.keys(updates).length > 0) void mergeSubscriptions(updates);
+  }, [channelDetails, subscriptions, mergeSubscriptions]);
 
   useEffect(() => {
+    const updates: Record<string, Partial<Omit<SubscribedChannel, "id">>> = {};
     rssChannels.forEach((rssChannel) => {
       const existing = subscriptions.find((channel) => channel.id === rssChannel.id);
       if (!existing) return;
 
       const avatarUrl = getAvatarUrl(rssChannel.avatarUrl);
       const nextName = rssChannel.name || existing.name;
-      const hasBetterAvatar = avatarUrl && avatarUrl !== existing.avatarUrl;
-      const hasBetterName = nextName && nextName !== existing.name && existing.name === "Imported Channel";
-
-      if (hasBetterAvatar || hasBetterName) {
-        updateSubscription(existing.id, {
-          ...(hasBetterAvatar ? { avatarUrl } : {}),
-          ...(hasBetterName ? { name: nextName } : {}),
-        });
+      const patch: Partial<Omit<SubscribedChannel, "id">> = {};
+      if (avatarUrl && avatarUrl !== existing.avatarUrl) patch.avatarUrl = avatarUrl;
+      if (nextName && nextName !== existing.name && existing.name === "Imported Channel") {
+        patch.name = nextName;
       }
+      if (Object.keys(patch).length > 0) updates[existing.id] = patch;
     });
-  }, [rssChannels, subscriptions, updateSubscription]);
+
+    if (Object.keys(updates).length > 0) void mergeSubscriptions(updates);
+  }, [rssChannels, subscriptions, mergeSubscriptions]);
 
   const handleImport = async () => {
     if (!importText.trim()) return;
@@ -341,6 +341,8 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ onPlay, onAddToQue
                     {getString("subscriptions_groups_manage")}
                   </Button>
                 </div>
+
+                {scanProgress ? <ScanProgressBar progress={scanProgress} /> : null}
 
                 <section className="pt-2">
                   <h2 className="mb-4 text-xl font-semibold text-neutral-100">

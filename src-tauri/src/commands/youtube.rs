@@ -1,7 +1,6 @@
 use tauri::State;
 use tracing::info;
 
-use crate::api::innertube::core::utils::normalize_youtube_image_url;
 use crate::errors::ErrorResponse;
 use crate::models::channel::{ChannelDetails, ChannelTabResponse};
 use crate::models::comment::CommentsResponse;
@@ -20,7 +19,7 @@ use crate::services::youtube_service::YoutubeService;
 
 use crate::streaming::proxy::StreamingManager;
 
-#[derive(Debug, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SubscriptionRssChannel {
     pub id: String,
@@ -33,6 +32,10 @@ pub struct SubscriptionRssChannel {
 pub struct SubscriptionRssFeed {
     pub videos: Vec<VideoSummary>,
     pub channels: Vec<SubscriptionRssChannel>,
+    /// Channels scanned so far (streaming progress). Equals `total` when done.
+    pub processed: usize,
+    /// Total channels to scan.
+    pub total: usize,
 }
 
 fn xml_text(source: &str, tag: &str) -> Option<String> {
@@ -143,35 +146,6 @@ pub(crate) fn parse_rss_feed(
         .collect();
 
     (channel_name, videos)
-}
-
-fn extract_channel_avatar_from_html(html: &str) -> Option<String> {
-    let candidates = [
-        "property=\"og:image\" content=\"",
-        "\"avatar\":{\"thumbnails\":[{\"url\":\"",
-        "\"width\":900,\"height\":900},{\"url\":\"",
-    ];
-
-    for marker in candidates {
-        if let Some(start) = html.find(marker) {
-            let value_start = start + marker.len();
-            if let Some(value_end) = html[value_start..].find('"') {
-                let raw = &html[value_start..value_start + value_end];
-                let decoded = raw.replace("\\u0026", "&").replace("\\/", "/");
-                if decoded.starts_with("http") && !decoded.contains("/vi/") {
-                    return Some(normalize_youtube_image_url(&decoded));
-                }
-            }
-        }
-    }
-
-    None
-}
-
-async fn fetch_channel_avatar(client: &reqwest::Client, channel_id: &str) -> Option<String> {
-    let url = format!("https://www.youtube.com/channel/{channel_id}");
-    let html = client.get(url).send().await.ok()?.text().await.ok()?;
-    extract_channel_avatar_from_html(&html)
 }
 
 fn extract_channel_id_from_html(html: &str) -> Option<String> {
@@ -1147,28 +1121,28 @@ async fn populate_video_durations(
     }
 }
 
-#[tauri::command]
-pub async fn get_subscription_rss_feed(
-    channel_ids: Vec<String>,
-    limit: Option<usize>,
-    youtube_service: State<'_, YoutubeService>,
-    pool: State<'_, sqlx::SqlitePool>,
-) -> Result<SubscriptionRssFeed, ErrorResponse> {
-    let mut unique_channel_ids = Vec::new();
+fn dedupe_channel_ids(channel_ids: Vec<String>) -> Result<Vec<String>, ErrorResponse> {
+    let mut unique = Vec::new();
     for channel_id in channel_ids {
         let trimmed = channel_id.trim().trim_start_matches("channel:").to_string();
         validate_channel_id(&trimmed).map_err(ErrorResponse::from)?;
-        if !unique_channel_ids.contains(&trimmed) {
-            unique_channel_ids.push(trimmed);
+        if !unique.contains(&trimmed) {
+            unique.push(trimmed);
         }
     }
+    Ok(unique)
+}
 
-    let limit = limit.unwrap_or(1500).clamp(1, 1500);
-    let client = crate::api::http::shared_client();
+const SUBSCRIPTION_RSS_BATCH_SIZE: usize = 50;
 
+const SUBSCRIPTION_RSS_CONCURRENCY: usize = 16;
+async fn fetch_rss_channel_batch(
+    client: &'static reqwest::Client,
+    channel_ids: &[String],
+) -> Vec<(SubscriptionRssChannel, Vec<(i64, VideoSummary)>)> {
     let results = crate::api::http::bounded_join(
-        unique_channel_ids.iter().cloned(),
-        crate::api::http::DEFAULT_FETCH_CONCURRENCY,
+        channel_ids.iter().cloned(),
+        SUBSCRIPTION_RSS_CONCURRENCY,
         move |channel_id| async move {
             let rss_url =
                 format!("https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}");
@@ -1190,36 +1164,53 @@ pub async fn get_subscription_rss_feed(
                 })?;
 
             let (name, videos) = parse_rss_feed(&channel_id, &xml);
-            let avatar_url = fetch_channel_avatar(client, &channel_id).await;
 
             Ok::<_, crate::errors::AppError>((
                 SubscriptionRssChannel {
                     id: channel_id,
                     name,
-                    avatar_url,
+                    avatar_url: None,
                 },
                 videos,
             ))
         },
     )
     .await;
-    let mut channels = Vec::new();
-    let mut videos = Vec::new();
 
+    let mut out = Vec::new();
     for result in results {
         match result {
-            Ok((channel, channel_videos)) => {
-                channels.push(channel);
-                videos.extend(channel_videos);
-            }
-            Err(error) => {
-                tracing::warn!("Subscription RSS channel fetch failed: {error}");
-            }
+            Ok(entry) => out.push(entry),
+            Err(error) => tracing::warn!("Subscription RSS channel fetch failed: {error}"),
         }
     }
+    out
+}
 
+fn sort_and_dedupe_feed(videos: &mut Vec<(i64, VideoSummary)>) {
     videos.sort_by(|(left, _), (right, _)| right.cmp(left));
     videos.dedup_by(|(_, left), (_, right)| left.id == right.id);
+}
+
+#[tauri::command]
+pub async fn get_subscription_rss_feed(
+    channel_ids: Vec<String>,
+    limit: Option<usize>,
+    youtube_service: State<'_, YoutubeService>,
+    pool: State<'_, sqlx::SqlitePool>,
+) -> Result<SubscriptionRssFeed, ErrorResponse> {
+    let unique_channel_ids = dedupe_channel_ids(channel_ids)?;
+    let limit = limit.unwrap_or(1500).clamp(1, 1500);
+    let client = crate::api::http::shared_client();
+
+    let mut channels = Vec::new();
+    let mut videos = Vec::new();
+    for (channel, channel_videos) in fetch_rss_channel_batch(client, &unique_channel_ids).await {
+        channels.push(channel);
+        videos.extend(channel_videos);
+    }
+
+    sort_and_dedupe_feed(&mut videos);
 
     let mut feed_videos: Vec<VideoSummary> = videos
         .into_iter()
@@ -1234,10 +1225,71 @@ pub async fn get_subscription_rss_feed(
             .await;
     }
 
+    let total = unique_channel_ids.len();
     Ok(SubscriptionRssFeed {
         videos: feed_videos,
         channels,
+        processed: total,
+        total,
     })
+}
+
+#[tauri::command]
+pub async fn stream_subscription_rss_feed(
+    channel_ids: Vec<String>,
+    limit: Option<usize>,
+    on_event: tauri::ipc::Channel<SubscriptionRssFeed>,
+    youtube_service: State<'_, YoutubeService>,
+    pool: State<'_, sqlx::SqlitePool>,
+) -> Result<(), ErrorResponse> {
+    let unique_channel_ids = dedupe_channel_ids(channel_ids)?;
+    let limit = limit.unwrap_or(1500).clamp(1, 1500);
+    let total = unique_channel_ids.len();
+    let client = crate::api::http::shared_client();
+
+    let mut channels: Vec<SubscriptionRssChannel> = Vec::new();
+    let mut videos: Vec<(i64, VideoSummary)> = Vec::new();
+    let mut processed = 0usize;
+
+    for batch in unique_channel_ids.chunks(SUBSCRIPTION_RSS_BATCH_SIZE) {
+        for (channel, channel_videos) in fetch_rss_channel_batch(client, batch).await {
+            channels.push(channel);
+            videos.extend(channel_videos);
+        }
+        processed = (processed + batch.len()).min(total);
+        sort_and_dedupe_feed(&mut videos);
+
+        let feed_videos: Vec<VideoSummary> = videos
+            .iter()
+            .take(limit)
+            .map(|(_, video)| video.clone())
+            .collect();
+        let _ = on_event.send(SubscriptionRssFeed {
+            videos: feed_videos,
+            channels: channels.clone(),
+            processed,
+            total,
+        });
+    }
+
+    let mut feed_videos: Vec<VideoSummary> = videos
+        .into_iter()
+        .map(|(_, video)| video)
+        .take(limit)
+        .collect();
+    let num_to_populate = feed_videos.len().min(100);
+    if num_to_populate > 0 {
+        populate_video_durations(&mut feed_videos[..num_to_populate], &youtube_service, &pool)
+            .await;
+    }
+    let _ = on_event.send(SubscriptionRssFeed {
+        videos: feed_videos,
+        channels,
+        processed: total,
+        total,
+    });
+
+    Ok(())
 }
 
 #[tauri::command]

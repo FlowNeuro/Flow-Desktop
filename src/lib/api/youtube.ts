@@ -591,6 +591,8 @@ export interface SubscriptionRssChannel {
 export interface SubscriptionRssFeed {
   videos: VideoSummary[];
   channels: SubscriptionRssChannel[];
+  processed: number;
+  total: number;
 }
 
 export async function getSubscriptionRssFeed(
@@ -615,11 +617,40 @@ export async function getSubscriptionRssFeed(
         name: `Subscribed Channel ${index + 1}`,
         avatarUrl: null,
       })),
+      processed: channelIds.length,
+      total: channelIds.length,
     };
   }
 
   return invokeBackend<SubscriptionRssFeed>("get_subscription_rss_feed", {
     channelIds,
     limit,
+  });
+}
+
+/**
+ * Streaming variant of {@link getSubscriptionRssFeed}. The backend fetches
+ * channels in batches and pushes the accumulated, re-sorted feed after each
+ * batch, so the UI can fill in progressively instead of waiting for every
+ * channel. `onBatch` fires once per emitted batch; the promise resolves when
+ * the stream completes.
+ */
+export async function streamSubscriptionRssFeed(
+  channelIds: string[],
+  onBatch: (feed: SubscriptionRssFeed) => void,
+  limit = 1500,
+): Promise<void> {
+  if (!(await isTauriEnv())) {
+    onBatch(await getSubscriptionRssFeed(channelIds, limit));
+    return;
+  }
+
+  const { Channel } = await import("@tauri-apps/api/core");
+  const channel = new Channel<SubscriptionRssFeed>();
+  channel.onmessage = onBatch;
+  await invokeBackend<void>("stream_subscription_rss_feed", {
+    channelIds,
+    limit,
+    onEvent: channel,
   });
 }

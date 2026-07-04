@@ -22,6 +22,7 @@ interface SubscriptionState {
   subscribe: (channelId: string, channelName: string, avatarUrl?: string) => Promise<void>;
   unsubscribe: (channelId: string) => Promise<void>;
   updateSubscription: (channelId: string, updates: Partial<Omit<SubscribedChannel, "id">>) => Promise<void>;
+  mergeSubscriptions: (updates: Record<string, Partial<Omit<SubscribedChannel, "id">>>) => Promise<void>;
   loadSubscriptionGroups: () => Promise<void>;
   createSubscriptionGroup: (name: string, channelIds: string[]) => Promise<void>;
   updateSubscriptionGroup: (oldName: string, name: string, channelIds: string[]) => Promise<void>;
@@ -125,6 +126,33 @@ export const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
     ));
     set({ subscriptions: updated });
     await persistSubscriptions(updated);
+  },
+
+  mergeSubscriptions: async (updates) => {
+    if (Object.keys(updates).length === 0) return;
+
+    let changed = false;
+    const next = get().subscriptions.map((channel) => {
+      const patch = updates[channel.id];
+      if (!patch) return channel;
+
+      let merged = channel;
+      for (const [key, value] of Object.entries(patch) as [
+        keyof Omit<SubscribedChannel, "id">,
+        string | undefined,
+      ][]) {
+        if (value !== undefined && merged[key] !== value) {
+          if (merged === channel) merged = { ...channel };
+          merged[key] = value;
+          changed = true;
+        }
+      }
+      return merged;
+    });
+
+    if (!changed) return;
+    set({ subscriptions: next });
+    await persistSubscriptions(next);
   },
 
   loadSubscriptionGroups: async () => {

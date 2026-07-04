@@ -2,18 +2,69 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   getChannelDetails,
   getSubscriptionRotationFeed,
-  getSubscriptionRssFeed,
+  streamSubscriptionRssFeed,
   type SubscriptionRssChannel,
+  type SubscriptionRssFeed,
 } from './api/youtube';
+import { getSetting, setSetting } from './api/db';
 import type { SubscribedChannel } from '../store/useSubscriptionStore';
 import type { ChannelDetails, VideoSummary } from '../types/video';
 import { mapWithConcurrency } from './concurrency';
+
+export interface ScanProgress {
+  processed: number;
+  total: number;
+}
+
+interface CachedFeed {
+  videos: VideoSummary[];
+  channels: SubscriptionRssChannel[];
+  cachedAt: number;
+}
+
+interface PersistedFeed extends CachedFeed {
+  key: string;
+}
+
+const FEED_TTL_MS = 15 * 60 * 1000;
+const FEED_CACHE_KEY = 'subscription_feed_cache_v1';
+const MAX_CACHED_VIDEOS = 500;
+
+const feedCache = new Map<string, CachedFeed>();
+
+async function loadPersistedFeed(): Promise<PersistedFeed | null> {
+  try {
+    const raw = await getSetting(FEED_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as PersistedFeed;
+    if (!parsed || typeof parsed.key !== 'string' || !Array.isArray(parsed.videos)) return null;
+    return parsed;
+  } catch (err) {
+    console.warn('Failed to read subscription feed cache', err);
+    return null;
+  }
+}
+
+async function persistFeed(key: string, feed: SubscriptionRssFeed): Promise<void> {
+  try {
+    const payload: PersistedFeed = {
+      key,
+      videos: feed.videos.slice(0, MAX_CACHED_VIDEOS),
+      channels: feed.channels,
+      cachedAt: Date.now(),
+    };
+    await setSetting(FEED_CACHE_KEY, JSON.stringify(payload));
+  } catch (err) {
+    console.warn('Failed to persist subscription feed cache', err);
+  }
+}
 
 export function useSubscriptionFeed(channels: SubscribedChannel[]) {
   const [videos, setVideos] = useState<VideoSummary[]>([]);
   const [rssChannels, setRssChannels] = useState<SubscriptionRssChannel[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [scanProgress, setScanProgress] = useState<ScanProgress | null>(null);
   const channelIds = useMemo(
     () => channels.map((channel) => channel.id).sort().join('|'),
     [channels],
@@ -23,33 +74,85 @@ export function useSubscriptionFeed(channels: SubscribedChannel[]) {
     let active = true;
     const ids = channelIds.split('|').filter(Boolean);
 
+    if (ids.length === 0) {
+      setVideos([]);
+      setRssChannels([]);
+      setError(null);
+      setLoading(false);
+      setScanProgress(null);
+      return;
+    }
+
+    const mem = feedCache.get(channelIds);
+    if (mem) {
+      setVideos(mem.videos);
+      setRssChannels(mem.channels);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
+    setError(null);
+    setScanProgress(null);
+
     const loadFeed = async () => {
-      if (ids.length === 0) {
-        setVideos([]);
-        setRssChannels([]);
-        setError(null);
+      let cachedAt = mem?.cachedAt ?? null;
+      let haveVideos = mem != null && mem.videos.length > 0;
+
+      if (!mem) {
+        const persisted = await loadPersistedFeed();
+        if (!active) return;
+        if (persisted && persisted.key === channelIds && persisted.videos.length > 0) {
+          feedCache.set(channelIds, {
+            videos: persisted.videos,
+            channels: persisted.channels,
+            cachedAt: persisted.cachedAt,
+          });
+          setVideos(persisted.videos);
+          setRssChannels(persisted.channels);
+          setLoading(false);
+          cachedAt = persisted.cachedAt;
+          haveVideos = true;
+        }
+      }
+
+      if (cachedAt != null && Date.now() - cachedAt < FEED_TTL_MS) {
         return;
       }
 
-      setLoading(true);
-      setError(null);
+      let sawVideos = haveVideos;
+
       try {
-        const rssFeed = await getSubscriptionRssFeed(ids);
+
+        await streamSubscriptionRssFeed(ids, (feed) => {
+          if (!active) return;
+          setVideos(feed.videos);
+          setRssChannels(feed.channels);
+          if (feed.videos.length > 0) sawVideos = true;
+          setLoading(false);
+
+          const done = feed.processed >= feed.total;
+          setScanProgress(done ? null : { processed: feed.processed, total: feed.total });
+          if (done && feed.videos.length > 0) {
+            feedCache.set(channelIds, {
+              videos: feed.videos,
+              channels: feed.channels,
+              cachedAt: Date.now(),
+            });
+            void persistFeed(channelIds, feed);
+          }
+        });
         if (!active) return;
+        setScanProgress(null);
 
-        if (rssFeed.videos.length > 0) {
-          setVideos(rssFeed.videos);
-          setRssChannels(rssFeed.channels);
-          return;
-        }
-
-        const latest = await getSubscriptionRotationFeed();
-        if (active) {
-          setVideos(latest);
-          setRssChannels(rssFeed.channels);
+        // No channel yielded RSS videos — fall back to the rotation feed.
+        if (!sawVideos) {
+          const latest = await getSubscriptionRotationFeed();
+          if (active) setVideos(latest);
         }
       } catch (err) {
         console.error('Failed to load subscription feed', err);
+        if (active) setScanProgress(null);
+        if (sawVideos) return;
         try {
           const latest = await getSubscriptionRotationFeed();
           if (active) {
@@ -77,30 +180,46 @@ export function useSubscriptionFeed(channels: SubscribedChannel[]) {
     };
   }, [channelIds]);
 
-  return { videos, rssChannels, loading, error };
+  return { videos, rssChannels, loading, error, scanProgress };
+}
+
+const channelDetailsCache = new Map<string, ChannelDetails>();
+
+function needsDetails(channel: SubscribedChannel): boolean {
+  return !channel.avatarUrl || !channel.subscriberCountText;
 }
 
 export function useSubscriptionChannelDetails(channels: SubscribedChannel[]) {
   const [detailsById, setDetailsById] = useState<Record<string, ChannelDetails>>({});
 
-  const channelIds = useMemo(
-    () => channels.map((channel) => channel.id).sort().join('|'),
+  const idsToFetch = useMemo(
+    () =>
+      channels
+        .filter((channel) => needsDetails(channel) && !channelDetailsCache.has(channel.id))
+        .map((channel) => channel.id),
     [channels],
   );
+  const fetchKey = useMemo(() => [...idsToFetch].sort().join('|'), [idsToFetch]);
 
   useEffect(() => {
-    if (!channelIds) {
-      setDetailsById({});
-      return;
+    if (channelDetailsCache.size > 0) {
+      setDetailsById((prev) => {
+        const next = { ...prev };
+        for (const [id, details] of channelDetailsCache) next[id] = details;
+        return next;
+      });
     }
 
+    const ids = fetchKey.split('|').filter(Boolean);
+    if (ids.length === 0) return;
+
     let active = true;
-    const ids = channelIds.split('|').filter(Boolean);
 
     const loadDetails = async () => {
       const entries = await mapWithConcurrency(ids, 6, async (channelId) => {
         try {
           const details = await getChannelDetails(channelId);
+          channelDetailsCache.set(channelId, details);
           return [channelId, details] as const;
         } catch (err) {
           console.warn('Failed to load subscription channel details', channelId, err);
@@ -110,14 +229,13 @@ export function useSubscriptionChannelDetails(channels: SubscribedChannel[]) {
 
       if (!active) return;
 
-      setDetailsById(
-        entries.reduce<Record<string, ChannelDetails>>((acc, entry) => {
-          if (entry) {
-            acc[entry[0]] = entry[1];
-          }
-          return acc;
-        }, {}),
-      );
+      setDetailsById((prev) => {
+        const next = { ...prev };
+        for (const entry of entries) {
+          if (entry) next[entry[0]] = entry[1];
+        }
+        return next;
+      });
     };
 
     loadDetails();
@@ -125,7 +243,7 @@ export function useSubscriptionChannelDetails(channels: SubscribedChannel[]) {
     return () => {
       active = false;
     };
-  }, [channelIds]);
+  }, [fetchKey]);
 
   return detailsById;
 }
