@@ -14,6 +14,7 @@ import { WATCH_LATER_PLAYLIST_ID } from "./lib/playlistLibrary";
 import type { VideoSummary } from "./types/video";
 
 import { PageWrapper } from "./components/layout/PageWrapper";
+import { TitleBar } from "./components/layout/TitleBar";
 
 import Home from "./pages/Home";
 import MusicHome from "./pages/music/MusicHome";
@@ -103,14 +104,19 @@ function App() {
 
   if (loadingOnboarding) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center font-sans">
-        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+      <div className="relative flex h-screen flex-col overflow-hidden bg-background text-zinc-100 font-sans">
+        <TitleBar />
+        <div className="flex flex-1 items-center justify-center">
+          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="relative h-screen overflow-hidden bg-background text-zinc-100 font-sans">
+    <div className="relative flex h-screen flex-col overflow-hidden bg-background text-zinc-100 font-sans">
+      <TitleBar />
+      <div className="relative min-h-0 flex-1">
       <Routes>
         <Route path="/onboarding" element={<Onboarding />} />
         
@@ -207,6 +213,7 @@ function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>
+      </div>
       <GlobalVideoPlayer />
       <GlobalMusicAudio />
       <LayoutGroup>

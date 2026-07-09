@@ -23,7 +23,7 @@ export function PageWrapper() {
   }, [location.pathname, location.search]);
 
   return (
-    <div className="flex h-screen flex-col bg-background text-zinc-100 overflow-hidden font-sans">
+    <div className="flex h-full flex-col bg-background text-zinc-100 overflow-hidden font-sans">
       <Topbar />
       <div className="flex flex-1 overflow-hidden">
         <Sidebar />
@@ -41,7 +41,7 @@ export function PageWrapper() {
         </main>
       </div>
       {(isWatchPage || isSettingsPage) && isWatchSidebarOpen && (
-        <div className="fixed inset-x-0 bottom-0 top-14 z-50 flex">
+        <div className="fixed inset-x-0 bottom-0 top-22 z-50 flex">
           <button
             type="button"
             aria-label="Close sidebar"

@@ -17,6 +17,7 @@ import { ShortsShelf } from "../components/shelf/ShortsShelf";
 import { PlaylistShelf } from "../components/shelf/PlaylistShelf";
 import { PostShelf } from "../components/shelf/PostShelf";
 import { getWatchHistory } from "../lib/api/db";
+import { usePublishTitle } from "../lib/usePublishTitle";
 
 interface ChannelProps {
   onPlay: (video: VideoSummary) => void;
@@ -158,6 +159,7 @@ export const Channel: React.FC<ChannelProps> = ({ onPlay, onAddToQueue }) => {
   const { channelId } = useParams<{ channelId: string }>();
   
   const [channelInfo, setChannelInfo] = useState<ChannelDetails | null>(null);
+  usePublishTitle(channelInfo?.name);
   const [activeTab, setActiveTab] = useState<TabId>("home");
   
   const [items, setItems] = useState<ChannelItem[]>([]);

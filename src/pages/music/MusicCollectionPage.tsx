@@ -6,6 +6,7 @@ import { Button } from '../../components/ui/Button';
 import { AlbumTrackRow } from '../../components/music/AlbumTrackRow';
 import { MusicCollectionHeader } from '../../components/music/MusicCollectionHeader';
 import { useMusicCollection, type CollectionKind } from '../../lib/useMusicCollection';
+import { usePublishTitle } from '../../lib/usePublishTitle';
 import { useCollectionDownloadState } from '../../lib/useCollectionDownloads';
 import { useCollectionDownloadStore } from '../../store/useCollectionDownloadStore';
 import { useMusicPlayerStore } from '../../store/useMusicPlayerStore';
@@ -69,6 +70,7 @@ export default function MusicCollectionPage({ kind }: { kind: CollectionKind }) 
 
   const { meta, songs, loading, loadingMore, error, hasMore, loadMore, reload, ownedAlbumId } =
     useMusicCollection(kind, id);
+  usePublishTitle(meta?.title);
 
   const startAlbumDownload = useCollectionDownloadStore((s) => s.startAlbum);
   const albumDownloadState = useCollectionDownloadState(kind === 'album' ? id : undefined, 'album');

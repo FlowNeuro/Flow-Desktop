@@ -9,6 +9,7 @@ import {
 } from "../lib/playlistSort";
 import { updateStoredPlaylistTracks } from "../lib/playlistLibrary";
 import { usePlaylistDetails } from "../lib/usePlaylistDetails";
+import { usePublishTitle } from "../lib/usePublishTitle";
 import { useCollectionDownloadState } from "../lib/useCollectionDownloads";
 import { usePlayerStore } from "../store/usePlayerStore";
 import { useCollectionDownloadStore } from "../store/useCollectionDownloadStore";
@@ -35,6 +36,7 @@ export function PlaylistDetailsPage({
     meta,
     videos,
   } = usePlaylistDetails(playlistId);
+  usePublishTitle(meta?.title);
 
   const [sortType, setSortType] = useState<PlaylistSortType>("Manual");
   const [manualVideos, setManualVideos] = useState<VideoSummary[]>([]);

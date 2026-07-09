@@ -8,6 +8,7 @@ import { ArtistSkeleton } from '../../components/music/ArtistSkeleton';
 import { MusicItemCard } from '../../components/music/MusicItemCard';
 import { MusicShelf } from '../../components/music/MusicShelf';
 import { useArtistPage, type ArtistMoreEndpoint } from '../../lib/useArtistPage';
+import { usePublishTitle } from '../../lib/usePublishTitle';
 import { useMusicPlayerStore } from '../../store/useMusicPlayerStore';
 import { getString } from '../../lib/i18n/index';
 import { upgradeAvatarUrl } from '../../lib/thumbnails';
@@ -220,6 +221,7 @@ export default function ArtistPage() {
   const currentTrack = useMusicPlayerStore((state) => state.currentTrack);
   const isPlaying = useMusicPlayerStore((state) => state.isPlaying);
   const { data, loading, error, reload } = useArtistPage(artistId);
+  usePublishTitle(data?.header?.title);
 
   const [following, setFollowing] = useState(false);
   const [aboutExpanded, setAboutExpanded] = useState(false);

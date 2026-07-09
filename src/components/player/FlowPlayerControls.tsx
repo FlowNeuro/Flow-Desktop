@@ -440,7 +440,7 @@ export const FlowPlayerControls: React.FC<FlowPlayerControlsProps> = ({
 
           <div
             data-progress-track
-            className="relative h-5 cursor-pointer py-2 group/seekbar"
+            className="group/seekbar relative flex h-6 cursor-pointer items-center"
             onMouseMove={handleProgressMove}
             onMouseLeave={() => setHoverTime(null)}
             onMouseDown={(event) => {
@@ -450,58 +450,60 @@ export const FlowPlayerControls: React.FC<FlowPlayerControlsProps> = ({
             onMouseUp={() => setIsScrubbing(false)}
             onClick={(event) => handlePointerSeek(event.clientX)}
           >
-            {/* Split Chapter Seekbar Track */}
-            <div className="relative h-1 w-full flex items-center gap-[3px] select-none pointer-events-none rounded-full">
+            {/* Split Chapter Seekbar Track — the whole track springs taller on hover/scrub, mirroring the mobile seekbar. */}
+            <div className="relative flex h-full w-full select-none items-center gap-[3px] pointer-events-none">
               {segments.map((segment, idx) => {
                 const segmentDuration = segment.endSeconds - segment.startSeconds;
                 return (
                   <div
                     key={`seekbar-segment-${idx}`}
-                    className="relative h-1 bg-white/20 rounded-[1px] transition-all duration-200 ease-out origin-center overflow-hidden flex-1 group-hover/seekbar:h-1.5 hover:!scale-y-[1.8] hover:!scale-x-[1.03] hover:z-30 pointer-events-auto"
+                    className="group/seg pointer-events-auto relative flex h-full flex-1 items-center"
                     style={{
                       flexGrow: Math.max(0.1, segmentDuration),
                     }}
                   >
-                    {/* Buffered Fill for this Segment */}
-                    <div
-                      className="chapter-buffered-fill absolute inset-y-0 left-0 bg-white/30 rounded-[1px] pointer-events-none transition-all duration-150"
-                      data-start={segment.startSeconds}
-                      data-end={segment.endSeconds}
-                      style={{ width: "0%" }}
-                    />
-                    
-                    {/* SponsorBlock segments mapped to this segment */}
-                    {sponsorBlockEnabled && sponsorBlockSegments.map((sbSeg) => {
-                      const sStart = sbSeg.segment[0];
-                      const sEnd = sbSeg.segment[1];
-                      const overlapStart = Math.max(segment.startSeconds, sStart);
-                      const overlapEnd = Math.min(segment.endSeconds, sEnd);
-                      if (overlapStart < overlapEnd) {
-                        const leftPct = ((overlapStart - segment.startSeconds) / (segment.endSeconds - segment.startSeconds)) * 100;
-                        const widthPct = ((overlapEnd - overlapStart) / (segment.endSeconds - segment.startSeconds)) * 100;
-                        const segmentColor = sponsorBlockColors[sbSeg.category as SponsorBlockCategory] || "#ef4444";
-                        return (
-                          <div
-                            key={sbSeg.UUID}
-                            className="absolute inset-y-0 pointer-events-none"
-                            style={{ 
-                              left: `${leftPct}%`, 
-                              width: `${widthPct}%`,
-                              backgroundColor: segmentColor
-                            }}
-                          />
-                        );
-                      }
-                      return null;
-                    })}
+                    <div className="relative h-[5px] w-full overflow-hidden rounded-full bg-white/25 transition-[height] duration-200 ease-[cubic-bezier(0.34,1.56,0.64,1)] group-hover/seg:h-[10px]">
+                      {/* Buffered Fill for this Segment */}
+                      <div
+                        className="chapter-buffered-fill absolute inset-y-0 left-0 rounded-full bg-white/40 pointer-events-none transition-[width] duration-150"
+                        data-start={segment.startSeconds}
+                        data-end={segment.endSeconds}
+                        style={{ width: "0%" }}
+                      />
 
-                    {/* Playback Progress Fill for this Segment */}
-                    <div
-                      className="chapter-progress-fill absolute inset-y-0 left-0 bg-primary rounded-[1px] pointer-events-none"
-                      data-start={segment.startSeconds}
-                      data-end={segment.endSeconds}
-                      style={{ width: "0%" }}
-                    />
+                      {/* Playback Progress Fill for this Segment */}
+                      <div
+                        className="chapter-progress-fill absolute inset-y-0 left-0 rounded-full bg-primary pointer-events-none"
+                        data-start={segment.startSeconds}
+                        data-end={segment.endSeconds}
+                        style={{ width: "0%" }}
+                      />
+
+                      {/* SponsorBlock segments drawn above the progress fill so they stay visible after playback passes them. */}
+                      {sponsorBlockEnabled && sponsorBlockSegments.map((sbSeg) => {
+                        const sStart = sbSeg.segment[0];
+                        const sEnd = sbSeg.segment[1];
+                        const overlapStart = Math.max(segment.startSeconds, sStart);
+                        const overlapEnd = Math.min(segment.endSeconds, sEnd);
+                        if (overlapStart < overlapEnd) {
+                          const leftPct = ((overlapStart - segment.startSeconds) / (segment.endSeconds - segment.startSeconds)) * 100;
+                          const widthPct = ((overlapEnd - overlapStart) / (segment.endSeconds - segment.startSeconds)) * 100;
+                          const segmentColor = sponsorBlockColors[sbSeg.category as SponsorBlockCategory] || "#ef4444";
+                          return (
+                            <div
+                              key={sbSeg.UUID}
+                              className="absolute inset-y-0 pointer-events-none opacity-80"
+                              style={{
+                                left: `${leftPct}%`,
+                                width: `${widthPct}%`,
+                                backgroundColor: segmentColor
+                              }}
+                            />
+                          );
+                        }
+                        return null;
+                      })}
+                    </div>
                   </div>
                 );
               })}
@@ -514,11 +516,19 @@ export const FlowPlayerControls: React.FC<FlowPlayerControlsProps> = ({
               style={{ width: `${progressPct}%` }}
             />
 
+            {/* Playhead thumb — hidden until hover/scrub, then springs in: white knob + primary ring + soft state layer, like the mobile thumb. */}
             <div
               ref={playheadRef}
-              className="absolute top-[3px] h-3.5 w-3.5 -translate-x-1/2 rounded-full bg-primary opacity-0 shadow-lg shadow-black/55 transition-opacity group-hover/seekbar:opacity-100 z-40 pointer-events-none"
+              className={cx(
+                "absolute top-1/2 z-40 -translate-x-1/2 -translate-y-1/2 pointer-events-none",
+                "transition-transform duration-200 ease-[cubic-bezier(0.34,1.56,0.64,1)]",
+                isScrubbing ? "scale-100" : "scale-0 group-hover/seekbar:scale-100"
+              )}
               style={{ left: `${progressPct}%` }}
-            />
+            >
+              <div className="absolute left-1/2 top-1/2 h-7 w-7 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/20" />
+              <div className="relative h-3.5 w-3.5 rounded-full border-[3px] border-primary bg-white shadow-md shadow-black/40" />
+            </div>
 
             {/* Hover Preview Tooltip */}
             {hoverTime !== null && duration > 0 && !isLive && (

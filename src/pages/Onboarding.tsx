@@ -56,7 +56,7 @@ export const Onboarding: React.FC = () => {
   const progressPercentage = ((currentStep + 1) / 3) * 100;
 
   return (
-    <div className="w-screen h-screen overflow-hidden flex flex-col bg-surface font-sans relative">
+    <div className="w-full h-full overflow-hidden flex flex-col bg-surface font-sans relative">
       {/* Absolute Top Progress Bar */}
       <div className="absolute top-0 left-0 right-0 h-[2px] bg-zinc-800/50 z-50">
         <div 
