@@ -54,7 +54,7 @@ whatlang = "0.18"
 
 # Local Sync (P2P) — payload cryptography (FLOW-SYNC/1).
 # AES-256-GCM payload encryption with HKDF-derived directional keys and an HMAC-SHA256 SAS.
-aes-gcm = "0.10"
+aes-gcm = "0.11"
 hkdf = "0.12"
 hmac = "0.12"
 sha2 = "0.10"
@@ -62,7 +62,7 @@ rand = "0.8"
 zeroize = { version = "1", features = ["derive"] }
 # Local Sync (P2P) — transport: plaintext WebSocket (payload is AES-GCM encrypted), gzip
 # compression (parity with Android java.util.zip), and LAN IP discovery for the QR.
-tokio-tungstenite = "0.24"
+tokio-tungstenite = "0.29"
 flate2 = "1"
 local-ip-address = "0.6"
 
@@ -72,7 +72,7 @@ local-ip-address = "0.6"
 [target.'cfg(windows)'.dependencies]
 tauri-winrt-notification = "0.7"
 windows-registry = "0.6"
-windows = { version = "0.61", features = ["Win32_UI_Shell"] }
+windows = { version = "0.62", features = ["Win32_UI_Shell"] }
 
 [profile.release]
 # Keep production binaries compact without sacrificing the normal release optimizer.
