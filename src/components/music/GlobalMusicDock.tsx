@@ -19,8 +19,10 @@ import {
 } from "lucide-react";
 
 import { useMusicPlayerStore } from "../../store/useMusicPlayerStore";
+import { useMusicPlayerError } from "../../lib/useMusicPlayerError";
 import { getString } from "../../lib/i18n/index";
 import { artistsText } from "../../lib/musicFormat";
+import { PlayerErrorState } from "../ui/PlayerErrorState";
 import { HapticButton } from "./HapticButton";
 import { MusicArtwork } from "./MusicArtwork";
 import { MusicScrubber } from "./MusicScrubber";
@@ -51,6 +53,8 @@ export function GlobalMusicDock() {
   const openOverlay = useMusicPlayerStore((s) => s.openOverlay);
   const dismiss = useMusicPlayerStore((s) => s.dismiss);
 
+  const { errorInfo, onRetry, onCopyLogs, onOpenInBrowser } = useMusicPlayerError();
+
   const [popover, setPopover] = useState<null | "eq" | "vol">(null);
 
   const loading = isBuffering || loadingStreamId !== null;
@@ -75,6 +79,19 @@ export function GlobalMusicDock() {
           >
             <X className="h-3.5 w-3.5" />
           </HapticButton>
+
+          {/* Playback failure — floats above the pill so transport stays usable. */}
+          {errorInfo && (
+            <div className="absolute inset-x-0 bottom-full mb-3">
+              <PlayerErrorState
+                variant="compact"
+                error={errorInfo}
+                onRetry={onRetry}
+                onCopyLogs={onCopyLogs}
+                onOpenInBrowser={onOpenInBrowser}
+              />
+            </div>
+          )}
 
           {/* The pill (clips the edge progress bar to the rounded corners). */}
           <div className="relative flex h-full items-center overflow-hidden rounded-2xl border border-chrome-neutral-800 bg-surface-container-high/95 px-4 shadow-2xl backdrop-blur-md">

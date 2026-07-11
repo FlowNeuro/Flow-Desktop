@@ -261,22 +261,57 @@ fn is_terminal_playability_status(status: &str) -> bool {
     )
 }
 
-fn map_playability_error(status: &str, reason: Option<&str>) -> AppError {
-    let reason_text = reason.unwrap_or("Unknown content availability error");
+/// Collects the human-readable reason from a playability status, combining the
+/// top-level `reason` with the `errorScreen` subreason — YouTube puts the
+/// specific detail there (e.g. "This video may be inappropriate for some users.")
+/// while `reason` stays terse ("Sign in to confirm your age").
+fn combined_playability_reason(playability: &Value) -> String {
+    let mut parts: Vec<String> = Vec::new();
+    if let Some(reason) = playability["reason"].as_str() {
+        if !reason.is_empty() {
+            parts.push(reason.to_string());
+        }
+    }
+    let subreason = &playability["errorScreen"]["playerErrorMessageRenderer"]["subreason"];
+    if let Some(text) = subreason["simpleText"].as_str() {
+        parts.push(text.to_string());
+    }
+    if let Some(runs) = subreason["runs"].as_array() {
+        for run in runs {
+            if let Some(text) = run["text"].as_str() {
+                parts.push(text.to_string());
+            }
+        }
+    }
+    if parts.is_empty() {
+        "Unknown content availability error".to_string()
+    } else {
+        parts.join(" — ")
+    }
+}
+
+fn map_playability_error(playability: &Value) -> AppError {
+    let status = playability["status"].as_str().unwrap_or("UNKNOWN");
+    let reason_text = combined_playability_reason(playability);
     let normalized_reason = reason_text.to_ascii_lowercase();
 
-    if status.eq_ignore_ascii_case("login_required") {
-        if normalized_reason.contains("inappropriate for some users") {
-            return AppError::AgeRestricted(
-                "This age-restricted video cannot be watched anonymously".into(),
-            );
-        }
+    if normalized_reason.contains("inappropriate for some users")
+        || normalized_reason.contains("confirm your age")
+        || normalized_reason.contains("verify your age")
+        || normalized_reason.contains("age-restricted")
+        || normalized_reason.contains("age restricted")
+    {
+        return AppError::AgeRestricted(
+            "This age-restricted video cannot be watched anonymously".into(),
+        );
+    }
 
+    if status.eq_ignore_ascii_case("login_required") {
         if normalized_reason.contains("private") {
             return AppError::PrivateContent("This video is private".into());
         }
 
-        if normalized_reason.contains("a bot") {
+        if normalized_reason.contains("bot") {
             return AppError::BotCheckRequired(format!(
                 "YouTube blocked anonymous watch access: {}: \"{}\"",
                 status, reason_text
@@ -306,11 +341,24 @@ fn map_playability_error(status: &str, reason: Option<&str>) -> AppError {
         }
 
         if normalized_reason.contains("closed") || normalized_reason.contains("terminated") {
-            return AppError::AccountTerminated(reason_text.to_string());
+            return AppError::AccountTerminated(reason_text.clone());
         }
     }
 
     AppError::ContentNotAvailable(format!("Got error {}: \"{}\"", status, reason_text))
+}
+
+fn is_definitive_restriction(error: &AppError) -> bool {
+    matches!(
+        error,
+        AppError::AgeRestricted(_)
+            | AppError::PrivateContent(_)
+            | AppError::PaidContent(_)
+            | AppError::GeographicRestriction(_)
+            | AppError::MusicPremium(_)
+            | AppError::AccountTerminated(_)
+            | AppError::BotCheckRequired(_)
+    )
 }
 
 fn check_playability_status(playability_status: &Value) -> AppResult<()> {
@@ -322,10 +370,7 @@ fn check_playability_status(playability_status: &Value) -> AppResult<()> {
         return Ok(());
     }
 
-    Err(map_playability_error(
-        status,
-        playability_status["reason"].as_str(),
-    ))
+    Err(map_playability_error(playability_status))
 }
 
 fn validate_stream_url(stream_url: &str, video_id: &str) -> AppResult<String> {
@@ -1088,10 +1133,7 @@ impl InnertubeClient {
                             }
                         }
                         if !recovered_with_android {
-                            return Err(map_playability_error(
-                                status,
-                                val["playabilityStatus"]["reason"].as_str(),
-                            ));
+                            return Err(map_playability_error(&val["playabilityStatus"]));
                         }
                     }
                     if !recovered_with_android {
@@ -1388,6 +1430,7 @@ impl InnertubeClient {
         let mut po_token_used: Option<String> = None;
         let mut recovered_with_android = false;
         let mut android_recovery = None;
+        let mut deferred_restriction: Option<AppError> = None;
 
         if let Ok(ref val) = res {
             if check_needs_reload(val) {
@@ -1426,14 +1469,15 @@ impl InnertubeClient {
                             }
                         }
                         if !recovered_with_android {
-                            return Err(map_playability_error(
-                                status,
-                                val["playabilityStatus"]["reason"].as_str(),
-                            ));
+                            return Err(map_playability_error(&val["playabilityStatus"]));
                         }
                     }
                     if !recovered_with_android {
                         warn!(status = %status, video_id = %video_id_trimmed, "ANDROID_VR returned a non-OK playability status, falling back to IOS");
+                        let mapped = map_playability_error(&val["playabilityStatus"]);
+                        if is_definitive_restriction(&mapped) {
+                            deferred_restriction.get_or_insert(mapped);
+                        }
                         should_fallback_to_ios = true;
                     }
                 }
@@ -1545,6 +1589,9 @@ impl InnertubeClient {
 
         let streaming_data = &res["streamingData"];
         if streaming_data.is_null() {
+            if let Some(restriction) = deferred_restriction.take() {
+                return Err(restriction);
+            }
             return Err(AppError::Extractor(format!(
                 "No streaming data found. Playability: {} (Status: {})",
                 playability["reason"]
@@ -1637,6 +1684,8 @@ impl InnertubeClient {
                     || has_sabr_url
                 {
                     String::new()
+                } else if let Some(restriction) = deferred_restriction.take() {
+                    return Err(restriction);
                 } else {
                     return Err(last_stream_error.unwrap_or_else(|| {
                         AppError::Extractor("No playable stream URLs found for this video".into())
@@ -2187,5 +2236,109 @@ mod sabr_client_probe {
             println!();
             engine.cancel();
         }
+    }
+}
+
+#[cfg(test)]
+mod playability_classification {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn age_gate_reason_is_age_restricted() {
+        // The WEB/ANDROID clients report age gating via a terse `reason`.
+        let playability = json!({
+            "status": "LOGIN_REQUIRED",
+            "reason": "Sign in to confirm your age",
+        });
+        assert!(matches!(
+            map_playability_error(&playability),
+            AppError::AgeRestricted(_)
+        ));
+    }
+
+    #[test]
+    fn age_gate_subreason_is_age_restricted() {
+        // Some responses keep `reason` generic and put the detail in the
+        // errorScreen subreason — the classifier must read both.
+        let playability = json!({
+            "status": "LOGIN_REQUIRED",
+            "reason": "Sign in to confirm you’re not a bot",
+            "errorScreen": {
+                "playerErrorMessageRenderer": {
+                    "subreason": {
+                        "runs": [
+                            { "text": "This video may be inappropriate for some users." }
+                        ]
+                    }
+                }
+            }
+        });
+        assert!(matches!(
+            map_playability_error(&playability),
+            AppError::AgeRestricted(_)
+        ));
+    }
+
+    #[test]
+    fn private_video_is_private_content() {
+        let playability = json!({
+            "status": "LOGIN_REQUIRED",
+            "reason": "This video is private.",
+        });
+        assert!(matches!(
+            map_playability_error(&playability),
+            AppError::PrivateContent(_)
+        ));
+    }
+
+    #[test]
+    fn bot_wall_is_bot_check_required() {
+        let playability = json!({
+            "status": "LOGIN_REQUIRED",
+            "reason": "Sign in to confirm you’re not a bot",
+        });
+        assert!(matches!(
+            map_playability_error(&playability),
+            AppError::BotCheckRequired(_)
+        ));
+    }
+
+    #[test]
+    fn music_premium_is_classified() {
+        let playability = json!({
+            "status": "UNPLAYABLE",
+            "reason": "This video is only available to Music Premium members",
+        });
+        assert!(matches!(
+            map_playability_error(&playability),
+            AppError::MusicPremium(_)
+        ));
+    }
+
+    #[test]
+    fn unknown_reason_falls_back_to_content_not_available() {
+        let playability = json!({
+            "status": "UNPLAYABLE",
+            "reason": "Video unavailable",
+        });
+        assert!(matches!(
+            map_playability_error(&playability),
+            AppError::ContentNotAvailable(_)
+        ));
+    }
+
+    #[test]
+    fn restrictions_are_definitive_but_extraction_is_not() {
+        assert!(is_definitive_restriction(&AppError::AgeRestricted(
+            "x".into()
+        )));
+        assert!(is_definitive_restriction(&AppError::GeographicRestriction(
+            "x".into()
+        )));
+        assert!(!is_definitive_restriction(&AppError::ContentNotAvailable(
+            "x".into()
+        )));
+        assert!(!is_definitive_restriction(&AppError::Extractor("x".into())));
     }
 }

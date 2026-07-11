@@ -22,6 +22,8 @@ import {
 } from "lucide-react";
 
 import { useMusicPlayerStore } from "../../store/useMusicPlayerStore";
+import { useMusicPlayerError } from "../../lib/useMusicPlayerError";
+import { PlayerErrorState } from "../ui/PlayerErrorState";
 import { useLikesStore } from "../../store/useLikesStore";
 import { useUiStore } from "../../store/useUiStore";
 import { useAlbumLibraryStore } from "../../store/useAlbumLibraryStore";
@@ -101,6 +103,7 @@ export function MusicOverlay() {
   const openAddToAlbum = useAlbumLibraryStore((s) => s.openAddToAlbum);
   const menu = useMusicContextMenu(Boolean(currentTrack));
 
+  const musicError = useMusicPlayerError();
   const [eqOpen, setEqOpen] = useState(false);
   const lyrics = useLyrics(currentTrack);
   const accent = useDominantColor(currentTrack?.thumbnail ?? null);
@@ -231,6 +234,21 @@ export function MusicOverlay() {
               </div>
             </div>
           </div>
+
+          {/* Playback failure banner — floats below the top bar across all sub-views. */}
+          {musicError.errorInfo && (
+            <div className="pointer-events-none absolute left-1/2 top-20 z-30 w-full max-w-xl -translate-x-1/2 px-6">
+              <div className="pointer-events-auto">
+                <PlayerErrorState
+                  variant="compact"
+                  error={musicError.errorInfo}
+                  onRetry={musicError.onRetry}
+                  onCopyLogs={musicError.onCopyLogs}
+                  onOpenInBrowser={musicError.onOpenInBrowser}
+                />
+              </div>
+            </div>
+          )}
 
           {/* MAIN */}
           {isLyrics ? (

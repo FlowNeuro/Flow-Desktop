@@ -2,6 +2,9 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import * as dashjs from "dashjs";
 import Hls from "hls.js";
 import { Loader2, RotateCcw } from "lucide-react";
+import { PlayerErrorState } from "../ui/PlayerErrorState";
+import type { PlayerErrorInfo } from "../../lib/playerError";
+import { getString } from "../../lib/i18n/index";
 import { usePlayerStore } from "../../store/usePlayerStore";
 import { useSettingsStore, type SponsorBlockCategory, type SponsorBlockAction } from "../../store/useSettingsStore";
 import type { AudioTrack, CaptionTrack, StreamVariant, VideoChapter } from "../../types/video";
@@ -28,6 +31,7 @@ type PlayerProps = {
   poster?: string | null;
   isLoading?: boolean;
   error?: string | null;
+  errorInfo?: PlayerErrorInfo | null;
   qualities?: StreamVariant[];
   captions?: CaptionTrack[];
   audioTracks?: AudioTrack[];
@@ -37,6 +41,8 @@ type PlayerProps = {
   onEnded?: () => void;
   onTimeUpdate?: (currentTime: number, duration: number) => void;
   onRetry?: () => void;
+  onCopyLogs?: () => Promise<boolean> | boolean | void;
+  onOpenInBrowser?: () => void;
   onRetrySource?: (reason: string) => void;
   sourceMode?: string;
   className?: string;
@@ -234,6 +240,7 @@ export const Player: React.FC<PlayerProps> = ({
   poster,
   isLoading = false,
   error,
+  errorInfo,
   qualities = [],
   captions = [],
   audioTracks = [],
@@ -243,6 +250,8 @@ export const Player: React.FC<PlayerProps> = ({
   onEnded,
   onTimeUpdate,
   onRetry,
+  onCopyLogs,
+  onOpenInBrowser,
   onRetrySource,
   sourceMode,
   className,
@@ -2001,16 +2010,23 @@ export const Player: React.FC<PlayerProps> = ({
         shouldShowControls={shouldShowControls}
       />
 
-      {(isLoading || error) && (
+      {(isLoading || error || errorInfo) && (
         <div className="absolute inset-0 z-30 grid place-items-center bg-chrome-black/60 px-6 text-center">
           {isLoading ? (
             <div className="flex flex-col items-center gap-3 text-sm font-semibold text-chrome-zinc-200">
               <Loader2 className="animate-spin text-primary" size={34} />
-              Resolving stream
+              {getString("player_resolving_stream")}
             </div>
+          ) : errorInfo ? (
+            <PlayerErrorState
+              error={errorInfo}
+              onRetry={onRetry}
+              onCopyLogs={onCopyLogs}
+              onOpenInBrowser={onOpenInBrowser}
+            />
           ) : (
             <div className="max-w-md space-y-4">
-              <div className="text-base font-bold">Playback unavailable</div>
+              <div className="text-base font-bold">{getString("player_error_generic_title")}</div>
               <p className="text-sm text-chrome-zinc-300">{error}</p>
               {onRetry && (
                 <button
@@ -2019,7 +2035,7 @@ export const Player: React.FC<PlayerProps> = ({
                   className="inline-flex h-10 items-center gap-2 rounded-full bg-chrome-white px-4 text-sm font-bold text-chrome-black transition-transform active:scale-95"
                 >
                   <RotateCcw size={16} />
-                  Retry
+                  {getString("player_error_retry")}
                 </button>
               )}
             </div>

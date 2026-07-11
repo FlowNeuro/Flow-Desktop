@@ -11,7 +11,8 @@ import {
 import { getOfflineStream } from "../lib/api/downloads";
 import { findDownloadedRecord } from "../lib/useDownloads";
 import { useDownloadsLibraryStore } from "./useDownloadsLibraryStore";
-import { getBackendErrorMessage } from "../lib/api/errors";
+import { normalizeBackendError } from "../lib/api/errors";
+import { recordPlayerEvent } from "../lib/playerDiagnostics";
 import { musicAudioEngine } from "../lib/audio/musicAudioEngine";
 import { SETTINGS } from "../lib/settings/schema";
 import {
@@ -173,6 +174,7 @@ interface MusicPlayerState {
   // --- stream resolution ---
   loadingStreamId: string | null;
   streamError: string | null;
+  streamErrorKind: string | null;
 
   // --- intents (called by UI) ---
   playTrack: (track: SongItem) => Promise<void>;
@@ -184,6 +186,8 @@ interface MusicPlayerState {
   previous: () => void;
   seek: (seconds: number) => void;
   dismiss: () => void;
+  retryCurrentTrack: () => void;
+  clearStreamError: () => void;
 
   setVolume: (volume: number) => void;
   toggleMute: () => void;
@@ -248,6 +252,7 @@ export const useMusicPlayerStore = create<MusicPlayerState>((set, get) => ({
 
   loadingStreamId: null,
   streamError: null,
+  streamErrorKind: null,
 
   // --- intents ----------------------------------------------------------
 
@@ -336,8 +341,10 @@ export const useMusicPlayerStore = create<MusicPlayerState>((set, get) => ({
       isPlaying: true,
       isBuffering: true,
       streamError: null,
+      streamErrorKind: null,
       loadingStreamId: videoId,
     });
+    recordPlayerEvent(`music resolve start: ${videoId}`);
 
     // Prefetch the radio station ahead of time so the queue never dead-ends.
     void get()._ensureRadio();
@@ -371,8 +378,11 @@ export const useMusicPlayerStore = create<MusicPlayerState>((set, get) => ({
       await musicAudioEngine.play();
     } catch (e) {
       if (get().loadingStreamId !== videoId) return;
+      const normalized = normalizeBackendError(e);
+      recordPlayerEvent(`music resolve failed: ${normalized.kind} (${normalized.message})`);
       set({
-        streamError: getBackendErrorMessage(e),
+        streamError: normalized.message,
+        streamErrorKind: normalized.kind,
         loadingStreamId: null,
         isPlaying: false,
         isBuffering: false,
@@ -413,9 +423,20 @@ export const useMusicPlayerStore = create<MusicPlayerState>((set, get) => ({
       loudnessDb: null,
       loadingStreamId: null,
       streamError: null,
+      streamErrorKind: null,
       viewState: "dock",
     });
   },
+
+  retryCurrentTrack: () => {
+    const { currentIndex } = get();
+    if (currentIndex < 0) return;
+    set({ streamError: null, streamErrorKind: null });
+    recordPlayerEvent(`music retry: index ${currentIndex}`);
+    void get()._loadIndex(currentIndex);
+  },
+
+  clearStreamError: () => set({ streamError: null, streamErrorKind: null }),
 
   next: () => {
     const { queue, currentIndex, isShuffle, repeatMode } = get();
@@ -643,6 +664,7 @@ export const useMusicPlayerStore = create<MusicPlayerState>((set, get) => ({
 
   _onPlaybackError: () => {
     if (get().loadingStreamId !== null) return;
-    set({ isPlaying: false, streamError: PLAYBACK_ERROR_FALLBACK });
+    recordPlayerEvent("music playback error (media element)");
+    set({ isPlaying: false, streamError: PLAYBACK_ERROR_FALLBACK, streamErrorKind: "streaming" });
   },
 }));

@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { usePlayerStore } from "../../store/usePlayerStore";
+import { useUiStore } from "../../store/useUiStore";
 import Player from "../player/Player";
 import {
   useVideoStream,
@@ -13,6 +14,10 @@ import { SETTINGS } from "../../lib/settings/schema";
 import { useAppSettingsStore } from "../../store/useAppSettingsStore";
 import { shouldRecordWatchHistory } from "../../lib/deepFlow";
 import { seekToTime } from "../../lib/linkify";
+import { classifyPlayerError } from "../../lib/playerError";
+import { copyPlayerReport } from "../../lib/playerDiagnostics";
+import { openExternal } from "../../lib/openExternal";
+import { getString } from "../../lib/i18n/index";
 import type { FlowPlayerCoreProps } from "./types";
 
 /**
@@ -31,6 +36,7 @@ export function FlowPlayerCore({ videoId, videoDetails, onEnded }: FlowPlayerCor
   const playNext = usePlayerStore((s) => s.playNext);
   const repeatMode = usePlayerStore((s) => s.repeatMode);
   const autoplayEnabled = useAppSettingsStore((s) => s.values[SETTINGS.AUTOPLAY_ENABLED] !== "false");
+  const showToast = useUiStore((s) => s.showToast);
 
   const stream = useVideoStream(videoId);
 
@@ -170,6 +176,43 @@ export function FlowPlayerCore({ videoId, videoDetails, onEnded }: FlowPlayerCor
   const poster =
     dearrowData?.thumbnailUrl || currentVideo?.thumbnailUrl || videoDetails?.thumbnailUrl;
 
+  const errorInfo = useMemo(
+    () =>
+      stream.streamError
+        ? classifyPlayerError({
+            message: stream.streamError,
+            kind: stream.streamErrorKind ?? "unknown",
+          })
+        : null,
+    [stream.streamError, stream.streamErrorKind],
+  );
+
+  const watchUrl = videoId ? `https://www.youtube.com/watch?v=${videoId}` : null;
+
+  const handleCopyLogs = useCallback(async () => {
+    if (!errorInfo) return false;
+    const copied = await copyPlayerReport({
+      surface: "video",
+      error: errorInfo,
+      videoId,
+      title,
+      watchUrl,
+      details: {
+        sourceMode: stream.sourceMode,
+        selectedQualityId: stream.selectedQualityId,
+        isLive: stream.isLive,
+      },
+    });
+    if (!copied) {
+      showToast({ variant: "error", message: getString("player_error_logs_copy_failed") });
+    }
+    return copied;
+  }, [errorInfo, videoId, title, watchUrl, stream.sourceMode, stream.selectedQualityId, stream.isLive, showToast]);
+
+  const handleOpenInBrowser = useCallback(() => {
+    if (watchUrl) void openExternal(watchUrl);
+  }, [watchUrl]);
+
   return (
     <Player
       src={stream.streamUrl}
@@ -177,6 +220,9 @@ export function FlowPlayerCore({ videoId, videoDetails, onEnded }: FlowPlayerCor
       poster={poster}
       isLoading={stream.loadingStream}
       error={stream.streamError}
+      errorInfo={errorInfo}
+      onCopyLogs={handleCopyLogs}
+      onOpenInBrowser={handleOpenInBrowser}
       qualities={stream.streamVariants}
       captions={stream.captions}
       audioTracks={stream.audioTracks}

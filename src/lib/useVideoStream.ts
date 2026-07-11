@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePlayerStore } from "../store/usePlayerStore";
-import { getStreamInfo, getYoutubeErrorMessage } from "./api/youtube";
+import { getStreamInfo } from "./api/youtube";
+import { classifyPlayerError } from "./playerError";
+import { recordPlayerEvent } from "./playerDiagnostics";
 import { getOfflineStream } from "./api/downloads";
 import { findDownloadedRecord } from "./useDownloads";
 import { useDownloadsLibraryStore } from "../store/useDownloadsLibraryStore";
@@ -141,6 +143,7 @@ export interface VideoStream {
   resumeTime: number;
   loadingStream: boolean;
   streamError: string | null;
+  streamErrorKind: string | null;
   setResumeTime: (time: number) => void;
   onSelectQuality: (variant: StreamVariant | "auto") => void;
   onRetrySource: (reason: string) => void;
@@ -171,6 +174,7 @@ export function useVideoStream(videoId: string | undefined): VideoStream {
   const [resumeTime, setResumeTime] = useState(0);
   const [loadingStream, setLoadingStream] = useState(false);
   const [streamError, setStreamError] = useState<string | null>(null);
+  const [streamErrorKind, setStreamErrorKind] = useState<string | null>(null);
 
   const streamInfoRef = useRef<StreamInfo | null>(null);
   const attemptedModesRef = useRef<Set<SourceMode>>(new Set());
@@ -189,6 +193,8 @@ export function useVideoStream(videoId: string | undefined): VideoStream {
     const loadStream = async () => {
       setLoadingStream(true);
       setStreamError(null);
+      setStreamErrorKind(null);
+      recordPlayerEvent(`video resolve start: ${currentVideo.id}`);
       setStreamUrl(null);
       setDashManifestUrl(null);
       setHlsManifestUrl(null);
@@ -305,7 +311,10 @@ export function useVideoStream(videoId: string | undefined): VideoStream {
         setHlsManifestUrl(null);
         setIsLive(false);
         setSelectedQualityId("auto");
-        setStreamError(getYoutubeErrorMessage(err));
+        const info = classifyPlayerError(err);
+        setStreamError(info.rawMessage);
+        setStreamErrorKind(info.kind);
+        recordPlayerEvent(`video resolve failed: ${info.kind} (${info.rawMessage})`);
         console.error("Failed to load stream URL", err);
       } finally {
         setLoadingStream(false);
@@ -356,10 +365,13 @@ export function useVideoStream(videoId: string | undefined): VideoStream {
       attemptedModesRef.current.add(sourceMode);
       const next = available.find((mode) => !attemptedModesRef.current.has(mode));
       console.warn("[Watch] source-mode fallback", { reason, from: sourceMode, next, available });
+      recordPlayerEvent(`video source fallback: ${reason} from=${sourceMode} next=${next ?? "none"}`);
 
       if (!next) {
         if (!reason.startsWith("buffering-stall")) {
           setStreamError("Playback failed on all available sources for this video.");
+          setStreamErrorKind("streaming");
+          recordPlayerEvent("video playback failed: all sources exhausted");
         } else {
           console.warn("[Watch] stall on last available source; continuing to buffer", { reason });
         }
@@ -397,6 +409,9 @@ export function useVideoStream(videoId: string | undefined): VideoStream {
     publishCaptions([]);
     setAudioTracks([]);
     setSelectedQualityId("auto");
+    setStreamError(null);
+    setStreamErrorKind(null);
+    recordPlayerEvent(`video hard retry: ${currentVideo.id}`);
     void getStreamInfo(currentVideo.id)
       .then((info) => {
         streamInfoRef.current = info;
@@ -415,6 +430,7 @@ export function useVideoStream(videoId: string | undefined): VideoStream {
         const initialQualityId = preferredVariant?.id || "auto";
         setSelectedQualityId(initialQualityId);
         setStreamError(null);
+        setStreamErrorKind(null);
 
         const mode = computeAvailableSourceModes(info)[0] || "unavailable";
         attemptedModesRef.current.add(mode);
@@ -437,7 +453,12 @@ export function useVideoStream(videoId: string | undefined): VideoStream {
           setStreamUrl(pickDirectVariantUrl(info, initialQualityId));
         }
       })
-      .catch((err) => setStreamError(getYoutubeErrorMessage(err)));
+      .catch((err) => {
+        const info = classifyPlayerError(err);
+        setStreamError(info.rawMessage);
+        setStreamErrorKind(info.kind);
+        recordPlayerEvent(`video hard retry failed: ${info.kind} (${info.rawMessage})`);
+      });
   }, [currentVideo, preferredCodec, preferredQuality, publishCaptions]);
 
   return {
@@ -453,6 +474,7 @@ export function useVideoStream(videoId: string | undefined): VideoStream {
     resumeTime,
     loadingStream,
     streamError,
+    streamErrorKind,
     setResumeTime,
     onSelectQuality,
     onRetrySource,
