@@ -149,7 +149,7 @@ export function ShortsFeed() {
   if (!loading && items.length === 0) {
     return (
       <div className="flex h-full w-full items-center justify-center bg-background px-6 text-center">
-        <p className="text-sm text-neutral-400">
+        <p className="text-sm text-chrome-neutral-400">
           {error ? "Couldn't load Shorts right now." : "No Shorts to show yet."}
         </p>
       </div>
@@ -225,7 +225,7 @@ function NavButton({
       aria-label={ariaLabel}
       disabled={disabled}
       onClick={onClick}
-      className="flex h-11 w-11 items-center justify-center rounded-full border border-neutral-800 bg-neutral-900 text-neutral-200 transition-colors duration-200 ease-out hover:bg-neutral-800 disabled:pointer-events-none disabled:opacity-40"
+      className="flex h-11 w-11 items-center justify-center rounded-full border border-chrome-neutral-800 bg-chrome-neutral-900 text-chrome-neutral-200 transition-colors duration-200 ease-out hover:bg-chrome-neutral-800 disabled:pointer-events-none disabled:opacity-40"
     >
       {children}
     </button>

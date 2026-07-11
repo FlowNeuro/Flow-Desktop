@@ -93,13 +93,13 @@ function NotificationItem({
 
       <div className="min-w-0 flex-1">
         <p
-          className={`line-clamp-2 text-sm text-neutral-100 ${
+          className={`line-clamp-2 text-sm text-chrome-neutral-100 ${
             notification.isRead ? "font-normal" : "font-semibold"
           }`}
         >
           {notification.title}
         </p>
-        <p className="mt-1 line-clamp-1 text-xs text-neutral-400">
+        <p className="mt-1 line-clamp-1 text-xs text-chrome-neutral-400">
           {notification.channelName}
           {" • "}
           {formatTime(notification.createdAt)}
@@ -117,7 +117,7 @@ function NotificationItem({
             event.stopPropagation();
             onDismiss(notification.id);
           }}
-          className="grid h-7 w-7 place-items-center rounded-full text-neutral-500 opacity-0 transition-colors duration-200 ease-out hover:bg-surface-container-highest hover:text-neutral-200 group-hover:opacity-100"
+          className="grid h-7 w-7 place-items-center rounded-full text-chrome-neutral-500 opacity-0 transition-colors duration-200 ease-out hover:bg-surface-container-highest hover:text-chrome-neutral-200 group-hover:opacity-100"
         >
           <X size={15} />
         </button>
@@ -217,17 +217,17 @@ export function NotificationsBell() {
           anchor={anchor}
           onClose={closePanel}
           closeOnScroll={false}
-          className="z-[70] flex max-h-[70vh] w-[22rem] flex-col overflow-hidden rounded-2xl border border-neutral-800 bg-surface-container-high"
+          className="z-[70] flex max-h-[70vh] w-[22rem] flex-col overflow-hidden rounded-2xl border border-chrome-neutral-800 bg-surface-container-high"
         >
-          <div className="flex items-center justify-between border-b border-neutral-800 px-4 py-3">
-            <h2 className="text-base font-medium text-neutral-200">
+          <div className="flex items-center justify-between border-b border-chrome-neutral-800 px-4 py-3">
+            <h2 className="text-base font-medium text-chrome-neutral-200">
               {getString("notifications_title")}
             </h2>
             {notifications.length > 0 && (
               <button
                 type="button"
                 onClick={() => void clearAll()}
-                className="rounded-full px-2 py-1 text-xs font-medium text-neutral-400 transition-colors duration-200 ease-out hover:bg-surface-container-highest hover:text-neutral-200"
+                className="rounded-full px-2 py-1 text-xs font-medium text-chrome-neutral-400 transition-colors duration-200 ease-out hover:bg-surface-container-highest hover:text-chrome-neutral-200"
               >
                 {getString("notifications_clear_all")}
               </button>
@@ -237,21 +237,21 @@ export function NotificationsBell() {
           <div className="min-h-0 flex-1 overflow-y-auto">
             {notifications.length === 0 ? (
               <div className="flex flex-col items-center justify-center px-6 py-12 text-center">
-                <BellOff className="mb-3 text-neutral-600" size={32} />
-                <h3 className="text-sm font-medium text-neutral-200">
+                <BellOff className="mb-3 text-chrome-neutral-600" size={32} />
+                <h3 className="text-sm font-medium text-chrome-neutral-200">
                   {getString("notifications_empty_title")}
                 </h3>
-                <p className="mt-1 max-w-[16rem] text-xs text-neutral-400">
+                <p className="mt-1 max-w-[16rem] text-xs text-chrome-neutral-400">
                   {getString("notifications_empty_body")}
                 </p>
               </div>
             ) : (
               groups.map((group) => (
                 <section key={group.key}>
-                  <div className="sticky top-0 z-10 bg-surface-container-high px-4 py-2 text-xs font-semibold uppercase tracking-widest text-neutral-500">
+                  <div className="sticky top-0 z-10 bg-surface-container-high px-4 py-2 text-xs font-semibold uppercase tracking-widest text-chrome-neutral-500">
                     {groupLabel(group.key)}
                   </div>
-                  <div className="divide-y divide-neutral-800/60">
+                  <div className="divide-y divide-chrome-neutral-800/60">
                     {group.items.map((notification) => (
                       <NotificationItem
                         key={notification.id}

@@ -42,14 +42,14 @@ export function MusicArtwork({
           className="h-full w-full object-cover"
         />
       ) : (
-        <div className="grid h-full w-full place-items-center text-neutral-500" aria-hidden>
+        <div className="grid h-full w-full place-items-center text-chrome-neutral-500" aria-hidden>
           <Music2 className={iconClassName} />
         </div>
       )}
 
       {loading && (
-        <div className="absolute inset-0 grid place-items-center bg-black/40">
-          <Loader2 className={`${iconClassName} animate-spin text-neutral-100`} />
+        <div className="absolute inset-0 grid place-items-center bg-chrome-black/40">
+          <Loader2 className={`${iconClassName} animate-spin text-chrome-neutral-100`} />
         </div>
       )}
     </motion.div>

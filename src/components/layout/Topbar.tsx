@@ -135,14 +135,14 @@ export function Topbar() {
           <IconButton
             title="Back"
             onClick={() => navigate(-1)}
-            className="text-zinc-300 hover:text-white"
+            className="text-chrome-zinc-300 hover:text-chrome-white"
           >
             <ArrowLeft />
           </IconButton>
           <IconButton
             title="Forward"
             onClick={() => navigate(1)}
-            className="text-zinc-300 hover:text-white"
+            className="text-chrome-zinc-300 hover:text-chrome-white"
           >
             <ArrowRight />
           </IconButton>
@@ -153,7 +153,7 @@ export function Topbar() {
       <div className="relative flex max-w-[720px] flex-1 items-center justify-center px-4 md:px-8" ref={suggestionRef}>
         <form 
           onSubmit={handleSearch} 
-          className="flex h-10 w-full items-center overflow-hidden rounded-full border border-zinc-800 bg-[#121212] transition-colors focus-within:border-zinc-500"
+          className="flex h-10 w-full items-center overflow-hidden rounded-full border border-chrome-zinc-800 bg-chrome-searchbar transition-colors focus-within:border-chrome-zinc-500"
         >
           <div className="flex min-w-0 flex-1 items-center px-4">
             <input
@@ -166,16 +166,16 @@ export function Topbar() {
                 setLocalSearch(e.target.value);
                 setShowSuggestions(true);
               }}
-              className="h-10 min-w-0 flex-1 bg-transparent text-sm text-zinc-100 outline-none placeholder:text-zinc-500"
+              className="h-10 min-w-0 flex-1 bg-transparent text-sm text-chrome-zinc-100 outline-none placeholder:text-chrome-zinc-500"
             />
-            <kbd className="ml-3 hidden rounded-md border border-zinc-700 px-2 py-0.5 text-[11px] font-semibold text-zinc-500 lg:block">
+            <kbd className="ml-3 hidden rounded-md border border-chrome-zinc-700 px-2 py-0.5 text-[11px] font-semibold text-chrome-zinc-500 lg:block">
               Ctrl K
             </kbd>
           </div>
           <button
             type="submit"
             disabled={resolving}
-            className="flex h-10 w-14 items-center justify-center border-l border-zinc-800 bg-zinc-900 text-zinc-200 transition-colors hover:bg-zinc-800 disabled:opacity-70"
+            className="flex h-10 w-14 items-center justify-center border-l border-chrome-zinc-800 bg-chrome-zinc-900 text-chrome-zinc-200 transition-colors hover:bg-chrome-zinc-800 disabled:opacity-70"
             title="Search"
           >
             {resolving ? <Loader2 className="h-5 w-5 animate-spin" /> : <Search className="h-5 w-5" />}
@@ -184,7 +184,7 @@ export function Topbar() {
 
         {/* Suggestion Dropdown overlay */}
         {showSuggestions && suggestions.length > 0 && (
-          <div className="absolute left-4 right-4 top-[48px] z-50 overflow-hidden rounded-2xl border border-zinc-800 bg-[#181818] md:left-8 md:right-8">
+          <div className="absolute left-4 right-4 top-[48px] z-50 overflow-hidden rounded-2xl border border-chrome-zinc-800 bg-chrome-dropdown md:left-8 md:right-8">
             {suggestions.map((item, idx) => (
               <div
                 key={idx}
@@ -194,9 +194,9 @@ export function Topbar() {
                   setShowSuggestions(false);
                   navigate(`/search?q=${encodeURIComponent(item)}`);
                 }}
-                className="flex cursor-pointer items-center gap-3 px-5 py-3 text-sm font-medium text-zinc-200 transition-colors hover:bg-zinc-800"
+                className="flex cursor-pointer items-center gap-3 px-5 py-3 text-sm font-medium text-chrome-zinc-200 transition-colors hover:bg-chrome-zinc-800"
               >
-                <Search className="h-3.5 w-3.5 text-zinc-500" />
+                <Search className="h-3.5 w-3.5 text-chrome-zinc-500" />
                 {item}
               </div>
             ))}

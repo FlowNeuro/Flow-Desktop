@@ -67,13 +67,13 @@ export const ChannelTabs: React.FC<ChannelTabsProps> = ({
                   onClick={() => onTabChange(tab.id)}
                   className={`
                     relative h-full py-6 text-sm font-semibold transition-colors
-                    ${isActive ? "text-white" : "text-white/50 hover:text-white/70"}
+                    ${isActive ? "text-chrome-white" : "text-chrome-white/50 hover:text-chrome-white/70"}
                     whitespace-nowrap
                   `}
                 >
                   {tab.label}
                   {isActive && (
-                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-white animate-fade-in" />
+                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-chrome-white animate-fade-in" />
                   )}
                 </button>
               );
@@ -84,10 +84,10 @@ export const ChannelTabs: React.FC<ChannelTabsProps> = ({
             <div 
               className={`
                 flex items-center h-9 px-3 rounded-full bg-surface border transition-all duration-300
-                ${isSearchFocused ? "border-white/50 w-48 sm:w-64" : "border-white/30 w-36 sm:w-48"}
+                ${isSearchFocused ? "border-chrome-white/50 w-48 sm:w-64" : "border-chrome-white/30 w-36 sm:w-48"}
               `}
             >
-              <Search className="text-white/40 mr-2 flex-shrink-0" size={16} />
+              <Search className="text-chrome-white/40 mr-2 flex-shrink-0" size={16} />
               <input
                 type="text"
                 value={searchQuery}
@@ -96,14 +96,14 @@ export const ChannelTabs: React.FC<ChannelTabsProps> = ({
                 onFocus={() => setIsSearchFocused(true)}
                 onBlur={() => setIsSearchFocused(false)}
                 placeholder="Search channel..."
-                className="bg-transparent text-sm text-white placeholder-white/40 w-full outline-none"
+                className="bg-transparent text-sm text-chrome-white placeholder-white/40 w-full outline-none"
               />
               {searchQuery && (
                 <button 
                   onClick={onSearchClear}
                   className="p-1 hover:bg-surface rounded-full transition-colors flex-shrink-0"
                 >
-                  <X className="text-white/60" size={14} />
+                  <X className="text-chrome-white/60" size={14} />
                 </button>
               )}
             </div>

@@ -24,12 +24,12 @@ function cx(...parts: Array<string | false | null | undefined>): string {
 function SectionTitle({ title, onSeeAll }: { title: string; onSeeAll?: () => void }) {
   return (
     <div className="mb-3 flex items-center justify-between px-1">
-      <h2 className="text-xl font-bold tracking-tight text-neutral-100">{title}</h2>
+      <h2 className="text-xl font-bold tracking-tight text-chrome-neutral-100">{title}</h2>
       {onSeeAll ? (
         <button
           type="button"
           onClick={onSeeAll}
-          className="group flex items-center gap-0.5 text-sm font-medium text-neutral-400 transition-colors duration-200 ease-out hover:text-neutral-100"
+          className="group flex items-center gap-0.5 text-sm font-medium text-chrome-neutral-400 transition-colors duration-200 ease-out hover:text-chrome-neutral-100"
         >
           {getString('music_show_all')}
           <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
@@ -152,33 +152,33 @@ function ArtistHeroScaffold({
               className="h-full w-full object-cover object-center"
             />
           ) : (
-            <div className="grid h-full w-full place-items-center text-neutral-500">
+            <div className="grid h-full w-full place-items-center text-chrome-neutral-500">
               <Music2 className="h-14 w-14" />
             </div>
           )}
         </div>
 
         <div className="flex min-w-0 flex-1 flex-col">
-          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-neutral-300">
+          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-chrome-neutral-300">
             <span>{getString('music_role_artist')}</span>
           </div>
-          <h1 className="mb-4 mt-3 line-clamp-2 text-6xl font-extrabold leading-none tracking-tighter text-white lg:text-8xl">
+          <h1 className="mb-4 mt-3 line-clamp-2 text-6xl font-extrabold leading-none tracking-tighter text-chrome-white lg:text-8xl">
             {title}
           </h1>
-          {subtitle ? <p className="text-lg text-neutral-400">{subtitle}</p> : null}
+          {subtitle ? <p className="text-lg text-chrome-neutral-400">{subtitle}</p> : null}
 
           <div className="mt-7 flex flex-wrap items-center gap-3">
             <ArtistActionButton
               disabled={!hasSongs}
               onClick={onPlay}
-              className="bg-white px-8 py-3 text-base font-bold text-black hover:bg-neutral-200"
+              className="bg-chrome-white px-8 py-3 text-base font-bold text-chrome-black hover:bg-chrome-neutral-200"
             >
               <Play className="h-5 w-5" fill="currentColor" strokeWidth={2.4} />
               {getString('music_play')}
             </ArtistActionButton>
             <ArtistActionButton
               onClick={onToggleFollow}
-              className="bg-white/10 text-white backdrop-blur-md hover:bg-white/20"
+              className="bg-chrome-white/10 text-chrome-white backdrop-blur-md hover:bg-chrome-white/20"
               aria-pressed={following}
             >
               {following ? (
@@ -191,7 +191,7 @@ function ArtistHeroScaffold({
             <ArtistActionButton
               disabled={!hasSongs}
               onClick={onShuffle}
-              className="h-12 w-12 bg-white/10 px-0 text-neutral-50 backdrop-blur-md hover:bg-white/20 [&>svg]:shrink-0"
+              className="h-12 w-12 bg-chrome-white/10 px-0 text-chrome-neutral-50 backdrop-blur-md hover:bg-chrome-white/20 [&>svg]:shrink-0"
               aria-label={getString('music_shuffle')}
               title={getString('music_shuffle')}
             >
@@ -200,7 +200,7 @@ function ArtistHeroScaffold({
             <ArtistActionButton
               disabled={!hasSongs}
               onClick={onRadio}
-              className="h-12 w-12 bg-white/10 px-0 text-neutral-50 backdrop-blur-md hover:bg-white/20 [&>svg]:shrink-0"
+              className="h-12 w-12 bg-chrome-white/10 px-0 text-chrome-neutral-50 backdrop-blur-md hover:bg-chrome-white/20 [&>svg]:shrink-0"
               aria-label="Radio"
               title="Radio"
             >
@@ -231,8 +231,8 @@ export default function ArtistPage() {
   if (error || !data) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-4 px-6 py-24 text-center">
-        <AlertTriangle className="h-8 w-8 text-neutral-500" />
-        <p className="text-sm text-neutral-400">{getString('music_artist_unavailable')}</p>
+        <AlertTriangle className="h-8 w-8 text-chrome-neutral-500" />
+        <p className="text-sm text-chrome-neutral-400">{getString('music_artist_unavailable')}</p>
         <div className="flex items-center gap-3">
           <Button variant="tonal" onClick={() => navigate(-1)}>
             {getString('music_artist_back')}
@@ -406,7 +406,7 @@ export default function ArtistPage() {
             >
               <p
                 className={cx(
-                  'whitespace-pre-line text-base leading-relaxed text-neutral-300 transition-[max-height] duration-300 ease-out',
+                  'whitespace-pre-line text-base leading-relaxed text-chrome-neutral-300 transition-[max-height] duration-300 ease-out',
                   aboutExpanded || !aboutExpandable ? 'max-h-[1200px]' : 'line-clamp-4 max-h-28',
                 )}
               >
@@ -419,7 +419,7 @@ export default function ArtistPage() {
                 />
               ) : null}
               {aboutExpandable ? (
-                <span className="absolute bottom-5 left-6 z-10 text-sm font-bold text-neutral-100 md:left-8">
+                <span className="absolute bottom-5 left-6 z-10 text-sm font-bold text-chrome-neutral-100 md:left-8">
                   {aboutExpanded
                     ? getString('music_artist_read_less')
                     : getString('music_artist_read_more')}

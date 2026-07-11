@@ -72,7 +72,7 @@ export function MusicCardMenu({
       anchor={anchor}
       onClose={onClose}
       className={cx(
-        'z-[70] w-52 rounded-xl border border-neutral-800 bg-surface-container-high py-1.5',
+        'z-[70] w-52 rounded-xl border border-chrome-neutral-800 bg-surface-container-high py-1.5',
         className,
       )}
     >
@@ -86,9 +86,9 @@ export function MusicCardMenu({
             void action.onSelect();
             onClose();
           }}
-          className="flex w-full items-center gap-3 px-3.5 py-2.5 text-left text-sm text-zinc-300 transition-colors hover:bg-zinc-800 hover:text-zinc-100"
+          className="flex w-full items-center gap-3 px-3.5 py-2.5 text-left text-sm text-chrome-zinc-300 transition-colors hover:bg-chrome-zinc-800 hover:text-chrome-zinc-100"
         >
-          <span className="grid h-4 w-4 shrink-0 place-items-center text-zinc-400">{action.icon}</span>
+          <span className="grid h-4 w-4 shrink-0 place-items-center text-chrome-zinc-400">{action.icon}</span>
           <span className="min-w-0 flex-1 truncate">{action.label}</span>
         </button>
       ))}

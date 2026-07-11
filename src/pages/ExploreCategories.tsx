@@ -64,16 +64,16 @@ export default function ExploreCategories({ onPlay, onAddToQueue }: ExploreCateg
   return (
     <main className="flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8">
       <div className="mx-auto flex max-w-[1800px] flex-col gap-5">
-        <div className="flex flex-col gap-4 border-b border-neutral-800/50 pb-4">
+        <div className="flex flex-col gap-4 border-b border-chrome-neutral-800/50 pb-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
+              <p className="text-xs font-semibold uppercase tracking-widest text-chrome-neutral-500">
                 {getString('explore_overline')}
               </p>
-              <h1 className="mt-1 text-3xl font-bold tracking-tight text-neutral-100">
+              <h1 className="mt-1 text-3xl font-bold tracking-tight text-chrome-neutral-100">
                 {getString('explore_title')}
               </h1>
-              <p className="mt-1 text-sm text-neutral-400">
+              <p className="mt-1 text-sm text-chrome-neutral-400">
                 {getString('explore_subtitle', currentRegionLabel)}
               </p>
             </div>
@@ -115,10 +115,10 @@ export default function ExploreCategories({ onPlay, onAddToQueue }: ExploreCateg
         {loading ? (
           <VideoGrid loading skeletonCount={12} onPlay={onPlay} onAddToQueue={onAddToQueue} />
         ) : error ? (
-          <div className="flex min-h-[360px] flex-col items-center justify-center gap-4 rounded-2xl border border-dashed border-neutral-800 bg-surface-container-low p-8 text-center">
+          <div className="flex min-h-[360px] flex-col items-center justify-center gap-4 rounded-2xl border border-dashed border-chrome-neutral-800 bg-surface-container-low p-8 text-center">
             <div>
-              <h2 className="text-base font-medium text-neutral-200">{getString(error as StringKey)}</h2>
-              <p className="mt-1 text-sm text-neutral-400">{getString('explore_error_subtitle')}</p>
+              <h2 className="text-base font-medium text-chrome-neutral-200">{getString(error as StringKey)}</h2>
+              <p className="mt-1 text-sm text-chrome-neutral-400">{getString('explore_error_subtitle')}</p>
             </div>
             <Button type="button" onClick={refresh}>
               <RotateCcw className="h-4 w-4" />

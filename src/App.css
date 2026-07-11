@@ -14,10 +14,76 @@
   --color-on-surface: var(--color-on-surface-val);
   --color-on-surface-variant: var(--color-on-surface-variant-val);
   --color-error: #F44336;
+
+  /* --- Chrome palette (custom-themes migration) ---
+     Mirrors Tailwind's default palette exactly (oklch values copied from
+     tailwindcss/theme.css) so swapping a literal `zinc-800`-style class for
+     one of these tokens is a zero-diff refactor. Not split by light/dark on
+     purpose: the classes they replace never responded to color-scheme either. */
+  --color-chrome-white: #ffffff;
+  --color-chrome-black: #000000;
+
+  --color-chrome-neutral-50: oklch(98.5% 0 0);
+  --color-chrome-neutral-100: oklch(97% 0 0);
+  --color-chrome-neutral-200: oklch(92.2% 0 0);
+  --color-chrome-neutral-300: oklch(87% 0 0);
+  --color-chrome-neutral-400: oklch(70.8% 0 0);
+  --color-chrome-neutral-500: oklch(55.6% 0 0);
+  --color-chrome-neutral-600: oklch(43.9% 0 0);
+  --color-chrome-neutral-700: oklch(37.1% 0 0);
+  --color-chrome-neutral-800: oklch(26.9% 0 0);
+  --color-chrome-neutral-900: oklch(20.5% 0 0);
+  --color-chrome-neutral-950: oklch(14.5% 0 0);
+
+  --color-chrome-zinc-100: oklch(96.7% 0.001 286.375);
+  --color-chrome-zinc-200: oklch(92% 0.004 286.32);
+  --color-chrome-zinc-300: oklch(87.1% 0.006 286.286);
+  --color-chrome-zinc-400: oklch(70.5% 0.015 286.067);
+  --color-chrome-zinc-500: oklch(55.2% 0.016 285.938);
+  --color-chrome-zinc-600: oklch(44.2% 0.017 285.786);
+  --color-chrome-zinc-700: oklch(37% 0.013 285.805);
+  --color-chrome-zinc-800: oklch(27.4% 0.006 286.033);
+  --color-chrome-zinc-900: oklch(21% 0.006 285.885);
+  --color-chrome-zinc-950: oklch(14.1% 0.005 285.823);
+
+  --color-chrome-red-300: oklch(80.8% 0.114 19.571);
+  --color-chrome-red-400: oklch(70.4% 0.191 22.216);
+  --color-chrome-red-500: oklch(63.7% 0.237 25.331);
+  --color-chrome-red-600: oklch(57.7% 0.245 27.325);
+  --color-chrome-red-700: oklch(50.5% 0.213 27.518);
+  --color-chrome-red-800: oklch(44.4% 0.177 26.899);
+  --color-chrome-red-900: oklch(39.6% 0.141 25.723);
+  --color-chrome-red-950: oklch(25.8% 0.092 26.042);
+
+  --color-chrome-emerald-400: oklch(76.5% 0.177 163.223);
+  --color-chrome-emerald-500: oklch(69.6% 0.17 162.48);
+  --color-chrome-emerald-800: oklch(43.2% 0.095 166.913);
+  --color-chrome-emerald-900: oklch(37.8% 0.077 168.94);
+  --color-chrome-emerald-950: oklch(26.2% 0.051 172.552);
+
+  --color-chrome-amber-400: oklch(82.8% 0.189 84.429);
+  --color-chrome-amber-500: oklch(76.9% 0.188 70.08);
+
+  --color-chrome-blue-400: oklch(70.7% 0.165 254.624);
+  --color-chrome-sky-400: oklch(74.6% 0.16 232.661);
+  --color-chrome-green-400: oklch(79.2% 0.209 151.711);
+  --color-chrome-green-500: oklch(72.3% 0.219 149.579);
+
+  /* One-off literal UI-chrome colors (player toasts/popovers/search bars),
+     named instead of inline hex so a future theme can restyle them too. */
+  --color-chrome-toast: #1A1A1A;
+  --color-chrome-toast-border: #2A2A2A;
+  --color-chrome-popover: #151515;
+  --color-chrome-searchbar: #121212;
+  --color-chrome-dropdown: #181818;
+  --color-chrome-input-surface: #0F0F0F;
 }
 
 @layer base {
   :root {
+    --color-player-ambient-1: rgba(10, 10, 10, 0.95);
+    --color-player-ambient-2: rgba(8, 8, 8, 0.9);
+    --color-player-ambient-3: rgba(18, 18, 18, 0.65);
     --color-secondary-val: #606060;
     --color-background-val: #FFFFFF;
     --color-surface-val: #F9F9F9;
@@ -48,7 +114,7 @@
   }
 
   body {
-    @apply bg-background text-zinc-100 antialiased overflow-hidden select-none;
+    @apply bg-background text-chrome-zinc-100 antialiased overflow-hidden select-none;
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
   }
 }
@@ -64,11 +130,11 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-zinc-800 rounded-full hover:bg-zinc-700 transition-colors;
+  @apply bg-chrome-zinc-800 rounded-full hover:bg-chrome-zinc-700 transition-colors;
 }
 
 .active-nav-item {
-  @apply bg-red-950/40 text-primary border-l-4 border-primary;
+  @apply bg-chrome-red-950/40 text-primary border-l-4 border-primary;
 }
 
 .deep-flow-topbar-active {
@@ -145,7 +211,7 @@
   background: linear-gradient(
     90deg,
     transparent,
-    rgba(255, 255, 255, 0.06),
+    color-mix(in srgb, var(--color-chrome-white) 6%, transparent),
     transparent
   );
   animation: shimmer 1.4s ease-in-out infinite;

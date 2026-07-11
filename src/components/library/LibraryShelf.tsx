@@ -39,15 +39,15 @@ export const LibraryShelf: React.FC<LibraryShelfProps> = ({
     <section className="flex flex-col">
       {/* Shelf Header */}
       <div className="flex justify-between items-end mb-4">
-        <h2 className="text-2xl font-bold tracking-tight text-neutral-100 flex items-center gap-3">
-          <Icon className="w-6 h-6 text-neutral-400" />
+        <h2 className="text-2xl font-bold tracking-tight text-chrome-neutral-100 flex items-center gap-3">
+          <Icon className="w-6 h-6 text-chrome-neutral-400" />
           {title}
         </h2>
 
         <button
           type="button"
           onClick={() => navigate(viewAllTo)}
-          className="flex items-center gap-1 rounded-full bg-surface-container-high px-4 py-1.5 text-sm font-medium text-neutral-200 transition-colors duration-200 ease-out hover:bg-surface-container-highest"
+          className="flex items-center gap-1 rounded-full bg-surface-container-high px-4 py-1.5 text-sm font-medium text-chrome-neutral-200 transition-colors duration-200 ease-out hover:bg-surface-container-highest"
         >
           {getString("library_view_all")}
           <ChevronRight className="h-4 w-4" />
@@ -56,9 +56,9 @@ export const LibraryShelf: React.FC<LibraryShelfProps> = ({
 
       {/* Shelf body — swiper of cards, or the MD3 empty state */}
       {isEmpty ? (
-        <div className="flex h-32 w-full flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-neutral-800">
-          <Icon className="h-6 w-6 text-neutral-600" />
-          <p className="text-sm text-neutral-500">
+        <div className="flex h-32 w-full flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-chrome-neutral-800">
+          <Icon className="h-6 w-6 text-chrome-neutral-600" />
+          <p className="text-sm text-chrome-neutral-500">
             {emptyLabel ?? getString("library_empty_generic")}
           </p>
         </div>

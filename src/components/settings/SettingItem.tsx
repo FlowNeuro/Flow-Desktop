@@ -21,9 +21,9 @@ export function SettingItem({ title, description, disabled = false, children }: 
       )}
     >
       <div className="flex-1 min-w-0 mr-4">
-        <div className="text-sm font-medium text-neutral-200">{title}</div>
+        <div className="text-sm font-medium text-chrome-neutral-200">{title}</div>
         {description && (
-          <div className="text-xs text-neutral-400 mt-0.5">{description}</div>
+          <div className="text-xs text-chrome-neutral-400 mt-0.5">{description}</div>
         )}
       </div>
       <div className="shrink-0">{children}</div>

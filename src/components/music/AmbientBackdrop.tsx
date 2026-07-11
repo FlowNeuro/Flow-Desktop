@@ -4,7 +4,7 @@ import { upgradeMusicImageUrl } from "../../lib/thumbnails";
 export function AmbientBackdrop({ src, accent }: { src?: string | null; accent?: Rgb | null }) {
   const imageSrc = upgradeMusicImageUrl(src);
   return (
-    <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden bg-neutral-950">
+    <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden bg-chrome-neutral-950">
       {imageSrc && (
         <img
           key={imageSrc}
@@ -22,7 +22,7 @@ export function AmbientBackdrop({ src, accent }: { src?: string | null; accent?:
           }}
         />
       )}
-      <div className="absolute inset-0 bg-linear-to-b from-neutral-950/40 via-neutral-950/60 to-neutral-950" />
+      <div className="absolute inset-0 bg-linear-to-b from-chrome-neutral-950/40 via-chrome-neutral-950/60 to-chrome-neutral-950" />
     </div>
   );
 }

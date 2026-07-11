@@ -230,18 +230,18 @@ export function GlobalVideoPlayer() {
     <div
       className={
         isFloating
-          ? "group fixed z-50 overflow-hidden rounded-xl bg-black shadow-2xl ring-1 ring-white/10"
-          : "fixed z-30 bg-black"
+          ? "group fixed z-50 overflow-hidden rounded-xl bg-chrome-black shadow-2xl ring-1 ring-chrome-white/10"
+          : "fixed z-30 bg-chrome-black"
       }
       style={frameStyle}
     >
       {isFloating && (
-        <div className="absolute right-2 top-2 z-40 flex items-center gap-1 rounded-full bg-black/55 p-1 opacity-0 backdrop-blur-sm transition-opacity group-hover:opacity-100">
+        <div className="absolute right-2 top-2 z-40 flex items-center gap-1 rounded-full bg-chrome-black/55 p-1 opacity-0 backdrop-blur-sm transition-opacity group-hover:opacity-100">
           <button
             type="button"
             aria-label="Expand video"
             onClick={expandFromFloating}
-            className="grid h-7 w-7 place-items-center rounded-full text-white hover:bg-white/15"
+            className="grid h-7 w-7 place-items-center rounded-full text-chrome-white hover:bg-chrome-white/15"
           >
             <Maximize2 size={16} />
           </button>
@@ -249,7 +249,7 @@ export function GlobalVideoPlayer() {
             type="button"
             aria-label="Close video"
             onClick={dismissVideoPlayer}
-            className="grid h-7 w-7 place-items-center rounded-full text-white hover:bg-white/15"
+            className="grid h-7 w-7 place-items-center rounded-full text-chrome-white hover:bg-chrome-white/15"
           >
             <X size={16} />
           </button>

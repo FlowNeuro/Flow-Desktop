@@ -237,10 +237,10 @@ export const ImportStep: React.FC = () => {
     <div className="flex flex-col w-full animate-in fade-in slide-in-from-bottom-4 duration-500 pb-12">
       {/* Hero Header */}
       <div className="mb-12">
-        <h1 className="text-5xl font-semibold text-neutral-100 tracking-tight mb-3">
+        <h1 className="text-5xl font-semibold text-chrome-neutral-100 tracking-tight mb-3">
           Import your data
         </h1>
-        <p className="text-lg text-neutral-400 max-w-2xl">
+        <p className="text-lg text-chrome-neutral-400 max-w-2xl">
           Optionally populate your feed instantly by uploading your existing subscriptions from YouTube, NewPipe, or standard OPML backups.
         </p>
       </div>
@@ -258,24 +258,24 @@ export const ImportStep: React.FC = () => {
         onClick={handleCardClick}
         className={`border-2 border-dashed rounded-3xl p-12 flex flex-col items-center justify-center text-center transition-all duration-300 cursor-pointer min-h-[300px] mb-8 ${
           importState === "reading" || importState === "parsing" || importState === "subscribing"
-            ? "border-zinc-800 bg-zinc-950/20 pointer-events-none"
+            ? "border-chrome-zinc-800 bg-chrome-zinc-950/20 pointer-events-none"
             : importState === "success"
-            ? "border-emerald-900 bg-emerald-950/10 hover:border-emerald-800"
+            ? "border-chrome-emerald-900 bg-chrome-emerald-950/10 hover:border-chrome-emerald-800"
             : importState === "error"
-            ? "border-red-900 bg-red-950/10 hover:border-red-800"
-            : "border-zinc-800 hover:border-zinc-600 bg-zinc-950/40 hover:bg-zinc-900/40"
+            ? "border-chrome-red-900 bg-chrome-red-950/10 hover:border-chrome-red-800"
+            : "border-chrome-zinc-800 hover:border-chrome-zinc-600 bg-chrome-zinc-950/40 hover:bg-chrome-zinc-900/40"
         }`}
       >
         {importState === "idle" && (
           <div className="space-y-6">
-            <div className="w-16 h-16 rounded-full bg-zinc-900 flex items-center justify-center border border-zinc-700 mx-auto group-hover:scale-110 transition-transform">
-              <svg className="w-8 h-8 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div className="w-16 h-16 rounded-full bg-chrome-zinc-900 flex items-center justify-center border border-chrome-zinc-700 mx-auto group-hover:scale-110 transition-transform">
+              <svg className="w-8 h-8 text-chrome-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
               </svg>
             </div>
             <div className="space-y-2">
-              <h4 className="text-lg font-bold text-zinc-200">Click to browse files</h4>
-              <p className="text-sm text-zinc-500 max-w-md mx-auto leading-relaxed">
+              <h4 className="text-lg font-bold text-chrome-zinc-200">Click to browse files</h4>
+              <p className="text-sm text-chrome-zinc-500 max-w-md mx-auto leading-relaxed">
                 Upload backup .zip, backup .json, Google Takeout CSV/XML, or standard OPML backups.
               </p>
             </div>
@@ -284,7 +284,7 @@ export const ImportStep: React.FC = () => {
 
         {(importState === "reading" || importState === "parsing" || importState === "subscribing") && (
           <div className="w-full max-w-md space-y-6 px-4 select-none">
-            <div className="flex justify-between items-center text-sm font-bold uppercase tracking-wider text-zinc-400">
+            <div className="flex justify-between items-center text-sm font-bold uppercase tracking-wider text-chrome-zinc-400">
               <span>
                 {importState === "reading"
                   ? "Reading payload..."
@@ -294,7 +294,7 @@ export const ImportStep: React.FC = () => {
               </span>
               <span className="text-primary">{progress}%</span>
             </div>
-            <div className="w-full h-2 bg-zinc-900 rounded-full overflow-hidden">
+            <div className="w-full h-2 bg-chrome-zinc-900 rounded-full overflow-hidden">
               <div
                 className="h-full bg-primary transition-all duration-300 ease-out"
                 style={{ width: `${progress}%` }}
@@ -305,14 +305,14 @@ export const ImportStep: React.FC = () => {
 
         {importState === "success" && (
           <div className="space-y-6">
-            <div className="w-16 h-16 rounded-full bg-emerald-950/40 flex items-center justify-center border border-emerald-500/30 mx-auto">
-              <svg className="w-8 h-8 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div className="w-16 h-16 rounded-full bg-chrome-emerald-950/40 flex items-center justify-center border border-chrome-emerald-500/30 mx-auto">
+              <svg className="w-8 h-8 text-chrome-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
             </div>
             <div className="space-y-2">
-              <h4 className="text-lg font-bold text-emerald-400">Import successful</h4>
-              <p className="text-sm text-zinc-400 max-w-md mx-auto leading-relaxed">
+              <h4 className="text-lg font-bold text-chrome-emerald-400">Import successful</h4>
+              <p className="text-sm text-chrome-zinc-400 max-w-md mx-auto leading-relaxed">
                 Natively registered {importedCount} creators to your subscriptions. Click to import another payload.
               </p>
             </div>
@@ -321,14 +321,14 @@ export const ImportStep: React.FC = () => {
 
         {importState === "error" && (
           <div className="space-y-6">
-            <div className="w-16 h-16 rounded-full bg-red-950/40 flex items-center justify-center border border-primary/30 mx-auto">
+            <div className="w-16 h-16 rounded-full bg-chrome-red-950/40 flex items-center justify-center border border-primary/30 mx-auto">
               <svg className="w-8 h-8 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </div>
             <div className="space-y-2">
-              <h4 className="text-lg font-bold text-red-400">Extraction error</h4>
-              <p className="text-sm text-zinc-400 max-w-md mx-auto leading-relaxed">
+              <h4 className="text-lg font-bold text-chrome-red-400">Extraction error</h4>
+              <p className="text-sm text-chrome-zinc-400 max-w-md mx-auto leading-relaxed">
                 {errorMessage || "The backup layout could not be recognized."} Click to retry with another file.
               </p>
             </div>
@@ -336,9 +336,9 @@ export const ImportStep: React.FC = () => {
         )}
       </div>
 
-      <div className="bg-zinc-950/40 border border-zinc-800/80 rounded-2xl p-6 flex flex-col space-y-4 select-none">
-        <h4 className="text-xs font-bold uppercase tracking-widest text-zinc-500">Supported formats</h4>
-        <ul className="text-sm text-zinc-400 space-y-2 list-disc pl-5 leading-normal">
+      <div className="bg-chrome-zinc-950/40 border border-chrome-zinc-800/80 rounded-2xl p-6 flex flex-col space-y-4 select-none">
+        <h4 className="text-xs font-bold uppercase tracking-widest text-chrome-zinc-500">Supported formats</h4>
+        <ul className="text-sm text-chrome-zinc-400 space-y-2 list-disc pl-5 leading-normal">
           <li><strong>Google Takeout:</strong> CSV export containing subscriptions list.</li>
           <li><strong>Flow Mobile & Desktop:</strong> Upload exported Master Backups (.zip containing app_data.json) or raw database exports.</li>
           <li><strong>NewPipe & LibreTube:</strong> Standard exported JSON backups.</li>

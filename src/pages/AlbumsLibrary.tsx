@@ -82,10 +82,10 @@ export const AlbumsLibrary: React.FC = () => {
       <div className="space-y-6 pb-20">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight text-neutral-100">
+            <h1 className="text-3xl font-bold tracking-tight text-chrome-neutral-100">
               {getString("albums_title")}
             </h1>
-            <p className="mt-1 text-sm text-neutral-400">
+            <p className="mt-1 text-sm text-chrome-neutral-400">
               {getString("albums_library_subtitle")}
             </p>
           </div>
@@ -126,22 +126,22 @@ export const AlbumsLibrary: React.FC = () => {
         </div>
 
         {albums.length === 0 ? (
-          <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-neutral-800 bg-surface-container-low p-8 py-24 text-center">
-            <Disc3 className="mb-4 text-neutral-600" size={48} />
-            <h3 className="font-medium text-neutral-200">
+          <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-chrome-neutral-800 bg-surface-container-low p-8 py-24 text-center">
+            <Disc3 className="mb-4 text-chrome-neutral-600" size={48} />
+            <h3 className="font-medium text-chrome-neutral-200">
               {getString("albums_library_empty_title")}
             </h3>
-            <p className="mt-1 max-w-sm text-sm text-neutral-500">
+            <p className="mt-1 max-w-sm text-sm text-chrome-neutral-500">
               {getString("albums_library_empty_body")}
             </p>
           </div>
         ) : visibleAlbums.length === 0 ? (
-          <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-neutral-800 bg-surface-container-low p-8 py-20 text-center">
-            <Disc3 className="mb-4 text-neutral-600" size={44} />
-            <h3 className="font-medium text-neutral-200">
+          <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-chrome-neutral-800 bg-surface-container-low p-8 py-20 text-center">
+            <Disc3 className="mb-4 text-chrome-neutral-600" size={44} />
+            <h3 className="font-medium text-chrome-neutral-200">
               {getString("albums_no_match_title")}
             </h3>
-            <p className="mt-1 max-w-sm text-sm text-neutral-500">
+            <p className="mt-1 max-w-sm text-sm text-chrome-neutral-500">
               {getString("albums_no_match_body")}
             </p>
           </div>
@@ -162,17 +162,17 @@ export const AlbumsLibrary: React.FC = () => {
       </div>
 
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-950/80 p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-chrome-neutral-950/80 p-4">
           <form
             onSubmit={handleCreate}
-            className="w-full max-w-sm space-y-4 rounded-2xl border border-neutral-800 bg-surface-container p-6"
+            className="w-full max-w-sm space-y-4 rounded-2xl border border-chrome-neutral-800 bg-surface-container p-6"
           >
-            <h3 className="text-lg font-medium text-neutral-100">
+            <h3 className="text-lg font-medium text-chrome-neutral-100">
               {getString("albums_create_title")}
             </h3>
 
             <div className="space-y-1">
-              <label className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
+              <label className="text-xs font-semibold uppercase tracking-widest text-chrome-neutral-500">
                 {getString("albums_name_label")}
               </label>
               <input
@@ -181,12 +181,12 @@ export const AlbumsLibrary: React.FC = () => {
                 value={newName}
                 onChange={(event) => setNewName(event.target.value)}
                 placeholder={getString("albums_name_placeholder")}
-                className="w-full rounded-lg border border-neutral-800 bg-surface-container-low px-4 py-2.5 text-sm font-medium text-neutral-100 outline-none transition-colors placeholder:text-neutral-500 focus:border-neutral-700"
+                className="w-full rounded-lg border border-chrome-neutral-800 bg-surface-container-low px-4 py-2.5 text-sm font-medium text-chrome-neutral-100 outline-none transition-colors placeholder:text-chrome-neutral-500 focus:border-chrome-neutral-700"
               />
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
+              <label className="text-xs font-semibold uppercase tracking-widest text-chrome-neutral-500">
                 {getString("albums_desc_label")}
               </label>
               <textarea
@@ -194,7 +194,7 @@ export const AlbumsLibrary: React.FC = () => {
                 onChange={(event) => setNewDesc(event.target.value)}
                 placeholder={getString("albums_desc_placeholder")}
                 rows={3}
-                className="w-full resize-none rounded-lg border border-neutral-800 bg-surface-container-low px-4 py-2.5 text-sm font-medium text-neutral-100 outline-none transition-colors placeholder:text-neutral-500 focus:border-neutral-700"
+                className="w-full resize-none rounded-lg border border-chrome-neutral-800 bg-surface-container-low px-4 py-2.5 text-sm font-medium text-chrome-neutral-100 outline-none transition-colors placeholder:text-chrome-neutral-500 focus:border-chrome-neutral-700"
               />
             </div>
 

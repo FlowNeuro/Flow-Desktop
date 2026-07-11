@@ -38,12 +38,12 @@ function LinkRow({ icon, label, value, href }: { icon: ReactNode; label: string;
       className={`flex items-center justify-between px-5 py-4 hover:bg-surface-container transition-colors duration-200 ease-out group ${href ? 'cursor-pointer' : ''}`}
     >
       <div className="flex items-center gap-3 shrink-0 pr-4">
-        <span className="text-neutral-400">{icon}</span>
-        <span className="text-sm font-medium text-neutral-200">{label}</span>
+        <span className="text-chrome-neutral-400">{icon}</span>
+        <span className="text-sm font-medium text-chrome-neutral-200">{label}</span>
       </div>
       <div className="flex items-center justify-end gap-2 min-w-0 text-right">
-        {value && <span className="text-sm text-neutral-400 break-all">{value}</span>}
-        {href && <ExternalLink size={12} className="text-neutral-500 group-hover:text-neutral-300 transition-colors" />}
+        {value && <span className="text-sm text-chrome-neutral-400 break-all">{value}</span>}
+        {href && <ExternalLink size={12} className="text-chrome-neutral-500 group-hover:text-chrome-neutral-300 transition-colors" />}
       </div>
     </div>
   );
@@ -86,63 +86,63 @@ export function AboutTab() {
     <div className="space-y-6 pb-8">
       <div className="flex flex-col items-center py-8">
         <Logo size={72} />
-        <h2 className="text-2xl font-bold text-neutral-100 mt-4">{appName}</h2>
-        <p className="text-sm text-neutral-400 mt-1">{getString('settings_about_subtitle')}</p>
+        <h2 className="text-2xl font-bold text-chrome-neutral-100 mt-4">{appName}</h2>
+        <p className="text-sm text-chrome-neutral-400 mt-1">{getString('settings_about_subtitle')}</p>
       </div>
 
       <SettingsGroup title={getString('settings_group_app')}>
         <LinkRow icon={<Code2 size={16} />} label={getString('settings_version')} value={appMetadata?.version ?? unknown()} />
-        <div className="border-t border-neutral-800/50" />
+        <div className="border-t border-chrome-neutral-800/50" />
         <LinkRow icon={<Fingerprint size={16} />} label={getString('settings_identifier')} value={appMetadata?.identifier ?? unknown()} />
-        <div className="border-t border-neutral-800/50" />
+        <div className="border-t border-chrome-neutral-800/50" />
         <LinkRow icon={<Cpu size={16} />} label={getString('settings_tauri_version')} value={appMetadata?.tauriVersion ?? unknown()} />
-        <div className="border-t border-neutral-800/50" />
+        <div className="border-t border-chrome-neutral-800/50" />
         <LinkRow icon={<Package size={16} />} label={getString('settings_bundle_type')} value={appMetadata?.bundleType ?? unknown()} />
-        <div className="border-t border-neutral-800/50" />
+        <div className="border-t border-chrome-neutral-800/50" />
         <LinkRow icon={<Info size={16} />} label={getString('settings_metadata_source')} value={sourceLabel(appMetadata?.source)} />
       </SettingsGroup>
 
       <SettingsGroup title={getString('settings_group_contact')}>
         <LinkRow icon={<Globe size={16} />} label={getString('settings_website')} value="flow.aedev.me" href="https://flow.aedev.me" />
-        <div className="border-t border-neutral-800/50" />
+        <div className="border-t border-chrome-neutral-800/50" />
         <LinkRow icon={<GithubIcon />} label={getString('settings_github')} value="A-EDev/flow-desktop" href="https://github.com/A-EDev/flow-desktop" />
-        <div className="border-t border-neutral-800/50" />
+        <div className="border-t border-chrome-neutral-800/50" />
         <LinkRow icon={<RedditIcon />} label={getString('settings_reddit')} value="r/Flow_Official" href="https://reddit.com/r/Flow_Official" />
-        <div className="border-t border-neutral-800/50" />
+        <div className="border-t border-chrome-neutral-800/50" />
         <LinkRow icon={<User size={16} />} label={getString('settings_creator')} value="A-EDev" href="https://github.com/A-EDev" />
       </SettingsGroup>
 
       <SettingsGroup title={getString('settings_group_support')}>
         <LinkRow icon={<PatreonIcon />} label={getString('settings_donate_patreon')} value="" href="https://patreon.com/A_EDev" />
-        <div className="border-t border-neutral-800/50" />
+        <div className="border-t border-chrome-neutral-800/50" />
         <div className="px-5 py-4">
-          <p className="text-xs text-neutral-400 leading-relaxed">{getString('settings_donate_patreon_desc')}</p>
+          <p className="text-xs text-chrome-neutral-400 leading-relaxed">{getString('settings_donate_patreon_desc')}</p>
         </div>
       </SettingsGroup>
 
       <SettingsGroup title={getString('settings_group_legal')}>
         <LinkRow icon={<Scale size={16} />} label={getString('settings_license')} value="GPL-3.0" />
-        <div className="border-t border-neutral-800/50" />
+        <div className="border-t border-chrome-neutral-800/50" />
         <div className="px-5 py-4">
-          <p className="text-xs text-neutral-400 leading-relaxed">{getString('settings_license_text')}</p>
+          <p className="text-xs text-chrome-neutral-400 leading-relaxed">{getString('settings_license_text')}</p>
         </div>
       </SettingsGroup>
 
       <SettingsGroup title={getString('settings_group_device')}>
         <LinkRow icon={<Monitor size={16} />} label={getString('settings_platform')} value={systemMetadata?.platform ?? unknown()} />
-        <div className="border-t border-neutral-800/50" />
+        <div className="border-t border-chrome-neutral-800/50" />
         <LinkRow icon={<Monitor size={16} />} label={getString('settings_os')} value={systemMetadata ? `${systemMetadata.osType} ${systemMetadata.osVersion}` : unknown()} />
-        <div className="border-t border-neutral-800/50" />
+        <div className="border-t border-chrome-neutral-800/50" />
         <LinkRow icon={<Cpu size={16} />} label={getString('settings_os_family')} value={systemMetadata?.family ?? unknown()} />
-        <div className="border-t border-neutral-800/50" />
+        <div className="border-t border-chrome-neutral-800/50" />
         <LinkRow icon={<Cpu size={16} />} label={getString('settings_architecture')} value={systemMetadata?.arch ?? unknown()} />
-        <div className="border-t border-neutral-800/50" />
+        <div className="border-t border-chrome-neutral-800/50" />
         <LinkRow icon={<Globe size={16} />} label={getString('settings_locale')} value={systemMetadata?.locale ?? unknown()} />
-        <div className="border-t border-neutral-800/50" />
+        <div className="border-t border-chrome-neutral-800/50" />
         <LinkRow icon={<Monitor size={16} />} label={getString('settings_display')} value={systemMetadata?.display ?? unknown()} />
-        <div className="border-t border-neutral-800/50" />
+        <div className="border-t border-chrome-neutral-800/50" />
         <LinkRow icon={<Info size={16} />} label={getString('settings_metadata_source')} value={sourceLabel(systemMetadata?.source)} />
-        <div className="border-t border-neutral-800/50" />
+        <div className="border-t border-chrome-neutral-800/50" />
         <LinkRow icon={<Cpu size={16} />} label={getString('settings_user_agent')} value={systemMetadata?.userAgent ?? unknown()} />
       </SettingsGroup>
     </div>

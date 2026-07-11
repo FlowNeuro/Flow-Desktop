@@ -69,35 +69,35 @@ export function PostCard({ post }: PostCardProps) {
     >
       <motion.article
         layout
-        className="min-w-0 flex-1 rounded-2xl border border-zinc-800/60 bg-surface p-4 shadow-sm transition-colors hover:border-zinc-700/80 sm:p-5"
+        className="min-w-0 flex-1 rounded-2xl border border-chrome-zinc-800/60 bg-surface p-4 shadow-sm transition-colors hover:border-chrome-zinc-700/80 sm:p-5"
       >
         <div className="mb-3 flex items-start justify-between">
           <div className="flex min-w-0 items-center gap-3">
-            <div className="h-10 w-10 shrink-0 overflow-hidden rounded-full border border-zinc-800 bg-zinc-800">
+            <div className="h-10 w-10 shrink-0 overflow-hidden rounded-full border border-chrome-zinc-800 bg-chrome-zinc-800">
               {avatarUrl ? (
                 <img src={avatarUrl} alt={post.authorName || "Author"} className="h-full w-full object-cover" />
               ) : (
-                <div className="flex h-full w-full items-center justify-center font-bold text-zinc-500">
+                <div className="flex h-full w-full items-center justify-center font-bold text-chrome-zinc-500">
                   {(post.authorName || "?").charAt(0)}
                 </div>
               )}
             </div>
             <div className="flex min-w-0 items-center gap-1.5">
-              <span className="truncate text-sm font-bold text-zinc-100">{post.authorName || "Anonymous"}</span>
-              <span className="shrink-0 text-xs text-zinc-500">{post.publishedTimeText || "Recently"}</span>
+              <span className="truncate text-sm font-bold text-chrome-zinc-100">{post.authorName || "Anonymous"}</span>
+              <span className="shrink-0 text-xs text-chrome-zinc-500">{post.publishedTimeText || "Recently"}</span>
             </div>
           </div>
         </div>
 
         <div className="pl-0 sm:pl-[52px]">
           {post.textContent && (
-            <p className="mb-3 whitespace-pre-wrap text-sm font-medium leading-relaxed text-zinc-100">
+            <p className="mb-3 whitespace-pre-wrap text-sm font-medium leading-relaxed text-chrome-zinc-100">
               {post.textContent}
             </p>
           )}
 
           {imageUrl && (
-            <div className="mb-4 flex max-h-[720px] w-full items-center justify-center overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950">
+            <div className="mb-4 flex max-h-[720px] w-full items-center justify-center overflow-hidden rounded-xl border border-chrome-zinc-800 bg-chrome-zinc-950">
               <img
                 src={imageUrl}
                 alt="Post attachment"
@@ -108,17 +108,17 @@ export function PostCard({ post }: PostCardProps) {
           )}
 
           <div className="mt-3 flex flex-wrap items-center gap-2">
-            <div className="flex items-center rounded-full bg-zinc-800/60">
+            <div className="flex items-center rounded-full bg-chrome-zinc-800/60">
               <button
                 type="button"
-                className="flex items-center gap-2 rounded-l-full border-r border-zinc-700/50 px-3 py-1.5 text-sm font-bold text-zinc-100 transition-colors hover:bg-zinc-700"
+                className="flex items-center gap-2 rounded-l-full border-r border-chrome-zinc-700/50 px-3 py-1.5 text-sm font-bold text-chrome-zinc-100 transition-colors hover:bg-chrome-zinc-700"
               >
                 <ThumbsUp size={16} />
                 <span>{likeLabel}</span>
               </button>
               <button
                 type="button"
-                className="flex items-center gap-2 rounded-r-full px-3 py-1.5 text-sm font-bold text-zinc-100 transition-colors hover:bg-zinc-700"
+                className="flex items-center gap-2 rounded-r-full px-3 py-1.5 text-sm font-bold text-chrome-zinc-100 transition-colors hover:bg-chrome-zinc-700"
               >
                 <ThumbsDown size={16} />
                 <span>{dislikeLabel}</span>
@@ -128,7 +128,7 @@ export function PostCard({ post }: PostCardProps) {
             <button
               type="button"
               onClick={() => void sharePost()}
-              className="flex items-center gap-2 rounded-full bg-zinc-800/60 px-3 py-1.5 text-sm font-bold text-zinc-100 transition-colors hover:bg-zinc-700"
+              className="flex items-center gap-2 rounded-full bg-chrome-zinc-800/60 px-3 py-1.5 text-sm font-bold text-chrome-zinc-100 transition-colors hover:bg-chrome-zinc-700"
             >
               <Share2 size={16} />
               <span className="hidden sm:inline">Share</span>
@@ -138,7 +138,7 @@ export function PostCard({ post }: PostCardProps) {
               type="button"
               onClick={() => setCommentsOpen((open) => !open)}
               aria-expanded={commentsOpen}
-              className="flex items-center gap-2 rounded-full bg-zinc-800/60 px-3 py-1.5 text-sm font-bold text-zinc-100 transition-colors hover:bg-zinc-700"
+              className="flex items-center gap-2 rounded-full bg-chrome-zinc-800/60 px-3 py-1.5 text-sm font-bold text-chrome-zinc-100 transition-colors hover:bg-chrome-zinc-700"
             >
               <MessageSquare size={16} />
               <span>{commentLabel}</span>
@@ -153,23 +153,23 @@ export function PostCard({ post }: PostCardProps) {
         animate={{ width: commentsOpen ? SIDE_PANEL_WIDTH : 0, opacity: commentsOpen ? 1 : 0 }}
         transition={{ type: "spring", bounce: 0, duration: 0.4 }}
         className={`min-h-0 overflow-hidden bg-surface-container-high ${
-          commentsOpen ? "ml-4 rounded-2xl border border-neutral-800" : ""
+          commentsOpen ? "ml-4 rounded-2xl border border-chrome-neutral-800" : ""
         }`}
       >
         {commentsOpen && (
           <div className="flex h-[min(720px,calc(100vh-120px))] w-full flex-col">
-            <div className="flex items-center justify-between border-b border-neutral-800 p-4">
+            <div className="flex items-center justify-between border-b border-chrome-neutral-800 p-4">
               <div className="flex min-w-0 items-baseline gap-2">
-                <h3 className="text-base font-medium text-neutral-200">{getString("shorts_comments_title")}</h3>
+                <h3 className="text-base font-medium text-chrome-neutral-200">{getString("shorts_comments_title")}</h3>
                 {commentLabel !== "Comments" && (
-                  <span className="text-sm font-semibold text-neutral-400">{commentLabel}</span>
+                  <span className="text-sm font-semibold text-chrome-neutral-400">{commentLabel}</span>
                 )}
               </div>
               <button
                 type="button"
                 aria-label="Close comments"
                 onClick={() => setCommentsOpen(false)}
-                className="grid h-8 w-8 place-items-center rounded-full text-neutral-400 transition-colors hover:bg-surface-container-highest hover:text-neutral-100"
+                className="grid h-8 w-8 place-items-center rounded-full text-chrome-neutral-400 transition-colors hover:bg-surface-container-highest hover:text-chrome-neutral-100"
               >
                 <X className="h-5 w-5" />
               </button>

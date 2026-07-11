@@ -43,11 +43,11 @@ export function ShortMetadata({
               className="h-12 w-12 shrink-0 rounded-full object-cover shadow-lg"
             />
           ) : (
-            <div className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-surface-container-high text-base font-bold text-neutral-300 shadow-lg">
+            <div className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-surface-container-high text-base font-bold text-chrome-neutral-300 shadow-lg">
               {channelName.charAt(0).toUpperCase()}
             </div>
           )}
-          <span className="truncate text-lg font-bold text-neutral-100 hover:text-white">
+          <span className="truncate text-lg font-bold text-chrome-neutral-100 hover:text-chrome-white">
             {channelName}
           </span>
         </button>
@@ -58,26 +58,26 @@ export function ShortMetadata({
             channelName={channelName}
             avatarUrl={avatar || undefined}
             size="sm"
-            className="shrink-0 !bg-white !px-4 !py-1.5 !text-sm !font-bold !text-black hover:!bg-neutral-200"
+            className="shrink-0 !bg-chrome-white !px-4 !py-1.5 !text-sm !font-bold !text-chrome-black hover:!bg-chrome-neutral-200"
           />
         )}
       </div>
 
       <button
         type="button"
-        className="line-clamp-4 text-left text-base leading-relaxed text-neutral-200 transition-colors hover:text-white"
+        className="line-clamp-4 text-left text-base leading-relaxed text-chrome-neutral-200 transition-colors hover:text-chrome-white"
         onClick={onOpenDescription}
       >
         {title}
       </button>
 
       {viewStatText && (
-        <span className="w-fit rounded-full bg-white/10 px-2.5 py-1 text-xs font-semibold text-neutral-300 backdrop-blur-md">
+        <span className="w-fit rounded-full bg-chrome-white/10 px-2.5 py-1 text-xs font-semibold text-chrome-neutral-300 backdrop-blur-md">
           {viewStatText}
         </span>
       )}
 
-      <div className="inline-flex w-fit items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-xs text-neutral-300 backdrop-blur-md">
+      <div className="inline-flex w-fit items-center gap-2 rounded-full bg-chrome-white/10 px-3 py-1.5 text-xs text-chrome-neutral-300 backdrop-blur-md">
         <Music2 className="h-3.5 w-3.5 shrink-0" />
         <span className="max-w-[220px] truncate lg:max-w-[240px]">
           Original audio - {channelName}

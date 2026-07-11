@@ -19,17 +19,17 @@ export function DescriptionCard({ currentVideo, videoData }: DescriptionCardProp
       onClick={() => setExpanded((value) => !value)}
       className="cursor-pointer rounded-xl bg-surface-container-low p-4 text-sm transition-colors hover:bg-surface-container"
     >
-      <div className="flex items-center gap-2 font-medium text-neutral-200">
+      <div className="flex items-center gap-2 font-medium text-chrome-neutral-200">
         <span>{formatViews(viewCount)}</span>
-        {published && <span className="text-neutral-400">{published}</span>}
+        {published && <span className="text-chrome-neutral-400">{published}</span>}
       </div>
 
-      <div className={`mt-2 whitespace-pre-wrap text-neutral-300 ${expanded ? "" : "line-clamp-3"}`}>
-        {description ? linkifyText(description) : <span className="text-neutral-500">{getString("watch_no_description")}</span>}
+      <div className={`mt-2 whitespace-pre-wrap text-chrome-neutral-300 ${expanded ? "" : "line-clamp-3"}`}>
+        {description ? linkifyText(description) : <span className="text-chrome-neutral-500">{getString("watch_no_description")}</span>}
       </div>
 
       {description && (
-        <span className="mt-2 inline-block font-medium text-neutral-400">
+        <span className="mt-2 inline-block font-medium text-chrome-neutral-400">
           {expanded ? getString("watch_show_less") : getString("watch_show_more")}
         </span>
       )}

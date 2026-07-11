@@ -29,20 +29,20 @@ export function ShortSidePanel({
 
   return (
     <div className="flex h-full w-full min-w-0 flex-col">
-      <div className="flex items-center justify-between border-b border-neutral-800 p-4">
+      <div className="flex items-center justify-between border-b border-chrome-neutral-800 p-4">
         <div className="flex min-w-0 items-baseline gap-2">
-          <h3 className="text-base font-medium text-neutral-200">
+          <h3 className="text-base font-medium text-chrome-neutral-200">
             {getString(isComments ? "shorts_comments_title" : "shorts_description_title")}
           </h3>
           {headerCountText && (
-            <span className="text-sm font-semibold text-neutral-400">{headerCountText}</span>
+            <span className="text-sm font-semibold text-chrome-neutral-400">{headerCountText}</span>
           )}
         </div>
         <button
           type="button"
           aria-label="Close panel"
           onClick={onClose}
-          className="grid h-8 w-8 place-items-center rounded-full text-neutral-400 transition-colors hover:bg-surface-container-highest hover:text-neutral-100"
+          className="grid h-8 w-8 place-items-center rounded-full text-chrome-neutral-400 transition-colors hover:bg-surface-container-highest hover:text-chrome-neutral-100"
         >
           <X className="h-5 w-5" />
         </button>
@@ -92,8 +92,8 @@ function ShortDescription({
         <StatPill label={getString("shorts_stat_views")} value={views} />
         <StatPill label={getString("shorts_comments_title")} value={comments} />
       </div>
-      <p className="px-4 text-base font-medium text-neutral-100">{title}</p>
-      <p className="whitespace-pre-wrap p-4 text-sm text-neutral-300">
+      <p className="px-4 text-base font-medium text-chrome-neutral-100">{title}</p>
+      <p className="whitespace-pre-wrap p-4 text-sm text-chrome-neutral-300">
         {description || (loading ? "..." : getString("shorts_no_description"))}
       </p>
     </div>
@@ -103,8 +103,8 @@ function ShortDescription({
 function StatPill({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex flex-col items-center justify-center rounded-xl bg-surface-container-low p-3">
-      <span className="max-w-full truncate font-mono text-sm text-neutral-100">{value}</span>
-      <span className="mt-0.5 text-xs text-neutral-400">{label}</span>
+      <span className="max-w-full truncate font-mono text-sm text-chrome-neutral-100">{value}</span>
+      <span className="mt-0.5 text-xs text-chrome-neutral-400">{label}</span>
     </div>
   );
 }

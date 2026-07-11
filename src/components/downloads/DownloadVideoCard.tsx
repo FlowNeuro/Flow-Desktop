@@ -96,9 +96,9 @@ export function DownloadVideoCard({
         )}
 
         {downloading ? (
-          <div className="absolute inset-0 flex flex-col justify-end bg-black/40 p-3">
+          <div className="absolute inset-0 flex flex-col justify-end bg-chrome-black/40 p-3">
             <div className="flex items-center gap-2">
-              <span className="text-neutral-100">
+              <span className="text-chrome-neutral-100">
                 {waiting ? (
                   <WifiOff className="h-4 w-4" />
                 ) : paused ? (
@@ -107,12 +107,12 @@ export function DownloadVideoCard({
                   <Loader2 className="h-4 w-4 animate-spin" />
                 )}
               </span>
-              <span className="min-w-0 flex-1 truncate text-xs font-medium text-neutral-100">
+              <span className="min-w-0 flex-1 truncate text-xs font-medium text-chrome-neutral-100">
                 {statusLabel(progress!)}
                 {percent != null ? ` · ${Math.round(percent)}%` : ""}
               </span>
             </div>
-            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/25">
+            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-chrome-white/25">
               <div
                 className={`h-full rounded-full bg-[var(--color-primary)] transition-[width] duration-200 ${percent == null ? "w-1/3 animate-pulse" : ""}`}
                 style={percent == null ? undefined : { width: `${percent}%` }}
@@ -127,7 +127,7 @@ export function DownloadVideoCard({
                     event.stopPropagation();
                     void (paused ? resumeDownload(progress!.id) : pauseDownload(progress!.id));
                   }}
-                  className="grid h-8 w-8 place-items-center rounded-full bg-black/50 text-neutral-100 transition-colors hover:bg-black/70"
+                  className="grid h-8 w-8 place-items-center rounded-full bg-chrome-black/50 text-chrome-neutral-100 transition-colors hover:bg-chrome-black/70"
                 >
                   {paused ? <Play size={15} /> : <Pause size={15} />}
                 </button>
@@ -139,7 +139,7 @@ export function DownloadVideoCard({
                   event.stopPropagation();
                   void cancelDownload(progress!.id);
                 }}
-                className="grid h-8 w-8 place-items-center rounded-full bg-black/50 text-neutral-100 transition-colors hover:bg-red-950/70 hover:text-red-300"
+                className="grid h-8 w-8 place-items-center rounded-full bg-chrome-black/50 text-chrome-neutral-100 transition-colors hover:bg-chrome-red-950/70 hover:text-chrome-red-300"
               >
                 <X size={15} />
               </button>
@@ -148,7 +148,7 @@ export function DownloadVideoCard({
         ) : (
           <>
             {video.durationSeconds ? (
-              <div className="absolute bottom-1 right-1 z-10 rounded bg-black/80 px-1 py-px text-[12px] font-medium leading-tight tracking-wide text-white">
+              <div className="absolute bottom-1 right-1 z-10 rounded bg-chrome-black/80 px-1 py-px text-[12px] font-medium leading-tight tracking-wide text-chrome-white">
                 {formatDuration(video.durationSeconds)}
               </div>
             ) : null}
@@ -160,7 +160,7 @@ export function DownloadVideoCard({
                   event.stopPropagation();
                   onDelete();
                 }}
-                className="absolute right-2 top-2 z-20 grid h-8 w-8 place-items-center rounded-full border border-neutral-800 bg-neutral-950/90 text-neutral-300 opacity-0 backdrop-blur-md transition-colors duration-200 ease-out hover:bg-red-950/50 hover:text-red-400 group-hover:opacity-100"
+                className="absolute right-2 top-2 z-20 grid h-8 w-8 place-items-center rounded-full border border-chrome-neutral-800 bg-chrome-neutral-950/90 text-chrome-neutral-300 opacity-0 backdrop-blur-md transition-colors duration-200 ease-out hover:bg-chrome-red-950/50 hover:text-chrome-red-400 group-hover:opacity-100"
               >
                 <Trash2 size={15} />
               </button>
@@ -173,7 +173,7 @@ export function DownloadVideoCard({
             className={`absolute left-2 top-2 z-20 grid h-6 w-6 place-items-center rounded-full border transition-colors ${
               selected
                 ? "border-[var(--color-primary)] bg-[var(--color-primary)] text-[var(--color-on-primary)]"
-                : "border-white/70 bg-black/40 text-transparent"
+                : "border-chrome-white/70 bg-chrome-black/40 text-transparent"
             }`}
           >
             <Check size={14} />
@@ -184,12 +184,12 @@ export function DownloadVideoCard({
       <div className="min-w-0">
         <h3
           onClick={activate}
-          className="cursor-pointer text-sm font-medium leading-snug text-neutral-100 transition-colors hover:text-white line-clamp-2"
+          className="cursor-pointer text-sm font-medium leading-snug text-chrome-neutral-100 transition-colors hover:text-chrome-white line-clamp-2"
         >
           {video.title}
         </h3>
         {video.channelName ? (
-          <div className="mt-0.5 truncate text-[13px] text-neutral-400">{video.channelName}</div>
+          <div className="mt-0.5 truncate text-[13px] text-chrome-neutral-400">{video.channelName}</div>
         ) : null}
       </div>
     </div>

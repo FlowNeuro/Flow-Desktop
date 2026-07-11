@@ -93,13 +93,13 @@ export default function ArtistItemsPage() {
     <div className="px-6 py-6 pb-32 lg:px-8">
       <div className="mb-6 flex items-center gap-3">
 
-        <h1 className="text-3xl font-bold tracking-tight text-neutral-100">{title}</h1>
+        <h1 className="text-3xl font-bold tracking-tight text-chrome-neutral-100">{title}</h1>
       </div>
 
       {error && !items.length ? (
         <div className="flex flex-col items-center justify-center gap-3 py-24 text-center">
-          <AlertTriangle className="h-8 w-8 text-neutral-500" />
-          <p className="text-sm text-neutral-400">{getString('music_error_generic')}</p>
+          <AlertTriangle className="h-8 w-8 text-chrome-neutral-500" />
+          <p className="text-sm text-chrome-neutral-400">{getString('music_error_generic')}</p>
         </div>
       ) : loading && !items.length ? (
         <GridSkeleton kind={kind} />
@@ -162,7 +162,7 @@ export default function ArtistItemsPage() {
             type="button"
             onClick={() => void loadMore()}
             disabled={loadingMore}
-            className="inline-flex items-center gap-2 rounded-full bg-surface-container-high px-5 py-2.5 text-sm font-medium text-neutral-200 transition-colors duration-200 ease-out hover:bg-surface-container-highest disabled:opacity-50"
+            className="inline-flex items-center gap-2 rounded-full bg-surface-container-high px-5 py-2.5 text-sm font-medium text-chrome-neutral-200 transition-colors duration-200 ease-out hover:bg-surface-container-highest disabled:opacity-50"
           >
             {loadingMore && <Loader2 className="h-4 w-4 animate-spin" />}
             {getString('music_load_more')}

@@ -109,11 +109,11 @@ const AMBIENT_SAMPLE_WIDTH = 36;
 const AMBIENT_SAMPLE_HEIGHT = 20;
 const AMBIENT_SAMPLE_INTERVAL_MS = 520;
 const DEFAULT_AMBIENT_SAMPLE: AmbientSample = {
-  top: "rgba(10, 10, 10, 0.95)",
-  right: "rgba(8, 8, 8, 0.9)",
-  bottom: "rgba(10, 10, 10, 0.95)",
-  left: "rgba(8, 8, 8, 0.9)",
-  center: "rgba(18, 18, 18, 0.65)",
+  top: "var(--color-player-ambient-1)",
+  right: "var(--color-player-ambient-2)",
+  bottom: "var(--color-player-ambient-1)",
+  left: "var(--color-player-ambient-2)",
+  center: "var(--color-player-ambient-3)",
   key: "default",
 };
 
@@ -454,7 +454,7 @@ export const Player: React.FC<PlayerProps> = ({
       `radial-gradient(ellipse at -6% 50%, ${ambientSample.left} 0%, transparent 54%)`,
       `radial-gradient(ellipse at 106% 50%, ${ambientSample.right} 0%, transparent 54%)`,
       `radial-gradient(circle at 50% 50%, ${ambientSample.center} 0%, transparent 46%)`,
-      "linear-gradient(180deg, rgba(0, 0, 0, 0.88) 0%, rgba(0, 0, 0, 0.5) 45%, rgba(0, 0, 0, 0.88) 100%)",
+      "linear-gradient(180deg, color-mix(in srgb, var(--color-chrome-black) 88%, transparent) 0%, color-mix(in srgb, var(--color-chrome-black) 50%, transparent) 45%, color-mix(in srgb, var(--color-chrome-black) 88%, transparent) 100%)",
     ].join(", "),
   }), [ambientSample]);
 
@@ -1853,8 +1853,8 @@ export const Player: React.FC<PlayerProps> = ({
 
   const playerRootClasses = cx(
     isTheaterSurface
-      ? "relative w-full aspect-video max-h-[calc(100vh-160px)] min-h-[480px] bg-black flex items-center justify-center rounded-none overflow-hidden text-white outline-none shadow-none"
-      : "relative w-full aspect-video bg-black rounded-xl overflow-hidden text-white outline-none shadow-2xl",
+      ? "relative w-full aspect-video max-h-[calc(100vh-160px)] min-h-[480px] bg-chrome-black flex items-center justify-center rounded-none overflow-hidden text-chrome-white outline-none shadow-none"
+      : "relative w-full aspect-video bg-chrome-black rounded-xl overflow-hidden text-chrome-white outline-none shadow-2xl",
     isFullscreen && "rounded-none",
     className
   );
@@ -1873,13 +1873,13 @@ export const Player: React.FC<PlayerProps> = ({
       {showAmbient && (
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute inset-0 z-0 overflow-hidden bg-black"
+          className="pointer-events-none absolute inset-0 z-0 overflow-hidden bg-chrome-black"
         >
           <div
             className="absolute inset-[-18%] opacity-95 blur-3xl saturate-150 transition-colors duration-700 ease-out"
             style={ambientBackdropStyle}
           />
-          <div className="absolute inset-0 bg-black/25" />
+          <div className="absolute inset-0 bg-chrome-black/25" />
         </div>
       )}
 
@@ -1972,9 +1972,9 @@ export const Player: React.FC<PlayerProps> = ({
 
       {/* buffering spinner */}
       {isBuffering && !isLoading && !error && (
-        <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center bg-black/15 transition-all duration-300">
+        <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center bg-chrome-black/15 transition-all duration-300">
           <div className="relative flex items-center justify-center">
-            <svg className="h-12 w-12 animate-spin text-white" viewBox="0 0 24 24" fill="none">
+            <svg className="h-12 w-12 animate-spin text-chrome-white" viewBox="0 0 24 24" fill="none">
               <circle
                 className="opacity-20"
                 cx="12"
@@ -2002,21 +2002,21 @@ export const Player: React.FC<PlayerProps> = ({
       />
 
       {(isLoading || error) && (
-        <div className="absolute inset-0 z-30 grid place-items-center bg-black/60 px-6 text-center">
+        <div className="absolute inset-0 z-30 grid place-items-center bg-chrome-black/60 px-6 text-center">
           {isLoading ? (
-            <div className="flex flex-col items-center gap-3 text-sm font-semibold text-zinc-200">
+            <div className="flex flex-col items-center gap-3 text-sm font-semibold text-chrome-zinc-200">
               <Loader2 className="animate-spin text-primary" size={34} />
               Resolving stream
             </div>
           ) : (
             <div className="max-w-md space-y-4">
               <div className="text-base font-bold">Playback unavailable</div>
-              <p className="text-sm text-zinc-300">{error}</p>
+              <p className="text-sm text-chrome-zinc-300">{error}</p>
               {onRetry && (
                 <button
                   type="button"
                   onClick={onRetry}
-                  className="inline-flex h-10 items-center gap-2 rounded-full bg-white px-4 text-sm font-bold text-black transition-transform active:scale-95"
+                  className="inline-flex h-10 items-center gap-2 rounded-full bg-chrome-white px-4 text-sm font-bold text-chrome-black transition-transform active:scale-95"
                 >
                   <RotateCcw size={16} />
                   Retry
@@ -2029,16 +2029,16 @@ export const Player: React.FC<PlayerProps> = ({
 
       {/* SponsorBlock Notify Toast */}
       {notifyToast && notifyToast.visible && (
-        <div className="absolute bottom-20 right-6 z-40 bg-[#1A1A1A]/95 border border-[#2A2A2A] rounded-xl px-4 py-3 shadow-2xl flex items-center gap-3 transition-transform duration-300 animate-slide-up select-none animate-fade-in">
+        <div className="absolute bottom-20 right-6 z-40 bg-chrome-toast/95 border border-chrome-toast-border rounded-xl px-4 py-3 shadow-2xl flex items-center gap-3 transition-transform duration-300 animate-slide-up select-none animate-fade-in">
           <div className="flex flex-col">
-            <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">SponsorBlock</span>
-            <span className="text-xs font-semibold text-neutral-200">
+            <span className="text-[10px] font-bold text-chrome-neutral-400 uppercase tracking-wider">SponsorBlock</span>
+            <span className="text-xs font-semibold text-chrome-neutral-200">
               {notifyToast.categoryName} Segment
             </span>
           </div>
           <button
             onClick={() => handleSkipNotifySegment(notifyToast.segment)}
-            className="ml-2 px-3.5 py-1.5 rounded-full bg-primary hover:bg-red-700 active:scale-95 text-white font-bold text-xs uppercase tracking-wider transition-all cursor-pointer shadow-md"
+            className="ml-2 px-3.5 py-1.5 rounded-full bg-primary hover:bg-chrome-red-700 active:scale-95 text-chrome-white font-bold text-xs uppercase tracking-wider transition-all cursor-pointer shadow-md"
           >
             Skip
           </button>
@@ -2047,12 +2047,12 @@ export const Player: React.FC<PlayerProps> = ({
 
       {/* SponsorBlock Muted Overlay */}
       {sbMuted && (
-        <div className="absolute top-6 left-6 z-40 bg-[#1A1A1A]/95 border border-[#2A2A2A] rounded-xl px-4 py-2.5 shadow-2xl flex items-center gap-2 transition-all select-none">
+        <div className="absolute top-6 left-6 z-40 bg-chrome-toast/95 border border-chrome-toast-border rounded-xl px-4 py-2.5 shadow-2xl flex items-center gap-2 transition-all select-none">
           <svg className="w-4 h-4 text-primary animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
           </svg>
-          <span className="text-xs font-bold text-neutral-200">
+          <span className="text-xs font-bold text-chrome-neutral-200">
             SponsorBlock Muted ({CATEGORY_LABELS[currentSBMuteSegment || ""] || currentSBMuteSegment || "Filler"})
           </span>
         </div>

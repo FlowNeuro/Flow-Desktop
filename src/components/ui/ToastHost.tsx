@@ -10,8 +10,8 @@ const toastIcons: Record<ToastVariant, typeof CheckCircle2> = {
 
 const toastIconStyles: Record<ToastVariant, string> = {
   success: "text-[var(--color-primary)]",
-  error: "text-red-400",
-  info: "text-neutral-300",
+  error: "text-chrome-red-400",
+  info: "text-chrome-neutral-300",
 };
 
 export function ToastHost() {
@@ -33,20 +33,20 @@ export function ToastHost() {
     <div
       role="status"
       aria-live="polite"
-      className="fixed bottom-6 right-6 z-[100] flex max-w-sm items-start gap-3 rounded-2xl border border-neutral-800 bg-surface-container-high px-4 py-3 text-sm text-neutral-100"
+      className="fixed bottom-6 right-6 z-[100] flex max-w-sm items-start gap-3 rounded-2xl border border-chrome-neutral-800 bg-surface-container-high px-4 py-3 text-sm text-chrome-neutral-100"
     >
       <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${toastIconStyles[toast.variant]}`} />
       <div className="min-w-0">
         {toast.title ? (
-          <p className="font-medium text-neutral-100">{toast.title}</p>
+          <p className="font-medium text-chrome-neutral-100">{toast.title}</p>
         ) : null}
-        <p className="text-neutral-300">{toast.message}</p>
+        <p className="text-chrome-neutral-300">{toast.message}</p>
       </div>
       <button
         type="button"
         aria-label="Dismiss notification"
         onClick={dismissToast}
-        className="ml-1 rounded-full p-1 text-neutral-500 transition-colors hover:bg-surface-container-highest hover:text-neutral-200"
+        className="ml-1 rounded-full p-1 text-chrome-neutral-500 transition-colors hover:bg-surface-container-highest hover:text-chrome-neutral-200"
       >
         <X size={14} />
       </button>

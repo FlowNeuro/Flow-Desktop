@@ -60,12 +60,12 @@ function QueueRow({ track, isRadio, onPlay, onRemove }: QueueRowProps) {
         {...listeners}
         title={getString("music_drag_to_reorder")}
         aria-label={getString("music_drag_to_reorder")}
-        className="grid w-6 shrink-0 cursor-grab touch-none place-items-center self-stretch text-neutral-600 outline-none active:cursor-grabbing"
+        className="grid w-6 shrink-0 cursor-grab touch-none place-items-center self-stretch text-chrome-neutral-600 outline-none active:cursor-grabbing"
       >
         {isRadio ? (
           <>
             <Radio className="h-3.5 w-3.5 text-[var(--color-primary)] group-hover/queue:hidden" />
-            <GripVertical className="hidden h-4 w-4 text-neutral-400 group-hover/queue:block" />
+            <GripVertical className="hidden h-4 w-4 text-chrome-neutral-400 group-hover/queue:block" />
           </>
         ) : (
           <GripVertical className="h-4 w-4 opacity-0 transition-opacity group-hover/queue:opacity-100" />
@@ -129,14 +129,14 @@ export function MusicQueuePane() {
     <div className="flex h-full min-h-0 flex-col">
       {/* Header */}
       <div className="mb-2 flex items-center justify-between px-1">
-        <h3 className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
+        <h3 className="text-xs font-semibold uppercase tracking-widest text-chrome-neutral-500">
           {getString("music_queue")}
         </h3>
         {upcoming.length > 0 && (
           <button
             type="button"
             onClick={clearQueue}
-            className="inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-xs font-medium text-neutral-400 transition-colors hover:bg-surface-container-high hover:text-neutral-100"
+            className="inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-xs font-medium text-chrome-neutral-400 transition-colors hover:bg-surface-container-high hover:text-chrome-neutral-100"
           >
             <ListX className="h-3.5 w-3.5" />
             {getString("music_clear_queue")}
@@ -148,7 +148,7 @@ export function MusicQueuePane() {
       <div className="hide-scrollbar -mr-1 flex-1 overflow-y-auto pr-1">
         {currentTrack && (
           <>
-            <p className="mb-1 px-1 text-[10px] font-semibold uppercase tracking-widest text-neutral-600">
+            <p className="mb-1 px-1 text-[10px] font-semibold uppercase tracking-widest text-chrome-neutral-600">
               {getString("music_now_playing")}
             </p>
             <MusicItemCard variant="track-list" item={currentTrack} onPlay={() => void loadIndex(currentIndex)} />
@@ -156,11 +156,11 @@ export function MusicQueuePane() {
         )}
 
         <div className="mt-4 mb-1 flex items-center justify-between px-1">
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-neutral-600">
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-chrome-neutral-600">
             {getString("music_up_next")}
           </p>
           {radioEnabled && radioLoading && (
-            <Loader2 className="h-3.5 w-3.5 animate-spin text-neutral-500" />
+            <Loader2 className="h-3.5 w-3.5 animate-spin text-chrome-neutral-500" />
           )}
         </div>
 
@@ -182,22 +182,22 @@ export function MusicQueuePane() {
           </DndContext>
         ) : (
           <div className="px-2 py-6 text-center">
-            <p className="text-sm text-neutral-500">{getString("music_queue_empty")}</p>
+            <p className="text-sm text-chrome-neutral-500">{getString("music_queue_empty")}</p>
             {!radioEnabled && (
-              <p className="mt-1 text-xs text-neutral-600">{getString("music_queue_autoplay_hint")}</p>
+              <p className="mt-1 text-xs text-chrome-neutral-600">{getString("music_queue_autoplay_hint")}</p>
             )}
           </div>
         )}
       </div>
 
       {/* Autoplay footer */}
-      <div className="mt-2 flex items-center gap-3 rounded-xl border border-neutral-800 bg-surface-container-low px-3 py-2.5">
+      <div className="mt-2 flex items-center gap-3 rounded-xl border border-chrome-neutral-800 bg-surface-container-low px-3 py-2.5">
         <Radio
-          className={cx("h-5 w-5 shrink-0", radioEnabled ? "text-[var(--color-primary)]" : "text-neutral-500")}
+          className={cx("h-5 w-5 shrink-0", radioEnabled ? "text-[var(--color-primary)]" : "text-chrome-neutral-500")}
         />
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium text-neutral-100">{getString("music_autoplay")}</p>
-          <p className="line-clamp-1 text-xs text-neutral-500">{getString("music_autoplay_desc")}</p>
+          <p className="text-sm font-medium text-chrome-neutral-100">{getString("music_autoplay")}</p>
+          <p className="line-clamp-1 text-xs text-chrome-neutral-500">{getString("music_autoplay_desc")}</p>
         </div>
         <ToggleSwitch checked={radioEnabled} onChange={() => toggleRadio()} />
       </div>

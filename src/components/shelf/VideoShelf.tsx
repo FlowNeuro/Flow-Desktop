@@ -76,9 +76,9 @@ export const VideoShelf: React.FC<VideoShelfProps> = ({
       {/* Shelf Header */}
       {title ? (
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold text-zinc-100 tracking-tight flex items-center gap-2">
+          <h2 className="text-lg font-bold text-chrome-zinc-100 tracking-tight flex items-center gap-2">
             <span>{title}</span>
-            <span className="text-xs text-zinc-500 font-semibold bg-surface-container-low border border-neutral-800 px-2 py-0.5 rounded-full">
+            <span className="text-xs text-chrome-zinc-500 font-semibold bg-surface-container-low border border-chrome-neutral-800 px-2 py-0.5 rounded-full">
               {videos.length}
             </span>
           </h2>
@@ -91,7 +91,7 @@ export const VideoShelf: React.FC<VideoShelfProps> = ({
         {canScrollLeft && (
           <button
             onClick={() => handleScroll("left")}
-            className="absolute left-0 top-1/2 -translate-y-1/2 -ml-2 sm:-ml-4 z-20 flex items-center justify-center w-10 h-10 rounded-full bg-surface-container-high hover:bg-surface-container-highest border border-neutral-800 text-neutral-300 hover:text-neutral-100 opacity-0 group-hover/shelf:opacity-100 transition-colors duration-200 ease-out pointer-events-auto cursor-pointer"
+            className="absolute left-0 top-1/2 -translate-y-1/2 -ml-2 sm:-ml-4 z-20 flex items-center justify-center w-10 h-10 rounded-full bg-surface-container-high hover:bg-surface-container-highest border border-chrome-neutral-800 text-chrome-neutral-300 hover:text-chrome-neutral-100 opacity-0 group-hover/shelf:opacity-100 transition-colors duration-200 ease-out pointer-events-auto cursor-pointer"
             aria-label="Scroll left"
           >
             <ChevronLeft size={20} strokeWidth={2.5} />
@@ -125,7 +125,7 @@ export const VideoShelf: React.FC<VideoShelfProps> = ({
         {canScrollRight && (
           <button
             onClick={() => handleScroll("right")}
-            className="absolute right-0 top-1/2 -translate-y-1/2 -mr-2 sm:-mr-4 z-20 flex items-center justify-center w-10 h-10 rounded-full bg-surface-container-high hover:bg-surface-container-highest border border-neutral-800 text-neutral-300 hover:text-neutral-100 opacity-0 group-hover/shelf:opacity-100 transition-colors duration-200 ease-out pointer-events-auto cursor-pointer"
+            className="absolute right-0 top-1/2 -translate-y-1/2 -mr-2 sm:-mr-4 z-20 flex items-center justify-center w-10 h-10 rounded-full bg-surface-container-high hover:bg-surface-container-highest border border-chrome-neutral-800 text-chrome-neutral-300 hover:text-chrome-neutral-100 opacity-0 group-hover/shelf:opacity-100 transition-colors duration-200 ease-out pointer-events-auto cursor-pointer"
             aria-label="Scroll right"
           >
             <ChevronRight size={20} strokeWidth={2.5} />

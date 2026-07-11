@@ -73,10 +73,10 @@ function DockCard({
       onKeyDown={(event) => {
         if (event.key === "Enter" || event.key === " ") onOpen();
       }}
-      className="cursor-pointer rounded-2xl border border-neutral-800 bg-surface-container-high p-4 transition-colors duration-200 ease-out hover:bg-surface-container-highest"
+      className="cursor-pointer rounded-2xl border border-chrome-neutral-800 bg-surface-container-high p-4 transition-colors duration-200 ease-out hover:bg-surface-container-highest"
     >
       <div className="flex items-start gap-3">
-        <div className="mt-0.5 text-neutral-300">
+        <div className="mt-0.5 text-chrome-neutral-300">
           {waiting ? (
             <WifiOff className="h-4 w-4" />
           ) : running && !paused ? (
@@ -84,14 +84,14 @@ function DockCard({
           ) : paused ? (
             <Pause className="h-4 w-4" />
           ) : failed ? (
-            <XCircle className="h-4 w-4 text-red-400" />
+            <XCircle className="h-4 w-4 text-chrome-red-400" />
           ) : (
             <CheckCircle2 className="h-4 w-4 text-[var(--color-primary)]" />
           )}
         </div>
         <div className="min-w-0 flex-1">
-          <div className="truncate text-sm font-medium text-neutral-100">{item.title}</div>
-          <div className="mt-0.5 line-clamp-2 text-xs text-neutral-400">{detail}</div>
+          <div className="truncate text-sm font-medium text-chrome-neutral-100">{item.title}</div>
+          <div className="mt-0.5 line-clamp-2 text-xs text-chrome-neutral-400">{detail}</div>
         </div>
         <div className="flex items-center gap-1">
           {running && item.status !== "muxing" ? (
@@ -102,7 +102,7 @@ function DockCard({
                 event.stopPropagation();
                 void (paused ? resumeDownload(item.id) : pauseDownload(item.id));
               }}
-              className="grid h-8 w-8 place-items-center rounded-full text-neutral-400 transition-colors duration-200 ease-out hover:bg-surface-container-low hover:text-neutral-100"
+              className="grid h-8 w-8 place-items-center rounded-full text-chrome-neutral-400 transition-colors duration-200 ease-out hover:bg-surface-container-low hover:text-chrome-neutral-100"
             >
               {paused ? <Play size={15} /> : <Pause size={15} />}
             </button>
@@ -115,7 +115,7 @@ function DockCard({
               if (running) void cancelDownload(item.id);
               else onDismiss();
             }}
-            className="grid h-8 w-8 place-items-center rounded-full text-neutral-400 transition-colors duration-200 ease-out hover:bg-surface-container-low hover:text-neutral-100"
+            className="grid h-8 w-8 place-items-center rounded-full text-chrome-neutral-400 transition-colors duration-200 ease-out hover:bg-surface-container-low hover:text-chrome-neutral-100"
           >
             <X size={15} />
           </button>

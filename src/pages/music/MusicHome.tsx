@@ -123,12 +123,12 @@ export default function MusicHome() {
     if (error && !data) {
       return (
         <div className="flex flex-col items-center justify-center gap-3 py-24 text-center">
-          <AlertTriangle className="h-8 w-8 text-neutral-500" />
-          <p className="text-sm text-neutral-400">{getString('music_error_generic')}</p>
+          <AlertTriangle className="h-8 w-8 text-chrome-neutral-500" />
+          <p className="text-sm text-chrome-neutral-400">{getString('music_error_generic')}</p>
           <button
             type="button"
             onClick={() => void reload()}
-            className="rounded-full bg-surface-container-high px-4 py-2 text-sm font-medium text-neutral-200 transition-colors duration-200 ease-out hover:bg-surface-container-highest"
+            className="rounded-full bg-surface-container-high px-4 py-2 text-sm font-medium text-chrome-neutral-200 transition-colors duration-200 ease-out hover:bg-surface-container-highest"
           >
             {getString('music_retry')}
           </button>
@@ -187,7 +187,7 @@ export default function MusicHome() {
       <>
         {quickPicks.length > 0 && (
           <section className="mb-10">
-            <h2 className="mb-3 px-1 text-xl font-bold tracking-tight text-neutral-100">
+            <h2 className="mb-3 px-1 text-xl font-bold tracking-tight text-chrome-neutral-100">
               {getString('music_quick_picks')}
             </h2>
             <div className="grid auto-cols-[88%] grid-flow-col grid-rows-3 gap-x-4 gap-y-1 overflow-x-auto hide-scrollbar snap-x pb-4 sm:auto-cols-[46%] lg:auto-cols-[31%] xl:auto-cols-[23.5%]">
@@ -239,7 +239,7 @@ export default function MusicHome() {
             type="button"
             onClick={() => void pageLoadMore()}
             disabled={pageLoadingMore}
-            className="inline-flex items-center gap-2 rounded-full bg-surface-container-high px-5 py-2.5 text-sm font-medium text-neutral-200 transition-colors duration-200 ease-out hover:bg-surface-container-highest disabled:opacity-50"
+            className="inline-flex items-center gap-2 rounded-full bg-surface-container-high px-5 py-2.5 text-sm font-medium text-chrome-neutral-200 transition-colors duration-200 ease-out hover:bg-surface-container-highest disabled:opacity-50"
           >
             {pageLoadingMore && <Loader2 className="h-4 w-4 animate-spin" />}
             {getString('music_load_more')}

@@ -1636,18 +1636,18 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
     <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-8 py-6 space-y-6">
       {/* Grid List layout */}
       {!homeFeedEnabled ? (
-        <div className="flex flex-col items-center justify-center py-24 text-center border border-dashed border-zinc-800 rounded-3xl p-8 bg-zinc-900/10">
-          <h3 className="font-bold text-zinc-300">{getString("home_feed_disabled_title")}</h3>
-          <p className="text-zinc-500 text-xs mt-1 max-w-sm">
+        <div className="flex flex-col items-center justify-center py-24 text-center border border-dashed border-chrome-zinc-800 rounded-3xl p-8 bg-chrome-zinc-900/10">
+          <h3 className="font-bold text-chrome-zinc-300">{getString("home_feed_disabled_title")}</h3>
+          <p className="text-chrome-zinc-500 text-xs mt-1 max-w-sm">
             {getString("home_feed_disabled_body")}
           </p>
         </div>
       ) : loading ? (
         <VideoGrid loading={true} onPlay={handlePlayVideo} />
       ) : visibleVideos.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-24 text-center border border-dashed border-zinc-800 rounded-3xl p-8 bg-zinc-900/10">
-          <h3 className="font-bold text-zinc-300">No content found</h3>
-          <p className="text-zinc-500 text-xs mt-1 max-w-sm">
+        <div className="flex flex-col items-center justify-center py-24 text-center border border-dashed border-chrome-zinc-800 rounded-3xl p-8 bg-chrome-zinc-900/10">
+          <h3 className="font-bold text-chrome-zinc-300">No content found</h3>
+          <p className="text-chrome-zinc-500 text-xs mt-1 max-w-sm">
             Try playing some videos or searching to help the recommendation engine learn your profile
           </p>
         </div>
@@ -1676,11 +1676,11 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
               <button
                 onClick={() => void handleLoadMore()}
                 disabled={loadingMore}
-                className="inline-flex items-center gap-2 rounded-2xl border border-zinc-800 bg-zinc-900/40 px-5 py-3 text-sm font-semibold text-zinc-300 transition-all hover:border-zinc-700 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex items-center gap-2 rounded-2xl border border-chrome-zinc-800 bg-chrome-zinc-900/40 px-5 py-3 text-sm font-semibold text-chrome-zinc-300 transition-all hover:border-chrome-zinc-700 hover:text-chrome-white disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {loadingMore ? (
                   <>
-                    <Loader2 size={16} className="animate-spin text-red-400" />
+                    <Loader2 size={16} className="animate-spin text-chrome-red-400" />
                     Loading more
                   </>
                 ) : (
@@ -1691,7 +1691,7 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
                 )}
               </button>
               {!loadingMore && (
-                <p className="text-xs text-zinc-500">
+                <p className="text-xs text-chrome-zinc-500">
                   More recommendations load automatically as you scroll.
                 </p>
               )}

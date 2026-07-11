@@ -94,9 +94,9 @@ export const VideoCard: React.FC<VideoCardProps> = ({
     return (
       <div 
         onClick={() => navigate(`/channel/${cleanId}`)}
-        className="flex flex-col items-center justify-center p-6 bg-zinc-900/40 rounded-3xl border border-zinc-800/40 hover:border-zinc-700/60 transition-all duration-300 group cursor-pointer"
+        className="flex flex-col items-center justify-center p-6 bg-chrome-zinc-900/40 rounded-3xl border border-chrome-zinc-800/40 hover:border-chrome-zinc-700/60 transition-all duration-300 group cursor-pointer"
       >
-        <div className="relative w-28 h-28 rounded-full overflow-hidden mb-4 border-2 border-zinc-800 group-hover:border-primary/50 transition-colors">
+        <div className="relative w-28 h-28 rounded-full overflow-hidden mb-4 border-2 border-chrome-zinc-800 group-hover:border-primary/50 transition-colors">
           <img
             src={video.thumbnailUrl || "https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?q=80&w=150"}
             alt={video.title}
@@ -107,17 +107,17 @@ export const VideoCard: React.FC<VideoCardProps> = ({
             }}
           />
         </div>
-        <h3 className="font-bold text-center text-zinc-100 line-clamp-1 group-hover:text-red-400 transition-colors">
+        <h3 className="font-bold text-center text-chrome-zinc-100 line-clamp-1 group-hover:text-chrome-red-400 transition-colors">
           {video.title}
         </h3>
-        <p className="text-xs text-zinc-400 mb-4">{video.publishedText || "Channel"}</p>
+        <p className="text-xs text-chrome-zinc-400 mb-4">{video.publishedText || "Channel"}</p>
         
         <button
           onClick={handleSubscribeToggle}
           className={`w-full py-2 px-4 rounded-full text-xs font-semibold flex items-center justify-center gap-1.5 transition-all active:scale-95 ${
             subStatus
-              ? "bg-zinc-800 text-zinc-300 hover:bg-zinc-700/80"
-              : "bg-primary text-white hover:bg-primary shadow-lg shadow-primary/10"
+              ? "bg-chrome-zinc-800 text-chrome-zinc-300 hover:bg-chrome-zinc-700/80"
+              : "bg-primary text-chrome-white hover:bg-primary shadow-lg shadow-primary/10"
           }`}
         >
           {subStatus ? (
@@ -137,8 +137,8 @@ export const VideoCard: React.FC<VideoCardProps> = ({
   }
 
   return (
-    <div className="flex flex-col bg-zinc-900/30 rounded-2xl border border-zinc-800/40 overflow-hidden hover:border-zinc-700/60 hover:bg-zinc-900/60 hover:shadow-xl hover:shadow-black/10 transition-all duration-300 group">
-      <div className="relative aspect-video w-full bg-zinc-950 overflow-hidden cursor-pointer" onClick={() => onPlay(video)}>
+    <div className="flex flex-col bg-chrome-zinc-900/30 rounded-2xl border border-chrome-zinc-800/40 overflow-hidden hover:border-chrome-zinc-700/60 hover:bg-chrome-zinc-900/60 hover:shadow-xl hover:shadow-chrome-black/10 transition-all duration-300 group">
+      <div className="relative aspect-video w-full bg-chrome-zinc-950 overflow-hidden cursor-pointer" onClick={() => onPlay(video)}>
         <img
           src={overriddenThumbnail || video.thumbnailUrl || "https://images.unsplash.com/photo-1607799279861-4dd421887fb3?q=80&w=300"}
           alt={overriddenTitle || video.title}
@@ -149,14 +149,14 @@ export const VideoCard: React.FC<VideoCardProps> = ({
           }}
         />
         {/* Play Overlay */}
-        <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity duration-300">
-          <div className="p-3 bg-primary rounded-full text-white shadow-lg transform scale-90 group-hover:scale-100 transition-all duration-300 active:scale-90">
+        <div className="absolute inset-0 bg-chrome-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity duration-300">
+          <div className="p-3 bg-primary rounded-full text-chrome-white shadow-lg transform scale-90 group-hover:scale-100 transition-all duration-300 active:scale-90">
             <Play size={20} fill="white" />
           </div>
         </div>
         {/* Duration Badge */}
         {video.durationSeconds && (
-          <div className="absolute bottom-2 right-2 bg-black/85 backdrop-blur-sm text-white px-2 py-0.5 rounded text-[10px] font-bold tracking-wider">
+          <div className="absolute bottom-2 right-2 bg-chrome-black/85 backdrop-blur-sm text-chrome-white px-2 py-0.5 rounded text-[10px] font-bold tracking-wider">
             {formatDuration(video.durationSeconds)}
           </div>
         )}
@@ -166,7 +166,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
       <div className="p-4 flex flex-col flex-grow">
         <h4
           onClick={() => onPlay(video)}
-          className="font-semibold text-zinc-100 text-sm leading-snug line-clamp-2 cursor-pointer hover:text-red-400 transition-colors"
+          className="font-semibold text-chrome-zinc-100 text-sm leading-snug line-clamp-2 cursor-pointer hover:text-chrome-red-400 transition-colors"
         >
           {overriddenTitle || video.title}
         </h4>
@@ -178,13 +178,13 @@ export const VideoCard: React.FC<VideoCardProps> = ({
               navigate(`/channel/${video.channelId}`);
             }
           }}
-          className="text-xs text-zinc-400 font-medium mt-1.5 truncate cursor-pointer hover:text-primary transition-colors"
+          className="text-xs text-chrome-zinc-400 font-medium mt-1.5 truncate cursor-pointer hover:text-primary transition-colors"
         >
           {video.channelName}
         </p>
 
-        <div className="flex items-center justify-between mt-auto pt-3 border-t border-zinc-800/40">
-          <span className="text-[10px] text-zinc-500 font-semibold tracking-wide uppercase">
+        <div className="flex items-center justify-between mt-auto pt-3 border-t border-chrome-zinc-800/40">
+          <span className="text-[10px] text-chrome-zinc-500 font-semibold tracking-wide uppercase">
             {video.publishedText || video.viewCountText || "Flow Video"}
           </span>
 
@@ -193,7 +193,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
               <button
                 onClick={() => onAddToQueue(video)}
                 title="Add to queue"
-                className="p-1.5 rounded-full hover:bg-zinc-800 text-zinc-400 hover:text-red-400 transition-all duration-200"
+                className="p-1.5 rounded-full hover:bg-chrome-zinc-800 text-chrome-zinc-400 hover:text-chrome-red-400 transition-all duration-200"
               >
                 <Plus size={14} />
               </button>
@@ -202,7 +202,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
               <button
                 onClick={() => onMarkNotInterested(video.id)}
                 title="Not interested"
-                className="p-1.5 rounded-full hover:bg-zinc-800 text-zinc-400 hover:text-amber-500 transition-all duration-200"
+                className="p-1.5 rounded-full hover:bg-chrome-zinc-800 text-chrome-zinc-400 hover:text-chrome-amber-500 transition-all duration-200"
               >
                 <Ban size={14} />
               </button>

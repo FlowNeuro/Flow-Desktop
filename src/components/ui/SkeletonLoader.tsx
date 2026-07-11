@@ -4,7 +4,7 @@ export interface SkeletonLoaderProps {
 }
 
 export function SkeletonLoader({ type = 'text', className = '' }: SkeletonLoaderProps) {
-  const baseStyles = 'animate-pulse bg-zinc-800';
+  const baseStyles = 'animate-pulse bg-chrome-zinc-800';
   
   const types = {
     avatar: 'rounded-full h-9 w-9',

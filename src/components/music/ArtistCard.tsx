@@ -25,7 +25,7 @@ function CircleAvatar({ src, name }: { src?: string | null; name: string }) {
   useEffect(() => setFailed(false), [imageSrc]);
   if (!imageSrc || failed) {
     return (
-      <div className="grid h-full w-full place-items-center rounded-full bg-surface-container-high text-neutral-500">
+      <div className="grid h-full w-full place-items-center rounded-full bg-surface-container-high text-chrome-neutral-500">
         <Music2 className="h-10 w-10" />
       </div>
     );
@@ -85,14 +85,14 @@ export function ArtistCard({ artist, fill, className, onOpen }: ArtistCardProps)
       )}
     >
       <div className="aspect-square w-full">
-        <div className="h-full w-full overflow-hidden rounded-full ring-1 ring-neutral-800/50 transition-transform duration-200 ease-out group-hover:scale-[1.02]">
+        <div className="h-full w-full overflow-hidden rounded-full ring-1 ring-chrome-neutral-800/50 transition-transform duration-200 ease-out group-hover:scale-[1.02]">
           <CircleAvatar src={artist.thumbnail} name={artist.title} />
         </div>
       </div>
 
       <div className="flex w-full flex-col items-center gap-0.5">
-        <span className="line-clamp-1 font-semibold text-neutral-100">{artist.title}</span>
-        <span className="line-clamp-1 text-sm text-neutral-400">{getString('search_role_artist')}</span>
+        <span className="line-clamp-1 font-semibold text-chrome-neutral-100">{artist.title}</span>
+        <span className="line-clamp-1 text-sm text-chrome-neutral-400">{getString('search_role_artist')}</span>
       </div>
 
       <Button

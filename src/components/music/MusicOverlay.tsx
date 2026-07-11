@@ -42,16 +42,16 @@ import { useLyrics } from "../../lib/lyrics/useLyrics";
 import { useDominantColor } from "../../lib/useDominantColor";
 
 const TOP_BTN =
-  "grid h-10 w-10 place-items-center rounded-full text-neutral-300 transition-colors duration-200 ease-out hover:bg-white/10 hover:text-white";
+  "grid h-10 w-10 place-items-center rounded-full text-chrome-neutral-300 transition-colors duration-200 ease-out hover:bg-chrome-white/10 hover:text-chrome-white";
 const TOP_BTN_ACTIVE =
-  "grid h-10 w-10 place-items-center rounded-full bg-white/10 text-[var(--color-primary)] transition-colors duration-200 ease-out";
+  "grid h-10 w-10 place-items-center rounded-full bg-chrome-white/10 text-[var(--color-primary)] transition-colors duration-200 ease-out";
 
 const META_BTN =
-  "grid h-11 w-11 place-items-center rounded-full text-neutral-300 transition-colors duration-200 ease-out hover:bg-white/10 hover:text-white";
+  "grid h-11 w-11 place-items-center rounded-full text-chrome-neutral-300 transition-colors duration-200 ease-out hover:bg-chrome-white/10 hover:text-chrome-white";
 
 const SIDE = "grid h-11 w-11 place-items-center rounded-full transition-colors duration-200 ease-out";
-const SIDE_IDLE = `${SIDE} text-neutral-300 hover:bg-white/10 hover:text-white`;
-const SIDE_ACTIVE = `${SIDE} text-[var(--color-primary)] hover:bg-white/10`;
+const SIDE_IDLE = `${SIDE} text-chrome-neutral-300 hover:bg-chrome-white/10 hover:text-chrome-white`;
+const SIDE_ACTIVE = `${SIDE} text-[var(--color-primary)] hover:bg-chrome-white/10`;
 
 const LAYOUT_SPRING = { type: "spring" as const, stiffness: 320, damping: 36, mass: 0.9 };
 
@@ -173,7 +173,7 @@ export function MusicOverlay() {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
-          className="fixed inset-x-0 bottom-0 top-8 z-[60] flex flex-col overflow-hidden bg-neutral-950"
+          className="fixed inset-x-0 bottom-0 top-8 z-[60] flex flex-col overflow-hidden bg-chrome-neutral-950"
         >
           <AmbientBackdrop src={currentTrack.thumbnail} accent={accent} />
 
@@ -245,7 +245,7 @@ export function MusicOverlay() {
                 onSeek={seek}
                 className="absolute inset-0 z-10"
               />
-              <div className="absolute inset-x-0 bottom-0 z-20 flex flex-col items-center gap-4 bg-linear-to-t from-neutral-950/90 via-neutral-950/50 to-transparent px-6 pb-10 pt-24">
+              <div className="absolute inset-x-0 bottom-0 z-20 flex flex-col items-center gap-4 bg-linear-to-t from-chrome-neutral-950/90 via-chrome-neutral-950/50 to-transparent px-6 pb-10 pt-24">
                 <div className="w-full max-w-2xl">
                   <MusicScrubber size="lg" showTimes countdown />
                 </div>
@@ -253,14 +253,14 @@ export function MusicOverlay() {
                   <HapticButton
                     onClick={previous}
                     aria-label={getString("music_previous")}
-                    className="grid h-11 w-11 place-items-center rounded-full text-white transition-transform duration-200 ease-out hover:scale-110"
+                    className="grid h-11 w-11 place-items-center rounded-full text-chrome-white transition-transform duration-200 ease-out hover:scale-110"
                   >
                     <SkipBack className="h-6 w-6" fill="currentColor" />
                   </HapticButton>
                   <HapticButton
                     onClick={togglePlay}
                     aria-label={getString(isPlaying ? "music_pause" : "music_play")}
-                    className="grid h-14 w-14 place-items-center rounded-full bg-white text-black transition-transform duration-200 ease-out hover:scale-105"
+                    className="grid h-14 w-14 place-items-center rounded-full bg-chrome-white text-chrome-black transition-transform duration-200 ease-out hover:scale-105"
                   >
                     {loading ? (
                       <Loader2 className="h-6 w-6 animate-spin" />
@@ -273,7 +273,7 @@ export function MusicOverlay() {
                   <HapticButton
                     onClick={next}
                     aria-label={getString("music_next")}
-                    className="grid h-11 w-11 place-items-center rounded-full text-white transition-transform duration-200 ease-out hover:scale-110"
+                    className="grid h-11 w-11 place-items-center rounded-full text-chrome-white transition-transform duration-200 ease-out hover:scale-110"
                   >
                     <SkipForward className="h-6 w-6" fill="currentColor" />
                   </HapticButton>
@@ -300,7 +300,7 @@ export function MusicOverlay() {
                 alt={currentTrack.title}
                 loading={loading}
                 iconClassName="h-16 w-16"
-                className={`aspect-square shrink-0 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] ${
+                className={`aspect-square shrink-0 rounded-2xl shadow-[0_20px_50px_color-mix(in_srgb,var(--color-chrome-black)_50%,transparent)] ${
                   isQueue ? "w-[min(400px,50vh)]" : "w-[min(480px,55vh)]"
                 }`}
               />
@@ -316,7 +316,7 @@ export function MusicOverlay() {
                   <div className="min-w-0">
                     <h1
                       title={currentTrack.title}
-                      className={`font-bold tracking-tight text-white ${
+                      className={`font-bold tracking-tight text-chrome-white ${
                         isQueue ? "line-clamp-1 text-2xl" : "line-clamp-1 text-3xl lg:text-5xl"
                       }`}
                     >
@@ -330,7 +330,7 @@ export function MusicOverlay() {
                         closeOverlay();
                         navigate(`/music/artist/${primaryArtist.id}`);
                       }}
-                      className="mt-2 line-clamp-1 max-w-full text-left text-base text-neutral-300 transition-colors hover:text-white disabled:cursor-default disabled:hover:text-neutral-300 lg:text-lg"
+                      className="mt-2 line-clamp-1 max-w-full text-left text-base text-chrome-neutral-300 transition-colors hover:text-chrome-white disabled:cursor-default disabled:hover:text-chrome-neutral-300 lg:text-lg"
                     >
                       {artistsText(currentTrack.artists)}
                     </button>
@@ -378,7 +378,7 @@ export function MusicOverlay() {
                     <HapticButton
                       onClick={previous}
                       aria-label={getString("music_previous")}
-                      className="grid h-12 w-12 place-items-center rounded-full text-white transition-transform duration-200 ease-out hover:scale-110"
+                      className="grid h-12 w-12 place-items-center rounded-full text-chrome-white transition-transform duration-200 ease-out hover:scale-110"
                     >
                       <SkipBack className="h-7 w-7" fill="currentColor" />
                     </HapticButton>
@@ -386,7 +386,7 @@ export function MusicOverlay() {
                     <HapticButton
                       onClick={togglePlay}
                       aria-label={getString(isPlaying ? "music_pause" : "music_play")}
-                      className="grid h-16 w-16 place-items-center rounded-full bg-white text-black transition-transform duration-200 ease-out hover:scale-105"
+                      className="grid h-16 w-16 place-items-center rounded-full bg-chrome-white text-chrome-black transition-transform duration-200 ease-out hover:scale-105"
                     >
                       {loading ? (
                         <Loader2 className="h-7 w-7 animate-spin" />
@@ -400,7 +400,7 @@ export function MusicOverlay() {
                     <HapticButton
                       onClick={next}
                       aria-label={getString("music_next")}
-                      className="grid h-12 w-12 place-items-center rounded-full text-white transition-transform duration-200 ease-out hover:scale-110"
+                      className="grid h-12 w-12 place-items-center rounded-full text-chrome-white transition-transform duration-200 ease-out hover:scale-110"
                     >
                       <SkipForward className="h-7 w-7" fill="currentColor" />
                     </HapticButton>
@@ -433,7 +433,7 @@ export function MusicOverlay() {
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: 48 }}
                   transition={LAYOUT_SPRING}
-                  className="flex min-h-0 w-1/2 flex-col rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4"
+                  className="flex min-h-0 w-1/2 flex-col rounded-2xl border border-chrome-neutral-800 bg-chrome-neutral-950/40 p-4"
                 >
                   <MusicQueuePane />
                 </motion.div>

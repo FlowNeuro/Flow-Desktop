@@ -97,32 +97,32 @@ export function DataTab() {
       </SettingsGroup>
 
       <SettingsGroup title={getString('settings_group_database')}>
-        <SettingItem title={getString('settings_history_records')}><span className="text-sm font-mono text-neutral-100">{historyCount}</span></SettingItem>
-        <SettingItem title={getString('settings_subscriptions_count')}><span className="text-sm font-mono text-neutral-100">{subCount}</span></SettingItem>
+        <SettingItem title={getString('settings_history_records')}><span className="text-sm font-mono text-chrome-neutral-100">{historyCount}</span></SettingItem>
+        <SettingItem title={getString('settings_subscriptions_count')}><span className="text-sm font-mono text-chrome-neutral-100">{subCount}</span></SettingItem>
       </SettingsGroup>
 
       <SettingsGroup title={getString('settings_group_actions')}>
         <div className="flex flex-col">
           <div className="flex items-center justify-between px-5 py-4 hover:bg-surface-container transition-colors duration-200 ease-out">
             <div className="flex-1 min-w-0 mr-4">
-              <div className="text-sm font-medium text-neutral-200">{getString('settings_import_restore')}</div>
-              <div className="text-xs text-neutral-400 mt-0.5">{getString('settings_import_restore_desc')}</div>
+              <div className="text-sm font-medium text-chrome-neutral-200">{getString('settings_import_restore')}</div>
+              <div className="text-xs text-chrome-neutral-400 mt-0.5">{getString('settings_import_restore_desc')}</div>
             </div>
             <Button variant="secondary" size="sm" onClick={() => navigate('/settings/import')}><Upload size={14} />{getString('settings_import')}</Button>
           </div>
-          <div className="border-t border-neutral-800/50" />
+          <div className="border-t border-chrome-neutral-800/50" />
           <div className="flex items-center justify-between px-5 py-4 hover:bg-surface-container transition-colors duration-200 ease-out">
             <div className="flex-1 min-w-0 mr-4">
-              <div className="text-sm font-medium text-neutral-200">{getString('settings_export_data')}</div>
-              <div className="text-xs text-neutral-400 mt-0.5">{getString('settings_export_data_desc')}</div>
+              <div className="text-sm font-medium text-chrome-neutral-200">{getString('settings_export_data')}</div>
+              <div className="text-xs text-chrome-neutral-400 mt-0.5">{getString('settings_export_data_desc')}</div>
             </div>
             <Button variant="secondary" size="sm" onClick={handleExport}><Download size={14} />{getString('settings_export')}</Button>
           </div>
-          <div className="border-t border-neutral-800/50" />
+          <div className="border-t border-chrome-neutral-800/50" />
           <div className="flex items-center justify-between px-5 py-4 hover:bg-surface-container transition-colors duration-200 ease-out">
             <div className="flex-1 min-w-0 mr-4">
-              <div className="text-sm font-medium text-neutral-200">{getString('settings_clear_cache')}</div>
-              <div className="text-xs text-neutral-400 mt-0.5">{getString('settings_clear_cache_desc')}</div>
+              <div className="text-sm font-medium text-chrome-neutral-200">{getString('settings_clear_cache')}</div>
+              <div className="text-xs text-chrome-neutral-400 mt-0.5">{getString('settings_clear_cache_desc')}</div>
             </div>
             <Button variant="destructive" size="sm" onClick={handleClearData} disabled={clearing}><Trash2 size={14} />{clearing ? getString('settings_clearing') : getString('clear')}</Button>
           </div>

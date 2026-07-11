@@ -353,7 +353,7 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
     backgroundColor: bgRgba,
     padding: "6px 16px",
     borderRadius: "8px",
-    boxShadow: "0 20px 40px -10px rgba(0, 0, 0, 0.5)",
+    boxShadow: "0 20px 40px -10px color-mix(in srgb, var(--color-chrome-black) 50%, transparent)",
     lineHeight: "1.35",
     ...textStyle,
   };

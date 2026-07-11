@@ -617,7 +617,7 @@ export function LyricsCanvas({
             initial={{ opacity: 0, y: -8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
-            className="absolute left-1/2 top-24 z-30 flex -translate-x-1/2 items-center gap-2 rounded-full bg-black/60 px-4 py-2 text-sm font-medium"
+            className="absolute left-1/2 top-24 z-30 flex -translate-x-1/2 items-center gap-2 rounded-full bg-chrome-black/60 px-4 py-2 text-sm font-medium"
             style={{ color: rgba(accent, 1) }}
           >
             <RefreshCw className="h-4 w-4" />

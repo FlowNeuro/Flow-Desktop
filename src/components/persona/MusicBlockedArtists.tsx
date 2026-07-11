@@ -54,7 +54,7 @@ export function MusicBlockedArtists() {
                     <button
                       onClick={() => void unblockArtist(key)}
                       title={`${getString("music_unblock")} ${name}`}
-                      className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[var(--color-on-surface-variant)] transition-colors hover:bg-red-950/30 hover:text-red-400"
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[var(--color-on-surface-variant)] transition-colors hover:bg-chrome-red-950/30 hover:text-chrome-red-400"
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>

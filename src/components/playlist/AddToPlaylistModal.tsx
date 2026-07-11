@@ -35,7 +35,7 @@ function PlaylistChoiceCard({
       onClick={onClick}
       className="flex w-full items-center gap-3 rounded-lg p-2 text-left transition-colors hover:bg-surface-container-high"
     >
-      <span className="relative aspect-video w-20 shrink-0 overflow-hidden rounded-md bg-surface-container-high ring-1 ring-neutral-800/50">
+      <span className="relative aspect-video w-20 shrink-0 overflow-hidden rounded-md bg-surface-container-high ring-1 ring-chrome-neutral-800/50">
         {imageSrc ? (
           <img
             src={imageSrc}
@@ -44,17 +44,17 @@ function PlaylistChoiceCard({
             className="h-full w-full object-cover"
           />
         ) : (
-          <span className="grid h-full w-full place-items-center text-neutral-500">
+          <span className="grid h-full w-full place-items-center text-chrome-neutral-500">
             <ListVideo size={20} />
           </span>
         )}
       </span>
 
       <span className="min-w-0 flex-1">
-        <span className="line-clamp-1 text-sm font-medium text-neutral-100">
+        <span className="line-clamp-1 text-sm font-medium text-chrome-neutral-100">
           {summary.title}
         </span>
-        <span className="line-clamp-1 text-xs text-neutral-500">
+        <span className="line-clamp-1 text-xs text-chrome-neutral-500">
           {summary.videoCountText}
         </span>
       </span>
@@ -143,25 +143,25 @@ export function AddToPlaylistModal() {
 
   return (
     <div
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4"
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-chrome-black/70 p-4"
       onClick={close}
     >
       <div
-        className="w-full max-w-sm rounded-2xl border border-neutral-800 bg-surface-container p-5"
+        className="w-full max-w-sm rounded-2xl border border-chrome-neutral-800 bg-surface-container p-5"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h3 className="text-lg font-bold text-neutral-100">
+            <h3 className="text-lg font-bold text-chrome-neutral-100">
               {getString("playlist_add_modal_title")}
             </h3>
-            <p className="mt-0.5 line-clamp-1 text-sm text-neutral-400">{addTarget.title}</p>
+            <p className="mt-0.5 line-clamp-1 text-sm text-chrome-neutral-400">{addTarget.title}</p>
           </div>
           <button
             type="button"
             onClick={close}
             aria-label={getString("cancel")}
-            className="shrink-0 rounded-full p-1.5 text-neutral-400 transition-colors hover:bg-surface-container-high hover:text-neutral-100"
+            className="shrink-0 rounded-full p-1.5 text-chrome-neutral-400 transition-colors hover:bg-surface-container-high hover:text-chrome-neutral-100"
           >
             <X size={18} />
           </button>
@@ -178,9 +178,9 @@ export function AddToPlaylistModal() {
           ))}
 
           {selectablePlaylists.length === 0 && !creating && (
-            <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-neutral-800 px-4 py-8 text-center">
-              <ListVideo className="h-6 w-6 text-neutral-600" />
-              <p className="text-sm text-neutral-500">{getString("playlist_add_modal_empty")}</p>
+            <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-chrome-neutral-800 px-4 py-8 text-center">
+              <ListVideo className="h-6 w-6 text-chrome-neutral-600" />
+              <p className="text-sm text-chrome-neutral-500">{getString("playlist_add_modal_empty")}</p>
             </div>
           )}
         </div>
@@ -193,13 +193,13 @@ export function AddToPlaylistModal() {
               value={newName}
               onChange={(event) => setNewName(event.target.value)}
               placeholder={getString("playlist_name_placeholder")}
-              className="w-full rounded-lg border border-neutral-800 bg-surface-container-low px-3 py-2 text-sm text-neutral-100 outline-none transition-colors placeholder:text-neutral-500 focus:border-neutral-700"
+              className="w-full rounded-lg border border-chrome-neutral-800 bg-surface-container-low px-3 py-2 text-sm text-chrome-neutral-100 outline-none transition-colors placeholder:text-chrome-neutral-500 focus:border-chrome-neutral-700"
             />
             <div className="flex items-center justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setCreating(false)}
-                className="rounded-full px-3 py-1.5 text-sm font-medium text-neutral-300 transition-colors hover:bg-surface-container-high"
+                className="rounded-full px-3 py-1.5 text-sm font-medium text-chrome-neutral-300 transition-colors hover:bg-surface-container-high"
               >
                 {getString("cancel")}
               </button>

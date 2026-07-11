@@ -61,8 +61,8 @@ function CompactRailItem({
       className={({ isActive }) =>
         `flex h-[74px] w-full flex-col items-center justify-center gap-1 rounded-xl text-[11px] font-medium transition-colors ${
           isActive
-            ? 'bg-surface-container text-white'
-            : 'text-neutral-300 hover:bg-surface-container-low hover:text-white'
+            ? 'bg-surface-container text-chrome-white'
+            : 'text-chrome-neutral-300 hover:bg-surface-container-low hover:text-chrome-white'
         }`
       }
     >
@@ -84,7 +84,7 @@ function SectionHeader({
   const inner = (
     <>
       <span>{label}</span>
-      <ChevronRight className="w-4 h-4 text-neutral-400 transition-transform group-hover:translate-x-0.5" />
+      <ChevronRight className="w-4 h-4 text-chrome-neutral-400 transition-transform group-hover:translate-x-0.5" />
     </>
   );
 
@@ -96,8 +96,8 @@ function SectionHeader({
         className={({ isActive }) =>
           `group flex items-center gap-2 px-5 py-2 mt-2 text-base font-semibold cursor-pointer mx-2 rounded-lg transition-colors ${
             isActive
-              ? 'bg-surface-container text-white'
-              : 'text-neutral-100 hover:bg-surface-container-low'
+              ? 'bg-surface-container text-chrome-white'
+              : 'text-chrome-neutral-100 hover:bg-surface-container-low'
           }`
         }
       >
@@ -110,7 +110,7 @@ function SectionHeader({
     <button
       type="button"
       onClick={onClick}
-      className="group flex w-full items-center gap-2 px-5 py-2 mt-2 text-base font-semibold text-neutral-100 cursor-pointer hover:bg-surface-container-low mx-2 rounded-lg"
+      className="group flex w-full items-center gap-2 px-5 py-2 mt-2 text-base font-semibold text-chrome-neutral-100 cursor-pointer hover:bg-surface-container-low mx-2 rounded-lg"
     >
       {inner}
     </button>
@@ -176,7 +176,7 @@ export function Sidebar({ mode = 'normal' }: SidebarProps) {
         {showMusicNav && <SidebarItem to="/music" icon={<Music2 />} label={getString('sidebar_music')} onClick={closeOverlay} />}
       </nav>
 
-      <hr className="border-neutral-800/50 my-3 mx-4" />
+      <hr className="border-chrome-neutral-800/50 my-3 mx-4" />
 
       {/* Subscriptions */}
       <section>
@@ -207,7 +207,7 @@ export function Sidebar({ mode = 'normal' }: SidebarProps) {
         </nav>
       </section>
 
-      <hr className="border-neutral-800/50 my-3 mx-4" />
+      <hr className="border-chrome-neutral-800/50 my-3 mx-4" />
 
       {/* You */}
       <section>
@@ -224,7 +224,7 @@ export function Sidebar({ mode = 'normal' }: SidebarProps) {
       </section>
 
       <div className="mt-auto">
-        <hr className="border-neutral-800/50 my-3 mx-4" />
+        <hr className="border-chrome-neutral-800/50 my-3 mx-4" />
         <nav className="flex flex-col">
           <SidebarItem to="/settings" icon={<Settings />} label={getString('settings_title')} onClick={closeOverlay} />
           <SidebarItem to="/sync" icon={<MonitorSmartphone />} label="Sync" onClick={closeOverlay} />

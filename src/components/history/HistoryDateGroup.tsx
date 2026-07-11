@@ -53,10 +53,10 @@ export function HistoryDateGroup({
     <section className="min-w-0">
       <div className="mb-4 flex items-end justify-between gap-4">
         <div className="min-w-0">
-          <h2 className="text-2xl font-bold tracking-tight text-neutral-100">
+          <h2 className="text-2xl font-bold tracking-tight text-chrome-neutral-100">
             {dateLabel}
           </h2>
-          <p className="mt-1 text-sm text-neutral-400">{countLabel}</p>
+          <p className="mt-1 text-sm text-chrome-neutral-400">{countLabel}</p>
         </div>
 
         {plainVideos.length > 0 && (

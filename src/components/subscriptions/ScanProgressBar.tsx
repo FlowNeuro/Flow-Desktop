@@ -13,10 +13,10 @@ export function ScanProgressBar({ progress }: ScanProgressBarProps) {
   return (
     <div className="flex flex-col gap-2 py-3" role="progressbar" aria-valuemin={0} aria-valuemax={total} aria-valuenow={processed}>
       <div className="flex items-center justify-between">
-        <span className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
+        <span className="text-xs font-semibold uppercase tracking-widest text-chrome-neutral-500">
           {getString('subscriptions_scanning')}
         </span>
-        <span className="font-mono text-xs text-neutral-400">
+        <span className="font-mono text-xs text-chrome-neutral-400">
           {processed}/{total}
         </span>
       </div>

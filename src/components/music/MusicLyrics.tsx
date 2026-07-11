@@ -67,7 +67,7 @@ export function MusicLyrics({
   if (lines.length === 0 || (!synced && !plain && entries.length === 0)) {
     return (
       <div className={`grid place-items-center ${className}`}>
-        <p className="text-lg text-white/50">{getString("music_lyrics_unavailable")}</p>
+        <p className="text-lg text-chrome-white/50">{getString("music_lyrics_unavailable")}</p>
       </div>
     );
   }

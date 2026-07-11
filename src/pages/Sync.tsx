@@ -62,7 +62,7 @@ function Spinner({ className = "" }: { className?: string }) {
 /** Sleek neutral icon chip used in the section headers (clinical, never colored). */
 function IconChip({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface-container-high text-neutral-200">
+    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface-container-high text-chrome-neutral-200">
       {children}
     </div>
   );
@@ -72,11 +72,11 @@ function IconChip({ children }: { children: React.ReactNode }) {
 function VerificationCode({ sas, size = "lg" }: { sas: string; size?: "lg" | "md" }) {
   return (
     <div className="flex flex-col items-center">
-      <span className="mb-3 text-xs font-semibold uppercase tracking-widest text-neutral-500">
+      <span className="mb-3 text-xs font-semibold uppercase tracking-widest text-chrome-neutral-500">
         {getString("sync_verification_code")}
       </span>
       <span
-        className={`font-mono font-bold text-neutral-100 tracking-[0.3em] ${
+        className={`font-mono font-bold text-chrome-neutral-100 tracking-[0.3em] ${
           size === "lg" ? "text-5xl" : "text-3xl"
         }`}
       >
@@ -89,18 +89,18 @@ function VerificationCode({ sas, size = "lg" }: { sas: string; size?: "lg" | "md
 function StatsTable({ stats }: { stats: StatInfo[] }) {
   const meaningful = stats.filter((s) => s.added + s.updated + s.tombstoned > 0 || s.skipped > 0);
   if (meaningful.length === 0) {
-    return <p className="text-sm text-neutral-400">{getString("sync_up_to_date")}</p>;
+    return <p className="text-sm text-chrome-neutral-400">{getString("sync_up_to_date")}</p>;
   }
   return (
-    <div className="flex flex-col divide-y divide-neutral-800/50 overflow-hidden rounded-xl border border-neutral-800/50">
+    <div className="flex flex-col divide-y divide-chrome-neutral-800/50 overflow-hidden rounded-xl border border-chrome-neutral-800/50">
       {meaningful.map((s) => (
         <div key={s.collection} className="flex items-center justify-between px-4 py-3">
-          <span className="text-sm font-medium text-neutral-200">{collectionTitle(s.collection)}</span>
-          <span className="font-mono text-xs text-neutral-400">
-            {s.added > 0 && <span className="text-green-400">{getString("sync_stat_new", s.added)} </span>}
-            {s.updated > 0 && <span className="text-blue-400">{getString("sync_stat_updated", s.updated)} </span>}
+          <span className="text-sm font-medium text-chrome-neutral-200">{collectionTitle(s.collection)}</span>
+          <span className="font-mono text-xs text-chrome-neutral-400">
+            {s.added > 0 && <span className="text-chrome-green-400">{getString("sync_stat_new", s.added)} </span>}
+            {s.updated > 0 && <span className="text-chrome-blue-400">{getString("sync_stat_updated", s.updated)} </span>}
             {s.tombstoned > 0 && (
-              <span className="text-amber-400">{getString("sync_stat_removed", s.tombstoned)} </span>
+              <span className="text-chrome-amber-400">{getString("sync_stat_removed", s.tombstoned)} </span>
             )}
             {s.added + s.updated + s.tombstoned === 0 && <span>{getString("sync_stat_uptodate")}</span>}
           </span>
@@ -144,15 +144,15 @@ function CameraScanner({ onResult, onClose }: { onResult: (text: string) => void
 
   return (
     <div className="mt-6 space-y-3">
-      <div className="relative aspect-square w-full overflow-hidden rounded-xl border border-neutral-800 bg-black">
+      <div className="relative aspect-square w-full overflow-hidden rounded-xl border border-chrome-neutral-800 bg-chrome-black">
         <video ref={videoRef} className="h-full w-full object-cover" muted playsInline />
-        <div className="pointer-events-none absolute inset-6 rounded-lg border-2 border-white/70" />
+        <div className="pointer-events-none absolute inset-6 rounded-lg border-2 border-chrome-white/70" />
       </div>
-      {error && <p className="text-sm text-red-400">{error}</p>}
+      {error && <p className="text-sm text-chrome-red-400">{error}</p>}
       <button
         type="button"
         onClick={onClose}
-        className="flex w-full items-center justify-center gap-2 rounded-full bg-surface-container-high py-2.5 text-sm font-medium text-neutral-200 transition-colors hover:bg-surface-container-highest"
+        className="flex w-full items-center justify-center gap-2 rounded-full bg-surface-container-high py-2.5 text-sm font-medium text-chrome-neutral-200 transition-colors hover:bg-surface-container-highest"
       >
         <X className="h-4 w-4" /> {getString("sync_stop_camera")}
       </button>
@@ -208,31 +208,31 @@ function SetupState() {
     <div className="mx-auto mt-10 max-w-5xl">
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
       {/* LEFT — Send */}
-      <div className="flex flex-col rounded-2xl border border-neutral-800 bg-surface-container-low p-6">
+      <div className="flex flex-col rounded-2xl border border-chrome-neutral-800 bg-surface-container-low p-6">
         <div className="flex items-center gap-3">
           <IconChip>
             <Send className="h-5 w-5" />
           </IconChip>
           <div>
-            <h2 className="text-base font-medium text-neutral-100">{getString("sync_send_title")}</h2>
-            <p className="text-sm text-neutral-400">{getString("sync_send_subtitle")}</p>
+            <h2 className="text-base font-medium text-chrome-neutral-100">{getString("sync_send_title")}</h2>
+            <p className="text-sm text-chrome-neutral-400">{getString("sync_send_subtitle")}</p>
           </div>
         </div>
 
-        <span className="mt-6 block px-1 text-xs font-semibold uppercase tracking-widest text-neutral-500">
+        <span className="mt-6 block px-1 text-xs font-semibold uppercase tracking-widest text-chrome-neutral-500">
           {getString("sync_send_list_label")}
         </span>
 
         {/* Continuous MD3 list group — no per-row boxes */}
-        <div className="mb-6 mt-3 flex flex-col divide-y divide-neutral-800/50 overflow-hidden rounded-xl border border-neutral-800/50">
+        <div className="mb-6 mt-3 flex flex-col divide-y divide-chrome-neutral-800/50 overflow-hidden rounded-xl border border-chrome-neutral-800/50">
           {SYNC_COLLECTIONS.map((c) => (
             <div
               key={c.key}
               className="flex items-center justify-between p-4 transition-colors hover:bg-surface-container"
             >
               <div className="min-w-0 pr-4">
-                <p className="font-medium text-neutral-100">{collectionTitle(c.key)}</p>
-                <p className="text-sm text-neutral-400">{collectionDesc(c.key)}</p>
+                <p className="font-medium text-chrome-neutral-100">{collectionTitle(c.key)}</p>
+                <p className="text-sm text-chrome-neutral-400">{collectionDesc(c.key)}</p>
               </div>
               <ToggleSwitch checked={selected.has(c.key)} onChange={() => toggle(c.key)} />
             </div>
@@ -244,7 +244,7 @@ function SetupState() {
           type="button"
           disabled={busy || selected.size === 0}
           onClick={() => void startHost([...selected])}
-          className="mt-auto flex w-full items-center justify-center gap-2 rounded-full bg-white py-3 font-bold text-black transition-transform hover:bg-neutral-200 active:scale-95 disabled:pointer-events-none disabled:opacity-50"
+          className="mt-auto flex w-full items-center justify-center gap-2 rounded-full bg-chrome-white py-3 font-bold text-chrome-black transition-transform hover:bg-chrome-neutral-200 active:scale-95 disabled:pointer-events-none disabled:opacity-50"
         >
           {busy ? <Spinner className="h-4 w-4" /> : <QrCode className="h-4 w-4" />}
           {getString("sync_generate_code")}
@@ -252,14 +252,14 @@ function SetupState() {
       </div>
 
       {/* RIGHT — Receive */}
-      <div className="flex flex-col rounded-2xl border border-neutral-800 bg-surface-container-low p-6">
+      <div className="flex flex-col rounded-2xl border border-chrome-neutral-800 bg-surface-container-low p-6">
         <div className="flex items-center gap-3">
           <IconChip>
             <ArrowDownToLine className="h-5 w-5" />
           </IconChip>
           <div>
-            <h2 className="text-base font-medium text-neutral-100">{getString("sync_receive_title")}</h2>
-            <p className="text-sm text-neutral-400">{getString("sync_receive_subtitle")}</p>
+            <h2 className="text-base font-medium text-chrome-neutral-100">{getString("sync_receive_title")}</h2>
+            <p className="text-sm text-chrome-neutral-400">{getString("sync_receive_subtitle")}</p>
           </div>
         </div>
 
@@ -269,20 +269,20 @@ function SetupState() {
           <button
             type="button"
             onClick={() => setScanning(true)}
-            className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-surface-container-high py-3 font-medium text-neutral-200 transition-colors hover:bg-surface-container-highest"
+            className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-surface-container-high py-3 font-medium text-chrome-neutral-200 transition-colors hover:bg-surface-container-highest"
           >
             <Camera className="h-5 w-5" /> {getString("sync_scan_camera")}
           </button>
         )}
 
-        <div className="my-6 flex items-center gap-4 text-xs uppercase tracking-widest text-neutral-500">
-          <hr className="flex-1 border-neutral-800" />
+        <div className="my-6 flex items-center gap-4 text-xs uppercase tracking-widest text-chrome-neutral-500">
+          <hr className="flex-1 border-chrome-neutral-800" />
           {getString("sync_divider_or")}
-          <hr className="flex-1 border-neutral-800" />
+          <hr className="flex-1 border-chrome-neutral-800" />
         </div>
 
         {/* MD3 Filled TextField */}
-        <div className="rounded-t-lg border-b-2 border-neutral-600 bg-surface-container px-4 py-3 transition-colors focus-within:border-primary">
+        <div className="rounded-t-lg border-b-2 border-chrome-neutral-600 bg-surface-container px-4 py-3 transition-colors focus-within:border-primary">
           <input
             value={paste}
             onChange={(e) => {
@@ -290,10 +290,10 @@ function SetupState() {
               if (pasteError) setPasteError(null);
             }}
             placeholder={getString("sync_paste_placeholder")}
-            className="w-full bg-transparent text-neutral-100 outline-none placeholder:text-neutral-500"
+            className="w-full bg-transparent text-chrome-neutral-100 outline-none placeholder:text-chrome-neutral-500"
           />
         </div>
-        {pasteError && <p className="mt-2 px-1 text-xs text-red-400">{pasteError}</p>}
+        {pasteError && <p className="mt-2 px-1 text-xs text-chrome-red-400">{pasteError}</p>}
 
         <button
           type="button"
@@ -311,18 +311,18 @@ function SetupState() {
             type="button"
             disabled={busy}
             onClick={() => void hostReceive()}
-            className="flex w-full items-center justify-center gap-2 rounded-full py-2.5 text-sm font-medium text-neutral-300 transition-colors hover:bg-surface-container-high disabled:opacity-50"
+            className="flex w-full items-center justify-center gap-2 rounded-full py-2.5 text-sm font-medium text-chrome-neutral-300 transition-colors hover:bg-surface-container-high disabled:opacity-50"
           >
             <QrCode className="h-4 w-4" /> {getString("sync_show_qr_button")}
           </button>
-          <p className="mt-1 px-1 text-center text-xs text-neutral-500">{getString("sync_show_qr_hint")}</p>
+          <p className="mt-1 px-1 text-center text-xs text-chrome-neutral-500">{getString("sync_show_qr_hint")}</p>
         </div>
       </div>
     </div>
 
       {device && (
-        <p className="mt-6 text-center text-xs text-neutral-500">
-          {getString("sync_this_device")}: <span className="text-neutral-300">{device.deviceName}</span>
+        <p className="mt-6 text-center text-xs text-chrome-neutral-500">
+          {getString("sync_this_device")}: <span className="text-chrome-neutral-300">{device.deviceName}</span>
         </p>
       )}
     </div>
@@ -348,8 +348,8 @@ function PairingState() {
   if (!hostInfo) {
     return (
       <div className="flex flex-col items-center gap-3 py-16">
-        <Spinner className="h-6 w-6 text-neutral-400" />
-        <p className="text-sm text-neutral-400">{getString("sync_preparing")}</p>
+        <Spinner className="h-6 w-6 text-chrome-neutral-400" />
+        <p className="text-sm text-chrome-neutral-400">{getString("sync_preparing")}</p>
       </div>
     );
   }
@@ -358,32 +358,32 @@ function PairingState() {
 
   return (
     <div className="mx-auto mt-12 flex max-w-xl flex-col items-center justify-center text-center">
-      <h2 className="text-2xl font-bold tracking-tight text-neutral-100">
+      <h2 className="text-2xl font-bold tracking-tight text-chrome-neutral-100">
         {hostInfo.receive ? getString("sync_pair_receive_title") : getString("sync_pair_scan_title")}
       </h2>
-      <p className="mt-2 max-w-sm text-sm text-neutral-400">
+      <p className="mt-2 max-w-sm text-sm text-chrome-neutral-400">
         {hostInfo.receive ? getString("sync_pair_receive_subtitle") : getString("sync_pair_scan_subtitle")}
       </p>
 
       {/* Brilliant white squircle (no shadow per Design.md §1) */}
-      <div className="mb-8 mt-8 rounded-3xl bg-white p-6">
+      <div className="mb-8 mt-8 rounded-3xl bg-chrome-white p-6">
         <QRCodeSVG value={hostInfo.qr} size={232} level="M" marginSize={1} />
       </div>
 
       <VerificationCode sas={hostInfo.sas} />
-      <p className="mt-3 text-xs text-neutral-500">{getString("sync_verification_hint")}</p>
+      <p className="mt-3 text-xs text-chrome-neutral-500">{getString("sync_verification_hint")}</p>
 
       {/* Status indicator with pulsing dot */}
-      <div className="mt-6 flex items-center gap-3 rounded-full bg-surface-container-low px-4 py-2 text-sm text-neutral-400">
+      <div className="mt-6 flex items-center gap-3 rounded-full bg-surface-container-low px-4 py-2 text-sm text-chrome-neutral-400">
         <span className="h-2 w-2 rounded-full bg-primary animate-pulse" />
         {expired ? getString("sync_expired") : getString("sync_waiting_connect")}
       </div>
-      {!expired && <p className="mt-2 font-mono text-xs text-neutral-500">{getString("sync_expires_in", remaining)}</p>}
+      {!expired && <p className="mt-2 font-mono text-xs text-chrome-neutral-500">{getString("sync_expires_in", remaining)}</p>}
 
       <button
         type="button"
         onClick={() => void cancel()}
-        className="mt-10 flex items-center gap-2 rounded-full bg-surface-container-high px-6 py-2 text-sm font-medium text-neutral-200 transition-colors hover:bg-surface-container-highest"
+        className="mt-10 flex items-center gap-2 rounded-full bg-surface-container-high px-6 py-2 text-sm font-medium text-chrome-neutral-200 transition-colors hover:bg-surface-container-highest"
       >
         <X className="h-4 w-4" /> {getString("sync_cancel")}
       </button>
@@ -402,18 +402,18 @@ function ConsentScreen() {
   const manifests: ManifestInfo[] = status.manifests ?? [];
 
   return (
-    <div className="mx-auto mt-12 flex max-w-md flex-col items-center gap-6 rounded-2xl border border-neutral-800 bg-surface-container-low p-8">
+    <div className="mx-auto mt-12 flex max-w-md flex-col items-center gap-6 rounded-2xl border border-chrome-neutral-800 bg-surface-container-low p-8">
       <IconChip>
         <ShieldCheck className="h-5 w-5" />
       </IconChip>
 
       <div className="text-center">
-        <h2 className="text-base font-medium text-neutral-100">
+        <h2 className="text-base font-medium text-chrome-neutral-100">
           {isMerge
             ? getString("sync_consent_merge_title", peerName)
             : getString("sync_consent_allow_title", peerName)}
         </h2>
-        <p className="mt-1 text-sm text-neutral-400">
+        <p className="mt-1 text-sm text-chrome-neutral-400">
           {isMerge ? getString("sync_consent_merge_subtitle") : getString("sync_consent_allow_subtitle")}
         </p>
       </div>
@@ -421,11 +421,11 @@ function ConsentScreen() {
       {status.sas && <VerificationCode sas={status.sas} size="md" />}
 
       {isMerge && manifests.length > 0 && (
-        <div className="flex w-full flex-col divide-y divide-neutral-800/50 overflow-hidden rounded-xl border border-neutral-800/50">
+        <div className="flex w-full flex-col divide-y divide-chrome-neutral-800/50 overflow-hidden rounded-xl border border-chrome-neutral-800/50">
           {manifests.map((m) => (
             <div key={m.collection} className="flex items-center justify-between px-4 py-2.5">
-              <span className="text-sm text-neutral-200">{collectionTitle(m.collection)}</span>
-              <span className="font-mono text-xs text-neutral-400">
+              <span className="text-sm text-chrome-neutral-200">{collectionTitle(m.collection)}</span>
+              <span className="font-mono text-xs text-chrome-neutral-400">
                 {getString("sync_items_count", m.recordCount)}
               </span>
             </div>
@@ -437,7 +437,7 @@ function ConsentScreen() {
         <button
           type="button"
           onClick={() => void respondConsent(false)}
-          className="flex flex-1 items-center justify-center gap-2 rounded-full border border-red-900/50 bg-red-950/30 py-2.5 text-sm font-medium text-red-400 transition-colors hover:bg-red-950/50"
+          className="flex flex-1 items-center justify-center gap-2 rounded-full border border-chrome-red-900/50 bg-chrome-red-950/30 py-2.5 text-sm font-medium text-chrome-red-400 transition-colors hover:bg-chrome-red-950/50"
         >
           <X className="h-4 w-4" /> {getString("sync_deny")}
         </button>
@@ -459,7 +459,7 @@ function ConsentScreen() {
 
 function CenteredCard({ children }: { children: React.ReactNode }) {
   return (
-    <div className="mx-auto mt-12 flex max-w-md flex-col items-center gap-5 rounded-2xl border border-neutral-800 bg-surface-container-low p-8 text-center">
+    <div className="mx-auto mt-12 flex max-w-md flex-col items-center gap-5 rounded-2xl border border-chrome-neutral-800 bg-surface-container-low p-8 text-center">
       {children}
     </div>
   );
@@ -469,7 +469,7 @@ function ProgressScreen({ label }: { label: string }) {
   return (
     <CenteredCard>
       <Spinner className="h-8 w-8 text-primary" />
-      <p className="text-sm text-neutral-300">{label}</p>
+      <p className="text-sm text-chrome-neutral-300">{label}</p>
     </CenteredCard>
   );
 }
@@ -479,21 +479,21 @@ function CompletedScreen() {
   const isClient = status.role === "client";
   return (
     <CenteredCard>
-      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-500/15 text-green-400">
+      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-chrome-green-500/15 text-chrome-green-400">
         <Check className="h-6 w-6" />
       </div>
-      <h2 className="text-base font-medium text-neutral-100">{getString("sync_complete_title")}</h2>
+      <h2 className="text-base font-medium text-chrome-neutral-100">{getString("sync_complete_title")}</h2>
       {isClient && status.stats ? (
         <div className="w-full text-left">
           <StatsTable stats={status.stats} />
         </div>
       ) : (
-        <p className="text-sm text-neutral-400">{getString("sync_complete_sent")}</p>
+        <p className="text-sm text-chrome-neutral-400">{getString("sync_complete_sent")}</p>
       )}
       <button
         type="button"
         onClick={() => void reset()}
-        className="rounded-full bg-white px-6 py-2.5 text-sm font-bold text-black transition-transform hover:bg-neutral-200 active:scale-95"
+        className="rounded-full bg-chrome-white px-6 py-2.5 text-sm font-bold text-chrome-black transition-transform hover:bg-chrome-neutral-200 active:scale-95"
       >
         {getString("sync_done")}
       </button>
@@ -506,12 +506,12 @@ function MessageScreen({ icon, title, message }: { icon: React.ReactNode; title:
   return (
     <CenteredCard>
       {icon}
-      <h2 className="text-base font-medium text-neutral-100">{title}</h2>
-      {message && <p className="text-sm text-neutral-400">{message}</p>}
+      <h2 className="text-base font-medium text-chrome-neutral-100">{title}</h2>
+      {message && <p className="text-sm text-chrome-neutral-400">{message}</p>}
       <button
         type="button"
         onClick={() => void reset()}
-        className="flex items-center gap-2 rounded-full bg-surface-container-high px-6 py-2.5 text-sm font-medium text-neutral-200 transition-colors hover:bg-surface-container-highest"
+        className="flex items-center gap-2 rounded-full bg-surface-container-high px-6 py-2.5 text-sm font-medium text-chrome-neutral-200 transition-colors hover:bg-surface-container-highest"
       >
         <RotateCcw className="h-4 w-4" /> {getString("sync_start_over")}
       </button>
@@ -548,7 +548,7 @@ export default function Sync() {
           body: (
             <MessageScreen
               icon={
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-surface-container-high text-neutral-300">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-surface-container-high text-chrome-neutral-300">
                   <X className="h-6 w-6" />
                 </div>
               }
@@ -563,7 +563,7 @@ export default function Sync() {
           body: (
             <MessageScreen
               icon={
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-950/30 text-red-400">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-chrome-red-950/30 text-chrome-red-400">
                   <X className="h-6 w-6" />
                 </div>
               }
@@ -584,13 +584,13 @@ export default function Sync() {
           <MonitorSmartphone className="h-5 w-5 text-primary" />
         </IconChip>
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-neutral-100">{getString("sync_page_title")}</h1>
-          <p className="max-w-2xl text-sm text-neutral-400">{getString("sync_page_subtitle")}</p>
+          <h1 className="text-3xl font-bold tracking-tight text-chrome-neutral-100">{getString("sync_page_title")}</h1>
+          <p className="max-w-2xl text-sm text-chrome-neutral-400">{getString("sync_page_subtitle")}</p>
         </div>
       </header>
 
       {error && status.phase === "idle" && (
-        <div className="mx-auto mt-4 flex max-w-5xl items-center gap-2 rounded-xl border border-red-900/50 bg-red-950/30 px-4 py-3 text-sm text-red-400">
+        <div className="mx-auto mt-4 flex max-w-5xl items-center gap-2 rounded-xl border border-chrome-red-900/50 bg-chrome-red-950/30 px-4 py-3 text-sm text-chrome-red-400">
           {error}
         </div>
       )}

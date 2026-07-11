@@ -96,8 +96,8 @@ function PlaylistVideoRows({
 }) {
   if (displayVideos.length === 0) {
     return (
-      <div className="rounded-2xl border border-dashed border-neutral-800 py-20 text-center">
-        <p className="text-sm font-medium text-neutral-400">This playlist has no videos yet.</p>
+      <div className="rounded-2xl border border-dashed border-chrome-neutral-800 py-20 text-center">
+        <p className="text-sm font-medium text-chrome-neutral-400">This playlist has no videos yet.</p>
       </div>
     );
   }
@@ -183,7 +183,7 @@ export function PlaylistSortableList({
 
   return (
     <section className="flex h-full min-h-0 min-w-0 flex-col">
-      <div className="shrink-0 border-b border-neutral-800/50 bg-background pb-4">
+      <div className="shrink-0 border-b border-chrome-neutral-800/50 bg-background pb-4">
           <Select
             value={sortType}
             onChange={(val) => onSortChange(val as PlaylistSortType)}

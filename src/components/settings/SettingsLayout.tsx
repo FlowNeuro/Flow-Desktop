@@ -47,8 +47,8 @@ export function SettingsLayout({ children }: SettingsLayoutProps) {
 
   return (
     <div className="mx-auto w-full h-[calc(100vh-64px)] flex">
-      <nav className="w-56 shrink-0 border-r border-neutral-800 overflow-y-auto py-6 px-3 flex flex-col gap-1">
-        <h2 className="text-lg font-bold text-neutral-100 px-3 mb-4">{getString('settings_title')}</h2>
+      <nav className="w-56 shrink-0 border-r border-chrome-neutral-800 overflow-y-auto py-6 px-3 flex flex-col gap-1">
+        <h2 className="text-lg font-bold text-chrome-neutral-100 px-3 mb-4">{getString('settings_title')}</h2>
         {categories.map((cat) => (
           <button
             key={cat.id}
@@ -56,7 +56,7 @@ export function SettingsLayout({ children }: SettingsLayoutProps) {
             className={`px-4 py-2.5 rounded-full flex items-center gap-3 text-sm font-medium transition-colors cursor-pointer ${
               activeTab === cat.id
                 ? 'bg-surface-container-high text-[var(--color-primary)]'
-                : 'text-neutral-400 hover:bg-surface-container-low hover:text-neutral-200'
+                : 'text-chrome-neutral-400 hover:bg-surface-container-low hover:text-chrome-neutral-200'
             }`}
           >
             {cat.icon}

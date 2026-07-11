@@ -74,12 +74,12 @@ export const Likes: React.FC<LikesProps> = ({ onPlay }) => {
   return (
     <div className="flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-8">
       <div className="mx-auto w-full pb-20">
-        <header className="flex flex-col gap-5 border-b border-neutral-800 pb-6 lg:flex-row lg:items-end lg:justify-between">
+        <header className="flex flex-col gap-5 border-b border-chrome-neutral-800 pb-6 lg:flex-row lg:items-end lg:justify-between">
           <div className="min-w-0">
-            <h1 className="text-3xl font-bold tracking-tight text-neutral-100 lg:text-4xl">
+            <h1 className="text-3xl font-bold tracking-tight text-chrome-neutral-100 lg:text-4xl">
               {getString("likes_title")}
             </h1>
-            <p className="mt-2 text-sm text-neutral-400">
+            <p className="mt-2 text-sm text-chrome-neutral-400">
               {getString("likes_subtitle")}
             </p>
           </div>
@@ -119,21 +119,21 @@ export const Likes: React.FC<LikesProps> = ({ onPlay }) => {
         {loading ? (
           <div className="flex flex-col items-center justify-center py-32">
             <Loader2 className="h-9 w-9 animate-spin text-[var(--color-primary)]" />
-            <p className="mt-4 text-sm font-medium text-neutral-500">
+            <p className="mt-4 text-sm font-medium text-chrome-neutral-500">
               {getString("likes_loading")}
             </p>
           </div>
         ) : items.length === 0 ? (
-          <div className="mt-8 flex flex-col items-center justify-center rounded-2xl border border-dashed border-neutral-800 bg-surface-container-low p-10 text-center">
-            <Heart className="mb-4 h-12 w-12 text-neutral-700" />
-            <h3 className="font-bold text-neutral-300">{getString("empty_likes")}</h3>
-            <p className="mt-1 max-w-sm text-sm text-neutral-500">
+          <div className="mt-8 flex flex-col items-center justify-center rounded-2xl border border-dashed border-chrome-neutral-800 bg-surface-container-low p-10 text-center">
+            <Heart className="mb-4 h-12 w-12 text-chrome-neutral-700" />
+            <h3 className="font-bold text-chrome-neutral-300">{getString("empty_likes")}</h3>
+            <p className="mt-1 max-w-sm text-sm text-chrome-neutral-500">
               {getString("empty_likes_body")}
             </p>
           </div>
         ) : visibleGroups.length === 0 ? (
-          <div className="mt-8 rounded-2xl border border-neutral-800 bg-surface-container-low p-8 text-center">
-            <p className="text-sm font-medium text-neutral-300">
+          <div className="mt-8 rounded-2xl border border-chrome-neutral-800 bg-surface-container-low p-8 text-center">
+            <p className="text-sm font-medium text-chrome-neutral-300">
               {getString("likes_no_results")}
             </p>
           </div>
@@ -163,12 +163,12 @@ export const Likes: React.FC<LikesProps> = ({ onPlay }) => {
       </div>
 
       {showClearConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4">
-          <div className="w-full max-w-sm space-y-4 rounded-2xl border border-neutral-800 bg-surface-container p-6">
-            <h3 className="text-lg font-bold text-neutral-100">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-chrome-black/75 p-4">
+          <div className="w-full max-w-sm space-y-4 rounded-2xl border border-chrome-neutral-800 bg-surface-container p-6">
+            <h3 className="text-lg font-bold text-chrome-neutral-100">
               {getString("clear_likes_alert_title")}
             </h3>
-            <p className="text-sm leading-relaxed text-neutral-400">
+            <p className="text-sm leading-relaxed text-chrome-neutral-400">
               {getString("clear_likes_alert_body")}
             </p>
 

@@ -13,8 +13,8 @@ type SidebarItemProps = {
 
 const baseClasses =
   'flex items-center gap-4 px-3 py-2 mx-2 rounded-lg cursor-pointer transition-colors';
-const idleClasses = 'text-neutral-200 hover:bg-surface-container-low';
-const activeClasses = 'bg-surface-container text-white font-medium';
+const idleClasses = 'text-chrome-neutral-200 hover:bg-surface-container-low';
+const activeClasses = 'bg-surface-container text-chrome-white font-medium';
 
 function renderIcon(icon: ReactElement | ReactNode) {
   if (icon && typeof icon === 'object' && 'type' in (icon as ReactElement)) {

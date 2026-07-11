@@ -71,7 +71,7 @@ export function PlaylistAmbientHeader({
         )}
 
         <div className="relative z-10 flex h-full min-h-0 flex-col gap-6">
-          <div className="relative aspect-video w-full shrink-0 overflow-hidden rounded-2xl border border-neutral-800/50 bg-neutral-950">
+          <div className="relative aspect-video w-full shrink-0 overflow-hidden rounded-2xl border border-chrome-neutral-800/50 bg-chrome-neutral-950">
             {ambientSrc ? (
               <img
                 src={ambientSrc}
@@ -81,23 +81,23 @@ export function PlaylistAmbientHeader({
                 decoding="async"
               />
             ) : (
-              <div className="flex h-full w-full items-center justify-center text-neutral-500">
+              <div className="flex h-full w-full items-center justify-center text-chrome-neutral-500">
                 Playlist
               </div>
             )}
           </div>
 
           <div className="min-h-0 flex-1">
-            <h1 className="text-3xl font-bold tracking-tight text-neutral-100">
+            <h1 className="text-3xl font-bold tracking-tight text-chrome-neutral-100">
               {meta.title}
             </h1>
             {ownerLabel ? (
-              <p className="mt-2 text-sm font-medium text-neutral-200">
+              <p className="mt-2 text-sm font-medium text-chrome-neutral-200">
                 {ownerLabel}
               </p>
             ) : null}
             {statsParts.length > 0 ? (
-              <p className="mt-1 text-sm text-neutral-300">
+              <p className="mt-1 text-sm text-chrome-neutral-300">
                 {statsParts.join(" • ")}
               </p>
             ) : null}
@@ -134,7 +134,7 @@ export function PlaylistAmbientHeader({
               size="lg"
               disabled={!canPlay}
               onClick={onPlayAll}
-              className="!bg-neutral-100 !text-neutral-950 hover:!opacity-90"
+              className="!bg-chrome-neutral-100 !text-chrome-neutral-950 hover:!opacity-90"
             >
               <Play size={18} fill="currentColor" />
               Play All

@@ -306,7 +306,7 @@ export const PlayerGestureOverlay: React.FC<PlayerGestureOverlayProps> = ({
           className="pointer-events-none absolute inset-0 z-30 grid place-items-center"
         >
           <div
-            className={`grid place-items-center rounded-full bg-black/30 text-white backdrop-blur-md animate-player-feedback ${
+            className={`grid place-items-center rounded-full bg-chrome-black/30 text-chrome-white backdrop-blur-md animate-player-feedback ${
               isCompact ? "h-16 w-16" : "h-28 w-28"
             }`}
           >
@@ -320,7 +320,7 @@ export const PlayerGestureOverlay: React.FC<PlayerGestureOverlayProps> = ({
       )}
 
       {isBoosting && (
-        <div className="pointer-events-none absolute left-1/2 top-8 z-30 -translate-x-1/2 rounded-full bg-black/30 px-5 py-2 text-sm font-bold text-white backdrop-blur-md animate-fade-in">
+        <div className="pointer-events-none absolute left-1/2 top-8 z-30 -translate-x-1/2 rounded-full bg-chrome-black/30 px-5 py-2 text-sm font-bold text-chrome-white backdrop-blur-md animate-fade-in">
           {longPressPlaybackRate}x
         </div>
       )}
@@ -333,7 +333,7 @@ export const PlayerGestureOverlay: React.FC<PlayerGestureOverlayProps> = ({
           }`}
         >
           <div
-            className={`flex flex-col items-center justify-center rounded-full bg-black/30 text-white backdrop-blur-md animate-player-seek ${
+            className={`flex flex-col items-center justify-center rounded-full bg-chrome-black/30 text-chrome-white backdrop-blur-md animate-player-seek ${
               isCompact ? "h-14 w-14" : "h-24 w-24"
             }`}
           >
@@ -352,7 +352,7 @@ export const PlayerGestureOverlay: React.FC<PlayerGestureOverlayProps> = ({
 
       {contextMenu && (
         <div
-          className="absolute z-50 w-[342px] overflow-hidden rounded-xl border border-white/10 bg-background/45 p-2 text-white shadow-2xl backdrop-blur-xl animate-fade-in"
+          className="absolute z-50 w-[342px] overflow-hidden rounded-xl border border-chrome-white/10 bg-background/45 p-2 text-chrome-white shadow-2xl backdrop-blur-xl animate-fade-in"
           style={{ left: contextMenu.x, top: contextMenu.y }}
           onClick={(event) => event.stopPropagation()}
           onContextMenu={(event) => event.preventDefault()}
@@ -361,10 +361,10 @@ export const PlayerGestureOverlay: React.FC<PlayerGestureOverlayProps> = ({
             <button
               key={item.label}
               type="button"
-              className="flex h-12 w-full items-center gap-4 rounded-lg px-3 text-left text-sm font-bold text-zinc-100 transition-colors hover:bg-white/10"
+              className="flex h-12 w-full items-center gap-4 rounded-lg px-3 text-left text-sm font-bold text-chrome-zinc-100 transition-colors hover:bg-chrome-white/10"
               onClick={() => void runMenuAction(item.action)}
             >
-              <span className="grid h-7 w-7 place-items-center text-zinc-300">{item.icon}</span>
+              <span className="grid h-7 w-7 place-items-center text-chrome-zinc-300">{item.icon}</span>
               <span className="min-w-0 flex-1 truncate">{item.label}</span>
             </button>
           ))}
@@ -372,22 +372,22 @@ export const PlayerGestureOverlay: React.FC<PlayerGestureOverlayProps> = ({
       )}
 
       {copiedLabel && (
-        <div className="pointer-events-none absolute left-1/2 top-8 z-50 -translate-x-1/2 rounded-full bg-black/75 px-4 py-2 text-xs font-bold text-white shadow-xl backdrop-blur-md animate-fade-in">
+        <div className="pointer-events-none absolute left-1/2 top-8 z-50 -translate-x-1/2 rounded-full bg-chrome-black/75 px-4 py-2 text-xs font-bold text-chrome-white shadow-xl backdrop-blur-md animate-fade-in">
           {copiedLabel}
         </div>
       )}
 
       {statsVisible && (
-        <div className="pointer-events-none absolute right-5 top-5 z-40 w-[min(92vw,320px)] rounded-xl border border-white/10 bg-black/70 p-3 text-xs font-semibold text-zinc-100 shadow-2xl backdrop-blur-md animate-fade-in">
+        <div className="pointer-events-none absolute right-5 top-5 z-40 w-[min(92vw,320px)] rounded-xl border border-chrome-white/10 bg-chrome-black/70 p-3 text-xs font-semibold text-chrome-zinc-100 shadow-2xl backdrop-blur-md animate-fade-in">
           <div className="mb-2 text-sm font-black">Stats for nerds</div>
-          <div className="grid grid-cols-[110px_1fr] gap-x-3 gap-y-1 text-zinc-300">
-            <span className="text-zinc-500">Time</span>
+          <div className="grid grid-cols-[110px_1fr] gap-x-3 gap-y-1 text-chrome-zinc-300">
+            <span className="text-chrome-zinc-500">Time</span>
             <span>{formatTime(currentTime)} / {formatTime(duration)}</span>
-            <span className="text-zinc-500">Speed</span>
+            <span className="text-chrome-zinc-500">Speed</span>
             <span>{playbackRate}x</span>
-            <span className="text-zinc-500">Resolution</span>
+            <span className="text-chrome-zinc-500">Resolution</span>
             <span>{videoRef.current ? `${videoRef.current.videoWidth}x${videoRef.current.videoHeight}` : "Unknown"}</span>
-            <span className="text-zinc-500">Ready state</span>
+            <span className="text-chrome-zinc-500">Ready state</span>
             <span>{videoRef.current?.readyState ?? "Unknown"}</span>
           </div>
         </div>

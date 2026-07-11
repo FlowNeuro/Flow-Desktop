@@ -6,11 +6,11 @@ import type { RelatedVideosProps } from "./types";
 
 export function RelatedVideos({ items, loading, onSelect, onAddToQueue }: RelatedVideosProps) {
   if (loading) {
-    return <Loader2 className="mx-auto mt-10 animate-spin text-neutral-500" size={24} />;
+    return <Loader2 className="mx-auto mt-10 animate-spin text-chrome-neutral-500" size={24} />;
   }
 
   if (items.length === 0) {
-    return <p className="mt-6 text-center text-sm text-neutral-500">{getString("watch_no_related")}</p>;
+    return <p className="mt-6 text-center text-sm text-chrome-neutral-500">{getString("watch_no_related")}</p>;
   }
 
   return (

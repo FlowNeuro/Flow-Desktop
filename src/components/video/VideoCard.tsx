@@ -300,7 +300,7 @@ function VideoCardComponent({
   const cardStyle: React.CSSProperties = isHovered
     ? (dominantColor
       ? { background: `rgba(${dominantColor}, 0.2)` }
-      : { background: 'rgba(39, 39, 42, 0.5)' })
+      : { background: 'color-mix(in srgb, var(--color-chrome-zinc-800) 50%, transparent)' })
     : { background: 'transparent' };
 
   const handleSubscribeToggle = (e: React.MouseEvent) => {
@@ -408,7 +408,7 @@ function VideoCardComponent({
       <AnchoredPortalMenu
         anchor={menuAnchor}
         onClose={() => setShowMenu(false)}
-        className="z-50 w-60 rounded-xl border border-neutral-800 bg-surface-container-high py-1.5"
+        className="z-50 w-60 rounded-xl border border-chrome-neutral-800 bg-surface-container-high py-1.5"
       >
         <button
           onClick={(e) => {
@@ -416,7 +416,7 @@ function VideoCardComponent({
             handleAddToQueue();
             setShowMenu(false);
           }}
-          className="w-full flex items-center gap-3 px-3.5 py-2.5 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 transition-colors"
+          className="w-full flex items-center gap-3 px-3.5 py-2.5 text-sm text-chrome-zinc-300 hover:bg-chrome-zinc-800 hover:text-chrome-zinc-100 transition-colors"
         >
           <Plus size={16} />
           {getString("music_add_to_queue")}
@@ -428,7 +428,7 @@ function VideoCardComponent({
             openAddToPlaylist(video);
             setShowMenu(false);
           }}
-          className="w-full flex items-center gap-3 whitespace-nowrap px-3.5 py-2.5 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 transition-colors"
+          className="w-full flex items-center gap-3 whitespace-nowrap px-3.5 py-2.5 text-sm text-chrome-zinc-300 hover:bg-chrome-zinc-800 hover:text-chrome-zinc-100 transition-colors"
         >
           <ListPlus size={16} />
           {getString("video_add_to_playlist")}
@@ -440,7 +440,7 @@ function VideoCardComponent({
             void handleChannelNavigate(e);
             setShowMenu(false);
           }}
-          className="w-full flex items-center gap-3 whitespace-nowrap px-3.5 py-2.5 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 transition-colors"
+          className="w-full flex items-center gap-3 whitespace-nowrap px-3.5 py-2.5 text-sm text-chrome-zinc-300 hover:bg-chrome-zinc-800 hover:text-chrome-zinc-100 transition-colors"
         >
           <User size={16} />
           {getString("video_view_channel")}
@@ -452,7 +452,7 @@ function VideoCardComponent({
             void handleDownloadAction();
             setShowMenu(false);
           }}
-          className="w-full flex items-center gap-3 whitespace-nowrap px-3.5 py-2.5 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 transition-colors"
+          className="w-full flex items-center gap-3 whitespace-nowrap px-3.5 py-2.5 text-sm text-chrome-zinc-300 hover:bg-chrome-zinc-800 hover:text-chrome-zinc-100 transition-colors"
         >
           {isDownloaded ? <Trash2 size={16} /> : <Download size={16} />}
           {getString(isDownloaded ? "video_remove_download" : "download")}
@@ -464,7 +464,7 @@ function VideoCardComponent({
             void handleToggleWatchLater();
             setShowMenu(false);
           }}
-          className="w-full flex items-center gap-3 whitespace-nowrap px-3.5 py-2.5 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 transition-colors"
+          className="w-full flex items-center gap-3 whitespace-nowrap px-3.5 py-2.5 text-sm text-chrome-zinc-300 hover:bg-chrome-zinc-800 hover:text-chrome-zinc-100 transition-colors"
         >
           <Clock size={16} />
           {getString(isSavedToWatchLater ? "video_remove_from_watch_later" : "video_save_to_watch_later")}
@@ -475,7 +475,7 @@ function VideoCardComponent({
             void moreLikeThis(video);
             setShowMenu(false);
           }}
-          className="w-full flex items-center gap-3 px-3.5 py-2.5 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 transition-colors"
+          className="w-full flex items-center gap-3 px-3.5 py-2.5 text-sm text-chrome-zinc-300 hover:bg-chrome-zinc-800 hover:text-chrome-zinc-100 transition-colors"
         >
           <Sparkles size={16} />
           More like this
@@ -486,7 +486,7 @@ function VideoCardComponent({
             void markWatched(video);
             setShowMenu(false);
           }}
-          className="w-full flex items-center gap-3 px-3.5 py-2.5 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 transition-colors"
+          className="w-full flex items-center gap-3 px-3.5 py-2.5 text-sm text-chrome-zinc-300 hover:bg-chrome-zinc-800 hover:text-chrome-zinc-100 transition-colors"
         >
           <Eye size={16} />
           Mark as watched
@@ -497,7 +497,7 @@ function VideoCardComponent({
             void notInterested(video);
             setShowMenu(false);
           }}
-          className="w-full flex items-center gap-3 px-3.5 py-2.5 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 transition-colors"
+          className="w-full flex items-center gap-3 px-3.5 py-2.5 text-sm text-chrome-zinc-300 hover:bg-chrome-zinc-800 hover:text-chrome-zinc-100 transition-colors"
         >
           <Ban size={16} />
           Not interested
@@ -505,7 +505,7 @@ function VideoCardComponent({
         {onRemoveFromContinueWatching ? (
           <button
             onClick={handleRemoveFromContinueWatching}
-            className="w-full flex items-center gap-3 px-3.5 py-2.5 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 transition-colors"
+            className="w-full flex items-center gap-3 px-3.5 py-2.5 text-sm text-chrome-zinc-300 hover:bg-chrome-zinc-800 hover:text-chrome-zinc-100 transition-colors"
           >
             <Trash2 size={16} />
             {getString("video_remove_from_continue_watching")}
@@ -518,7 +518,7 @@ function VideoCardComponent({
               void blockChannelAction(video);
               setShowMenu(false);
             }}
-            className="w-full flex items-center gap-3 px-3.5 py-2.5 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 transition-colors"
+            className="w-full flex items-center gap-3 px-3.5 py-2.5 text-sm text-chrome-zinc-300 hover:bg-chrome-zinc-800 hover:text-chrome-zinc-100 transition-colors"
           >
             <EyeOff size={16} />
             Don't show this channel
@@ -532,9 +532,9 @@ function VideoCardComponent({
     return (
       <div 
         onClick={() => navigate(`/channel/${cleanId}`)}
-        className="flex flex-col items-center justify-center p-6 bg-surface rounded-xl border border-zinc-800 hover:bg-zinc-900/50 transition-colors group cursor-pointer"
+        className="flex flex-col items-center justify-center p-6 bg-surface rounded-xl border border-chrome-zinc-800 hover:bg-chrome-zinc-900/50 transition-colors group cursor-pointer"
       >
-        <div className="w-24 h-24 rounded-full overflow-hidden mb-4 border border-zinc-800 group-hover:scale-105 transition-transform duration-300">
+        <div className="w-24 h-24 rounded-full overflow-hidden mb-4 border border-chrome-zinc-800 group-hover:scale-105 transition-transform duration-300">
           {channelCardAvatarUrl ? (
             <img
               src={channelCardAvatarUrl}
@@ -543,15 +543,15 @@ function VideoCardComponent({
               loading="lazy"
             />
           ) : (
-            <div className="w-full h-full bg-zinc-800 flex items-center justify-center text-xl font-bold text-zinc-400">
+            <div className="w-full h-full bg-chrome-zinc-800 flex items-center justify-center text-xl font-bold text-chrome-zinc-400">
               {video.title.charAt(0).toUpperCase()}
             </div>
           )}
         </div>
-        <h3 className="font-bold text-center text-zinc-100 line-clamp-1 group-hover:text-primary transition-colors">
+        <h3 className="font-bold text-center text-chrome-zinc-100 line-clamp-1 group-hover:text-primary transition-colors">
           {video.title}
         </h3>
-        <p className="text-xs text-zinc-400 mb-4">{video.publishedText || "Channel"}</p>
+        <p className="text-xs text-chrome-zinc-400 mb-4">{video.publishedText || "Channel"}</p>
         
         <Button
           variant={subStatus ? "secondary" : "primary"}
@@ -596,12 +596,12 @@ function VideoCardComponent({
               onError={handleThumbnailError}
             />
           ) : (
-            <div className="h-full w-full bg-zinc-800" />
+            <div className="h-full w-full bg-chrome-zinc-800" />
           )}
           {isLiveVideo ? (
             <LiveBadge className="absolute bottom-1 right-1" />
           ) : video.durationSeconds ? (
-            <div className="absolute bottom-1 right-1 z-10 rounded bg-neutral-950/90 px-1 py-px text-[11px] font-medium leading-tight text-white">
+            <div className="absolute bottom-1 right-1 z-10 rounded bg-chrome-neutral-950/90 px-1 py-px text-[11px] font-medium leading-tight text-chrome-white">
               {formatDuration(video.durationSeconds)}
             </div>
           ) : null}
@@ -611,18 +611,18 @@ function VideoCardComponent({
           <h3
             onClick={() => onPlay(video)}
             style={titleClampStyle}
-            className="cursor-pointer text-sm font-medium leading-snug text-neutral-100 transition-colors group-hover:text-primary"
+            className="cursor-pointer text-sm font-medium leading-snug text-chrome-neutral-100 transition-colors group-hover:text-primary"
           >
             {displayTitle}
           </h3>
           <button
             type="button"
             onClick={(e) => { void handleChannelNavigate(e); }}
-            className="mt-1 truncate text-left text-[13px] text-neutral-400 transition-colors hover:text-neutral-300"
+            className="mt-1 truncate text-left text-[13px] text-chrome-neutral-400 transition-colors hover:text-chrome-neutral-300"
           >
             {video.channelName}
           </button>
-          <div className="text-[13px] text-neutral-500">
+          <div className="text-[13px] text-chrome-neutral-500">
             {video.viewCountText && <span>{video.viewCountText}</span>}
             {video.viewCountText && video.publishedText && <span className="mx-1">•</span>}
             {video.publishedText && <span>{video.publishedText}</span>}
@@ -632,7 +632,7 @@ function VideoCardComponent({
         <div className="relative shrink-0">
           <button
             onClick={openMenuFromDots}
-            className="rounded-full p-1 text-neutral-500 opacity-0 transition-all duration-150 hover:bg-neutral-800 hover:text-neutral-200 group-hover:opacity-100"
+            className="rounded-full p-1 text-chrome-neutral-500 opacity-0 transition-all duration-150 hover:bg-chrome-neutral-800 hover:text-chrome-neutral-200 group-hover:opacity-100"
           >
             <MoreVertical size={18} />
           </button>
@@ -653,7 +653,7 @@ function VideoCardComponent({
     return (
       <div
         ref={cardRef}
-        className="group relative flex w-full flex-row items-center gap-4 rounded-xl px-1 py-2 transition-colors duration-200 ease-out hover:bg-neutral-800/40"
+        className="group relative flex w-full flex-row items-center gap-4 rounded-xl px-1 py-2 transition-colors duration-200 ease-out hover:bg-chrome-neutral-800/40"
         onContextMenu={handleContextMenu}
       >
         {showDragHandle ? (
@@ -661,8 +661,8 @@ function VideoCardComponent({
             type="button"
             aria-label="Reorder video"
             className={[
-              'shrink-0 rounded-md p-1 text-neutral-500 transition-colors duration-200 ease-out',
-              'hover:text-neutral-300',
+              'shrink-0 rounded-md p-1 text-chrome-neutral-500 transition-colors duration-200 ease-out',
+              'hover:text-chrome-neutral-300',
               isDragActive ? 'cursor-grabbing' : 'cursor-grab',
               dragHandleClassName,
             ].filter(Boolean).join(' ')}
@@ -677,7 +677,7 @@ function VideoCardComponent({
         )}
 
         <div
-          className="relative aspect-video w-40 shrink-0 cursor-pointer overflow-hidden rounded-xl bg-zinc-900 sm:w-48"
+          className="relative aspect-video w-40 shrink-0 cursor-pointer overflow-hidden rounded-xl bg-chrome-zinc-900 sm:w-48"
           onClick={() => onPlay(video)}
         >
           {displayThumbnail ? (
@@ -691,13 +691,13 @@ function VideoCardComponent({
               onError={handleThumbnailError}
             />
           ) : (
-            <div className="h-full w-full bg-zinc-800" />
+            <div className="h-full w-full bg-chrome-zinc-800" />
           )}
 
           {isLiveVideo ? (
             <LiveBadge className="absolute bottom-1 right-1" />
           ) : video.durationSeconds ? (
-            <div className="absolute bottom-1 right-1 z-10 rounded bg-neutral-950/90 px-1 py-px text-[12px] font-medium leading-tight tracking-wide text-white">
+            <div className="absolute bottom-1 right-1 z-10 rounded bg-chrome-neutral-950/90 px-1 py-px text-[12px] font-medium leading-tight tracking-wide text-chrome-white">
               {formatDuration(video.durationSeconds)}
             </div>
           ) : null}
@@ -707,18 +707,18 @@ function VideoCardComponent({
           <h3
             onClick={() => onPlay(video)}
             style={titleClampStyle}
-            className="cursor-pointer text-sm font-medium leading-snug text-neutral-100 transition-colors hover:text-white"
+            className="cursor-pointer text-sm font-medium leading-snug text-chrome-neutral-100 transition-colors hover:text-chrome-white"
           >
             {displayTitle}
           </h3>
           <button
             type="button"
             onClick={(e) => { void handleChannelNavigate(e); }}
-            className="mt-0.5 truncate text-left text-[13px] text-neutral-400 transition-colors hover:text-neutral-300"
+            className="mt-0.5 truncate text-left text-[13px] text-chrome-neutral-400 transition-colors hover:text-chrome-neutral-300"
           >
             {video.channelName}
           </button>
-          <div className="mt-0.5 text-[13px] text-neutral-500">
+          <div className="mt-0.5 text-[13px] text-chrome-neutral-500">
             {video.viewCountText && <span>{video.viewCountText}</span>}
             {video.viewCountText && video.publishedText && <span className="mx-1">•</span>}
             {video.publishedText && <span>{video.publishedText}</span>}
@@ -729,7 +729,7 @@ function VideoCardComponent({
           <button
             type="button"
             onClick={openMenuFromDots}
-            className="mt-0.5 rounded-full p-1 text-neutral-500 opacity-0 transition-all duration-150 hover:bg-neutral-800 hover:text-neutral-200 group-hover:opacity-100"
+            className="mt-0.5 rounded-full p-1 text-chrome-neutral-500 opacity-0 transition-all duration-150 hover:bg-chrome-neutral-800 hover:text-chrome-neutral-200 group-hover:opacity-100"
           >
             <MoreVertical size={18} />
           </button>
@@ -753,7 +753,7 @@ function VideoCardComponent({
     >
 
       <div
-        className="relative w-full aspect-video rounded-xl overflow-hidden bg-zinc-900 cursor-pointer"
+        className="relative w-full aspect-video rounded-xl overflow-hidden bg-chrome-zinc-900 cursor-pointer"
         onClick={() => onPlay(video)}
       >
         {displayThumbnail ? (
@@ -768,20 +768,20 @@ function VideoCardComponent({
             onError={handleThumbnailError}
           />
         ) : (
-          <div className="w-full h-full bg-zinc-800" />
+          <div className="w-full h-full bg-chrome-zinc-800" />
         )}
 
         {isLiveVideo ? (
           <LiveBadge className={`absolute right-1 ${isHistoryCard || isContinueCard ? 'bottom-2' : 'bottom-1'}`} />
         ) : video.durationSeconds ? (
-          <div className={`absolute right-1 z-10 bg-black/80 px-1 py-px rounded text-[12px] font-medium text-white leading-tight tracking-wide ${isHistoryCard || isContinueCard ? 'bottom-2' : 'bottom-1'}`}>
+          <div className={`absolute right-1 z-10 bg-chrome-black/80 px-1 py-px rounded text-[12px] font-medium text-chrome-white leading-tight tracking-wide ${isHistoryCard || isContinueCard ? 'bottom-2' : 'bottom-1'}`}>
             {formatDuration(video.durationSeconds)}
           </div>
         ) : null}
 
         {isHistoryCard || isContinueCard ? (
           <>
-            <div className="absolute bottom-0 left-0 z-10 h-[3px] w-full bg-neutral-600">
+            <div className="absolute bottom-0 left-0 z-10 h-[3px] w-full bg-chrome-neutral-600">
               <div
                 className="h-full bg-primary"
                 style={{ width: `${progressPercent}%` }}
@@ -794,7 +794,7 @@ function VideoCardComponent({
                 onClick={handleRemoveFromHistory}
                 title="Remove from history"
                 aria-label="Remove from history"
-                className="absolute right-2 top-2 z-30 flex h-8 w-8 items-center justify-center rounded-full border border-neutral-800 bg-neutral-950/90 text-neutral-300 opacity-0 transition-colors duration-200 ease-out hover:bg-red-950/50 backdrop-blur-md hover:text-red-400 group-hover:opacity-100"
+                className="absolute right-2 top-2 z-30 flex h-8 w-8 items-center justify-center rounded-full border border-chrome-neutral-800 bg-chrome-neutral-950/90 text-chrome-neutral-300 opacity-0 transition-colors duration-200 ease-out hover:bg-chrome-red-950/50 backdrop-blur-md hover:text-chrome-red-400 group-hover:opacity-100"
               >
                 <Trash2 size={15} />
               </button>
@@ -802,14 +802,14 @@ function VideoCardComponent({
           </>
         ) : null}
 
-        <div className="pointer-events-none absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-200" />
+        <div className="pointer-events-none absolute inset-0 bg-chrome-black/0 group-hover:bg-chrome-black/10 transition-colors duration-200" />
       </div>
 
       <div className="flex gap-3 pr-1 relative z-10">
         {!hideChannelAvatar && (
           <div 
             onClick={(e) => { void handleChannelNavigate(e); }}
-            className="w-9 h-9 rounded-full bg-zinc-800 shrink-0 overflow-hidden flex items-center justify-center cursor-pointer mt-0.5 hover:opacity-80 transition-opacity"
+            className="w-9 h-9 rounded-full bg-chrome-zinc-800 shrink-0 overflow-hidden flex items-center justify-center cursor-pointer mt-0.5 hover:opacity-80 transition-opacity"
           >
             {resolvedAvatarUrl ? (
               <img
@@ -819,7 +819,7 @@ function VideoCardComponent({
                 loading="lazy"
               />
             ) : (
-              <span className="text-xs font-semibold text-zinc-400">{channelInitials}</span>
+              <span className="text-xs font-semibold text-chrome-zinc-400">{channelInitials}</span>
             )}
           </div>
         )}
@@ -828,19 +828,19 @@ function VideoCardComponent({
           <h3
             onClick={() => onPlay(video)}
             style={titleClampStyle}
-            className="text-zinc-100 text-sm font-medium leading-snug cursor-pointer hover:text-white transition-colors"
+            className="text-chrome-zinc-100 text-sm font-medium leading-snug cursor-pointer hover:text-chrome-white transition-colors"
           >
             {displayTitle}
           </h3>
           <div
             onClick={(e) => { void handleChannelNavigate(e); }}
-            className="text-zinc-400 text-[13px] mt-0.5 truncate cursor-pointer hover:text-zinc-300 transition-colors"
+            className="text-chrome-zinc-400 text-[13px] mt-0.5 truncate cursor-pointer hover:text-chrome-zinc-300 transition-colors"
           >
             {video.channelName}
           </div>
 
           {/* View Count + Published */}
-          <div className="text-zinc-500 text-[13px] flex items-center gap-0 mt-0">
+          <div className="text-chrome-zinc-500 text-[13px] flex items-center gap-0 mt-0">
             {video.viewCountText && <span>{video.viewCountText}</span>}
             {video.viewCountText && video.publishedText && <span className="mx-1">•</span>}
             {video.publishedText && <span>{video.publishedText}</span>}
@@ -851,7 +851,7 @@ function VideoCardComponent({
         <div className="relative shrink-0">
           <button
             onClick={openMenuFromDots}
-            className="p-1 rounded-full text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 opacity-0 group-hover:opacity-100 transition-all duration-150 mt-0.5"
+            className="p-1 rounded-full text-chrome-zinc-500 hover:text-chrome-zinc-200 hover:bg-chrome-zinc-800 opacity-0 group-hover:opacity-100 transition-all duration-150 mt-0.5"
           >
             <MoreVertical size={18} />
           </button>

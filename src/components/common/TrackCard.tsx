@@ -33,13 +33,13 @@ export const TrackCard: React.FC<TrackCardProps> = ({
     <div
       className={`flex items-center gap-4 p-2.5 rounded-2xl border transition-all duration-300 group ${
         isActive
-          ? "bg-red-950/20 border-primary/30 shadow-md shadow-primary/5"
-          : "bg-zinc-900/20 border-zinc-800/30 hover:border-zinc-700/50 hover:bg-zinc-900/50"
+          ? "bg-chrome-red-950/20 border-primary/30 shadow-md shadow-primary/5"
+          : "bg-chrome-zinc-900/20 border-chrome-zinc-800/30 hover:border-chrome-zinc-700/50 hover:bg-chrome-zinc-900/50"
       }`}
     >
       {/* Cover Art container */}
       <div
-        className="relative w-12 h-12 rounded-xl overflow-hidden shrink-0 bg-zinc-950 cursor-pointer"
+        className="relative w-12 h-12 rounded-xl overflow-hidden shrink-0 bg-chrome-zinc-950 cursor-pointer"
         onClick={() => onPlay(track)}
       >
         <img
@@ -53,7 +53,7 @@ export const TrackCard: React.FC<TrackCardProps> = ({
         />
         {/* Play Overlay */}
         <div
-          className={`absolute inset-0 bg-black/40 flex items-center justify-center transition-opacity duration-200 ${
+          className={`absolute inset-0 bg-chrome-black/40 flex items-center justify-center transition-opacity duration-200 ${
             isActive ? "opacity-100" : "opacity-0 group-hover:opacity-100"
           }`}
         >
@@ -64,7 +64,7 @@ export const TrackCard: React.FC<TrackCardProps> = ({
               <span className="w-1 bg-primary rounded-full animate-[bounce_0.8s_infinite_300ms] h-2.5"></span>
             </div>
           ) : (
-            <Play size={14} fill="white" className="text-white" />
+            <Play size={14} fill="white" className="text-chrome-white" />
           )}
         </div>
       </div>
@@ -73,8 +73,8 @@ export const TrackCard: React.FC<TrackCardProps> = ({
       <div className="flex-grow min-w-0">
         <h4
           onClick={() => onPlay(track)}
-          className={`text-sm font-semibold truncate cursor-pointer hover:text-red-400 transition-colors ${
-            isActive ? "text-red-400" : "text-zinc-100"
+          className={`text-sm font-semibold truncate cursor-pointer hover:text-chrome-red-400 transition-colors ${
+            isActive ? "text-chrome-red-400" : "text-chrome-zinc-100"
           }`}
         >
           {track.title}
@@ -86,7 +86,7 @@ export const TrackCard: React.FC<TrackCardProps> = ({
               navigate(`/channel/${track.channelId}`);
             }
           }}
-          className="text-xs text-zinc-400 truncate mt-0.5 cursor-pointer hover:text-primary transition-colors"
+          className="text-xs text-chrome-zinc-400 truncate mt-0.5 cursor-pointer hover:text-primary transition-colors"
         >
           {track.channelName}
         </p>
@@ -95,7 +95,7 @@ export const TrackCard: React.FC<TrackCardProps> = ({
       {/* Duration & Actions */}
       <div className="flex items-center gap-3 shrink-0">
         {track.durationSeconds && (
-          <span className="text-xs text-zinc-500 font-semibold tracking-wider">
+          <span className="text-xs text-chrome-zinc-500 font-semibold tracking-wider">
             {formatDuration(track.durationSeconds)}
           </span>
         )}
@@ -105,7 +105,7 @@ export const TrackCard: React.FC<TrackCardProps> = ({
             <button
               onClick={() => onAddToQueue(track)}
               title="Add to queue"
-              className="p-1.5 rounded-xl hover:bg-zinc-800 text-zinc-400 hover:text-red-400 transition-colors"
+              className="p-1.5 rounded-xl hover:bg-chrome-zinc-800 text-chrome-zinc-400 hover:text-chrome-red-400 transition-colors"
             >
               <ListPlus size={14} />
             </button>
@@ -115,7 +115,7 @@ export const TrackCard: React.FC<TrackCardProps> = ({
             <button
               onClick={onRemoveFromQueue}
               title="Remove from queue"
-              className="p-1.5 rounded-xl hover:bg-zinc-800 text-zinc-400 hover:text-primary transition-colors"
+              className="p-1.5 rounded-xl hover:bg-chrome-zinc-800 text-chrome-zinc-400 hover:text-primary transition-colors"
             >
               <Trash size={14} />
             </button>

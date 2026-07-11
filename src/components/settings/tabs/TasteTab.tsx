@@ -52,8 +52,8 @@ function TopicChip({ topic, active, blocked, saving, onClick }: TopicChipProps) 
         active
           ? "bg-[var(--color-primary)] text-[var(--color-on-primary)]"
           : blocked
-            ? "border border-red-900/50 bg-red-950/30 text-red-400 hover:bg-red-950/50"
-            : "border border-neutral-700 bg-transparent text-neutral-300 hover:bg-neutral-800 hover:text-neutral-100",
+            ? "border border-chrome-red-900/50 bg-chrome-red-950/30 text-chrome-red-400 hover:bg-chrome-red-950/50"
+            : "border border-chrome-neutral-700 bg-transparent text-chrome-neutral-300 hover:bg-chrome-neutral-800 hover:text-chrome-neutral-100",
       )}
     >
       {saving ? (
@@ -81,8 +81,8 @@ function RemovableChip({ topic, tone, saving, onRemove }: RemovableChipProps) {
       className={cx(
         "inline-flex min-h-9 items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium",
         tone === "interest"
-          ? "border-neutral-700 bg-surface-container-high text-neutral-200"
-          : "border-red-900/50 bg-red-950/30 text-red-400",
+          ? "border-chrome-neutral-700 bg-surface-container-high text-chrome-neutral-200"
+          : "border-chrome-red-900/50 bg-chrome-red-950/30 text-chrome-red-400",
       )}
     >
       {tone === "interest" ? <Heart size={14} /> : <Ban size={14} />}
@@ -91,7 +91,7 @@ function RemovableChip({ topic, tone, saving, onRemove }: RemovableChipProps) {
         type="button"
         onClick={onRemove}
         disabled={saving}
-        className="grid h-6 w-6 place-items-center rounded-full text-current transition-colors duration-200 ease-out hover:bg-neutral-800 disabled:cursor-wait disabled:opacity-60"
+        className="grid h-6 w-6 place-items-center rounded-full text-current transition-colors duration-200 ease-out hover:bg-chrome-neutral-800 disabled:cursor-wait disabled:opacity-60"
         title={getString(tone === "interest" ? "taste_remove_interest" : "taste_unblock_topic")}
       >
         {saving ? <Loader2 size={13} className="animate-spin" /> : <X size={14} />}
@@ -181,17 +181,17 @@ export function TasteTab() {
 
   return (
     <div className="grid grid-cols-12 gap-6 pb-8">
-      <header className="col-span-12 flex flex-col gap-4 border-b border-neutral-800 pb-5 lg:flex-row lg:items-end lg:justify-between">
+      <header className="col-span-12 flex flex-col gap-4 border-b border-chrome-neutral-800 pb-5 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-neutral-100">
+          <h1 className="text-3xl font-bold tracking-tight text-chrome-neutral-100">
             {getString("taste_title")}
           </h1>
-          <p className="mt-2 max-w-2xl text-sm text-neutral-400">
+          <p className="mt-2 max-w-2xl text-sm text-chrome-neutral-400">
             {getString("taste_subtitle")}
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <div className="inline-flex rounded-full border border-neutral-800 bg-surface-container-low p-1">
+          <div className="inline-flex rounded-full border border-chrome-neutral-800 bg-surface-container-low p-1">
             {(["interests", "blocked"] as TasteView[]).map((item) => {
               const active = view === item;
               const Icon = item === "interests" ? Heart : Ban;
@@ -204,7 +204,7 @@ export function TasteTab() {
                     "inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition-colors duration-200 ease-out",
                     active
                       ? "bg-surface-container-high text-[var(--color-primary)]"
-                      : "text-neutral-400 hover:bg-neutral-800 hover:text-neutral-100",
+                      : "text-chrome-neutral-400 hover:bg-chrome-neutral-800 hover:text-chrome-neutral-100",
                   )}
                 >
                   <Icon size={16} />
@@ -217,7 +217,7 @@ export function TasteTab() {
             type="button"
             onClick={() => void refresh()}
             disabled={loading}
-            className="grid h-10 w-10 place-items-center rounded-full border border-neutral-800 bg-surface-container-low text-neutral-400 transition-colors duration-200 ease-out hover:bg-neutral-800 hover:text-neutral-100 disabled:cursor-wait disabled:opacity-60"
+            className="grid h-10 w-10 place-items-center rounded-full border border-chrome-neutral-800 bg-surface-container-low text-chrome-neutral-400 transition-colors duration-200 ease-out hover:bg-chrome-neutral-800 hover:text-chrome-neutral-100 disabled:cursor-wait disabled:opacity-60"
             title={getString("taste_refresh")}
           >
             <RotateCw size={16} className={loading ? "animate-spin" : undefined} />
@@ -226,19 +226,19 @@ export function TasteTab() {
       </header>
 
       {error && (
-        <div className="col-span-12 rounded-2xl border border-red-900/50 bg-red-950/30 px-4 py-3 text-sm text-red-300">
+        <div className="col-span-12 rounded-2xl border border-chrome-red-900/50 bg-chrome-red-950/30 px-4 py-3 text-sm text-chrome-red-300">
           {getString(error === "load" ? "taste_load_failed" : "taste_save_failed")}
         </div>
       )}
 
       {view === "interests" ? (
         <>
-          <section className="col-span-12 rounded-2xl border border-neutral-800 bg-surface-container-low p-5 xl:col-span-5">
+          <section className="col-span-12 rounded-2xl border border-chrome-neutral-800 bg-surface-container-low p-5 xl:col-span-5">
             <div className="mb-4">
-              <h2 className="text-base font-medium text-neutral-200">
+              <h2 className="text-base font-medium text-chrome-neutral-200">
                 {getString("taste_add_interest")}
               </h2>
-              <p className="mt-1 text-sm text-neutral-400">
+              <p className="mt-1 text-sm text-chrome-neutral-400">
                 {getString("taste_add_interest_desc")}
               </p>
             </div>
@@ -252,20 +252,20 @@ export function TasteTab() {
             />
           </section>
 
-          <section className="col-span-12 rounded-2xl border border-neutral-800 bg-surface-container-low p-5 xl:col-span-7">
+          <section className="col-span-12 rounded-2xl border border-chrome-neutral-800 bg-surface-container-low p-5 xl:col-span-7">
             <div className="mb-4 flex items-center justify-between gap-4">
               <div>
-                <h2 className="text-base font-medium text-neutral-200">
+                <h2 className="text-base font-medium text-chrome-neutral-200">
                   {getString("taste_current_interests")}
                 </h2>
-                <p className="mt-1 text-sm text-neutral-400">
+                <p className="mt-1 text-sm text-chrome-neutral-400">
                   {getString("taste_topics_count", preferredTopics.length)}
                 </p>
               </div>
             </div>
             <div className="flex min-h-12 flex-wrap gap-2">
               {loading ? (
-                <span className="inline-flex items-center gap-2 text-sm text-neutral-400">
+                <span className="inline-flex items-center gap-2 text-sm text-chrome-neutral-400">
                   <Loader2 size={16} className="animate-spin" />
                   {getString("taste_loading")}
                 </span>
@@ -280,24 +280,24 @@ export function TasteTab() {
                   />
                 ))
               ) : (
-                <span className="text-sm text-neutral-500">{getString("taste_empty_interests")}</span>
+                <span className="text-sm text-chrome-neutral-500">{getString("taste_empty_interests")}</span>
               )}
             </div>
           </section>
 
           <section className="col-span-12 space-y-10">
             <div>
-              <h2 className="text-base font-medium text-neutral-200">
+              <h2 className="text-base font-medium text-chrome-neutral-200">
                 {getString("taste_browse_interests")}
               </h2>
-              <p className="mt-1 text-sm text-neutral-400">
+              <p className="mt-1 text-sm text-chrome-neutral-400">
                 {getString("taste_browse_interests_desc")}
               </p>
             </div>
 
             {TOPIC_CATEGORIES.map((category) => (
               <section key={category.name}>
-                <h3 className="mb-4 px-1 text-xs font-semibold uppercase tracking-widest text-neutral-500">
+                <h3 className="mb-4 px-1 text-xs font-semibold uppercase tracking-widest text-chrome-neutral-500">
                   {category.name}
                 </h3>
                 <div className="flex flex-wrap gap-3">
@@ -322,12 +322,12 @@ export function TasteTab() {
         </>
       ) : (
         <>
-          <section className="col-span-12 rounded-2xl border border-neutral-800 bg-surface-container-low p-5 xl:col-span-5">
+          <section className="col-span-12 rounded-2xl border border-chrome-neutral-800 bg-surface-container-low p-5 xl:col-span-5">
             <div className="mb-4">
-              <h2 className="text-base font-medium text-neutral-200">
+              <h2 className="text-base font-medium text-chrome-neutral-200">
                 {getString("taste_block_topic")}
               </h2>
-              <p className="mt-1 text-sm text-neutral-400">
+              <p className="mt-1 text-sm text-chrome-neutral-400">
                 {getString("taste_block_topic_desc")}
               </p>
             </div>
@@ -341,18 +341,18 @@ export function TasteTab() {
             />
           </section>
 
-          <section className="col-span-12 rounded-2xl border border-neutral-800 bg-surface-container-low p-5 xl:col-span-7">
+          <section className="col-span-12 rounded-2xl border border-chrome-neutral-800 bg-surface-container-low p-5 xl:col-span-7">
             <div className="mb-4">
-              <h2 className="text-base font-medium text-neutral-200">
+              <h2 className="text-base font-medium text-chrome-neutral-200">
                 {getString("taste_current_blocked")}
               </h2>
-              <p className="mt-1 text-sm text-neutral-400">
+              <p className="mt-1 text-sm text-chrome-neutral-400">
                 {getString("taste_blocked_count", blockedTopics.length)}
               </p>
             </div>
             <div className="flex min-h-12 flex-wrap gap-2">
               {loading ? (
-                <span className="inline-flex items-center gap-2 text-sm text-neutral-400">
+                <span className="inline-flex items-center gap-2 text-sm text-chrome-neutral-400">
                   <Loader2 size={16} className="animate-spin" />
                   {getString("taste_loading")}
                 </span>
@@ -367,17 +367,17 @@ export function TasteTab() {
                   />
                 ))
               ) : (
-                <span className="text-sm text-neutral-500">{getString("taste_empty_blocked")}</span>
+                <span className="text-sm text-chrome-neutral-500">{getString("taste_empty_blocked")}</span>
               )}
             </div>
           </section>
 
-          <section className="col-span-12 rounded-2xl border border-neutral-800 bg-surface-container-low p-5">
+          <section className="col-span-12 rounded-2xl border border-chrome-neutral-800 bg-surface-container-low p-5">
             <div className="mb-4">
-              <h2 className="text-base font-medium text-neutral-200">
+              <h2 className="text-base font-medium text-chrome-neutral-200">
                 {getString("taste_quick_block")}
               </h2>
-              <p className="mt-1 text-sm text-neutral-400">
+              <p className="mt-1 text-sm text-chrome-neutral-400">
                 {getString("taste_quick_block_desc")}
               </p>
             </div>
@@ -393,7 +393,7 @@ export function TasteTab() {
                   />
                 ))
               ) : (
-                <span className="text-sm text-neutral-500">{getString("taste_no_block_suggestions")}</span>
+                <span className="text-sm text-chrome-neutral-500">{getString("taste_no_block_suggestions")}</span>
               )}
             </div>
           </section>

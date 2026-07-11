@@ -17,17 +17,17 @@ export function DiscoveryQueries({ queries }: DiscoveryQueriesProps) {
   }
 
   return (
-    <div className="relative w-full rounded-2xl overflow-hidden bg-zinc-950/60 border border-zinc-800/80 p-6 md:p-8 shadow-xl">
+    <div className="relative w-full rounded-2xl overflow-hidden bg-chrome-zinc-950/60 border border-chrome-zinc-800/80 p-6 md:p-8 shadow-xl">
       {/* Background glow */}
-      <div className="absolute top-0 left-0 w-60 h-60 bg-red-600/5 rounded-full blur-[80px] -ml-20 -mt-20 pointer-events-none" />
+      <div className="absolute top-0 left-0 w-60 h-60 bg-chrome-red-600/5 rounded-full blur-[80px] -ml-20 -mt-20 pointer-events-none" />
 
       <div className="flex items-center gap-2.5 mb-6">
-        <div className="p-2 rounded-xl bg-red-950/30 border border-red-900/30 text-primary">
+        <div className="p-2 rounded-xl bg-chrome-red-950/30 border border-chrome-red-900/30 text-primary">
           <Sparkles className="h-5 w-5 animate-pulse" />
         </div>
         <div>
-          <h3 className="text-lg font-bold text-white tracking-tight">Discovery Horizon</h3>
-          <p className="text-xs text-zinc-400 mt-0.5">
+          <h3 className="text-lg font-bold text-chrome-white tracking-tight">Discovery Horizon</h3>
+          <p className="text-xs text-chrome-zinc-400 mt-0.5">
             Neural prompts curated based on your taste profile to expand your media discovery.
           </p>
         </div>
@@ -38,12 +38,12 @@ export function DiscoveryQueries({ queries }: DiscoveryQueriesProps) {
           <button
             key={index}
             onClick={() => handleQueryClick(query)}
-            className="group flex items-center gap-2 px-4 py-3 bg-zinc-900/30 hover:bg-red-950/20 border border-zinc-850 hover:border-primary/40 rounded-2xl text-sm font-semibold text-zinc-300 hover:text-white cursor-pointer transition-all duration-300 hover:scale-[1.03] hover:shadow-lg hover:shadow-red-950/10 active:scale-95"
+            className="group flex items-center gap-2 px-4 py-3 bg-chrome-zinc-900/30 hover:bg-chrome-red-950/20 border border-zinc-850 hover:border-primary/40 rounded-2xl text-sm font-semibold text-chrome-zinc-300 hover:text-chrome-white cursor-pointer transition-all duration-300 hover:scale-[1.03] hover:shadow-lg hover:shadow-chrome-red-950/10 active:scale-95"
             style={{ animationDelay: `${index * 50}ms` }}
           >
-            <Search className="h-3.5 w-3.5 text-zinc-500 group-hover:text-primary transition-colors duration-300" />
+            <Search className="h-3.5 w-3.5 text-chrome-zinc-500 group-hover:text-primary transition-colors duration-300" />
             <span className="capitalize">{query}</span>
-            <span className="text-[10px] text-zinc-600 group-hover:text-primary/70 font-mono pl-1 opacity-0 group-hover:opacity-100 transition-all duration-300">
+            <span className="text-[10px] text-chrome-zinc-600 group-hover:text-primary/70 font-mono pl-1 opacity-0 group-hover:opacity-100 transition-all duration-300">
               ➜
             </span>
           </button>

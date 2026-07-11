@@ -48,41 +48,41 @@ function ChannelPageSkeleton() {
   return (
     <div className="flex-grow pb-24 bg-background relative animate-pulse">
       {/* Banner Skeleton */}
-      <div className="relative w-full h-48 md:h-64 bg-zinc-900" />
+      <div className="relative w-full h-48 md:h-64 bg-chrome-zinc-900" />
       
       {/* Profile Block Skeleton */}
       <div className=" mx-auto w-full px-4 sm:px-6 lg:px-8">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-6 relative z-10">
           <div className="flex flex-col md:flex-row items-center md:items-end gap-6">
             {/* Overlapping Avatar Skeleton */}
-            <div className="w-32 h-32 rounded-full bg-zinc-800 border-4 border-background shrink-0 -mt-16" />
+            <div className="w-32 h-32 rounded-full bg-chrome-zinc-800 border-4 border-background shrink-0 -mt-16" />
             
             {/* Metadata Skeletons */}
             <div className="text-center md:text-left space-y-3 mt-4 md:mt-0 pb-2">
-              <div className="h-8 w-48 bg-zinc-800 rounded-lg mx-auto md:mx-0" />
-              <div className="h-4 w-32 bg-zinc-800 rounded mx-auto md:mx-0" />
+              <div className="h-8 w-48 bg-chrome-zinc-800 rounded-lg mx-auto md:mx-0" />
+              <div className="h-4 w-32 bg-chrome-zinc-800 rounded mx-auto md:mx-0" />
             </div>
           </div>
           
           {/* Action Row Button Skeleton */}
-          <div className="w-32 h-10 bg-zinc-800 rounded-full shrink-0 mb-2 mx-auto md:mx-0" />
+          <div className="w-32 h-10 bg-chrome-zinc-800 rounded-full shrink-0 mb-2 mx-auto md:mx-0" />
         </div>
       </div>
 
       {/* Tabs Row Skeleton */}
-      <div className="w-full bg-zinc-900/50 border-b border-zinc-800 h-14" />
+      <div className="w-full bg-chrome-zinc-900/50 border-b border-chrome-zinc-800 h-14" />
 
       {/* Grid Content Skeleton */}
       <div className=" mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4 gap-x-4 gap-y-8 pb-8">
           {Array.from({ length: 8 }).map((_, i) => (
             <div key={i} className="flex flex-col gap-3">
-              <div className="w-full aspect-video rounded-xl bg-zinc-800" />
+              <div className="w-full aspect-video rounded-xl bg-chrome-zinc-800" />
               <div className="flex items-start gap-3 px-1">
-                <div className="w-9 h-9 rounded-full bg-zinc-800 shrink-0" />
+                <div className="w-9 h-9 rounded-full bg-chrome-zinc-800 shrink-0" />
                 <div className="flex flex-col gap-2 w-full pt-1">
-                  <div className="h-4 w-3/4 bg-zinc-800 rounded" />
-                  <div className="h-3 w-1/2 bg-zinc-800 rounded" />
+                  <div className="h-4 w-3/4 bg-chrome-zinc-800 rounded" />
+                  <div className="h-3 w-1/2 bg-chrome-zinc-800 rounded" />
                 </div>
               </div>
             </div>
@@ -98,8 +98,8 @@ function ShortsGridSkeleton() {
     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
       {Array.from({ length: 12 }).map((_, i) => (
         <div key={i} className="flex flex-col gap-2">
-          <div className="relative w-full aspect-[9/16] rounded-xl bg-zinc-800 animate-pulse border border-zinc-800/50" />
-          <div className="h-4 w-3/4 bg-zinc-800 rounded animate-pulse mt-1" />
+          <div className="relative w-full aspect-[9/16] rounded-xl bg-chrome-zinc-800 animate-pulse border border-chrome-zinc-800/50" />
+          <div className="h-4 w-3/4 bg-chrome-zinc-800 rounded animate-pulse mt-1" />
         </div>
       ))}
     </div>
@@ -111,13 +111,13 @@ function PlaylistsGridSkeleton() {
     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
       {Array.from({ length: 8 }).map((_, i) => (
         <div key={i} className="flex flex-col gap-3">
-          <div className="relative w-full aspect-video rounded-xl mt-3 bg-zinc-800 animate-pulse border border-zinc-800/50">
-            <div className="absolute -top-1.5 left-2 right-2 h-2 bg-zinc-800/60 rounded-t-xl" />
-            <div className="absolute -top-3 left-4 right-4 h-2 bg-zinc-800/40 rounded-t-xl" />
+          <div className="relative w-full aspect-video rounded-xl mt-3 bg-chrome-zinc-800 animate-pulse border border-chrome-zinc-800/50">
+            <div className="absolute -top-1.5 left-2 right-2 h-2 bg-chrome-zinc-800/60 rounded-t-xl" />
+            <div className="absolute -top-3 left-4 right-4 h-2 bg-chrome-zinc-800/40 rounded-t-xl" />
           </div>
           <div className="flex flex-col gap-2 mt-1">
-            <div className="h-4 w-5/6 bg-zinc-800 rounded animate-pulse" />
-            <div className="h-3 w-1/3 bg-zinc-800 rounded animate-pulse" />
+            <div className="h-4 w-5/6 bg-chrome-zinc-800 rounded animate-pulse" />
+            <div className="h-3 w-1/3 bg-chrome-zinc-800 rounded animate-pulse" />
           </div>
         </div>
       ))}
@@ -129,22 +129,22 @@ function PostsFeedSkeleton() {
   return (
     <div className="max-w-3xl mx-auto space-y-6">
       {Array.from({ length: 3 }).map((_, i) => (
-        <div key={i} className="w-full bg-zinc-900/40 border border-zinc-800/60 rounded-2xl p-4 sm:p-5 shadow-sm animate-pulse">
+        <div key={i} className="w-full bg-chrome-zinc-900/40 border border-chrome-zinc-800/60 rounded-2xl p-4 sm:p-5 shadow-sm animate-pulse">
           <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-full bg-zinc-800 shrink-0" />
+            <div className="w-10 h-10 rounded-full bg-chrome-zinc-800 shrink-0" />
             <div className="flex flex-col gap-2">
-              <div className="h-4 w-24 bg-zinc-800 rounded" />
-              <div className="h-3 w-16 bg-zinc-800 rounded" />
+              <div className="h-4 w-24 bg-chrome-zinc-800 rounded" />
+              <div className="h-3 w-16 bg-chrome-zinc-800 rounded" />
             </div>
           </div>
           <div className="pl-[52px] space-y-3">
-            <div className="h-4 w-full bg-zinc-800 rounded" />
-            <div className="h-4 w-5/6 bg-zinc-800 rounded" />
-            <div className="h-4 w-2/3 bg-zinc-800 rounded" />
+            <div className="h-4 w-full bg-chrome-zinc-800 rounded" />
+            <div className="h-4 w-5/6 bg-chrome-zinc-800 rounded" />
+            <div className="h-4 w-2/3 bg-chrome-zinc-800 rounded" />
             <div className="flex items-center gap-2 mt-4 pt-2">
-              <div className="h-8 w-24 bg-zinc-800 rounded-full" />
-              <div className="h-8 w-16 bg-zinc-800 rounded-full" />
-              <div className="h-8 w-16 bg-zinc-800 rounded-full" />
+              <div className="h-8 w-24 bg-chrome-zinc-800 rounded-full" />
+              <div className="h-8 w-16 bg-chrome-zinc-800 rounded-full" />
+              <div className="h-8 w-16 bg-chrome-zinc-800 rounded-full" />
             </div>
           </div>
         </div>
@@ -428,8 +428,8 @@ export const Channel: React.FC<ChannelProps> = ({ onPlay, onAddToQueue }) => {
               onClick={() => setSortFilter("latest")}
               className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all duration-200 ${
                 sortFilter === "latest"
-                  ? "bg-zinc-100 text-zinc-900 border border-zinc-100 shadow-md font-bold"
-                  : "bg-zinc-900/60 hover:bg-zinc-800/50 border border-zinc-800/80 text-zinc-400 hover:text-zinc-200"
+                  ? "bg-chrome-zinc-100 text-chrome-zinc-900 border border-chrome-zinc-100 shadow-md font-bold"
+                  : "bg-chrome-zinc-900/60 hover:bg-chrome-zinc-800/50 border border-chrome-zinc-800/80 text-chrome-zinc-400 hover:text-chrome-zinc-200"
               }`}
             >
               Latest
@@ -438,8 +438,8 @@ export const Channel: React.FC<ChannelProps> = ({ onPlay, onAddToQueue }) => {
               onClick={() => setSortFilter("popular")}
               className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all duration-200 ${
                 sortFilter === "popular"
-                  ? "bg-zinc-100 text-zinc-900 border border-zinc-100 shadow-md font-bold"
-                  : "bg-zinc-900/60 hover:bg-zinc-800/50 border border-zinc-800/80 text-zinc-400 hover:text-zinc-200"
+                  ? "bg-chrome-zinc-100 text-chrome-zinc-900 border border-chrome-zinc-100 shadow-md font-bold"
+                  : "bg-chrome-zinc-900/60 hover:bg-chrome-zinc-800/50 border border-chrome-zinc-800/80 text-chrome-zinc-400 hover:text-chrome-zinc-200"
               }`}
             >
               Popular
@@ -448,8 +448,8 @@ export const Channel: React.FC<ChannelProps> = ({ onPlay, onAddToQueue }) => {
               onClick={() => setSortFilter("oldest")}
               className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all duration-200 ${
                 sortFilter === "oldest"
-                  ? "bg-zinc-100 text-zinc-900 border border-zinc-100 shadow-md font-bold"
-                  : "bg-zinc-900/60 hover:bg-zinc-800/50 border border-zinc-800/80 text-zinc-400 hover:text-zinc-200"
+                  ? "bg-chrome-zinc-100 text-chrome-zinc-900 border border-chrome-zinc-100 shadow-md font-bold"
+                  : "bg-chrome-zinc-900/60 hover:bg-chrome-zinc-800/50 border border-chrome-zinc-800/80 text-chrome-zinc-400 hover:text-chrome-zinc-200"
               }`}
             >
               Oldest
@@ -472,8 +472,8 @@ export const Channel: React.FC<ChannelProps> = ({ onPlay, onAddToQueue }) => {
             </div>
           )
         ) : items.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-center border border-dashed border-zinc-800 rounded-3xl bg-zinc-900/40 p-6">
-             <p className="text-zinc-500 text-sm font-medium">
+          <div className="flex flex-col items-center justify-center py-20 text-center border border-dashed border-chrome-zinc-800 rounded-3xl bg-chrome-zinc-900/40 p-6">
+             <p className="text-chrome-zinc-500 text-sm font-medium">
                {activeSearchQuery ? `No videos found matching "${activeSearchQuery}".` : "No content found for this tab."}
              </p>
           </div>
@@ -481,13 +481,13 @@ export const Channel: React.FC<ChannelProps> = ({ onPlay, onAddToQueue }) => {
           <div className="w-full">
             {activeSearchQuery ? (
               <div className="space-y-6">
-                <div className="flex items-center justify-between pb-3 border-b border-zinc-800/80">
-                  <h2 className="text-base font-semibold text-neutral-200">
+                <div className="flex items-center justify-between pb-3 border-b border-chrome-zinc-800/80">
+                  <h2 className="text-base font-semibold text-chrome-neutral-200">
                     Search results for: <span className="text-primary">"{activeSearchQuery}"</span>
                   </h2>
                   <button
                     onClick={handleClearSearch}
-                    className="text-xs font-medium text-neutral-400 hover:text-neutral-200 flex items-center gap-1 transition-colors bg-zinc-900 border border-zinc-800 px-2.5 py-1 rounded-full"
+                    className="text-xs font-medium text-chrome-neutral-400 hover:text-chrome-neutral-200 flex items-center gap-1 transition-colors bg-chrome-zinc-900 border border-chrome-zinc-800 px-2.5 py-1 rounded-full"
                   >
                     <X size={12} /> Clear search
                   </button>
@@ -534,14 +534,14 @@ export const Channel: React.FC<ChannelProps> = ({ onPlay, onAddToQueue }) => {
 
                 if (!hasAnyContent) {
                   return (
-                    <div className="flex flex-col items-center justify-center py-20 text-center border border-dashed border-zinc-800 rounded-3xl bg-zinc-900/40 p-6">
-                      <p className="text-zinc-500 text-sm font-medium">No home tab shelf content available.</p>
+                    <div className="flex flex-col items-center justify-center py-20 text-center border border-dashed border-chrome-zinc-800 rounded-3xl bg-chrome-zinc-900/40 p-6">
+                      <p className="text-chrome-zinc-500 text-sm font-medium">No home tab shelf content available.</p>
                     </div>
                   );
                 }
 
                 return (
-                  <div className="flex flex-col gap-6 divide-y divide-zinc-900">
+                  <div className="flex flex-col gap-6 divide-y divide-chrome-zinc-900">
                     {regularVideos.length > 0 && (
                       <VideoShelf
                         title="Videos"

@@ -6,12 +6,12 @@ import type { WatchErrorStateProps } from "./types";
 export function WatchErrorState({ message, onRetryWithProxy, onGoBack }: WatchErrorStateProps) {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-6">
-      <div className="w-full max-w-md rounded-2xl border border-neutral-800 bg-surface-container-low p-8 text-center">
-        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full border border-red-900/50 bg-red-950/30 text-red-400">
+      <div className="w-full max-w-md rounded-2xl border border-chrome-neutral-800 bg-surface-container-low p-8 text-center">
+        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full border border-chrome-red-900/50 bg-chrome-red-950/30 text-chrome-red-400">
           <AlertTriangle className="h-8 w-8" />
         </div>
-        <h2 className="text-xl font-bold tracking-tight text-neutral-100">{getString("watch_error_title")}</h2>
-        <p className="mt-2 text-sm leading-relaxed text-neutral-400">{message}</p>
+        <h2 className="text-xl font-bold tracking-tight text-chrome-neutral-100">{getString("watch_error_title")}</h2>
+        <p className="mt-2 text-sm leading-relaxed text-chrome-neutral-400">{message}</p>
         <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-center">
           {onRetryWithProxy && (
             <Button variant="primary" onClick={onRetryWithProxy}>

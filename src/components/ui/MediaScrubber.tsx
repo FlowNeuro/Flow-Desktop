@@ -85,7 +85,7 @@ export function MediaScrubber({
 
   const hitH = isEdge ? "h-2 items-end" : isLg ? "h-5 items-center" : "h-4 items-center";
   const trackH = isEdge ? "h-[2px]" : "h-1";
-  const trackShape = isEdge ? "bg-neutral-800" : "rounded-full bg-neutral-800";
+  const trackShape = isEdge ? "bg-chrome-neutral-800" : "rounded-full bg-chrome-neutral-800";
   const fillShape = isEdge ? "" : "rounded-full";
   const thumbSize = isLg ? "h-3.5 w-3.5" : "h-3 w-3";
 
@@ -113,7 +113,7 @@ export function MediaScrubber({
       </div>
       {!isEdge && (
         <span
-          className={`pointer-events-none absolute top-1/2 ${thumbSize} -translate-x-1/2 -translate-y-1/2 rounded-full bg-white transition-opacity duration-150 ${
+          className={`pointer-events-none absolute top-1/2 ${thumbSize} -translate-x-1/2 -translate-y-1/2 rounded-full bg-chrome-white transition-opacity duration-150 ${
             dragging ? "opacity-100" : "opacity-0 group-hover/scrub:opacity-100"
           }`}
           style={{ left: `${pct}%` }}
@@ -132,11 +132,11 @@ export function MediaScrubber({
 
   return (
     <div className={`flex w-full items-center gap-3 ${className}`}>
-      <span className="w-10 shrink-0 text-right font-mono text-xs tabular-nums text-neutral-400">
+      <span className="w-10 shrink-0 text-right font-mono text-xs tabular-nums text-chrome-neutral-400">
         {formatTime(ratio * duration)}
       </span>
       {bar}
-      <span className="w-10 shrink-0 font-mono text-xs tabular-nums text-neutral-400">
+      <span className="w-10 shrink-0 font-mono text-xs tabular-nums text-chrome-neutral-400">
         {rightLabel}
       </span>
     </div>

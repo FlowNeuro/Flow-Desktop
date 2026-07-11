@@ -97,7 +97,7 @@ export function BlockedContent({ brain, onUnblockTopic, onUnblockChannel }: Bloc
                     <td className="w-12 px-4 py-3 text-right">
                       <button
                         onClick={() => onUnblockTopic(topic)}
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[var(--color-on-surface-variant)] transition-colors hover:bg-red-950/30 hover:text-red-400"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[var(--color-on-surface-variant)] transition-colors hover:bg-chrome-red-950/30 hover:text-chrome-red-400"
                         title={`Unblock ${topic}`}
                       >
                         <Trash2 className="h-4 w-4" />
@@ -138,7 +138,7 @@ export function BlockedContent({ brain, onUnblockTopic, onUnblockChannel }: Bloc
                       <td className="w-12 px-4 py-3 text-right">
                         <button
                           onClick={() => onUnblockChannel(id)}
-                          className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[var(--color-on-surface-variant)] transition-colors hover:bg-red-950/30 hover:text-red-400"
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[var(--color-on-surface-variant)] transition-colors hover:bg-chrome-red-950/30 hover:text-chrome-red-400"
                           title={`Unblock ${name}`}
                         >
                           <Trash2 className="h-4 w-4" />

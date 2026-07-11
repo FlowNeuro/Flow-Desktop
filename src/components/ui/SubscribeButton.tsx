@@ -82,8 +82,8 @@ export function SubscribeButton({
         aria-expanded={active && showNotificationMenu ? menuOpen : undefined}
         className={`font-semibold px-6 transition-all ${
           active
-            ? "bg-zinc-800 hover:bg-zinc-700 text-neutral-200"
-            : "bg-primary text-white"
+            ? "bg-chrome-zinc-800 hover:bg-chrome-zinc-700 text-chrome-neutral-200"
+            : "bg-primary text-chrome-white"
         } ${className}`}
       >
         {active ? (
@@ -105,9 +105,9 @@ export function SubscribeButton({
         <AnchoredPortalMenu
           anchor={anchor}
           onClose={closeMenu}
-          className="z-[70] w-56 overflow-hidden rounded-xl border border-neutral-800 bg-surface-container-high py-1.5"
+          className="z-[70] w-56 overflow-hidden rounded-xl border border-chrome-neutral-800 bg-surface-container-high py-1.5"
         >
-          <div className="px-3.5 py-1.5 text-xs font-semibold uppercase tracking-widest text-neutral-500">
+          <div className="px-3.5 py-1.5 text-xs font-semibold uppercase tracking-widest text-chrome-neutral-500">
             {getString("subscription_notifications_label")}
           </div>
 
@@ -130,7 +130,7 @@ export function SubscribeButton({
             }}
           />
 
-          <div className="my-1.5 h-px bg-neutral-800" />
+          <div className="my-1.5 h-px bg-chrome-neutral-800" />
 
           <MenuRow
             icon={<UserMinus size={16} />}
@@ -169,11 +169,11 @@ function MenuRow({
       }}
       className={`flex w-full items-center gap-3 px-3.5 py-2.5 text-left text-sm transition-colors duration-200 ease-out ${
         destructive
-          ? "text-red-400 hover:bg-red-950/30"
-          : "text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100"
+          ? "text-chrome-red-400 hover:bg-chrome-red-950/30"
+          : "text-chrome-zinc-300 hover:bg-chrome-zinc-800 hover:text-chrome-zinc-100"
       }`}
     >
-      <span className="grid h-4 w-4 shrink-0 place-items-center text-neutral-400">{icon}</span>
+      <span className="grid h-4 w-4 shrink-0 place-items-center text-chrome-neutral-400">{icon}</span>
       <span className="min-w-0 flex-1 truncate">{label}</span>
       {selected && <Check size={16} className="shrink-0 text-[var(--color-primary)]" />}
     </button>

@@ -69,7 +69,7 @@ export function WatchMetadata({
           <h1
             onMouseEnter={() => setShowingOriginal(true)}
             onMouseLeave={() => setShowingOriginal(false)}
-            className="grid cursor-default text-xl font-bold leading-snug tracking-tight text-neutral-100"
+            className="grid cursor-default text-xl font-bold leading-snug tracking-tight text-chrome-neutral-100"
           >
             <span
               className={`col-start-1 row-start-1 transition-opacity duration-200 ease-out ${
@@ -88,7 +88,7 @@ export function WatchMetadata({
             </span>
           </h1>
         ) : (
-          <h1 className="text-xl font-bold leading-snug tracking-tight text-neutral-100">{primaryTitle}</h1>
+          <h1 className="text-xl font-bold leading-snug tracking-tight text-chrome-neutral-100">{primaryTitle}</h1>
         )}
         {showBadge && (
           <span title={getString("watch_dearrow_badge_hint")} className="mt-1 shrink-0 text-primary/70">
@@ -101,7 +101,7 @@ export function WatchMetadata({
         <div className="flex shrink-0 items-center gap-3">
           <button
             onClick={goToChannel}
-            className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-surface-container-high font-bold text-neutral-400 transition-opacity hover:opacity-80"
+            className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-surface-container-high font-bold text-chrome-neutral-400 transition-opacity hover:opacity-80"
           >
             {avatarUrl ? (
               <img src={avatarUrl} alt={channelName} className="h-full w-full object-cover" />
@@ -110,10 +110,10 @@ export function WatchMetadata({
             )}
           </button>
           <button onClick={goToChannel} className="min-w-0 pr-2 text-left">
-            <span className="block truncate text-[15px] font-medium leading-tight text-neutral-100 transition-colors hover:text-primary">
+            <span className="block truncate text-[15px] font-medium leading-tight text-chrome-neutral-100 transition-colors hover:text-primary">
               {channelName}
             </span>
-            {subscriberText && <span className="block text-sm text-neutral-400">{subscriberText}</span>}
+            {subscriberText && <span className="block text-sm text-chrome-neutral-400">{subscriberText}</span>}
           </button>
           {channelId && (
             <SubscribeButton channelId={channelId} channelName={channelName} avatarUrl={avatarUrl || undefined} />
@@ -121,12 +121,12 @@ export function WatchMetadata({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex h-10 items-center divide-x divide-neutral-800 overflow-hidden rounded-full bg-surface-container-low">
+          <div className="flex h-10 items-center divide-x divide-chrome-neutral-800 overflow-hidden rounded-full bg-surface-container-low">
             <button
               onClick={reactions.like}
               aria-pressed={reactions.state === "liked"}
               className={`flex h-full items-center gap-2 px-4 text-sm font-medium transition-colors hover:bg-surface-container ${
-                reactions.state === "liked" ? "text-white" : "text-neutral-200"
+                reactions.state === "liked" ? "text-chrome-white" : "text-chrome-neutral-200"
               }`}
             >
               <ThumbsUp size={18} fill={reactions.state === "liked" ? "currentColor" : "none"} />
@@ -136,7 +136,7 @@ export function WatchMetadata({
               onClick={reactions.dislike}
               aria-pressed={reactions.state === "disliked"}
               className={`flex h-full items-center gap-2 px-4 text-sm font-medium transition-colors hover:bg-surface-container ${
-                reactions.state === "disliked" ? "text-white" : "text-neutral-200"
+                reactions.state === "disliked" ? "text-chrome-white" : "text-chrome-neutral-200"
               }`}
             >
               <ThumbsDown size={18} fill={reactions.state === "disliked" ? "currentColor" : "none"} />

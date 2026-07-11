@@ -36,11 +36,11 @@ function StackedPlaylistThumbnail({
 }) {
   if (!thumbnailUrl) {
     return (
-      <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-zinc-800">
-        <div className="flex h-full w-full items-center justify-center text-neutral-500">
+      <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-chrome-zinc-800">
+        <div className="flex h-full w-full items-center justify-center text-chrome-neutral-500">
           <ListVideo size={32} />
         </div>
-        <div className="absolute bottom-1.5 right-1.5 flex items-center gap-1.5 rounded bg-neutral-950/90 px-1.5 py-0.5 text-[11px] font-semibold tracking-wide text-white">
+        <div className="absolute bottom-1.5 right-1.5 flex items-center gap-1.5 rounded bg-chrome-neutral-950/90 px-1.5 py-0.5 text-[11px] font-semibold tracking-wide text-chrome-white">
           <ListVideo size={14} />
           {videoCountText}
         </div>
@@ -74,14 +74,14 @@ function StackedPlaylistThumbnail({
         />
       </div>
 
-      <div className="relative z-10 aspect-video w-full overflow-hidden rounded-xl bg-zinc-900">
+      <div className="relative z-10 aspect-video w-full overflow-hidden rounded-xl bg-chrome-zinc-900">
         <img
           src={thumbnailUrl}
           alt={title}
           className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
           loading="lazy"
         />
-        <div className="absolute bottom-1.5 right-1.5 flex items-center gap-1.5 rounded bg-neutral-950/90 px-1.5 py-0.5 text-[11px] font-semibold tracking-wide text-white">
+        <div className="absolute bottom-1.5 right-1.5 flex items-center gap-1.5 rounded bg-chrome-neutral-950/90 px-1.5 py-0.5 text-[11px] font-semibold tracking-wide text-chrome-white">
           <ListVideo size={14} />
           {videoCountText}
         </div>
@@ -216,13 +216,13 @@ export function PlaylistCard({
       <AnchoredPortalMenu
         anchor={menuAnchor}
         onClose={() => setShowMenu(false)}
-        className="z-50 w-52 rounded-xl border border-neutral-800 bg-surface-container-high py-1.5"
+        className="z-50 w-52 rounded-xl border border-chrome-neutral-800 bg-surface-container-high py-1.5"
       >
         {!isProtected && (isSaved ? (
           <button
             type="button"
             onClick={(event) => void runMenuAction(event, handleRemoveFromLibrary)}
-            className="flex w-full items-center gap-3 px-3.5 py-2.5 text-sm text-neutral-300 transition-colors hover:bg-surface-container-highest hover:text-neutral-100"
+            className="flex w-full items-center gap-3 px-3.5 py-2.5 text-sm text-chrome-neutral-300 transition-colors hover:bg-surface-container-highest hover:text-chrome-neutral-100"
           >
             <Trash2 size={16} />
             Remove from library
@@ -231,7 +231,7 @@ export function PlaylistCard({
           <button
             type="button"
             onClick={(event) => void runMenuAction(event, handleSaveToLibrary)}
-            className="flex w-full items-center gap-3 px-3.5 py-2.5 text-sm text-neutral-300 transition-colors hover:bg-surface-container-highest hover:text-neutral-100"
+            className="flex w-full items-center gap-3 px-3.5 py-2.5 text-sm text-chrome-neutral-300 transition-colors hover:bg-surface-container-highest hover:text-chrome-neutral-100"
           >
             <Plus size={16} />
             Save to library
@@ -240,7 +240,7 @@ export function PlaylistCard({
         <button
           type="button"
           onClick={(event) => void runMenuAction(event, () => onDownload?.(playlist))}
-          className="flex w-full items-center gap-3 px-3.5 py-2.5 text-sm text-neutral-300 transition-colors hover:bg-surface-container-highest hover:text-neutral-100"
+          className="flex w-full items-center gap-3 px-3.5 py-2.5 text-sm text-chrome-neutral-300 transition-colors hover:bg-surface-container-highest hover:text-chrome-neutral-100"
         >
           <Download size={16} />
           Download
@@ -270,10 +270,10 @@ export function PlaylistCard({
 
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h3 className="line-clamp-2 text-sm font-semibold leading-tight text-zinc-100 transition-colors group-hover:text-primary">
+          <h3 className="line-clamp-2 text-sm font-semibold leading-tight text-chrome-zinc-100 transition-colors group-hover:text-primary">
             {playlist.title}
           </h3>
-          <p className="mt-1 line-clamp-1 text-xs font-medium text-zinc-400 transition-colors">
+          <p className="mt-1 line-clamp-1 text-xs font-medium text-chrome-zinc-400 transition-colors">
             {playlist.description || 'View full playlist'}
           </p>
         </div>
@@ -283,7 +283,7 @@ export function PlaylistCard({
             type="button"
             onClick={openMenuFromDots}
             aria-label="Open playlist actions"
-            className="mt-0.5 rounded-full p-1 text-zinc-500 opacity-0 transition-all duration-150 hover:bg-zinc-800 hover:text-zinc-200 group-hover:opacity-100"
+            className="mt-0.5 rounded-full p-1 text-chrome-zinc-500 opacity-0 transition-all duration-150 hover:bg-chrome-zinc-800 hover:text-chrome-zinc-200 group-hover:opacity-100"
           >
             <MoreVertical size={18} />
           </button>

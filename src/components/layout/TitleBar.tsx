@@ -175,7 +175,7 @@ export function TitleBar() {
             type="button"
             aria-label="Close"
             onClick={() => void appWindow.close()}
-            className={`${controlBtn} hover:bg-primary hover:text-white`}
+            className={`${controlBtn} hover:bg-primary hover:text-chrome-white`}
           >
             <X size={16} strokeWidth={2} />
           </button>

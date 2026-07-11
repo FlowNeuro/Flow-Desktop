@@ -290,7 +290,7 @@ export const SponsorBlockCategoriesList: React.FC = () => {
                                 style={{ backgroundColor: color }}
                               >
                                 {currentColor.toUpperCase() === color.toUpperCase() && (
-                                  <Check size={12} className="text-black/80 stroke-[3]" />
+                                  <Check size={12} className="text-chrome-black/80 stroke-[3]" />
                                 )}
                               </button>
                             ))}

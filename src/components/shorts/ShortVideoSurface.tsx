@@ -590,7 +590,7 @@ export function ShortVideoSurface({
       <video
         ref={videoRef}
         poster={poster}
-        className={`h-full w-full bg-black ${fit === "cover" ? "object-cover" : "object-contain"}`}
+        className={`h-full w-full bg-chrome-black ${fit === "cover" ? "object-cover" : "object-contain"}`}
         playsInline
         onLoadedMetadata={(e) => {
           const v = e.currentTarget;
@@ -623,7 +623,7 @@ export function ShortVideoSurface({
               setContextMenu(null);
             }}
             className={cx(
-              "grid h-10 w-10 place-items-center rounded-full bg-black/55 text-white transition-colors hover:bg-black/75",
+              "grid h-10 w-10 place-items-center rounded-full bg-chrome-black/55 text-chrome-white transition-colors hover:bg-chrome-black/75",
               settingsOpen && "text-primary",
             )}
           >
@@ -639,7 +639,7 @@ export function ShortVideoSurface({
                 setSettingsPane("captions");
               }}
               className={cx(
-                "grid h-10 w-10 place-items-center rounded-full bg-black/55 text-white transition-colors hover:bg-black/75",
+                "grid h-10 w-10 place-items-center rounded-full bg-chrome-black/55 text-chrome-white transition-colors hover:bg-chrome-black/75",
                 selectedCaptionId !== "off" && "text-primary",
               )}
             >
@@ -650,7 +650,7 @@ export function ShortVideoSurface({
       )}
       {settingsOpen && (
         <div
-          className="absolute left-4 top-16 z-40 w-[min(82vw,320px)] overflow-hidden rounded-xl border border-white/10 bg-[#151515]/80 p-2 text-white shadow-2xl backdrop-blur-xl"
+          className="absolute left-4 top-16 z-40 w-[min(82vw,320px)] overflow-hidden rounded-xl border border-chrome-white/10 bg-chrome-popover/80 p-2 text-chrome-white shadow-2xl backdrop-blur-xl"
           onClick={(event) => event.stopPropagation()}
           onContextMenu={(event) => event.preventDefault()}
         >
@@ -658,7 +658,7 @@ export function ShortVideoSurface({
             <button
               type="button"
               onClick={() => setSettingsPane("root")}
-              className="mb-1 flex h-10 w-full items-center gap-2 rounded-md px-1 text-left text-sm font-bold hover:bg-white/10"
+              className="mb-1 flex h-10 w-full items-center gap-2 rounded-md px-1 text-left text-sm font-bold hover:bg-chrome-white/10"
             >
               <ChevronLeft size={18} />
               {settingsPane === "speed"
@@ -695,8 +695,8 @@ export function ShortVideoSurface({
           {settingsPane === "speed" && (
             <div className="max-h-64 space-y-1 overflow-y-auto pr-1 select-scrollbar-hidden">
               {speedSliderEnabled && (
-                <div className="rounded-md px-3 py-3 text-sm text-zinc-100">
-                  <div className="mb-2 flex items-center justify-between text-xs font-semibold text-zinc-300">
+                <div className="rounded-md px-3 py-3 text-sm text-chrome-zinc-100">
+                  <div className="mb-2 flex items-center justify-between text-xs font-semibold text-chrome-zinc-300">
                     <span>Speed</span>
                     <span className="font-mono text-primary">{playbackRate}x</span>
                   </div>
@@ -789,7 +789,7 @@ export function ShortVideoSurface({
         shouldShowControls={settingsOpen}
       />
       {isBoosting && (
-        <div className="pointer-events-none absolute left-1/2 top-8 z-30 -translate-x-1/2 rounded-full bg-black/40 px-5 py-2 text-sm font-bold text-white backdrop-blur-md">
+        <div className="pointer-events-none absolute left-1/2 top-8 z-30 -translate-x-1/2 rounded-full bg-chrome-black/40 px-5 py-2 text-sm font-bold text-chrome-white backdrop-blur-md">
           {longPressPlaybackRate}x
         </div>
       )}
@@ -798,15 +798,15 @@ export function ShortVideoSurface({
           type="button"
           aria-label="Play"
           onClick={togglePlayback}
-          className="absolute inset-0 z-20 grid place-items-center bg-black/10 text-white"
+          className="absolute inset-0 z-20 grid place-items-center bg-chrome-black/10 text-chrome-white"
         >
-          <span className="grid h-16 w-16 place-items-center rounded-full bg-black/55 shadow-xl backdrop-blur-md">
+          <span className="grid h-16 w-16 place-items-center rounded-full bg-chrome-black/55 shadow-xl backdrop-blur-md">
             <Play className="ml-1 h-8 w-8" fill="currentColor" />
           </span>
         </button>
       )}
       {active && duration > 0 && (
-        <div className="absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/55 to-transparent px-3 pb-2 pt-6">
+        <div className="absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-chrome-black/55 to-transparent px-3 pb-2 pt-6">
           <MediaScrubber
             progress={progress}
             duration={duration}
@@ -818,7 +818,7 @@ export function ShortVideoSurface({
       )}
       {contextMenu && (
         <div
-          className="absolute z-50 w-[306px] overflow-hidden rounded-xl border border-white/10 bg-background/45 p-2 text-white shadow-2xl backdrop-blur-xl"
+          className="absolute z-50 w-[306px] overflow-hidden rounded-xl border border-chrome-white/10 bg-background/45 p-2 text-chrome-white shadow-2xl backdrop-blur-xl"
           style={{ left: contextMenu.x, top: contextMenu.y }}
           onClick={(event) => event.stopPropagation()}
           onContextMenu={(event) => event.preventDefault()}
@@ -874,23 +874,23 @@ export function ShortVideoSurface({
         </div>
       )}
       {copiedLabel && (
-        <div className="pointer-events-none absolute left-1/2 top-8 z-50 -translate-x-1/2 rounded-full bg-black/75 px-4 py-2 text-xs font-bold text-white shadow-xl backdrop-blur-md">
+        <div className="pointer-events-none absolute left-1/2 top-8 z-50 -translate-x-1/2 rounded-full bg-chrome-black/75 px-4 py-2 text-xs font-bold text-chrome-white shadow-xl backdrop-blur-md">
           {copiedLabel}
         </div>
       )}
       {statsVisible && (
-        <div className="pointer-events-none absolute right-4 top-16 z-40 w-[min(82vw,300px)] rounded-xl border border-white/10 bg-black/70 p-3 text-xs font-semibold text-zinc-100 shadow-2xl backdrop-blur-md">
+        <div className="pointer-events-none absolute right-4 top-16 z-40 w-[min(82vw,300px)] rounded-xl border border-chrome-white/10 bg-chrome-black/70 p-3 text-xs font-semibold text-chrome-zinc-100 shadow-2xl backdrop-blur-md">
           <div className="mb-2 text-sm font-black">Stats for nerds</div>
-          <div className="grid grid-cols-[96px_1fr] gap-x-3 gap-y-1 text-zinc-300">
-            <span className="text-zinc-500">Time</span>
+          <div className="grid grid-cols-[96px_1fr] gap-x-3 gap-y-1 text-chrome-zinc-300">
+            <span className="text-chrome-zinc-500">Time</span>
             <span>{formatTime(progress)} / {formatTime(duration)}</span>
-            <span className="text-zinc-500">Speed</span>
+            <span className="text-chrome-zinc-500">Speed</span>
             <span>{playbackRate}x</span>
-            <span className="text-zinc-500">Quality</span>
+            <span className="text-chrome-zinc-500">Quality</span>
             <span>{selectedQualityLabel}</span>
-            <span className="text-zinc-500">Resolution</span>
+            <span className="text-chrome-zinc-500">Resolution</span>
             <span>{videoRef.current ? `${videoRef.current.videoWidth}x${videoRef.current.videoHeight}` : "Unknown"}</span>
-            <span className="text-zinc-500">Captions</span>
+            <span className="text-chrome-zinc-500">Captions</span>
             <span>{captions.length}</span>
           </div>
         </div>
@@ -915,11 +915,11 @@ function SettingsRow({
     <button
       type="button"
       onClick={onClick}
-      className="flex h-11 w-full items-center gap-3 rounded-md px-3 text-left text-sm text-zinc-100 transition-colors hover:bg-white/10"
+      className="flex h-11 w-full items-center gap-3 rounded-md px-3 text-left text-sm text-chrome-zinc-100 transition-colors hover:bg-chrome-white/10"
     >
-      <span className="grid h-7 w-7 place-items-center text-zinc-300">{icon}</span>
+      <span className="grid h-7 w-7 place-items-center text-chrome-zinc-300">{icon}</span>
       <span className="min-w-0 flex-1 font-medium">{label}</span>
-      <span className="max-w-[44%] truncate text-right text-zinc-300">{value}</span>
+      <span className="max-w-[44%] truncate text-right text-chrome-zinc-300">{value}</span>
     </button>
   );
 }
@@ -939,11 +939,11 @@ function MenuChoice({
     <button
       type="button"
       onClick={onClick}
-      className="flex min-h-10 w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-sm font-medium text-zinc-100 hover:bg-white/10"
+      className="flex min-h-10 w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-sm font-medium text-chrome-zinc-100 hover:bg-chrome-white/10"
     >
       <span className="min-w-0 truncate text-left">
         {label}
-        {detail && <span className="ml-1 text-xs text-zinc-400">{detail}</span>}
+        {detail && <span className="ml-1 text-xs text-chrome-zinc-400">{detail}</span>}
       </span>
       {checked && <Check size={17} />}
     </button>
@@ -962,10 +962,10 @@ function ContextMenuButton({
   return (
     <button
       type="button"
-      className="flex h-11 w-full items-center gap-4 rounded-lg px-3 text-left text-sm font-bold text-zinc-100 transition-colors hover:bg-white/10"
+      className="flex h-11 w-full items-center gap-4 rounded-lg px-3 text-left text-sm font-bold text-chrome-zinc-100 transition-colors hover:bg-chrome-white/10"
       onClick={onClick}
     >
-      <span className="grid h-7 w-7 place-items-center text-zinc-300">{icon}</span>
+      <span className="grid h-7 w-7 place-items-center text-chrome-zinc-300">{icon}</span>
       <span className="min-w-0 flex-1 truncate">{label}</span>
     </button>
   );

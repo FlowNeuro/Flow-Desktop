@@ -110,8 +110,8 @@ export default function MusicCollectionPage({ kind }: { kind: CollectionKind }) 
   if (error || !meta) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-4 px-6 py-24 text-center">
-        <AlertTriangle className="h-8 w-8 text-neutral-500" />
-        <p className="text-sm text-neutral-400">{getString('music_collection_unavailable')}</p>
+        <AlertTriangle className="h-8 w-8 text-chrome-neutral-500" />
+        <p className="text-sm text-chrome-neutral-400">{getString('music_collection_unavailable')}</p>
         <div className="flex items-center gap-3">
           <Button variant="tonal" onClick={() => navigate(-1)}>
             {getString('music_artist_back')}
@@ -182,7 +182,7 @@ export default function MusicCollectionPage({ kind }: { kind: CollectionKind }) 
       className="h-full min-h-0 overflow-y-auto pb-32"
     >
       <div
-        className={`sticky top-0 z-40 -mb-14 flex h-14 items-center border-b border-neutral-800 bg-surface/95 px-8 transition-all duration-200 ease-out backdrop-blur ${
+        className={`sticky top-0 z-40 -mb-14 flex h-14 items-center border-b border-chrome-neutral-800 bg-surface/95 px-8 transition-all duration-200 ease-out backdrop-blur ${
           showMiniHeader
             ? 'translate-y-0 opacity-100'
             : 'pointer-events-none -translate-y-full opacity-0'
@@ -193,12 +193,12 @@ export default function MusicCollectionPage({ kind }: { kind: CollectionKind }) 
             type="button"
             disabled={songs.length === 0}
             onClick={() => playAll(false)}
-            className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-neutral-100 text-neutral-950 transition-colors duration-200 ease-out hover:bg-white disabled:pointer-events-none disabled:opacity-50"
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-chrome-neutral-100 text-chrome-neutral-950 transition-colors duration-200 ease-out hover:bg-chrome-white disabled:pointer-events-none disabled:opacity-50"
             aria-label={getString('music_play')}
           >
             <Play className="h-4 w-4" fill="currentColor" />
           </button>
-          <span className="line-clamp-1 text-sm font-semibold text-neutral-100">
+          <span className="line-clamp-1 text-sm font-semibold text-chrome-neutral-100">
             {meta.title}
           </span>
         </div>
@@ -219,7 +219,7 @@ export default function MusicCollectionPage({ kind }: { kind: CollectionKind }) 
       />
 
       <div className="mx-auto flex max-w-[1600px] flex-col gap-4 px-8 pt-6">
-        <div className="mb-4 flex items-center border-b border-neutral-800/50 px-4 pb-2 text-xs font-semibold uppercase tracking-wider text-neutral-500">
+        <div className="mb-4 flex items-center border-b border-chrome-neutral-800/50 px-4 pb-2 text-xs font-semibold uppercase tracking-wider text-chrome-neutral-500">
           <span className="w-12 shrink-0">#</span>
           <span className="min-w-0 flex-1">{getString('music_track_title_column')}</span>
           <span className="hidden w-32 shrink-0 text-right lg:block">
@@ -256,7 +256,7 @@ export default function MusicCollectionPage({ kind }: { kind: CollectionKind }) 
         {(hasMore || songs.length > 0) && (
           <div className="flex flex-col items-center gap-3 py-6">
             <div ref={sentinelRef} className="h-px w-full" />
-            <p className="text-xs font-medium uppercase tracking-wider text-neutral-500">
+            <p className="text-xs font-medium uppercase tracking-wider text-chrome-neutral-500">
               {loadedCountLabel}
             </p>
             {hasMore ? (
@@ -264,7 +264,7 @@ export default function MusicCollectionPage({ kind }: { kind: CollectionKind }) 
                 type="button"
                 onClick={() => void loadMore()}
                 disabled={loadingMore}
-                className="inline-flex items-center gap-2 rounded-full bg-surface-container-high px-5 py-2.5 text-sm font-medium text-neutral-200 transition-colors duration-200 ease-out hover:bg-surface-container-highest disabled:pointer-events-none disabled:opacity-50"
+                className="inline-flex items-center gap-2 rounded-full bg-surface-container-high px-5 py-2.5 text-sm font-medium text-chrome-neutral-200 transition-colors duration-200 ease-out hover:bg-surface-container-highest disabled:pointer-events-none disabled:opacity-50"
               >
                 {loadingMore ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                 {loadingMore

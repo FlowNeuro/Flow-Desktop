@@ -153,7 +153,7 @@ export function ShortCard({ short, queue, variant = "grid" }: ShortCardProps) {
       ].join(" ")}
     >
       <button type="button" onClick={playShort} className="flex w-full flex-col gap-2 text-left">
-        <span className="relative block aspect-[9/16] w-full overflow-hidden rounded-xl border border-neutral-800 bg-surface-container">
+        <span className="relative block aspect-[9/16] w-full overflow-hidden rounded-xl border border-chrome-neutral-800 bg-surface-container">
           {short.thumbnailUrl && (
             <img
               src={short.thumbnailUrl}
@@ -162,13 +162,13 @@ export function ShortCard({ short, queue, variant = "grid" }: ShortCardProps) {
               loading="lazy"
             />
           )}
-          <span className="absolute inset-0 grid place-items-center bg-black/10 opacity-0 transition-opacity group-hover:opacity-100">
-            <span className="grid h-10 w-10 place-items-center rounded-full bg-primary text-white">
+          <span className="absolute inset-0 grid place-items-center bg-chrome-black/10 opacity-0 transition-opacity group-hover:opacity-100">
+            <span className="grid h-10 w-10 place-items-center rounded-full bg-primary text-chrome-white">
               <Play size={isShelf ? 16 : 18} fill="currentColor" />
             </span>
           </span>
           {short.viewCountText && (
-            <span className="absolute bottom-2 left-2 rounded bg-black/70 px-1.5 py-0.5 text-[11px] font-bold tracking-wide text-white">
+            <span className="absolute bottom-2 left-2 rounded bg-chrome-black/70 px-1.5 py-0.5 text-[11px] font-bold tracking-wide text-chrome-white">
               {short.viewCountText}
             </span>
           )}
@@ -176,7 +176,7 @@ export function ShortCard({ short, queue, variant = "grid" }: ShortCardProps) {
 
         <span
           className={[
-            "line-clamp-2 font-semibold leading-tight text-neutral-100 transition-colors group-hover:text-primary",
+            "line-clamp-2 font-semibold leading-tight text-chrome-neutral-100 transition-colors group-hover:text-primary",
             isShelf ? "text-xs" : "text-sm",
           ].join(" ")}
         >
@@ -188,7 +188,7 @@ export function ShortCard({ short, queue, variant = "grid" }: ShortCardProps) {
         type="button"
         aria-label={getString("more_options")}
         onClick={openMenuFromDots}
-        className="absolute right-2 top-2 z-10 grid h-8 w-8 place-items-center rounded-full border border-neutral-800 bg-neutral-950/80 text-neutral-200 opacity-0 transition-colors hover:bg-neutral-900 group-hover:opacity-100"
+        className="absolute right-2 top-2 z-10 grid h-8 w-8 place-items-center rounded-full border border-chrome-neutral-800 bg-chrome-neutral-950/80 text-chrome-neutral-200 opacity-0 transition-colors hover:bg-chrome-neutral-900 group-hover:opacity-100"
       >
         <MoreVertical className="h-4 w-4" />
       </button>
@@ -197,7 +197,7 @@ export function ShortCard({ short, queue, variant = "grid" }: ShortCardProps) {
         <AnchoredPortalMenu
           anchor={menuAnchor}
           onClose={() => setMenuAnchor(null)}
-          className="z-50 w-64 overflow-hidden rounded-xl border border-neutral-800 bg-surface-container-high py-1"
+          className="z-50 w-64 overflow-hidden rounded-xl border border-chrome-neutral-800 bg-surface-container-high py-1"
         >
           <MenuItem icon={savedToLibrary ? BookmarkCheck : Bookmark} onClick={() => void toggleSavedShort()}>
             {getString(savedToLibrary ? "shorts_menu_remove_from_library" : "shorts_menu_save_to_library")}
@@ -229,9 +229,9 @@ function MenuItem({
     <button
       type="button"
       onClick={onClick}
-      className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm text-neutral-200 transition-colors hover:bg-surface-container-highest"
+      className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm text-chrome-neutral-200 transition-colors hover:bg-surface-container-highest"
     >
-      <Icon className="h-4 w-4 shrink-0 text-neutral-400" />
+      <Icon className="h-4 w-4 shrink-0 text-chrome-neutral-400" />
       {children}
     </button>
   );

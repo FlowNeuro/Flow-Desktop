@@ -2,11 +2,11 @@ import { Activity } from "lucide-react";
 import { useLearningActivity } from "../../lib/useLearningActivity";
 
 const EVENT_STYLES: Record<string, { label: string; tone: string }> = {
-  CLICK: { label: "Opened", tone: "text-sky-400" },
-  LIKED: { label: "Liked", tone: "text-emerald-400" },
-  WATCHED: { label: "Watched", tone: "text-emerald-400" },
-  SKIPPED: { label: "Skipped", tone: "text-amber-400" },
-  DISLIKED: { label: "Not interested", tone: "text-red-400" },
+  CLICK: { label: "Opened", tone: "text-chrome-sky-400" },
+  LIKED: { label: "Liked", tone: "text-chrome-emerald-400" },
+  WATCHED: { label: "Watched", tone: "text-chrome-emerald-400" },
+  SKIPPED: { label: "Skipped", tone: "text-chrome-amber-400" },
+  DISLIKED: { label: "Not interested", tone: "text-chrome-red-400" },
 };
 
 // SQLite stores UTC timestamps without a zone marker; normalize before parsing.

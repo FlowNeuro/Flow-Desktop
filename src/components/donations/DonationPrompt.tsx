@@ -82,7 +82,7 @@ function DonationPromptDialog({
 
   return (
     <div
-      className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-4"
+      className="fixed inset-0 z-[70] flex items-center justify-center bg-chrome-black/70 p-4"
       onClick={onLater}
       role="presentation"
     >
@@ -91,7 +91,7 @@ function DonationPromptDialog({
         aria-modal="true"
         aria-labelledby="donation-prompt-title"
         onClick={(event) => event.stopPropagation()}
-        className="animate-fade-in w-full max-w-sm rounded-2xl border border-neutral-800 bg-surface-container p-6"
+        className="animate-fade-in w-full max-w-sm rounded-2xl border border-chrome-neutral-800 bg-surface-container p-6"
       >
         <div className="flex flex-col items-center text-center">
           <span className="grid h-16 w-16 place-items-center rounded-full bg-surface-container-high">
@@ -100,16 +100,16 @@ function DonationPromptDialog({
 
           <h2
             id="donation-prompt-title"
-            className="mt-5 text-xl font-bold tracking-tight text-neutral-100"
+            className="mt-5 text-xl font-bold tracking-tight text-chrome-neutral-100"
           >
             {getString("donation_prompt_title")}
           </h2>
 
-          <p className="mt-2 text-sm leading-relaxed text-neutral-400">
+          <p className="mt-2 text-sm leading-relaxed text-chrome-neutral-400">
             {getString("donation_prompt_message")}
           </p>
 
-          <span className="mt-4 rounded-full bg-surface-container-low px-3 py-1.5 text-xs font-medium text-neutral-400">
+          <span className="mt-4 rounded-full bg-surface-container-low px-3 py-1.5 text-xs font-medium text-chrome-neutral-400">
             {getString("donation_prompt_methods")}
           </span>
         </div>
@@ -127,7 +127,7 @@ function DonationPromptDialog({
           <button
             type="button"
             onClick={onLater}
-            className="rounded-full px-4 py-2.5 text-sm font-medium text-neutral-300 transition-colors duration-200 ease-out hover:bg-surface-container-high"
+            className="rounded-full px-4 py-2.5 text-sm font-medium text-chrome-neutral-300 transition-colors duration-200 ease-out hover:bg-surface-container-high"
           >
             {getString("donation_prompt_later")}
           </button>
@@ -135,7 +135,7 @@ function DonationPromptDialog({
           <button
             type="button"
             onClick={onNever}
-            className="rounded-full px-4 py-2.5 text-sm font-medium text-neutral-500 transition-colors duration-200 ease-out hover:bg-surface-container-high hover:text-neutral-300"
+            className="rounded-full px-4 py-2.5 text-sm font-medium text-chrome-neutral-500 transition-colors duration-200 ease-out hover:bg-surface-container-high hover:text-chrome-neutral-300"
           >
             {getString("donation_prompt_never")}
           </button>

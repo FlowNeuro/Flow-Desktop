@@ -64,10 +64,10 @@ export const SavedShorts: React.FC = () => {
       <div className="space-y-6 pb-20">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight text-neutral-100">
+            <h1 className="text-3xl font-bold tracking-tight text-chrome-neutral-100">
               {getString("saved_shorts_title")}
             </h1>
-            <p className="mt-1 text-sm text-neutral-400">
+            <p className="mt-1 text-sm text-chrome-neutral-400">
               {getString("saved_shorts_subtitle")}
             </p>
           </div>
@@ -104,27 +104,27 @@ export const SavedShorts: React.FC = () => {
         {loading ? (
           <div className="flex flex-col items-center justify-center space-y-4 py-32">
             <Loader2 className="animate-spin text-[var(--color-primary)]" size={36} />
-            <p className="text-sm font-medium text-neutral-500">
+            <p className="text-sm font-medium text-chrome-neutral-500">
               {getString("saved_shorts_loading")}
             </p>
           </div>
         ) : shorts.length === 0 ? (
-          <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-neutral-800 bg-surface-container-low p-8 py-24 text-center">
-            <ShortsIcon className="mb-4 h-12 w-12 text-neutral-600" />
-            <h3 className="font-medium text-neutral-200">
+          <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-chrome-neutral-800 bg-surface-container-low p-8 py-24 text-center">
+            <ShortsIcon className="mb-4 h-12 w-12 text-chrome-neutral-600" />
+            <h3 className="font-medium text-chrome-neutral-200">
               {getString("saved_shorts_empty_title")}
             </h3>
-            <p className="mt-1 max-w-sm text-sm text-neutral-500">
+            <p className="mt-1 max-w-sm text-sm text-chrome-neutral-500">
               {getString("saved_shorts_empty_body")}
             </p>
           </div>
         ) : visibleShorts.length === 0 ? (
-          <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-neutral-800 bg-surface-container-low p-8 py-20 text-center">
-            <ShortsIcon className="mb-4 h-11 w-11 text-neutral-600" />
-            <h3 className="font-medium text-neutral-200">
+          <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-chrome-neutral-800 bg-surface-container-low p-8 py-20 text-center">
+            <ShortsIcon className="mb-4 h-11 w-11 text-chrome-neutral-600" />
+            <h3 className="font-medium text-chrome-neutral-200">
               {getString("saved_shorts_no_match_title")}
             </h3>
-            <p className="mt-1 max-w-sm text-sm text-neutral-500">
+            <p className="mt-1 max-w-sm text-sm text-chrome-neutral-500">
               {getString("saved_shorts_no_match_body")}
             </p>
           </div>

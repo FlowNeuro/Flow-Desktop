@@ -141,7 +141,7 @@ export function PlayerTab() {
           title={getString('settings_lyrics_providers')}
           description={`${lyricsEnabledCount} / ${lyricsProviders.length} ${getString('settings_lyrics_providers_enabled')}`}
         >
-          <span className="text-xs font-medium text-neutral-400">
+          <span className="text-xs font-medium text-chrome-neutral-400">
             {getString('settings_lyrics_ordered')}
           </span>
         </SettingItem>

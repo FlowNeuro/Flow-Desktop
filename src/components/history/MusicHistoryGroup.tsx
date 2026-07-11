@@ -12,8 +12,8 @@ export function MusicHistoryGroup({ group, onRemoveFromHistory }: MusicHistoryGr
   return (
     <section className="min-w-0">
       <div className="mb-3 px-1">
-        <h2 className="text-2xl font-bold tracking-tight text-neutral-100">{dateLabel}</h2>
-        <p className="mt-1 text-sm text-neutral-400">
+        <h2 className="text-2xl font-bold tracking-tight text-chrome-neutral-100">{dateLabel}</h2>
+        <p className="mt-1 text-sm text-chrome-neutral-400">
           {videos.length} {videos.length === 1 ? "song" : "songs"}
         </p>
       </div>

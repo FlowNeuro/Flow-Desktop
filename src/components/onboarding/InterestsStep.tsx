@@ -16,15 +16,15 @@ export const InterestsStep: React.FC<InterestsStepProps> = ({
     <div className="flex flex-col w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
       {/* Hero Header */}
       <div className="mb-12">
-        <h1 className="text-5xl font-semibold text-neutral-100 tracking-tight mb-3">
+        <h1 className="text-5xl font-semibold text-chrome-neutral-100 tracking-tight mb-3">
           What are you into?
         </h1>
-        <p className="text-lg text-neutral-400">
+        <p className="text-lg text-chrome-neutral-400">
           Pick 3 or more topics to initialize FlowNeuro's local algorithm.{" "}
           {remaining > 0 ? (
             <span className="text-primary font-medium">{remaining} left.</span>
           ) : (
-            <span className="text-emerald-400 font-medium">Ready to go.</span>
+            <span className="text-chrome-emerald-400 font-medium">Ready to go.</span>
           )}
         </p>
       </div>
@@ -33,7 +33,7 @@ export const InterestsStep: React.FC<InterestsStepProps> = ({
       <div className="space-y-12 pb-12">
         {TOPIC_CATEGORIES.map((category) => (
           <section key={category.name}>
-            <h2 className="text-sm uppercase tracking-widest text-neutral-500 mb-5 font-bold">
+            <h2 className="text-sm uppercase tracking-widest text-chrome-neutral-500 mb-5 font-bold">
               {category.name}
             </h2>
             <div className="flex flex-wrap gap-3">
@@ -45,8 +45,8 @@ export const InterestsStep: React.FC<InterestsStepProps> = ({
                     onClick={() => onTopicToggle(topic)}
                     className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium transition-all duration-200 active:scale-95 cursor-pointer ${
                       isSelected
-                        ? "bg-primary text-white shadow-md shadow-primary/20"
-                        : "bg-transparent border border-neutral-700 text-neutral-300 hover:bg-neutral-800"
+                        ? "bg-primary text-chrome-white shadow-md shadow-primary/20"
+                        : "bg-transparent border border-chrome-neutral-700 text-chrome-neutral-300 hover:bg-chrome-neutral-800"
                     }`}
                   >
                     {isSelected && (

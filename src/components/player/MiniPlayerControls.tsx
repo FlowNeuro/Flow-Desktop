@@ -68,12 +68,12 @@ export const MiniPlayerControls: React.FC<MiniPlayerControlsProps> = ({
   };
 
   const sideBtn =
-    "grid h-8 w-8 place-items-center rounded-full text-white/90 transition-colors hover:bg-white/15";
+    "grid h-8 w-8 place-items-center rounded-full text-chrome-white/90 transition-colors hover:bg-chrome-white/15";
 
   return (
     <div
       className={cx(
-        "pointer-events-none absolute inset-x-0 bottom-0 z-20 flex flex-col gap-1 bg-gradient-to-t from-black/80 via-black/30 to-transparent px-3 pb-2.5 pt-10 transition-opacity duration-200",
+        "pointer-events-none absolute inset-x-0 bottom-0 z-20 flex flex-col gap-1 bg-gradient-to-t from-chrome-black/80 via-chrome-black/30 to-transparent px-3 pb-2.5 pt-10 transition-opacity duration-200",
         shouldShowControls ? "opacity-100" : "opacity-0",
       )}
     >
@@ -95,7 +95,7 @@ export const MiniPlayerControls: React.FC<MiniPlayerControlsProps> = ({
             event.currentTarget.releasePointerCapture(event.pointerId);
           }}
         >
-          <div className="relative h-1 w-full overflow-hidden rounded-full bg-white/25 transition-[height] duration-150 group-hover/mpbar:h-1.5">
+          <div className="relative h-1 w-full overflow-hidden rounded-full bg-chrome-white/25 transition-[height] duration-150 group-hover/mpbar:h-1.5">
             <div
               ref={fillRef}
               className="absolute inset-y-0 left-0 rounded-full bg-primary"
@@ -125,7 +125,7 @@ export const MiniPlayerControls: React.FC<MiniPlayerControlsProps> = ({
             type="button"
             title={isPlaying ? "Pause" : "Play"}
             onClick={togglePlay}
-            className="grid h-11 w-11 place-items-center rounded-full bg-white/10 text-white transition-transform hover:bg-white/20 active:scale-95"
+            className="grid h-11 w-11 place-items-center rounded-full bg-chrome-white/10 text-chrome-white transition-transform hover:bg-chrome-white/20 active:scale-95"
           >
             {isPlaying ? (
               <Pause size={22} fill="currentColor" />

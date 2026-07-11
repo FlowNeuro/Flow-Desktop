@@ -43,8 +43,8 @@ export const SubtitleCustomizer: React.FC = () => {
   return (
     <div className="flex flex-col gap-4 p-1 select-none">
       {/* Live Preview Box */}
-      <div className="relative flex flex-col justify-end items-center h-28 w-full rounded-lg bg-zinc-950/80 border border-white/5 overflow-hidden pattern-grid">
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-20 text-[10px] text-zinc-500 font-mono">
+      <div className="relative flex flex-col justify-end items-center h-28 w-full rounded-lg bg-chrome-zinc-950/80 border border-chrome-white/5 overflow-hidden pattern-grid">
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-20 text-[10px] text-chrome-zinc-500 font-mono">
           PREVIEW BOUNDS
         </div>
         <div
@@ -55,7 +55,7 @@ export const SubtitleCustomizer: React.FC = () => {
             fontSize: `${subtitleStyle.fontSize}px`,
             fontWeight: subtitleStyle.isBold ? "700" : "500",
             lineHeight: "1.35",
-            boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.5)",
+            boxShadow: "0 10px 25px -5px color-mix(in srgb, var(--color-chrome-black) 50%, transparent)",
           }}
         >
           Preview Subtitle
@@ -64,9 +64,9 @@ export const SubtitleCustomizer: React.FC = () => {
 
       {/* Font Size Slider */}
       <div className="flex flex-col gap-1.5">
-        <div className="flex justify-between items-center text-xs font-semibold text-zinc-300">
+        <div className="flex justify-between items-center text-xs font-semibold text-chrome-zinc-300">
           <span>Font Size</span>
-          <span className="text-red-400 font-mono">{subtitleStyle.fontSize}px</span>
+          <span className="text-chrome-red-400 font-mono">{subtitleStyle.fontSize}px</span>
         </div>
         <input
           type="range"
@@ -75,15 +75,15 @@ export const SubtitleCustomizer: React.FC = () => {
           step={1}
           value={subtitleStyle.fontSize}
           onChange={(e) => handleUpdate({ fontSize: Number(e.target.value) })}
-          className="w-full h-1 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-primary"
+          className="w-full h-1 bg-chrome-zinc-800 rounded-lg appearance-none cursor-pointer accent-primary"
         />
       </div>
 
       {/* Position Slider */}
       <div className="flex flex-col gap-1.5">
-        <div className="flex justify-between items-center text-xs font-semibold text-zinc-300">
+        <div className="flex justify-between items-center text-xs font-semibold text-chrome-zinc-300">
           <span>Bottom Position</span>
-          <span className="text-red-400 font-mono">{subtitleStyle.bottomPadding}px</span>
+          <span className="text-chrome-red-400 font-mono">{subtitleStyle.bottomPadding}px</span>
         </div>
         <input
           type="range"
@@ -92,13 +92,13 @@ export const SubtitleCustomizer: React.FC = () => {
           step={2}
           value={subtitleStyle.bottomPadding}
           onChange={(e) => handleUpdate({ bottomPadding: Number(e.target.value) })}
-          className="w-full h-1 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-primary"
+          className="w-full h-1 bg-chrome-zinc-800 rounded-lg appearance-none cursor-pointer accent-primary"
         />
       </div>
 
       {/* Text Colors Grid */}
       <div className="flex flex-col gap-2">
-        <div className="text-xs font-semibold text-zinc-300">Text Color</div>
+        <div className="text-xs font-semibold text-chrome-zinc-300">Text Color</div>
         <div className="flex flex-wrap gap-2.5">
           {textColors.map((color) => {
             const isSelected = subtitleStyle.textColor.toLowerCase() === color.toLowerCase();
@@ -107,7 +107,7 @@ export const SubtitleCustomizer: React.FC = () => {
                 key={color}
                 type="button"
                 onClick={() => handleUpdate({ textColor: color })}
-                className="relative w-8 h-8 rounded-full border border-white/10 transition-transform active:scale-95 shadow-md hover:scale-105"
+                className="relative w-8 h-8 rounded-full border border-chrome-white/10 transition-transform active:scale-95 shadow-md hover:scale-105"
                 style={{ backgroundColor: color }}
               >
                 {isSelected && (
@@ -121,7 +121,7 @@ export const SubtitleCustomizer: React.FC = () => {
 
       {/* Background Colors Grid */}
       <div className="flex flex-col gap-2">
-        <div className="text-xs font-semibold text-zinc-300">Background Color</div>
+        <div className="text-xs font-semibold text-chrome-zinc-300">Background Color</div>
         <div className="flex flex-wrap gap-2.5">
           {backgroundColors.map((color) => {
             const isSelected = subtitleStyle.backgroundColor.toLowerCase() === color.toLowerCase();
@@ -130,7 +130,7 @@ export const SubtitleCustomizer: React.FC = () => {
                 key={color}
                 type="button"
                 onClick={() => handleUpdate({ backgroundColor: color })}
-                className="relative w-8 h-8 rounded-full border border-white/10 transition-transform active:scale-95 shadow-md hover:scale-105"
+                className="relative w-8 h-8 rounded-full border border-chrome-white/10 transition-transform active:scale-95 shadow-md hover:scale-105"
                 style={{ backgroundColor: color }}
               >
                 {isSelected && (
@@ -144,9 +144,9 @@ export const SubtitleCustomizer: React.FC = () => {
 
       {/* Background Opacity Slider */}
       <div className="flex flex-col gap-1.5">
-        <div className="flex justify-between items-center text-xs font-semibold text-zinc-300">
+        <div className="flex justify-between items-center text-xs font-semibold text-chrome-zinc-300">
           <span>Background Opacity</span>
-          <span className="text-red-400 font-mono">
+          <span className="text-chrome-red-400 font-mono">
             {Math.round(subtitleStyle.backgroundOpacity * 100)}%
           </span>
         </div>
@@ -157,22 +157,22 @@ export const SubtitleCustomizer: React.FC = () => {
           step={0.05}
           value={subtitleStyle.backgroundOpacity}
           onChange={(e) => handleUpdate({ backgroundOpacity: Number(e.target.value) })}
-          className="w-full h-1 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-primary"
+          className="w-full h-1 bg-chrome-zinc-800 rounded-lg appearance-none cursor-pointer accent-primary"
         />
       </div>
 
       {/* Bold Text Switch Row */}
       <div className="flex justify-between items-center py-1">
-        <span className="text-xs font-semibold text-zinc-300">Bold Text</span>
+        <span className="text-xs font-semibold text-chrome-zinc-300">Bold Text</span>
         <button
           type="button"
           onClick={() => handleUpdate({ isBold: !subtitleStyle.isBold })}
           className={`relative inline-flex h-5 w-10 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-            subtitleStyle.isBold ? "bg-primary" : "bg-zinc-700"
+            subtitleStyle.isBold ? "bg-primary" : "bg-chrome-zinc-700"
           }`}
         >
           <span
-            className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+            className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-chrome-white shadow ring-0 transition duration-200 ease-in-out ${
               subtitleStyle.isBold ? "translate-x-5" : "translate-x-0"
             }`}
           />
@@ -183,7 +183,7 @@ export const SubtitleCustomizer: React.FC = () => {
       <button
         type="button"
         onClick={handleReset}
-        className="mt-2 flex h-9 items-center justify-center gap-2 rounded-md border border-white/10 bg-white/5 text-xs font-bold text-zinc-200 transition-colors hover:bg-white/10 hover:text-white"
+        className="mt-2 flex h-9 items-center justify-center gap-2 rounded-md border border-chrome-white/10 bg-chrome-white/5 text-xs font-bold text-chrome-zinc-200 transition-colors hover:bg-chrome-white/10 hover:text-chrome-white"
       >
         <Undo2 size={14} />
         Reset to Default

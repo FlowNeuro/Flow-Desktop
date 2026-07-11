@@ -106,7 +106,7 @@ function SelectableMusicRow({
         className={`absolute right-3 top-1/2 z-10 grid h-6 w-6 -translate-y-1/2 place-items-center rounded-full border transition-colors ${
           selected
             ? "border-[var(--color-primary)] bg-[var(--color-primary)] text-[var(--color-on-primary)]"
-            : "border-neutral-600 bg-surface-container text-transparent"
+            : "border-chrome-neutral-600 bg-surface-container text-transparent"
         }`}
       >
         <Check size={14} />
@@ -260,12 +260,12 @@ export const Downloads: React.FC<DownloadsProps> = ({ onPlay }) => {
   return (
     <div className="flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-8">
       <div className="mx-auto w-full pb-20">
-        <header className="flex flex-col gap-5 border-b border-neutral-800 pb-6 lg:flex-row lg:items-end lg:justify-between">
+        <header className="flex flex-col gap-5 border-b border-chrome-neutral-800 pb-6 lg:flex-row lg:items-end lg:justify-between">
           <div className="min-w-0">
-            <h1 className="text-3xl font-bold tracking-tight text-neutral-100 lg:text-4xl">
+            <h1 className="text-3xl font-bold tracking-tight text-chrome-neutral-100 lg:text-4xl">
               {getString("downloads_page_title")}
             </h1>
-            <p className="mt-2 text-sm text-neutral-400">{getString("downloads_subtitle")}</p>
+            <p className="mt-2 text-sm text-chrome-neutral-400">{getString("downloads_subtitle")}</p>
           </div>
 
           <div className="flex w-full flex-col gap-3 sm:flex-row lg:w-auto lg:items-center">
@@ -330,23 +330,23 @@ export const Downloads: React.FC<DownloadsProps> = ({ onPlay }) => {
         {loading ? (
           <div className="flex flex-col items-center justify-center py-32">
             <Loader2 className="h-9 w-9 animate-spin text-[var(--color-primary)]" />
-            <p className="mt-4 text-sm font-medium text-neutral-500">{getString("downloads_loading")}</p>
+            <p className="mt-4 text-sm font-medium text-chrome-neutral-500">{getString("downloads_loading")}</p>
           </div>
         ) : isEmpty ? (
-          <div className="mt-8 flex flex-col items-center justify-center rounded-2xl border border-dashed border-neutral-800 bg-surface-container-low p-10 text-center">
-            <DownloadIcon className="mb-4 h-12 w-12 text-neutral-700" />
-            <h3 className="font-bold text-neutral-300">{getString("downloads_empty_title")}</h3>
-            <p className="mt-1 max-w-sm text-sm text-neutral-500">{getString("downloads_empty_body")}</p>
+          <div className="mt-8 flex flex-col items-center justify-center rounded-2xl border border-dashed border-chrome-neutral-800 bg-surface-container-low p-10 text-center">
+            <DownloadIcon className="mb-4 h-12 w-12 text-chrome-neutral-700" />
+            <h3 className="font-bold text-chrome-neutral-300">{getString("downloads_empty_title")}</h3>
+            <p className="mt-1 max-w-sm text-sm text-chrome-neutral-500">{getString("downloads_empty_body")}</p>
           </div>
         ) : !hasResults ? (
-          <div className="mt-8 rounded-2xl border border-neutral-800 bg-surface-container-low p-8 text-center">
-            <p className="text-sm font-medium text-neutral-300">{getString("downloads_no_results")}</p>
+          <div className="mt-8 rounded-2xl border border-chrome-neutral-800 bg-surface-container-low p-8 text-center">
+            <p className="text-sm font-medium text-chrome-neutral-300">{getString("downloads_no_results")}</p>
           </div>
         ) : (
           <div className="mt-8 flex flex-col gap-10">
             {showVideos ? (
               <section className="min-w-0">
-                <h2 className="mb-4 text-xs font-semibold uppercase tracking-widest text-neutral-500">
+                <h2 className="mb-4 text-xs font-semibold uppercase tracking-widest text-chrome-neutral-500">
                   {getString("downloads_videos_section")}
                 </h2>
                 <div className="grid grid-cols-1 gap-x-4 gap-y-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -375,7 +375,7 @@ export const Downloads: React.FC<DownloadsProps> = ({ onPlay }) => {
 
             {showMusic ? (
               <section className="min-w-0">
-                <h2 className="mb-4 text-xs font-semibold uppercase tracking-widest text-neutral-500">
+                <h2 className="mb-4 text-xs font-semibold uppercase tracking-widest text-chrome-neutral-500">
                   {getString("downloads_music_section")}
                 </h2>
                 <div className="grid grid-cols-1 gap-x-4 gap-y-1 md:grid-cols-2 xl:grid-cols-3">
@@ -400,7 +400,7 @@ export const Downloads: React.FC<DownloadsProps> = ({ onPlay }) => {
 
             {showPlaylists ? (
               <section className="min-w-0">
-                <h2 className="mb-4 text-xs font-semibold uppercase tracking-widest text-neutral-500">
+                <h2 className="mb-4 text-xs font-semibold uppercase tracking-widest text-chrome-neutral-500">
                   {getString("downloads_playlists_section")}
                 </h2>
                 <div className="grid grid-cols-1 gap-x-4 gap-y-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -419,7 +419,7 @@ export const Downloads: React.FC<DownloadsProps> = ({ onPlay }) => {
 
             {showAlbums ? (
               <section className="min-w-0">
-                <h2 className="mb-4 text-xs font-semibold uppercase tracking-widest text-neutral-500">
+                <h2 className="mb-4 text-xs font-semibold uppercase tracking-widest text-chrome-neutral-500">
                   {getString("downloads_albums_section")}
                 </h2>
                 <div className="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
@@ -440,12 +440,12 @@ export const Downloads: React.FC<DownloadsProps> = ({ onPlay }) => {
       </div>
 
       {showClearConfirm ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4">
-          <div className="w-full max-w-sm space-y-4 rounded-2xl border border-neutral-800 bg-surface-container p-6">
-            <h3 className="text-lg font-bold text-neutral-100">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-chrome-black/75 p-4">
+          <div className="w-full max-w-sm space-y-4 rounded-2xl border border-chrome-neutral-800 bg-surface-container p-6">
+            <h3 className="text-lg font-bold text-chrome-neutral-100">
               {getString("downloads_clear_confirm_title")}
             </h3>
-            <p className="text-sm leading-relaxed text-neutral-400">
+            <p className="text-sm leading-relaxed text-chrome-neutral-400">
               {getString("downloads_clear_confirm_body")}
             </p>
             <div className="flex items-center justify-end gap-3 pt-2">

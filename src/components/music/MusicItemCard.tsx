@@ -82,7 +82,7 @@ function TrackDownloadIndicator({ trackId }: { trackId: string }) {
           viewBox="0 0 18 18"
           className={cx('absolute inset-0 h-full w-full', percent == null && 'animate-spin')}
         >
-          <circle cx="9" cy="9" r="7" fill="none" strokeWidth="2" className="stroke-neutral-700" />
+          <circle cx="9" cy="9" r="7" fill="none" strokeWidth="2" className="stroke-chrome-neutral-700" />
           <circle
             cx="9"
             cy="9"
@@ -147,7 +147,7 @@ function useSongLike(track: SongItem | null | undefined) {
 }
 
 function colorBackground(color: { r: number; g: number; b: number } | null): React.CSSProperties {
-  if (!color) return { background: 'rgba(39, 39, 42, 0.5)' };
+  if (!color) return { background: 'color-mix(in srgb, var(--color-chrome-zinc-800) 50%, transparent)' };
   return { background: `rgba(${color.r}, ${color.g}, ${color.b}, 0.22)` };
 }
 
@@ -227,7 +227,7 @@ function Artwork({
     return (
       <div
         className={cx(
-          'grid place-items-center bg-surface-container-high text-neutral-500',
+          'grid place-items-center bg-surface-container-high text-chrome-neutral-500',
           rounded,
           className,
         )}
@@ -256,7 +256,7 @@ function ExplicitBadge() {
     <span
       title={label}
       aria-label={label}
-      className="grid h-4 w-4 shrink-0 place-items-center rounded-[3px] bg-neutral-700 text-[10px] font-bold leading-none text-neutral-300"
+      className="grid h-4 w-4 shrink-0 place-items-center rounded-[3px] bg-chrome-neutral-700 text-[10px] font-bold leading-none text-chrome-neutral-300"
     >
       E
     </span>
@@ -387,7 +387,7 @@ function SquareCard({
           src={thumbnail}
           alt={title}
           rounded="rounded-xl"
-          className="h-full w-full ring-1 ring-neutral-800/50"
+          className="h-full w-full ring-1 ring-chrome-neutral-800/50"
           iconSize="w-10 h-10"
         />
         {isTrack ? (
@@ -400,7 +400,7 @@ function SquareCard({
               void songLike.toggle();
             }}
             className={cx(
-              'absolute left-2 top-2 grid h-9 w-9 place-items-center rounded-full bg-neutral-950/80 text-neutral-200 opacity-0 backdrop-blur transition-all duration-200 ease-out hover:bg-neutral-900 group-hover:opacity-100',
+              'absolute left-2 top-2 grid h-9 w-9 place-items-center rounded-full bg-chrome-neutral-950/80 text-chrome-neutral-200 opacity-0 backdrop-blur transition-all duration-200 ease-out hover:bg-chrome-neutral-900 group-hover:opacity-100',
               songLike.liked ? 'text-[var(--color-primary)] opacity-100' : null,
             )}
           >
@@ -413,7 +413,7 @@ function SquareCard({
               type="button"
               aria-label={getString('music_more_options')}
               onClick={menu.openMenuFromDots}
-              className="grid h-9 w-9 place-items-center rounded-full bg-neutral-950/80 text-neutral-200 opacity-0 backdrop-blur transition-all duration-200 ease-out hover:bg-neutral-900 group-hover:opacity-100"
+              className="grid h-9 w-9 place-items-center rounded-full bg-chrome-neutral-950/80 text-chrome-neutral-200 opacity-0 backdrop-blur transition-all duration-200 ease-out hover:bg-chrome-neutral-900 group-hover:opacity-100"
             >
               <MoreVertical className="h-4 w-4" />
             </button>
@@ -438,8 +438,8 @@ function SquareCard({
         show={menu.showMenu}
       />
       <div className="flex flex-col gap-0.5">
-        <span className="line-clamp-1 font-medium text-neutral-100">{title}</span>
-        {subtitle && <span className="line-clamp-1 text-sm text-neutral-400">{subtitle}</span>}
+        <span className="line-clamp-1 font-medium text-chrome-neutral-100">{title}</span>
+        {subtitle && <span className="line-clamp-1 text-sm text-chrome-neutral-400">{subtitle}</span>}
       </div>
     </div>
   );
@@ -481,7 +481,7 @@ function VideoCard16x9({
           src={thumbnail}
           alt={title}
           rounded="rounded-xl"
-          className="h-full w-full ring-1 ring-neutral-800/50"
+          className="h-full w-full ring-1 ring-chrome-neutral-800/50"
           iconSize="w-10 h-10"
         />
         <button
@@ -497,8 +497,8 @@ function VideoCard16x9({
         </button>
       </div>
       <div className="flex flex-col gap-0.5">
-        <span className="line-clamp-2 font-medium text-neutral-100">{title}</span>
-        {subtitle && <span className="line-clamp-1 text-sm text-neutral-400">{subtitle}</span>}
+        <span className="line-clamp-2 font-medium text-chrome-neutral-100">{title}</span>
+        {subtitle && <span className="line-clamp-1 text-sm text-chrome-neutral-400">{subtitle}</span>}
       </div>
     </div>
   );
@@ -536,11 +536,11 @@ function CircleCard({
           src={thumbnail}
           alt={title}
           rounded="rounded-full"
-          className="h-full w-full ring-1 ring-neutral-800/50 transition-transform duration-200 ease-out group-hover:scale-[1.02]"
+          className="h-full w-full ring-1 ring-chrome-neutral-800/50 transition-transform duration-200 ease-out group-hover:scale-[1.02]"
           iconSize="w-10 h-10"
         />
       </div>
-      <span className="line-clamp-2 text-center font-medium text-neutral-100">{title}</span>
+      <span className="line-clamp-2 text-center font-medium text-chrome-neutral-100">{title}</span>
     </div>
   );
 }
@@ -666,25 +666,25 @@ function ListRow({
         />
         <div
           className={cx(
-            'absolute inset-0 grid place-items-center rounded-md bg-black/50 transition-opacity duration-200 ease-out',
+            'absolute inset-0 grid place-items-center rounded-md bg-chrome-black/50 transition-opacity duration-200 ease-out',
             isPlayingTrack ? 'opacity-100' : 'opacity-0 group-hover:opacity-100',
           )}
         >
           {isPlayingTrack ? (
-            <PlayingWave className="text-white" />
+            <PlayingWave className="text-chrome-white" />
           ) : (
-            <Play className="h-5 w-5 text-white" fill="currentColor" />
+            <Play className="h-5 w-5 text-chrome-white" fill="currentColor" />
           )}
         </div>
       </div>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <span className={cx('line-clamp-1 font-medium', isPlayingTrack ? 'text-neutral-50' : 'text-neutral-100')}>
+        <span className={cx('line-clamp-1 font-medium', isPlayingTrack ? 'text-chrome-neutral-50' : 'text-chrome-neutral-100')}>
           {title}
         </span>
         <span className="flex min-w-0 items-center gap-1.5">
           {explicit && <ExplicitBadge />}
-          {subtitle && <span className="line-clamp-1 text-sm text-neutral-400">{subtitle}</span>}
+          {subtitle && <span className="line-clamp-1 text-sm text-chrome-neutral-400">{subtitle}</span>}
         </span>
       </div>
 
@@ -692,7 +692,7 @@ function ListRow({
         <span className="absolute right-0 top-1/2 flex -translate-y-1/2 items-center gap-1.5 transition-opacity duration-200 ease-out group-hover:opacity-0">
           <TrackDownloadIndicator trackId={trackId} />
           {duration && (
-            <span className="font-mono text-sm tabular-nums text-neutral-400">{duration}</span>
+            <span className="font-mono text-sm tabular-nums text-chrome-neutral-400">{duration}</span>
           )}
         </span>
         <div className="absolute right-0 top-0 flex items-center gap-1 opacity-0 transition-opacity duration-200 ease-out group-hover:opacity-100">
@@ -705,7 +705,7 @@ function ListRow({
               void songLike.toggle();
             }}
             className={cx(
-              'grid h-8 w-8 place-items-center rounded-full text-neutral-400 transition-colors duration-200 ease-out hover:bg-surface-container-high hover:text-neutral-100',
+              'grid h-8 w-8 place-items-center rounded-full text-chrome-neutral-400 transition-colors duration-200 ease-out hover:bg-surface-container-high hover:text-chrome-neutral-100',
               songLike.liked ? 'text-[var(--color-primary)]' : null,
             )}
           >
@@ -716,7 +716,7 @@ function ListRow({
               type="button"
               aria-label={getString('music_more_options')}
               onClick={menu.openMenuFromDots}
-              className="grid h-8 w-8 place-items-center rounded-full text-neutral-400 transition-colors duration-200 ease-out hover:bg-surface-container-high hover:text-neutral-100"
+              className="grid h-8 w-8 place-items-center rounded-full text-chrome-neutral-400 transition-colors duration-200 ease-out hover:bg-surface-container-high hover:text-chrome-neutral-100"
             >
               <MoreVertical className="h-4 w-4" />
             </button>

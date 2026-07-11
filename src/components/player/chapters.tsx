@@ -157,32 +157,32 @@ export const Chapters: React.FC<ChaptersProps> = ({
   };
 
   return (
-    <div className="flex h-full w-full flex-col bg-surface border border-white/15 rounded-xl text-white shadow-2xl relative overflow-hidden">
+    <div className="flex h-full w-full flex-col bg-surface border border-chrome-white/15 rounded-xl text-chrome-white shadow-2xl relative overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-white/5 px-4 py-3.5 shrink-0">
-        <h2 className="text-base font-bold tracking-tight text-zinc-100 flex items-center gap-2">
+      <div className="flex items-center justify-between border-b border-chrome-white/5 px-4 py-3.5 shrink-0">
+        <h2 className="text-base font-bold tracking-tight text-chrome-zinc-100 flex items-center gap-2">
           In this video
         </h2>
         <button
           type="button"
           onClick={onClose}
-          className="grid h-8 w-8 place-items-center rounded-full text-zinc-400 hover:bg-white/10 hover:text-white transition-colors cursor-pointer"
+          className="grid h-8 w-8 place-items-center rounded-full text-chrome-zinc-400 hover:bg-chrome-white/10 hover:text-chrome-white transition-colors cursor-pointer"
         >
           <X size={18} />
         </button>
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-white/5 px-4 gap-4 shrink-0 bg-background/20">
+      <div className="flex border-b border-chrome-white/5 px-4 gap-4 shrink-0 bg-background/20">
         <button
           type="button"
           onClick={() => chapters.length > 0 && setActiveTab("chapters")}
           className={`py-2.5 px-1 border-b-2 text-sm font-bold transition-all cursor-pointer ${
             activeTab === "chapters"
-              ? "border-white text-white"
+              ? "border-chrome-white text-chrome-white"
               : chapters.length > 0
-              ? "border-transparent text-zinc-400 hover:text-zinc-200"
-              : "border-transparent text-zinc-600 cursor-not-allowed"
+              ? "border-transparent text-chrome-zinc-400 hover:text-chrome-zinc-200"
+              : "border-transparent text-chrome-zinc-600 cursor-not-allowed"
           }`}
         >
           Chapters
@@ -192,10 +192,10 @@ export const Chapters: React.FC<ChaptersProps> = ({
           onClick={() => captions && captions.length > 0 && setActiveTab("transcript")}
           className={`py-2.5 px-1 border-b-2 text-sm font-bold transition-all cursor-pointer ${
             activeTab === "transcript"
-              ? "border-white text-white"
+              ? "border-chrome-white text-chrome-white"
               : captions && captions.length > 0
-              ? "border-transparent text-zinc-400 hover:text-zinc-200"
-              : "border-transparent text-zinc-600 cursor-not-allowed"
+              ? "border-transparent text-chrome-zinc-400 hover:text-chrome-zinc-200"
+              : "border-transparent text-chrome-zinc-600 cursor-not-allowed"
           }`}
         >
           Transcript
@@ -206,8 +206,8 @@ export const Chapters: React.FC<ChaptersProps> = ({
       <div className="relative flex-1 min-h-0 flex flex-col">
         {/* Transcript Language Selector */}
         {activeTab === "transcript" && captions && captions.length > 1 && (
-          <div className="px-4 py-2 border-b border-white/5 bg-white/5 flex items-center justify-between shrink-0">
-            <span className="text-xs font-semibold text-zinc-400">Language</span>
+          <div className="px-4 py-2 border-b border-chrome-white/5 bg-chrome-white/5 flex items-center justify-between shrink-0">
+            <span className="text-xs font-semibold text-chrome-zinc-400">Language</span>
             <Select
               value={selectedCaptionId}
               onChange={setSelectedCaptionId}
@@ -237,12 +237,12 @@ export const Chapters: React.FC<ChaptersProps> = ({
                     onClick={() => seekTo(chapter.startSeconds)}
                     className={`group flex items-center gap-3.5 p-2 rounded-lg cursor-pointer transition-all duration-200 ${
                       isActive
-                        ? "bg-white/10 border border-white/10 shadow-lg"
-                        : "hover:bg-white/5 border border-transparent"
+                        ? "bg-chrome-white/10 border border-chrome-white/10 shadow-lg"
+                        : "hover:bg-chrome-white/5 border border-transparent"
                     }`}
                   >
                     {/* Thumbnail card */}
-                    <div className="relative w-28 aspect-video rounded-md overflow-hidden bg-zinc-900 border border-white/5 shadow shrink-0">
+                    <div className="relative w-28 aspect-video rounded-md overflow-hidden bg-chrome-zinc-900 border border-chrome-white/5 shadow shrink-0">
                       {videoThumbnail ? (
                         <img
                           src={videoThumbnail}
@@ -250,18 +250,18 @@ export const Chapters: React.FC<ChaptersProps> = ({
                           className="w-full h-full object-cover"
                         />
                       ) : (
-                        <div className="w-full h-full flex items-center justify-center bg-zinc-950 font-bold text-zinc-700 text-xs">
+                        <div className="w-full h-full flex items-center justify-center bg-chrome-zinc-950 font-bold text-chrome-zinc-700 text-xs">
                           FLOW
                         </div>
                       )}
 
                       {/* Play Overlay */}
-                      <div className={`absolute inset-0 bg-black/40 flex items-center justify-center transition-opacity ${isActive ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}>
-                        <Play size={20} className="text-white fill-white" />
+                      <div className={`absolute inset-0 bg-chrome-black/40 flex items-center justify-center transition-opacity ${isActive ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}>
+                        <Play size={20} className="text-chrome-white fill-chrome-white" />
                       </div>
 
                       {/* Red Time Badge */}
-                      <span className="absolute bottom-1 right-1 bg-black/85 text-[10px] font-bold text-white px-1.5 py-0.5 rounded border border-white/5 font-mono">
+                      <span className="absolute bottom-1 right-1 bg-chrome-black/85 text-[10px] font-bold text-chrome-white px-1.5 py-0.5 rounded border border-chrome-white/5 font-mono">
                         {formatTime(chapter.startSeconds)}
                       </span>
                     </div>
@@ -270,12 +270,12 @@ export const Chapters: React.FC<ChaptersProps> = ({
                     <div className="flex-1 min-w-0 pr-1 flex flex-col justify-center">
                       <h4
                         className={`text-sm font-bold truncate transition-colors leading-tight ${
-                          isActive ? "text-primary" : "text-zinc-100 group-hover:text-primary"
+                          isActive ? "text-primary" : "text-chrome-zinc-100 group-hover:text-primary"
                         }`}
                       >
                         {chapter.title}
                       </h4>
-                      <span className="text-xs font-semibold text-red-500 mt-1.5 font-mono">
+                      <span className="text-xs font-semibold text-chrome-red-500 mt-1.5 font-mono">
                         {formatTime(chapter.startSeconds)}
                       </span>
                     </div>
@@ -286,7 +286,7 @@ export const Chapters: React.FC<ChaptersProps> = ({
                         type="button"
                         title="Loop Chapter"
                         onClick={(e) => handleLoop(e, chapter)}
-                        className="grid h-8 w-8 place-items-center rounded-full text-white/80 hover:bg-white/10 hover:text-white transition-colors cursor-pointer"
+                        className="grid h-8 w-8 place-items-center rounded-full text-chrome-white/80 hover:bg-chrome-white/10 hover:text-chrome-white transition-colors cursor-pointer"
                       >
                         <Repeat size={20} />
                       </button>
@@ -294,7 +294,7 @@ export const Chapters: React.FC<ChaptersProps> = ({
                         type="button"
                         title="Share Chapter Link"
                         onClick={(e) => handleShare(e, chapter)}
-                        className="grid h-8 w-8 place-items-center rounded-full text-white/80 hover:bg-white/10 hover:text-white transition-colors cursor-pointer"
+                        className="grid h-8 w-8 place-items-center rounded-full text-chrome-white/80 hover:bg-chrome-white/10 hover:text-chrome-white transition-colors cursor-pointer"
                       >
                         <Share2 size={20} />
                       </button>
@@ -306,18 +306,18 @@ export const Chapters: React.FC<ChaptersProps> = ({
           ) : (
             <div className="space-y-3 px-1 pb-6">
               {loadingTranscript && (
-                <div className="flex flex-col items-center justify-center py-16 text-zinc-500 gap-3">
+                <div className="flex flex-col items-center justify-center py-16 text-chrome-zinc-500 gap-3">
                   <Loader2 className="animate-spin text-primary" size={24} />
-                  <span className="text-xs font-semibold uppercase tracking-wider text-zinc-400">Loading transcript...</span>
+                  <span className="text-xs font-semibold uppercase tracking-wider text-chrome-zinc-400">Loading transcript...</span>
                 </div>
               )}
               {transcriptError && (
-                <div className="text-center py-16 text-zinc-500 text-xs font-semibold uppercase tracking-wider">
+                <div className="text-center py-16 text-chrome-zinc-500 text-xs font-semibold uppercase tracking-wider">
                   {transcriptError}
                 </div>
               )}
               {!loadingTranscript && !transcriptError && transcriptCues.length === 0 && (
-                <div className="text-center py-16 text-zinc-500 text-xs font-semibold uppercase tracking-wider">
+                <div className="text-center py-16 text-chrome-zinc-500 text-xs font-semibold uppercase tracking-wider">
                   No transcript available.
                 </div>
               )}
@@ -331,15 +331,15 @@ export const Chapters: React.FC<ChaptersProps> = ({
                     onClick={() => seekTo(cue.start)}
                     className={`flex items-start gap-3.5 p-2 rounded-lg cursor-pointer transition-all duration-200 ${
                       isCueActive
-                        ? "bg-white/10 border border-white/10 shadow-lg"
-                        : "hover:bg-white/5 border border-transparent"
+                        ? "bg-chrome-white/10 border border-chrome-white/10 shadow-lg"
+                        : "hover:bg-chrome-white/5 border border-transparent"
                     }`}
                   >
-                    <span className="text-xs font-mono font-bold text-red-500 shrink-0 mt-0.5 min-w-[45px] hover:underline">
+                    <span className="text-xs font-mono font-bold text-chrome-red-500 shrink-0 mt-0.5 min-w-[45px] hover:underline">
                       {formatTime(cue.start)}
                     </span>
                     <p className={`text-sm leading-relaxed transition-colors flex-1 ${
-                      isCueActive ? "text-primary font-bold" : "text-zinc-200 font-medium"
+                      isCueActive ? "text-primary font-bold" : "text-chrome-zinc-200 font-medium"
                     }`}>
                       {cue.text}
                     </p>
@@ -354,9 +354,9 @@ export const Chapters: React.FC<ChaptersProps> = ({
         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 shadow-xl rounded-full overflow-hidden">
           <button
             onClick={() => scrollActiveIntoView("smooth")}
-            className="flex items-center gap-1.5 px-4 py-2 bg-white hover:bg-zinc-100 text-black font-bold text-xs rounded-full transition-all duration-150 cursor-pointer shadow-lg active:scale-95 whitespace-nowrap"
+            className="flex items-center gap-1.5 px-4 py-2 bg-chrome-white hover:bg-chrome-zinc-100 text-chrome-black font-bold text-xs rounded-full transition-all duration-150 cursor-pointer shadow-lg active:scale-95 whitespace-nowrap"
           >
-            <Repeat size={12} className="rotate-180 text-black" />
+            <Repeat size={12} className="rotate-180 text-chrome-black" />
             <span>Sync to video time</span>
           </button>
         </div>

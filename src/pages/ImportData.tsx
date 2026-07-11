@@ -268,7 +268,7 @@ export const ImportData: React.FC = () => {
     <div className="flex-1 overflow-y-auto px-8 py-6 space-y-6 pb-20 bg-[var(--color-background)]">
       <div className="border-b border-[var(--color-outline-variant)] pb-4">
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate("/settings")} className="p-2 border border-neutral-800 hover:border-neutral-700 bg-surface-container-low hover:bg-surface-container rounded-xl text-neutral-400 hover:text-neutral-200 transition-colors duration-200 ease-out cursor-pointer">
+          <button onClick={() => navigate("/settings")} className="p-2 border border-chrome-neutral-800 hover:border-chrome-neutral-700 bg-surface-container-low hover:bg-surface-container rounded-xl text-chrome-neutral-400 hover:text-chrome-neutral-200 transition-colors duration-200 ease-out cursor-pointer">
             <ArrowLeft size={16} />
           </button>
           <div>
@@ -283,21 +283,21 @@ export const ImportData: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_400px] gap-8 items-start">
         <div className="space-y-6 lg:max-h-[calc(100vh-180px)] lg:overflow-y-auto pr-2 scrollbar-none">
           {importState === "idle" && (
-            <div className="bg-surface-container-low rounded-2xl border border-neutral-800 overflow-hidden">
-              <div className="px-5 py-3 border-b border-neutral-800/50">
-                <h3 className="text-xs uppercase tracking-widest text-neutral-500 font-semibold">{getString("import_data_to_import")}</h3>
+            <div className="bg-surface-container-low rounded-2xl border border-chrome-neutral-800 overflow-hidden">
+              <div className="px-5 py-3 border-b border-chrome-neutral-800/50">
+                <h3 className="text-xs uppercase tracking-widest text-chrome-neutral-500 font-semibold">{getString("import_data_to_import")}</h3>
               </div>
-              <div className="divide-y divide-neutral-800/50">
+              <div className="divide-y divide-chrome-neutral-800/50">
                 {toggleItems.map((item) => (
                   <div key={item.key} onClick={item.toggle} className="flex items-center justify-between px-5 py-3.5 hover:bg-surface-container transition-colors duration-200 ease-out cursor-pointer">
                     <div className="flex items-center gap-3">
-                      <span className={item.checked ? "text-[var(--color-primary)]" : "text-neutral-500"}>{item.icon}</span>
+                      <span className={item.checked ? "text-[var(--color-primary)]" : "text-chrome-neutral-500"}>{item.icon}</span>
                       <div>
-                        <div className="text-sm font-medium text-neutral-200">{item.label}</div>
-                        <div className="text-xs text-neutral-400 mt-0.5">{item.desc}</div>
+                        <div className="text-sm font-medium text-chrome-neutral-200">{item.label}</div>
+                        <div className="text-xs text-chrome-neutral-400 mt-0.5">{item.desc}</div>
                       </div>
                     </div>
-                    <div className={`w-4 h-4 rounded flex items-center justify-center border transition-colors ${item.checked ? "border-[var(--color-primary)] bg-[var(--color-primary)] text-white" : "border-neutral-700 bg-surface-container-high"}`}>
+                    <div className={`w-4 h-4 rounded flex items-center justify-center border transition-colors ${item.checked ? "border-[var(--color-primary)] bg-[var(--color-primary)] text-chrome-white" : "border-chrome-neutral-700 bg-surface-container-high"}`}>
                       {item.checked && <Check size={10} strokeWidth={3} />}
                     </div>
                   </div>
@@ -309,34 +309,34 @@ export const ImportData: React.FC = () => {
           <div
             onClick={handleCardClick}
             className={`border border-dashed rounded-2xl flex flex-col items-center justify-center text-center transition-colors duration-200 ease-out cursor-pointer min-h-[280px] ${
-              ["reading", "parsing", "saving"].includes(importState) ? "border-neutral-800 bg-surface-container-low pointer-events-none"
-              : importState === "success" ? "border-emerald-900 bg-surface-container-low hover:bg-surface-container"
-              : importState === "error" ? "border-red-900 bg-surface-container-low hover:bg-surface-container"
-              : "border-neutral-700 bg-surface-container-low hover:bg-surface-container hover:border-neutral-600"
+              ["reading", "parsing", "saving"].includes(importState) ? "border-chrome-neutral-800 bg-surface-container-low pointer-events-none"
+              : importState === "success" ? "border-chrome-emerald-900 bg-surface-container-low hover:bg-surface-container"
+              : importState === "error" ? "border-chrome-red-900 bg-surface-container-low hover:bg-surface-container"
+              : "border-chrome-neutral-700 bg-surface-container-low hover:bg-surface-container hover:border-chrome-neutral-600"
             }`}
           >
             {importState === "idle" && (
               <div className="space-y-3 p-8">
-                <div className="w-12 h-12 rounded-2xl bg-surface-container-high flex items-center justify-center border border-neutral-800 mx-auto">
-                  <Upload className="w-5 h-5 text-neutral-400" />
+                <div className="w-12 h-12 rounded-2xl bg-surface-container-high flex items-center justify-center border border-chrome-neutral-800 mx-auto">
+                  <Upload className="w-5 h-5 text-chrome-neutral-400" />
                 </div>
                 <div className="space-y-1">
-                  <h4 className="text-base font-medium text-neutral-200">{getString("import_select_file")}</h4>
-                  <p className="text-xs text-neutral-400 max-w-sm mx-auto">{getString("import_supported_formats")}</p>
+                  <h4 className="text-base font-medium text-chrome-neutral-200">{getString("import_select_file")}</h4>
+                  <p className="text-xs text-chrome-neutral-400 max-w-sm mx-auto">{getString("import_supported_formats")}</p>
                 </div>
               </div>
             )}
 
             {["reading", "parsing", "saving"].includes(importState) && (
               <div className="w-full max-w-md space-y-4 px-8 py-8">
-                <div className="flex justify-between items-center text-xs font-medium text-neutral-400">
+                <div className="flex justify-between items-center text-xs font-medium text-chrome-neutral-400">
                   <span>{statusMessage}</span>
-                  <span className="font-mono text-neutral-300">{progress}%</span>
+                  <span className="font-mono text-chrome-neutral-300">{progress}%</span>
                 </div>
                 <div className="w-full h-1 bg-surface-container-high rounded-full overflow-hidden">
                   <div className="h-full bg-[var(--color-primary)] transition-all duration-300 ease-out" style={{ width: `${progress}%` }} />
                 </div>
-                <div className="flex items-center justify-center gap-2 text-neutral-500 text-xs">
+                <div className="flex items-center justify-center gap-2 text-chrome-neutral-500 text-xs">
                   <Loader2 size={12} className="animate-spin" />
                   {getString("import_processing")}
                 </div>
@@ -345,58 +345,58 @@ export const ImportData: React.FC = () => {
 
             {importState === "success" && (
               <div className="space-y-3 p-8">
-                <div className="w-12 h-12 rounded-2xl bg-surface-container-high flex items-center justify-center border border-emerald-900 mx-auto">
-                  <Check className="w-5 h-5 text-emerald-500" />
+                <div className="w-12 h-12 rounded-2xl bg-surface-container-high flex items-center justify-center border border-chrome-emerald-900 mx-auto">
+                  <Check className="w-5 h-5 text-chrome-emerald-500" />
                 </div>
-                <h4 className="text-base font-medium text-neutral-200">{getString("import_complete")}</h4>
-                <div className="text-xs text-neutral-400 max-w-xs mx-auto space-y-1">
-                  {subsCount > 0 && <div className="flex justify-between bg-surface-container-high px-3 py-2 rounded-lg"><span>{getString("import_subscriptions")}</span><span className="font-mono text-neutral-200">{subsCount}</span></div>}
-                  {playlistsCount > 0 && <div className="flex justify-between bg-surface-container-high px-3 py-2 rounded-lg"><span>{getString("import_playlists")}</span><span className="font-mono text-neutral-200">{playlistsCount}</span></div>}
-                  {historyCount > 0 && <div className="flex justify-between bg-surface-container-high px-3 py-2 rounded-lg"><span>{getString("import_watch_history")}</span><span className="font-mono text-neutral-200">{historyCount}</span></div>}
-                  {settingsCount > 0 && <div className="flex justify-between bg-surface-container-high px-3 py-2 rounded-lg"><span>{getString("import_settings")}</span><span className="font-mono text-neutral-200">{settingsCount}</span></div>}
-                  {neuroCount > 0 && <div className="flex justify-between bg-surface-container-high px-3 py-2 rounded-lg"><span>{getString("import_neuro_profile")}</span><span className="font-mono text-neutral-200">{getString("ok")}</span></div>}
+                <h4 className="text-base font-medium text-chrome-neutral-200">{getString("import_complete")}</h4>
+                <div className="text-xs text-chrome-neutral-400 max-w-xs mx-auto space-y-1">
+                  {subsCount > 0 && <div className="flex justify-between bg-surface-container-high px-3 py-2 rounded-lg"><span>{getString("import_subscriptions")}</span><span className="font-mono text-chrome-neutral-200">{subsCount}</span></div>}
+                  {playlistsCount > 0 && <div className="flex justify-between bg-surface-container-high px-3 py-2 rounded-lg"><span>{getString("import_playlists")}</span><span className="font-mono text-chrome-neutral-200">{playlistsCount}</span></div>}
+                  {historyCount > 0 && <div className="flex justify-between bg-surface-container-high px-3 py-2 rounded-lg"><span>{getString("import_watch_history")}</span><span className="font-mono text-chrome-neutral-200">{historyCount}</span></div>}
+                  {settingsCount > 0 && <div className="flex justify-between bg-surface-container-high px-3 py-2 rounded-lg"><span>{getString("import_settings")}</span><span className="font-mono text-chrome-neutral-200">{settingsCount}</span></div>}
+                  {neuroCount > 0 && <div className="flex justify-between bg-surface-container-high px-3 py-2 rounded-lg"><span>{getString("import_neuro_profile")}</span><span className="font-mono text-chrome-neutral-200">{getString("ok")}</span></div>}
                 </div>
-                <p className="text-xs text-neutral-500">{getString("import_click_another")}</p>
+                <p className="text-xs text-chrome-neutral-500">{getString("import_click_another")}</p>
               </div>
             )}
 
             {importState === "error" && (
               <div className="space-y-3 p-8">
-                <div className="w-12 h-12 rounded-2xl bg-surface-container-high flex items-center justify-center border border-red-900 mx-auto">
-                  <AlertCircle className="w-5 h-5 text-red-400" />
+                <div className="w-12 h-12 rounded-2xl bg-surface-container-high flex items-center justify-center border border-chrome-red-900 mx-auto">
+                  <AlertCircle className="w-5 h-5 text-chrome-red-400" />
                 </div>
-                <h4 className="text-base font-medium text-red-400">{getString("import_failed")}</h4>
-                <p className="text-xs text-neutral-400 max-w-sm mx-auto">{errorMessage || getString("import_file_not_recognized")}</p>
-                <p className="text-xs text-neutral-500">{getString("import_try_another")}</p>
+                <h4 className="text-base font-medium text-chrome-red-400">{getString("import_failed")}</h4>
+                <p className="text-xs text-chrome-neutral-400 max-w-sm mx-auto">{errorMessage || getString("import_file_not_recognized")}</p>
+                <p className="text-xs text-chrome-neutral-500">{getString("import_try_another")}</p>
               </div>
             )}
           </div>
         </div>
 
         <div className="lg:sticky lg:top-24 space-y-6">
-          <div className="bg-surface-container-low rounded-2xl border border-neutral-800 overflow-hidden">
-            <div className="px-5 py-3 border-b border-neutral-800/50">
-              <h3 className="text-xs uppercase tracking-widest text-neutral-500 font-semibold">{getString("import_supported_formats_title")}</h3>
+          <div className="bg-surface-container-low rounded-2xl border border-chrome-neutral-800 overflow-hidden">
+            <div className="px-5 py-3 border-b border-chrome-neutral-800/50">
+              <h3 className="text-xs uppercase tracking-widest text-chrome-neutral-500 font-semibold">{getString("import_supported_formats_title")}</h3>
             </div>
-            <div className="divide-y divide-neutral-800/50">
+            <div className="divide-y divide-chrome-neutral-800/50">
               {formatItems.map((f) => (
                 <div key={f.label} className="flex items-center gap-3 px-5 py-3">
-                  <FileText size={14} className="text-neutral-500 shrink-0" />
+                  <FileText size={14} className="text-chrome-neutral-500 shrink-0" />
                   <div className="min-w-0">
-                    <div className="text-sm font-medium text-neutral-200">{f.label}</div>
-                    <div className="text-xs text-neutral-500">{f.ext}</div>
+                    <div className="text-sm font-medium text-chrome-neutral-200">{f.label}</div>
+                    <div className="text-xs text-chrome-neutral-500">{f.ext}</div>
                   </div>
                 </div>
               ))}
             </div>
           </div>
 
-          <div className="bg-surface-container-low rounded-2xl border border-neutral-800 p-5">
+          <div className="bg-surface-container-low rounded-2xl border border-chrome-neutral-800 p-5">
             <div className="flex items-center gap-2 mb-3">
-              <Database size={14} className="text-neutral-400" />
-              <h4 className="text-xs uppercase tracking-widest text-neutral-500 font-semibold">{getString("import_flowneuro_card_title")}</h4>
+              <Database size={14} className="text-chrome-neutral-400" />
+              <h4 className="text-xs uppercase tracking-widest text-chrome-neutral-500 font-semibold">{getString("import_flowneuro_card_title")}</h4>
             </div>
-            <p className="text-xs text-neutral-400 leading-relaxed">
+            <p className="text-xs text-chrome-neutral-400 leading-relaxed">
               {getString("import_flowneuro_card_body")}
             </p>
           </div>

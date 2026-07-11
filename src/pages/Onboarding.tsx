@@ -58,7 +58,7 @@ export const Onboarding: React.FC = () => {
   return (
     <div className="w-full h-full overflow-hidden flex flex-col bg-surface font-sans relative">
       {/* Absolute Top Progress Bar */}
-      <div className="absolute top-0 left-0 right-0 h-[2px] bg-zinc-800/50 z-50">
+      <div className="absolute top-0 left-0 right-0 h-[2px] bg-chrome-zinc-800/50 z-50">
         <div 
           className="h-full bg-primary transition-all duration-500 ease-out" 
           style={{ width: `${progressPercentage}%` }} 
@@ -91,19 +91,19 @@ export const Onboarding: React.FC = () => {
       </div>
 
       {/* Sticky Bottom Action Bar */}
-      <div className="w-full bg-surface border-t border-neutral-800/50 z-40">
+      <div className="w-full bg-surface border-t border-chrome-neutral-800/50 z-40">
         <div className="max-w-5xl mx-auto px-8 lg:px-12 py-5 flex items-center justify-between">
           <div className="flex items-center gap-4">
             {currentStep > 0 && (
               <button
-                className="text-neutral-500 hover:text-neutral-300 font-semibold text-sm transition-colors cursor-pointer flex items-center gap-2"
+                className="text-chrome-neutral-500 hover:text-chrome-neutral-300 font-semibold text-sm transition-colors cursor-pointer flex items-center gap-2"
                 onClick={handleBack}
               >
                 <span>&larr;</span> Back
               </button>
             )}
             <button
-              className="text-neutral-500 hover:text-neutral-300 font-semibold text-sm transition-colors cursor-pointer"
+              className="text-chrome-neutral-500 hover:text-chrome-neutral-300 font-semibold text-sm transition-colors cursor-pointer"
               onClick={handleSkip}
             >
               Skip Setup
@@ -113,8 +113,8 @@ export const Onboarding: React.FC = () => {
           <button
             className={`px-8 py-3 rounded-full font-bold text-sm transition-all duration-300 ${
               canAdvance 
-                ? "bg-primary text-white hover:bg-primary shadow-lg shadow-primary/20 active:scale-95 cursor-pointer" 
-                : "bg-neutral-800 text-neutral-500 opacity-50 cursor-not-allowed"
+                ? "bg-primary text-chrome-white hover:bg-primary shadow-lg shadow-primary/20 active:scale-95 cursor-pointer" 
+                : "bg-chrome-neutral-800 text-chrome-neutral-500 opacity-50 cursor-not-allowed"
             }`}
             disabled={!canAdvance}
             onClick={handleNext}

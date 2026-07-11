@@ -7,7 +7,7 @@ import { formatCount } from "../../lib/utils";
 import { getString } from "../../lib/i18n/index";
 import type { CommentsSectionProps } from "./types";
 
-function CommentText({ text, className = "text-sm mt-1 text-neutral-200 whitespace-pre-wrap" }: { text: string; className?: string }) {
+function CommentText({ text, className = "text-sm mt-1 text-chrome-neutral-200 whitespace-pre-wrap" }: { text: string; className?: string }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const maxLength = 280;
 
@@ -43,22 +43,22 @@ export function CommentsSection({
   return (
     <div className="space-y-6 pt-4">
       {!hideHeader && (
-        <h2 className="text-xl font-bold text-neutral-100">
+        <h2 className="text-xl font-bold text-chrome-neutral-100">
           {thread.countText || `${thread.comments.length}`} {getString("watch_comments")}
         </h2>
       )}
 
       {thread.loading ? (
-        <Loader2 className="animate-spin text-neutral-500" size={24} />
+        <Loader2 className="animate-spin text-chrome-neutral-500" size={24} />
       ) : thread.comments.length === 0 ? (
-        <p className="text-sm text-neutral-500">{getString("watch_no_comments")}</p>
+        <p className="text-sm text-chrome-neutral-500">{getString("watch_no_comments")}</p>
       ) : (
         <div className="space-y-6">
           <div className="space-y-4">
             {thread.comments.map((c, idx) => (
               <div key={c.id || `comment-${idx}`} className="flex gap-4">
                 <div
-                  className={`flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-surface-container-high text-sm font-bold text-neutral-400 ${
+                  className={`flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-surface-container-high text-sm font-bold text-chrome-neutral-400 ${
                     c.authorChannelId ? "cursor-pointer" : ""
                   }`}
                   onClick={() => c.authorChannelId && navigate(`/channel/${c.authorChannelId}`)}
@@ -70,20 +70,20 @@ export function CommentsSection({
                   )}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-baseline gap-2 text-sm font-bold text-neutral-100">
+                  <div className="flex items-baseline gap-2 text-sm font-bold text-chrome-neutral-100">
                     <span
                       className={c.authorChannelId ? "cursor-pointer hover:text-primary transition-colors" : ""}
                       onClick={() => c.authorChannelId && navigate(`/channel/${c.authorChannelId}`)}
                     >
                       {c.author}
                     </span>{" "}
-                    <span className="text-xs font-medium text-neutral-400">{c.publishedText}</span>
+                    <span className="text-xs font-medium text-chrome-neutral-400">{c.publishedText}</span>
                   </div>
                   <CommentText text={c.text} />
 
-                  <div className="mt-2 flex items-center gap-4 text-xs text-neutral-400">
+                  <div className="mt-2 flex items-center gap-4 text-xs text-chrome-neutral-400">
                     {c.likeCount != null && c.likeCount > 0 && (
-                      <span className="flex items-center gap-1 transition-colors hover:text-neutral-200">
+                      <span className="flex items-center gap-1 transition-colors hover:text-chrome-neutral-200">
                         <ThumbsUp size={12} /> {formatCount(c.likeCount)}
                       </span>
                     )}
@@ -100,11 +100,11 @@ export function CommentsSection({
                   </div>
 
                   {thread.expanded[c.id] && (
-                    <div className="mt-4 space-y-4 border-l-2 border-neutral-800 pl-4">
+                    <div className="mt-4 space-y-4 border-l-2 border-chrome-neutral-800 pl-4">
                       {thread.replies[c.id]?.map((reply, rIdx) => (
                         <div key={reply.id || `reply-${rIdx}`} className="flex gap-3 text-xs">
                           <div
-                            className={`flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-surface-container-high font-bold text-neutral-400 ${
+                            className={`flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-surface-container-high font-bold text-chrome-neutral-400 ${
                               reply.authorChannelId ? "cursor-pointer" : ""
                             }`}
                             onClick={() => reply.authorChannelId && navigate(`/channel/${reply.authorChannelId}`)}
@@ -116,18 +116,18 @@ export function CommentsSection({
                             )}
                           </div>
                           <div className="min-w-0 flex-1">
-                            <div className="flex items-baseline gap-2 font-bold text-neutral-100">
+                            <div className="flex items-baseline gap-2 font-bold text-chrome-neutral-100">
                               <span
                                 className={reply.authorChannelId ? "cursor-pointer hover:text-primary transition-colors" : ""}
                                 onClick={() => reply.authorChannelId && navigate(`/channel/${reply.authorChannelId}`)}
                               >
                                 {reply.author}
                               </span>{" "}
-                              <span className="text-[10px] font-medium text-neutral-400">{reply.publishedText}</span>
+                              <span className="text-[10px] font-medium text-chrome-neutral-400">{reply.publishedText}</span>
                             </div>
-                            <CommentText text={reply.text} className="mt-1 whitespace-pre-wrap font-normal text-neutral-200" />
+                            <CommentText text={reply.text} className="mt-1 whitespace-pre-wrap font-normal text-chrome-neutral-200" />
                             {reply.likeCount != null && reply.likeCount > 0 && (
-                              <div className="mt-1 flex items-center gap-1 text-[10px] text-neutral-400">
+                              <div className="mt-1 flex items-center gap-1 text-[10px] text-chrome-neutral-400">
                                 <ThumbsUp size={10} /> {formatCount(reply.likeCount)}
                               </div>
                             )}
@@ -136,8 +136,8 @@ export function CommentsSection({
                       ))}
 
                       {thread.repliesLoading[c.id] && (
-                        <div className="flex items-center gap-2 py-1 text-xs text-neutral-400">
-                          <Loader2 className="animate-spin text-neutral-400" size={14} />
+                        <div className="flex items-center gap-2 py-1 text-xs text-chrome-neutral-400">
+                          <Loader2 className="animate-spin text-chrome-neutral-400" size={14} />
                           <span>{getString("watch_loading_replies")}</span>
                         </div>
                       )}
@@ -162,11 +162,11 @@ export function CommentsSection({
               <button
                 onClick={thread.loadMore}
                 disabled={thread.loadingMore}
-                className="flex items-center gap-2 rounded-full border border-neutral-800 bg-transparent px-6 py-2 text-sm font-semibold transition-colors hover:bg-surface-container disabled:opacity-50"
+                className="flex items-center gap-2 rounded-full border border-chrome-neutral-800 bg-transparent px-6 py-2 text-sm font-semibold transition-colors hover:bg-surface-container disabled:opacity-50"
               >
                 {thread.loadingMore ? (
                   <>
-                    <Loader2 className="animate-spin text-neutral-400" size={16} />
+                    <Loader2 className="animate-spin text-chrome-neutral-400" size={16} />
                     <span>{getString("watch_loading_more_comments")}</span>
                   </>
                 ) : (

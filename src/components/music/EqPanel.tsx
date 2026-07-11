@@ -51,11 +51,11 @@ export function EqPanel({
           exit={{ opacity: 0, y: fromY, scale: 0.97 }}
           transition={{ type: "spring", stiffness: 420, damping: 34, mass: 0.8 }}
           style={{ transformOrigin: placement === "top" ? "bottom right" : "top right" }}
-          className="w-80 rounded-2xl border border-neutral-800 bg-surface-container p-4"
+          className="w-80 rounded-2xl border border-chrome-neutral-800 bg-surface-container p-4"
         >
           {/* header */}
           <div className="mb-4 flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
+            <span className="text-xs font-semibold uppercase tracking-widest text-chrome-neutral-500">
               {getString("music_equalizer")}
             </span>
             <div className="flex items-center gap-2">
@@ -64,7 +64,7 @@ export function EqPanel({
                 type="button"
                 onClick={onClose}
                 aria-label={getString("music_collapse")}
-                className="grid h-7 w-7 place-items-center rounded-full text-neutral-400 transition-colors duration-200 ease-out hover:bg-surface-container-high hover:text-neutral-100"
+                className="grid h-7 w-7 place-items-center rounded-full text-chrome-neutral-400 transition-colors duration-200 ease-out hover:bg-surface-container-high hover:text-chrome-neutral-100"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -93,7 +93,7 @@ export function EqPanel({
           >
             {EQ_BANDS.map((band, i) => (
               <div key={band.frequency} className="flex flex-col items-center gap-1.5">
-                <span className="font-mono text-[10px] tabular-nums text-neutral-500">
+                <span className="font-mono text-[10px] tabular-nums text-chrome-neutral-500">
                   {formatGain(eqGains[i])}
                 </span>
                 <input
@@ -106,7 +106,7 @@ export function EqPanel({
                   onChange={(e) => setEqBand(i, Number(e.target.value))}
                   aria-label={`${band.label} Hz`}
                 />
-                <span className="text-[10px] text-neutral-500">{band.label}</span>
+                <span className="text-[10px] text-chrome-neutral-500">{band.label}</span>
               </div>
             ))}
           </div>

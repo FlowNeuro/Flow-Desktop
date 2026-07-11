@@ -109,7 +109,7 @@ export function ShortPlayer({
           className="absolute inset-0 h-full w-full object-cover blur-[120px] scale-125 opacity-50 saturate-[1.5] pointer-events-none"
         />
       )}
-      <div className="absolute inset-0 bg-neutral-950/60 pointer-events-none" />
+      <div className="absolute inset-0 bg-chrome-neutral-950/60 pointer-events-none" />
 
       <motion.div
         layout
@@ -127,9 +127,9 @@ export function ShortPlayer({
 
         <motion.div
           layout
-          className="flex h-[85vh] max-h-[850px] flex-row overflow-hidden rounded-2xl bg-black shadow-2xl ring-1 ring-white/10"
+          className="flex h-[85vh] max-h-[850px] flex-row overflow-hidden rounded-2xl bg-chrome-black shadow-2xl ring-1 ring-chrome-white/10"
         >
-          <div className="relative z-20 aspect-[9/16] h-full bg-black">
+          <div className="relative z-20 aspect-[9/16] h-full bg-chrome-black">
             <ShortVideoSurface
               dashUrl={active ? dashUrl : null}
               videoUrl={active ? videoUrl : null}
@@ -152,13 +152,13 @@ export function ShortPlayer({
 
             {active && loading && !dashUrl && !videoUrl && (
               <div className="pointer-events-none absolute inset-0 grid place-items-center">
-                <Loader2 className="h-8 w-8 animate-spin text-white/80" />
+                <Loader2 className="h-8 w-8 animate-spin text-chrome-white/80" />
               </div>
             )}
 
             {active && unavailable && (
-              <div className="pointer-events-none absolute inset-0 grid place-items-center bg-black/40">
-                <p className="text-sm text-white/70">Skipping unavailable Short...</p>
+              <div className="pointer-events-none absolute inset-0 grid place-items-center bg-chrome-black/40">
+                <p className="text-sm text-chrome-white/70">Skipping unavailable Short...</p>
               </div>
             )}
 
@@ -167,7 +167,7 @@ export function ShortPlayer({
                 type="button"
                 aria-label={muted ? "Unmute" : "Mute"}
                 onClick={onToggleMute}
-                className="absolute right-4 top-4 z-20 flex h-10 w-10 items-center justify-center rounded-full bg-black/55 text-white transition-colors duration-200 ease-out hover:bg-black/75"
+                className="absolute right-4 top-4 z-20 flex h-10 w-10 items-center justify-center rounded-full bg-chrome-black/55 text-chrome-white transition-colors duration-200 ease-out hover:bg-chrome-black/75"
               >
                 {muted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
               </button>
@@ -180,7 +180,7 @@ export function ShortPlayer({
             animate={{ width: panelOpen ? SIDE_PANEL_WIDTH : 0, opacity: 1 }}
             transition={{ type: "spring", bounce: 0, duration: 0.4 }}
             className={`flex h-full flex-col overflow-hidden bg-surface-container-high ${
-              panelOpen ? "border-l border-neutral-800" : ""
+              panelOpen ? "border-l border-chrome-neutral-800" : ""
             }`}
           >
             {panelOpen && (

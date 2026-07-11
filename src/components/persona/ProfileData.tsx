@@ -107,7 +107,7 @@ export function ProfileData({ brain, onImport, onReset }: ProfileDataProps) {
           className={`mt-5 flex items-center gap-2 rounded-xl border px-4 py-3 text-sm ${
             notification.type === "success"
               ? "border-[var(--color-outline-variant)] bg-[var(--color-surface-container)] text-[var(--color-on-surface)]"
-              : "border-red-900/50 bg-red-950/30 text-red-400"
+              : "border-chrome-red-900/50 bg-chrome-red-950/30 text-chrome-red-400"
           }`}
         >
           {notification.type === "success" ? <Check className="h-4 w-4" /> : <AlertTriangle className="h-4 w-4" />}
@@ -146,12 +146,12 @@ export function ProfileData({ brain, onImport, onReset }: ProfileDataProps) {
 
         <button
           onClick={() => setShowConfirmReset(true)}
-          className="flex items-center gap-3 rounded-xl border border-red-900/50 bg-red-950/30 px-4 py-3 text-left text-red-400 transition-colors hover:bg-red-950/40"
+          className="flex items-center gap-3 rounded-xl border border-chrome-red-900/50 bg-chrome-red-950/30 px-4 py-3 text-left text-chrome-red-400 transition-colors hover:bg-chrome-red-950/40"
         >
           <RotateCcw className="h-4 w-4" />
           <span className="flex min-w-0 flex-col">
             <span className="text-sm font-medium">Reset Brain</span>
-            <span className="text-xs text-red-400/70">Delete recommendation memory</span>
+            <span className="text-xs text-chrome-red-400/70">Delete recommendation memory</span>
           </span>
         </button>
       </div>
@@ -160,7 +160,7 @@ export function ProfileData({ brain, onImport, onReset }: ProfileDataProps) {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--color-background)]/80 p-4">
           <div className="w-full max-w-md rounded-2xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-low)] p-6">
             <div className="flex items-start gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-red-900/50 bg-red-950/30 text-red-400">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-chrome-red-900/50 bg-chrome-red-950/30 text-chrome-red-400">
                 <AlertTriangle className="h-5 w-5" />
               </div>
               <div>
@@ -182,7 +182,7 @@ export function ProfileData({ brain, onImport, onReset }: ProfileDataProps) {
               <button
                 onClick={handleResetConfirm}
                 disabled={isResetting}
-                className="flex items-center gap-2 rounded-full border border-red-900/50 bg-red-950/30 px-4 py-2 text-sm text-red-400 transition-colors hover:bg-red-950/40 disabled:opacity-50"
+                className="flex items-center gap-2 rounded-full border border-chrome-red-900/50 bg-chrome-red-950/30 px-4 py-2 text-sm text-chrome-red-400 transition-colors hover:bg-chrome-red-950/40 disabled:opacity-50"
               >
                 {isResetting ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
                 Reset

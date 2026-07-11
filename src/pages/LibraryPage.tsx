@@ -222,10 +222,10 @@ export const LibraryPage: React.FC<LibraryPageProps> = ({ onPlay, onAddToQueue }
       <header className="flex items-center gap-5">
 
         <div className="min-w-0">
-          <h1 className="text-4xl md:text-5xl font-bold tracking-tight text-neutral-100">
+          <h1 className="text-4xl md:text-5xl font-bold tracking-tight text-chrome-neutral-100">
             {getString("library_page_title")}
           </h1>
-          <p className="mt-2 text-sm text-neutral-400">{statsText}</p>
+          <p className="mt-2 text-sm text-chrome-neutral-400">{statsText}</p>
         </div>
       </header>
 

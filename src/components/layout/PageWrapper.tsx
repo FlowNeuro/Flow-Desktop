@@ -23,7 +23,7 @@ export function PageWrapper() {
   }, [location.pathname, location.search]);
 
   return (
-    <div className="flex h-full flex-col bg-background text-zinc-100 overflow-hidden font-sans">
+    <div className="flex h-full flex-col bg-background text-chrome-zinc-100 overflow-hidden font-sans">
       <Topbar />
       <div className="flex flex-1 overflow-hidden">
         <Sidebar />
@@ -45,7 +45,7 @@ export function PageWrapper() {
           <button
             type="button"
             aria-label="Close sidebar"
-            className="absolute inset-0 bg-black/60"
+            className="absolute inset-0 bg-chrome-black/60"
             onClick={() => setWatchSidebarOpen(false)}
           />
           <div className="relative h-full animate-sidebar-slide-in">

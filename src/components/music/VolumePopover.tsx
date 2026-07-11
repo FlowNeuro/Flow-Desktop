@@ -22,13 +22,13 @@ export function VolumePopover({ open }: { open: boolean }) {
           exit={{ opacity: 0, y: 10, scale: 0.97 }}
           transition={{ type: "spring", stiffness: 420, damping: 34, mass: 0.8 }}
           style={{ transformOrigin: "bottom center" }}
-          className="flex w-60 items-center gap-3 rounded-2xl border border-neutral-800 bg-surface-container p-3"
+          className="flex w-60 items-center gap-3 rounded-2xl border border-chrome-neutral-800 bg-surface-container p-3"
         >
           <button
             type="button"
             onClick={toggleMute}
             aria-label={getString(isMuted ? "music_unmute" : "music_mute")}
-            className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-neutral-300 transition-colors duration-200 ease-out hover:text-neutral-100"
+            className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-chrome-neutral-300 transition-colors duration-200 ease-out hover:text-chrome-neutral-100"
           >
             {shown === 0 ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
           </button>
@@ -43,7 +43,7 @@ export function VolumePopover({ open }: { open: boolean }) {
             style={{ accentColor: "var(--color-primary)" }}
             className="h-1 flex-1 cursor-pointer"
           />
-          <span className="w-8 shrink-0 text-right font-mono text-xs tabular-nums text-neutral-400">
+          <span className="w-8 shrink-0 text-right font-mono text-xs tabular-nums text-chrome-neutral-400">
             {Math.round(shown * 100)}
           </span>
         </motion.div>

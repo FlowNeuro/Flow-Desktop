@@ -284,7 +284,7 @@ export const FlowPlayerControls: React.FC<FlowPlayerControlsProps> = ({
         );
 
         if (timeTextRef.current) {
-          timeTextRef.current.innerHTML = `${formatTime(cur)} <span class="text-zinc-400">/</span> ${formatTime(dur)}`;
+          timeTextRef.current.innerHTML = `${formatTime(cur)} <span class="text-chrome-zinc-400">/</span> ${formatTime(dur)}`;
         }
 
         if (chapterPillRef.current) {
@@ -406,16 +406,16 @@ export const FlowPlayerControls: React.FC<FlowPlayerControlsProps> = ({
     <button
       type="button"
       onClick={onClick}
-      className="flex h-11 w-full items-center gap-3 rounded-md px-3 text-left text-sm text-zinc-100 transition-colors hover:bg-white/10"
+      className="flex h-11 w-full items-center gap-3 rounded-md px-3 text-left text-sm text-chrome-zinc-100 transition-colors hover:bg-chrome-white/10"
     >
-      <span className="grid h-7 w-7 place-items-center text-zinc-300">
+      <span className="grid h-7 w-7 place-items-center text-chrome-zinc-300">
         {icon}
       </span>
       <span className="min-w-0 flex-1 font-medium">{label}</span>
-      <span className="max-w-[46%] truncate text-right text-zinc-300">
+      <span className="max-w-[46%] truncate text-right text-chrome-zinc-300">
         {value}
       </span>
-      <ChevronRight size={16} className="text-zinc-400" />
+      <ChevronRight size={16} className="text-chrome-zinc-400" />
     </button>
   );
 
@@ -423,7 +423,7 @@ export const FlowPlayerControls: React.FC<FlowPlayerControlsProps> = ({
     <>
       <div
         className={cx(
-          "pointer-events-none absolute inset-0 z-20 flex h-full w-full flex-col justify-end bg-gradient-to-t from-black/85 via-black/40 to-transparent pt-24 transition-opacity duration-200",
+          "pointer-events-none absolute inset-0 z-20 flex h-full w-full flex-col justify-end bg-gradient-to-t from-chrome-black/85 via-chrome-black/40 to-transparent pt-24 transition-opacity duration-200",
           isTheaterMode ? "px-4 pb-3 sm:px-6 sm:pb-4 lg:px-8" : "px-3 pb-3 sm:px-5 sm:pb-4",
           shouldShowControls ? "opacity-100" : "opacity-0"
         )}
@@ -433,7 +433,7 @@ export const FlowPlayerControls: React.FC<FlowPlayerControlsProps> = ({
           onClick={(event) => event.stopPropagation()}
         >
           {title && (!isFullscreen || showFullscreenTitle) && (
-            <div className="mb-2 hidden max-w-[70%] truncate text-sm font-bold text-white/95 sm:block">
+            <div className="mb-2 hidden max-w-[70%] truncate text-sm font-bold text-chrome-white/95 sm:block">
               {title}
             </div>
           )}
@@ -462,10 +462,10 @@ export const FlowPlayerControls: React.FC<FlowPlayerControlsProps> = ({
                       flexGrow: Math.max(0.1, segmentDuration),
                     }}
                   >
-                    <div className="relative h-[5px] w-full overflow-hidden rounded-full bg-white/25 transition-[height] duration-200 ease-[cubic-bezier(0.34,1.56,0.64,1)] group-hover/seg:h-[10px]">
+                    <div className="relative h-[5px] w-full overflow-hidden rounded-full bg-chrome-white/25 transition-[height] duration-200 ease-[cubic-bezier(0.34,1.56,0.64,1)] group-hover/seg:h-[10px]">
                       {/* Buffered Fill for this Segment */}
                       <div
-                        className="chapter-buffered-fill absolute inset-y-0 left-0 rounded-full bg-white/40 pointer-events-none transition-[width] duration-150"
+                        className="chapter-buffered-fill absolute inset-y-0 left-0 rounded-full bg-chrome-white/40 pointer-events-none transition-[width] duration-150"
                         data-start={segment.startSeconds}
                         data-end={segment.endSeconds}
                         style={{ width: "0%" }}
@@ -488,7 +488,7 @@ export const FlowPlayerControls: React.FC<FlowPlayerControlsProps> = ({
                         if (overlapStart < overlapEnd) {
                           const leftPct = ((overlapStart - segment.startSeconds) / (segment.endSeconds - segment.startSeconds)) * 100;
                           const widthPct = ((overlapEnd - overlapStart) / (segment.endSeconds - segment.startSeconds)) * 100;
-                          const segmentColor = sponsorBlockColors[sbSeg.category as SponsorBlockCategory] || "#ef4444";
+                          const segmentColor = sponsorBlockColors[sbSeg.category as SponsorBlockCategory] || "var(--color-chrome-red-500)";
                           return (
                             <div
                               key={sbSeg.UUID}
@@ -527,7 +527,7 @@ export const FlowPlayerControls: React.FC<FlowPlayerControlsProps> = ({
               style={{ left: `${progressPct}%` }}
             >
               <div className="absolute left-1/2 top-1/2 h-7 w-7 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/20" />
-              <div className="relative h-3.5 w-3.5 rounded-full border-[3px] border-primary bg-white shadow-md shadow-black/40" />
+              <div className="relative h-3.5 w-3.5 rounded-full border-[3px] border-primary bg-chrome-white shadow-md shadow-chrome-black/40" />
             </div>
 
             {/* Hover Preview Tooltip */}
@@ -537,7 +537,7 @@ export const FlowPlayerControls: React.FC<FlowPlayerControlsProps> = ({
                 style={{ left: `${hoverPct}%` }}
               >
                 
-                <div className="bg-black/30 border border-white/10 px-2 py-1 rounded-full text-white min-w-max text-center backdrop-blur-sm flex flex-col gap-0.5 leading-tight">
+                <div className="bg-chrome-black/30 border border-chrome-white/10 px-2 py-1 rounded-full text-chrome-white min-w-max text-center backdrop-blur-sm flex flex-col gap-0.5 leading-tight">
                   {hoverChapter && (
                     <span className="text-[12px] font-medium font-sans">
                       {formatTime(hoverTime)} • {hoverChapter.title}
@@ -554,7 +554,7 @@ export const FlowPlayerControls: React.FC<FlowPlayerControlsProps> = ({
                 type="button"
                 title="Previous"
                 onClick={playPrevious}
-                className="grid h-7 w-7 place-items-center rounded-full hover:bg-white/10"
+                className="grid h-7 w-7 place-items-center rounded-full hover:bg-chrome-white/10"
               >
                 <SkipBack size={19} fill="currentColor" />
               </button>
@@ -562,7 +562,7 @@ export const FlowPlayerControls: React.FC<FlowPlayerControlsProps> = ({
                 type="button"
                 title={isPlaying ? "Pause" : "Play"}
                 onClick={togglePlay}
-                className="grid h-10 w-10 place-items-center rounded-full bg-black/20 text-white hover:bg-white/10 transition-transform active:scale-95"
+                className="grid h-10 w-10 place-items-center rounded-full bg-chrome-black/20 text-chrome-white hover:bg-chrome-white/10 transition-transform active:scale-95"
               >
                 {isPlaying ? (
                   <Pause size={24} fill="currentColor" />
@@ -574,17 +574,17 @@ export const FlowPlayerControls: React.FC<FlowPlayerControlsProps> = ({
                 type="button"
                 title="Next"
                 onClick={() => playNext()}
-                className="grid h-7 w-7 place-items-center rounded-full hover:bg-white/10"
+                className="grid h-7 w-7 place-items-center rounded-full hover:bg-chrome-white/10"
               >
                 <SkipForward size={19} fill="currentColor" />
               </button>
 
-              <div className="group/volume hidden items-center sm:flex bg-black/20 rounded-full hover:pr-2">
+              <div className="group/volume hidden items-center sm:flex bg-chrome-black/20 rounded-full hover:pr-2">
                 <button
                   type="button"
                   title="Mute"
                   onClick={() => setMuted((value) => !value)}
-                  className="grid h-7 w-7 place-items-center rounded-full hover:bg-white/10"
+                  className="grid h-7 w-7 place-items-center rounded-full hover:bg-chrome-white/10"
                 >
                   {muted || volume === 0 ? (
                     <VolumeX size={19} />
@@ -606,23 +606,23 @@ export const FlowPlayerControls: React.FC<FlowPlayerControlsProps> = ({
                     setVolume(value);
                     setMuted(value === 0);
                   }}
-                  className="h-1 w-0 accent-white opacity-0 transition-all group-hover/volume:w-20 group-hover/volume:opacity-100"
+                  className="h-1 w-0 accent-chrome-white opacity-0 transition-all group-hover/volume:w-20 group-hover/volume:opacity-100"
                 />
               </div>
 
               <div className="ml-1 flex items-center gap-1.5">
                 <div
                   ref={timeTextRef}
-                  className="whitespace-nowrap text-xs font-semibold text-white sm:text-sm bg-black/20 rounded-full px-2 py-1"
+                  className="whitespace-nowrap text-xs font-semibold text-chrome-white sm:text-sm bg-chrome-black/20 rounded-full px-2 py-1"
                 />
                 {isLive && (
                   <button
                     type="button"
                     title="Go to live"
                     onClick={seekToLiveEdge}
-                    className="flex items-center gap-1 whitespace-nowrap rounded-full bg-black/20 px-2 py-1 text-xs font-bold uppercase tracking-wide text-white hover:bg-white/10"
+                    className="flex items-center gap-1 whitespace-nowrap rounded-full bg-chrome-black/20 px-2 py-1 text-xs font-bold uppercase tracking-wide text-chrome-white hover:bg-chrome-white/10"
                   >
-                    <span className="h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse" />
+                    <span className="h-1.5 w-1.5 rounded-full bg-chrome-red-500 animate-pulse" />
                     Live
                   </button>
                 )}
@@ -632,22 +632,22 @@ export const FlowPlayerControls: React.FC<FlowPlayerControlsProps> = ({
                 ref={chapterPillRef}
                 type="button"
                 onClick={() => setIsChaptersPanelOpen(!isChaptersPanelOpen)}
-                className="hidden items-center gap-1.5 text-xs font-medium text-white sm:text-sm bg-black/20 hover:bg-white/10 rounded-full px-2 py-1 transition-all select-none cursor-pointer active:scale-95 group/pill max-w-[150px] sm:max-w-[260px] truncate"
+                className="hidden items-center gap-1.5 text-xs font-medium text-chrome-white sm:text-sm bg-chrome-black/20 hover:bg-chrome-white/10 rounded-full px-2 py-1 transition-all select-none cursor-pointer active:scale-95 group/pill max-w-[150px] sm:max-w-[260px] truncate"
               >
                 <span className="chapter-title truncate"></span>
-                <ChevronRight size={14} className="text-zinc-400 group-hover/pill:text-white transition-colors shrink-0" />
+                <ChevronRight size={14} className="text-chrome-zinc-400 group-hover/pill:text-chrome-white transition-colors shrink-0" />
               </button>
             </div>
 
-            <div className="flex items-center gap-1 sm:gap-2 bg-black/20 rounded-full px-1 py-1">
+            <div className="flex items-center gap-1 sm:gap-2 bg-chrome-black/20 rounded-full px-1 py-1">
               <button
                 type="button"
                 title={getString("queue_title")}
                 aria-label={getString("queue_title")}
                 onClick={() => setIsQueuePanelOpen(!isQueuePanelOpen)}
                 className={cx(
-                  "grid h-7 w-7 place-items-center rounded-full hover:bg-white/10",
-                  isQueuePanelOpen && "bg-white/15 text-primary/90"
+                  "grid h-7 w-7 place-items-center rounded-full hover:bg-chrome-white/10",
+                  isQueuePanelOpen && "bg-chrome-white/15 text-primary/90"
                 )}
               >
                 <ListVideo size={19} />
@@ -664,7 +664,7 @@ export const FlowPlayerControls: React.FC<FlowPlayerControlsProps> = ({
                     setSettingsPane("quality");
                   }
                 }}
-                className="hidden h-7 items-center rounded-full px-2 text-xs font-bold text-zinc-100 hover:bg-white/10 sm:flex"
+                className="hidden h-7 items-center rounded-full px-2 text-xs font-bold text-chrome-zinc-100 hover:bg-chrome-white/10 sm:flex"
               >
                 {selectedQualityId === "auto"
                   ? `Auto${activeQualityLabel ? ` (${activeQualityLabel})` : ""}`
@@ -683,7 +683,7 @@ export const FlowPlayerControls: React.FC<FlowPlayerControlsProps> = ({
                   }
                 }}
                 className={cx(
-                  "grid h-7 w-7 place-items-center rounded-full hover:bg-white/10",
+                  "grid h-7 w-7 place-items-center rounded-full hover:bg-chrome-white/10",
                   selectedCaptionId !== "off" && "text-primary/90"
                 )}
               >
@@ -696,7 +696,7 @@ export const FlowPlayerControls: React.FC<FlowPlayerControlsProps> = ({
                   setSettingsOpen((value) => !value);
                   setSettingsPane("root");
                 }}
-                className="grid h-7 w-7 place-items-center rounded-full hover:bg-white/10"
+                className="grid h-7 w-7 place-items-center rounded-full hover:bg-chrome-white/10"
               >
                 <SettingsIcon
                   size={19}
@@ -713,8 +713,8 @@ export const FlowPlayerControls: React.FC<FlowPlayerControlsProps> = ({
                   title="Picture in picture"
                   onClick={togglePictureInPicture}
                   className={cx(
-                    "hidden h-7 w-7 place-items-center rounded-full hover:bg-white/10 sm:grid",
-                    isPip && "bg-white/15"
+                    "hidden h-7 w-7 place-items-center rounded-full hover:bg-chrome-white/10 sm:grid",
+                    isPip && "bg-chrome-white/15"
                   )}
                 >
                   <PictureInPicture2 size={19} />
@@ -725,8 +725,8 @@ export const FlowPlayerControls: React.FC<FlowPlayerControlsProps> = ({
                 title="Theater mode"
                 onClick={() => setIsTheaterMode(!isTheaterMode)}
                 className={cx(
-                  "grid h-7 w-7 place-items-center rounded-full hover:bg-white/10",
-                  isTheaterMode && "bg-white/15"
+                  "grid h-7 w-7 place-items-center rounded-full hover:bg-chrome-white/10",
+                  isTheaterMode && "bg-chrome-white/15"
                 )}
               >
                 {isTheaterMode ? <Shrink size={19} /> : <Expand size={19} />}
@@ -735,7 +735,7 @@ export const FlowPlayerControls: React.FC<FlowPlayerControlsProps> = ({
                 type="button"
                 title="Fullscreen"
                 onClick={toggleFullscreen}
-                className="grid h-7 w-7 place-items-center rounded-full hover:bg-white/10"
+                className="grid h-7 w-7 place-items-center rounded-full hover:bg-chrome-white/10"
               >
                 {isFullscreen ? <Minimize2 size={19} /> : <Maximize2 size={19} />}
               </button>
@@ -746,7 +746,7 @@ export const FlowPlayerControls: React.FC<FlowPlayerControlsProps> = ({
 
       <div
         className={cx(
-          "absolute bottom-20 right-3 z-40 w-[min(92vw,360px)] overflow-hidden rounded-xl border border-white/10 bg-[#151515]/65 p-2 text-white shadow-2xl backdrop-blur-xl transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] transform sm:right-5",
+          "absolute bottom-20 right-3 z-40 w-[min(92vw,360px)] overflow-hidden rounded-xl border border-chrome-white/10 bg-chrome-popover/65 p-2 text-chrome-white shadow-2xl backdrop-blur-xl transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] transform sm:right-5",
           settingsOpen
             ? "opacity-100 translate-y-0 scale-100 pointer-events-auto"
             : "opacity-0 translate-y-4 scale-95 pointer-events-none"
@@ -763,7 +763,7 @@ export const FlowPlayerControls: React.FC<FlowPlayerControlsProps> = ({
                   setSettingsPane("root");
                 }
               }}
-              className="flex h-10 items-center gap-2 rounded-md px-1 text-sm font-bold hover:bg-white/10 text-left"
+              className="flex h-10 items-center gap-2 rounded-md px-1 text-sm font-bold hover:bg-chrome-white/10 text-left"
             >
               <ChevronLeft size={18} />
               {settingsPane === "speed"
@@ -783,7 +783,7 @@ export const FlowPlayerControls: React.FC<FlowPlayerControlsProps> = ({
                 type="button"
                 title="Customize Subtitles"
                 onClick={() => setSettingsPane("captions-customize")}
-                className="grid h-8 w-8 place-items-center rounded-md text-zinc-300 hover:bg-white/10 hover:text-white"
+                className="grid h-8 w-8 place-items-center rounded-md text-chrome-zinc-300 hover:bg-chrome-white/10 hover:text-chrome-white"
               >
                 <Sliders size={17} />
               </button>
@@ -837,8 +837,8 @@ export const FlowPlayerControls: React.FC<FlowPlayerControlsProps> = ({
         {settingsPane === "speed" && (
           <div className="space-y-1 animate-pane-in max-h-60 overflow-y-auto pr-1 select-scrollbar-hidden">
             {speedSliderEnabled && (
-              <div className="rounded-md px-3 py-3 text-sm text-zinc-100">
-                <div className="mb-2 flex items-center justify-between text-xs font-semibold text-zinc-300">
+              <div className="rounded-md px-3 py-3 text-sm text-chrome-zinc-100">
+                <div className="mb-2 flex items-center justify-between text-xs font-semibold text-chrome-zinc-300">
                   <span>Speed</span>
                   <span className="font-mono text-primary">{playbackRate}x</span>
                 </div>
@@ -862,7 +862,7 @@ export const FlowPlayerControls: React.FC<FlowPlayerControlsProps> = ({
                   selectPlaybackRate(speed);
                   setSettingsPane("root");
                 }}
-                className="flex h-10 w-full items-center justify-between rounded-md px-3 text-sm font-medium hover:bg-white/10"
+                className="flex h-10 w-full items-center justify-between rounded-md px-3 text-sm font-medium hover:bg-chrome-white/10"
               >
                 <span>{speed === 1 ? "Normal" : `${speed}x`}</span>
                 {playbackRate === speed && <Check size={17} />}
@@ -880,12 +880,12 @@ export const FlowPlayerControls: React.FC<FlowPlayerControlsProps> = ({
                 setSettingsPane("root");
                 setSettingsOpen(false);
               }}
-              className="flex h-10 w-full items-center justify-between rounded-md px-3 text-sm font-medium hover:bg-white/10 text-zinc-100"
+              className="flex h-10 w-full items-center justify-between rounded-md px-3 text-sm font-medium hover:bg-chrome-white/10 text-chrome-zinc-100"
             >
               <span className="flex items-center gap-1.5">
                 <span>Auto</span>
                 {selectedQualityId === "auto" && activeQualityLabel && (
-                  <span className="text-xs text-zinc-400 font-normal">
+                  <span className="text-xs text-chrome-zinc-400 font-normal">
                     ({activeQualityLabel})
                   </span>
                 )}
@@ -910,12 +910,12 @@ export const FlowPlayerControls: React.FC<FlowPlayerControlsProps> = ({
                   setSettingsOpen(false);
                 }}
                 className={cx(
-                  "flex min-h-10 w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-sm font-medium text-zinc-100",
+                  "flex min-h-10 w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-sm font-medium text-chrome-zinc-100",
                   isDashPlayback ||
                     quality.hasAudio ||
                     audioTracks.some((track) => !!track.localUrl)
-                    ? "hover:bg-white/10"
-                    : "cursor-not-allowed text-zinc-500"
+                    ? "hover:bg-chrome-white/10"
+                    : "cursor-not-allowed text-chrome-zinc-500"
                 )}
               >
                 <span className="flex flex-col text-left leading-tight">
@@ -936,7 +936,7 @@ export const FlowPlayerControls: React.FC<FlowPlayerControlsProps> = ({
                 setSelectedCaptionId("off");
                 setSettingsPane("root");
               }}
-              className="flex h-10 w-full items-center justify-between rounded-md px-3 text-sm font-medium hover:bg-white/10"
+              className="flex h-10 w-full items-center justify-between rounded-md px-3 text-sm font-medium hover:bg-chrome-white/10"
             >
               <span>Off</span>
               {selectedCaptionId === "off" && <Check size={17} />}
@@ -949,12 +949,12 @@ export const FlowPlayerControls: React.FC<FlowPlayerControlsProps> = ({
                   setSelectedCaptionId(caption.id);
                   setSettingsPane("root");
                 }}
-                className="flex min-h-10 w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-sm font-medium hover:bg-white/10"
+                className="flex min-h-10 w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-sm font-medium hover:bg-chrome-white/10"
               >
                 <span className="text-left">
                   {caption.label}
                   {caption.isAutoGenerated && (
-                    <span className="ml-1 text-xs text-zinc-400">auto</span>
+                    <span className="ml-1 text-xs text-chrome-zinc-400">auto</span>
                   )}
                 </span>
                 {selectedCaptionId === caption.id && <Check size={17} />}
@@ -972,7 +972,7 @@ export const FlowPlayerControls: React.FC<FlowPlayerControlsProps> = ({
         {settingsPane === "audio" && (
           <div className="space-y-1 animate-pane-in max-h-60 overflow-y-auto pr-1 select-scrollbar-hidden">
             {audioTracks.length === 0 ? (
-              <div className="px-3 py-4 text-sm text-zinc-400">
+              <div className="px-3 py-4 text-sm text-chrome-zinc-400">
                 Original audio
               </div>
             ) : (
@@ -990,19 +990,19 @@ export const FlowPlayerControls: React.FC<FlowPlayerControlsProps> = ({
                       setSettingsPane("root");
                     }}
                     className={`flex min-h-10 w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-sm font-medium ${
-                      unavailable ? "cursor-not-allowed opacity-40" : "hover:bg-white/10"
+                      unavailable ? "cursor-not-allowed opacity-40" : "hover:bg-chrome-white/10"
                     }`}
                   >
                     <span className="text-left">
                       {track.label}
                       {track.languageCode && (
-                        <span className="ml-1 text-xs text-zinc-400">
+                        <span className="ml-1 text-xs text-chrome-zinc-400">
                           {track.languageCode}
                         </span>
                       )}
                     </span>
                     {unavailable ? (
-                      <span className="text-xs text-zinc-500">Unavailable</span>
+                      <span className="text-xs text-chrome-zinc-500">Unavailable</span>
                     ) : (
                       (selectedAudioTrackId === track.id ||
                         (!selectedAudioTrackId && track.isDefault)) && <Check size={17} />
@@ -1024,7 +1024,7 @@ export const FlowPlayerControls: React.FC<FlowPlayerControlsProps> = ({
                   setSleepMinutes(option.minutes);
                   setSettingsPane("root");
                 }}
-                className="flex h-10 w-full items-center justify-between rounded-md px-3 text-sm font-medium hover:bg-white/10"
+                className="flex h-10 w-full items-center justify-between rounded-md px-3 text-sm font-medium hover:bg-chrome-white/10"
               >
                 <span>{option.label}</span>
                 {sleepMinutes === option.minutes && <Check size={17} />}

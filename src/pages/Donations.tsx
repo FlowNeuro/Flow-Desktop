@@ -59,8 +59,8 @@ function CryptoMethodCard({
   onCopy: (method: CryptoMethod) => void;
 }) {
   return (
-    <div className="flex flex-col rounded-2xl border border-neutral-800/50 bg-surface-container-low p-4">
-      <div className="self-center rounded-xl bg-white p-2.5">
+    <div className="flex flex-col rounded-2xl border border-chrome-neutral-800/50 bg-surface-container-low p-4">
+      <div className="self-center rounded-xl bg-chrome-white p-2.5">
         <img
           src={method.qr}
           alt={getString("donations_qr_alt", method.name)}
@@ -71,12 +71,12 @@ function CryptoMethodCard({
 
       <div className="mt-4 flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
-          <span className="text-base font-medium text-neutral-200">{method.name}</span>
-          <span className="rounded-full bg-surface-container-high px-2 py-0.5 text-[11px] font-semibold tracking-wide text-neutral-400">
+          <span className="text-base font-medium text-chrome-neutral-200">{method.name}</span>
+          <span className="rounded-full bg-surface-container-high px-2 py-0.5 text-[11px] font-semibold tracking-wide text-chrome-neutral-400">
             {method.ticker}
           </span>
         </div>
-        <span className="shrink-0 text-xs uppercase tracking-wider text-neutral-500">
+        <span className="shrink-0 text-xs uppercase tracking-wider text-chrome-neutral-500">
           {method.network}
         </span>
       </div>
@@ -88,10 +88,10 @@ function CryptoMethodCard({
         aria-label={getString("donations_copy_address")}
         className="mt-3 flex items-center gap-2 rounded-lg bg-surface-container px-3 py-2 text-left transition-colors duration-200 ease-out hover:bg-surface-container-high"
       >
-        <code className="min-w-0 flex-1 truncate font-mono text-xs text-neutral-300">
+        <code className="min-w-0 flex-1 truncate font-mono text-xs text-chrome-neutral-300">
           {method.address}
         </code>
-        <Copy className="h-4 w-4 shrink-0 text-neutral-400" />
+        <Copy className="h-4 w-4 shrink-0 text-chrome-neutral-400" />
       </button>
     </div>
   );
@@ -123,22 +123,22 @@ export default function Donations() {
         <span className="grid h-14 w-14 place-items-center rounded-2xl bg-surface-container">
           <Heart className="h-7 w-7 text-[var(--color-primary)]" />
         </span>
-        <h1 className="mt-5 text-3xl font-bold tracking-tight text-neutral-100">
+        <h1 className="mt-5 text-3xl font-bold tracking-tight text-chrome-neutral-100">
           {getString("donations_title")}
         </h1>
-        <p className="mt-3 max-w-xl text-sm leading-relaxed text-neutral-400">
+        <p className="mt-3 max-w-xl text-sm leading-relaxed text-chrome-neutral-400">
           {getString("donations_subtitle")}
         </p>
       </header>
 
       {/* Patreon */}
-      <section className="mt-8 rounded-2xl border border-neutral-800/50 bg-surface-container-low p-6">
+      <section className="mt-8 rounded-2xl border border-chrome-neutral-800/50 bg-surface-container-low p-6">
         <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
-            <h2 className="text-base font-medium text-neutral-200">
+            <h2 className="text-base font-medium text-chrome-neutral-200">
               {getString("donations_patreon_title")}
             </h2>
-            <p className="mt-1 text-sm text-neutral-400">
+            <p className="mt-1 text-sm text-chrome-neutral-400">
               {getString("donations_patreon_desc")}
             </p>
           </div>
@@ -155,10 +155,10 @@ export default function Donations() {
 
       {/* Crypto */}
       <section className="mt-10">
-        <h2 className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
+        <h2 className="text-xs font-semibold uppercase tracking-widest text-chrome-neutral-500">
           {getString("donations_crypto_label")}
         </h2>
-        <p className="mt-2 text-sm text-neutral-400">
+        <p className="mt-2 text-sm text-chrome-neutral-400">
           {getString("donations_crypto_hint")}
         </p>
 
@@ -169,7 +169,7 @@ export default function Donations() {
         </div>
       </section>
 
-      <p className="mt-10 text-center text-sm font-medium text-neutral-400">
+      <p className="mt-10 text-center text-sm font-medium text-chrome-neutral-400">
         {getString("donations_thank_you")}
       </p>
     </div>

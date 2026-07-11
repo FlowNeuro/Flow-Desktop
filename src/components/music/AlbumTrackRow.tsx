@@ -43,7 +43,7 @@ function ExplicitBadge() {
     <span
       title={label}
       aria-label={label}
-      className="grid h-4 w-4 shrink-0 place-items-center rounded-[3px] bg-neutral-700 text-[10px] font-bold leading-none text-neutral-300"
+      className="grid h-4 w-4 shrink-0 place-items-center rounded-[3px] bg-chrome-neutral-700 text-[10px] font-bold leading-none text-chrome-neutral-300"
     >
       E
     </span>
@@ -51,7 +51,7 @@ function ExplicitBadge() {
 }
 
 function colorBackground(color: { r: number; g: number; b: number } | null): React.CSSProperties {
-  if (!color) return { background: 'rgba(39, 39, 42, 0.5)' };
+  if (!color) return { background: 'color-mix(in srgb, var(--color-chrome-zinc-800) 50%, transparent)' };
   return { background: `rgba(${color.r}, ${color.g}, ${color.b}, 0.22)` };
 }
 
@@ -121,7 +121,7 @@ function TrackArtwork({
 
   if (!imageSrc || failed) {
     return (
-      <div className="grid h-10 w-10 shrink-0 place-items-center rounded bg-surface-container-high text-neutral-500">
+      <div className="grid h-10 w-10 shrink-0 place-items-center rounded bg-surface-container-high text-chrome-neutral-500">
         <Music2 className="h-4 w-4" />
       </div>
     );
@@ -269,11 +269,11 @@ export function AlbumTrackRow({
           <Volume2 className="h-4 w-4 text-[var(--color-primary)]" />
         ) : (
           <>
-            <span className="font-mono text-sm text-neutral-500 transition-opacity duration-200 ease-out group-hover:opacity-0">
+            <span className="font-mono text-sm text-chrome-neutral-500 transition-opacity duration-200 ease-out group-hover:opacity-0">
               {index + 1}
             </span>
             <Play
-              className="absolute h-4 w-4 text-white opacity-0 transition-opacity duration-200 ease-out group-hover:opacity-100"
+              className="absolute h-4 w-4 text-chrome-white opacity-0 transition-opacity duration-200 ease-out group-hover:opacity-100"
               fill="currentColor"
             />
           </>
@@ -293,11 +293,11 @@ export function AlbumTrackRow({
       ) : null}
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <span className={`line-clamp-1 font-medium ${isCurrent ? 'text-[var(--color-primary)]' : 'text-neutral-100'}`}>
+        <span className={`line-clamp-1 font-medium ${isCurrent ? 'text-[var(--color-primary)]' : 'text-chrome-neutral-100'}`}>
           {track.title}
         </span>
         {(artistLabel || track.explicit) && (
-          <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-sm text-neutral-400 transition-colors duration-200 ease-out group-hover:text-neutral-300">
+          <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-sm text-chrome-neutral-400 transition-colors duration-200 ease-out group-hover:text-chrome-neutral-300">
             {track.explicit ? <ExplicitBadge /> : null}
             {artistLabel ? <span className="line-clamp-1">{artistLabel}</span> : null}
           </span>
@@ -305,7 +305,7 @@ export function AlbumTrackRow({
       </div>
 
       {showStreamsColumn ? (
-        <span className="hidden w-32 shrink-0 text-right font-mono text-sm tabular-nums text-neutral-500 lg:block">
+        <span className="hidden w-32 shrink-0 text-right font-mono text-sm tabular-nums text-chrome-neutral-500 lg:block">
           {streamsText ?? ''}
         </span>
       ) : null}
@@ -313,7 +313,7 @@ export function AlbumTrackRow({
       <div className="relative ml-4 h-8 w-20 shrink-0">
         <span
           className={cx(
-            'absolute right-0 top-1/2 -translate-y-1/2 font-mono text-sm tabular-nums text-neutral-400 transition-opacity duration-200 ease-out',
+            'absolute right-0 top-1/2 -translate-y-1/2 font-mono text-sm tabular-nums text-chrome-neutral-400 transition-opacity duration-200 ease-out',
             compactActions ? 'xl:group-hover:opacity-0' : 'group-hover:opacity-0',
           )}
         >
@@ -335,7 +335,7 @@ export function AlbumTrackRow({
               onLike?.(track);
             }}
             className={cx(
-              'grid h-8 w-8 place-items-center rounded-full text-neutral-400 transition-colors duration-200 ease-out hover:bg-surface-container-high hover:text-neutral-100',
+              'grid h-8 w-8 place-items-center rounded-full text-chrome-neutral-400 transition-colors duration-200 ease-out hover:bg-surface-container-high hover:text-chrome-neutral-100',
               songLike.liked ? 'text-[var(--color-primary)]' : null,
             )}
           >
@@ -346,7 +346,7 @@ export function AlbumTrackRow({
               type="button"
               aria-label={getString('music_more_options')}
               onClick={menu.openMenuFromDots}
-              className="grid h-8 w-8 place-items-center rounded-full text-neutral-400 transition-colors duration-200 ease-out hover:bg-surface-container-high hover:text-neutral-100"
+              className="grid h-8 w-8 place-items-center rounded-full text-chrome-neutral-400 transition-colors duration-200 ease-out hover:bg-surface-container-high hover:text-chrome-neutral-100"
             >
               <MoreVertical className="h-4 w-4" />
             </button>

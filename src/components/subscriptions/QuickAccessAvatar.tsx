@@ -40,7 +40,7 @@ export function QuickAccessAvatar({
           />
         ) : (
           <span
-            className={`flex h-16 w-16 items-center justify-center rounded-full bg-surface-container-high text-lg font-semibold text-neutral-300 ring-2 transition-all duration-200 ${
+            className={`flex h-16 w-16 items-center justify-center rounded-full bg-surface-container-high text-lg font-semibold text-chrome-neutral-300 ring-2 transition-all duration-200 ${
               active
                 ? 'ring-[var(--color-primary)]'
                 : 'ring-transparent group-hover:ring-[var(--color-primary)]'
@@ -62,8 +62,8 @@ export function QuickAccessAvatar({
       <span
         className={`line-clamp-1 w-full text-center text-xs font-medium transition-colors ${
           active
-            ? 'text-neutral-100'
-            : 'text-neutral-300 group-hover:text-neutral-100'
+            ? 'text-chrome-neutral-100'
+            : 'text-chrome-neutral-300 group-hover:text-chrome-neutral-100'
         }`}
       >
         {name}

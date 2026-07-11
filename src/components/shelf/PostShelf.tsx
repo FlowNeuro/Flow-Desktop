@@ -56,12 +56,12 @@ export const PostShelf: React.FC<PostShelfProps> = ({
   if (!posts || posts.length === 0) return null;
 
   return (
-    <div className="relative group/shelf flex flex-col gap-4 py-4 border-b border-zinc-900 last:border-0">
+    <div className="relative group/shelf flex flex-col gap-4 py-4 border-b border-chrome-zinc-900 last:border-0">
       {/* Shelf Header */}
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-bold text-zinc-100 tracking-tight flex items-center gap-2">
+        <h2 className="text-lg font-bold text-chrome-zinc-100 tracking-tight flex items-center gap-2">
           <span>{title}</span>
-          <span className="text-xs text-zinc-500 font-semibold bg-zinc-900 border border-zinc-800/80 px-2 py-0.5 rounded-full">
+          <span className="text-xs text-chrome-zinc-500 font-semibold bg-chrome-zinc-900 border border-chrome-zinc-800/80 px-2 py-0.5 rounded-full">
             {posts.length}
           </span>
         </h2>
@@ -73,7 +73,7 @@ export const PostShelf: React.FC<PostShelfProps> = ({
         {canScrollLeft && (
           <button
             onClick={() => handleScroll("left")}
-            className="absolute left-0 top-[40%] -translate-y-1/2 -ml-2 sm:-ml-4 z-20 flex items-center justify-center w-10 h-10 rounded-full bg-black/80 hover:bg-black border border-zinc-800 text-zinc-200 hover:text-white shadow-xl opacity-0 group-hover/shelf:opacity-100 transition-all duration-300 transform active:scale-90 hover:scale-105 pointer-events-auto backdrop-blur-sm cursor-pointer"
+            className="absolute left-0 top-[40%] -translate-y-1/2 -ml-2 sm:-ml-4 z-20 flex items-center justify-center w-10 h-10 rounded-full bg-chrome-black/80 hover:bg-chrome-black border border-chrome-zinc-800 text-chrome-zinc-200 hover:text-chrome-white shadow-xl opacity-0 group-hover/shelf:opacity-100 transition-all duration-300 transform active:scale-90 hover:scale-105 pointer-events-auto backdrop-blur-sm cursor-pointer"
             aria-label="Scroll left"
           >
             <ChevronLeft size={20} strokeWidth={2.5} />
@@ -102,7 +102,7 @@ export const PostShelf: React.FC<PostShelfProps> = ({
         {canScrollRight && (
           <button
             onClick={() => handleScroll("right")}
-            className="absolute right-0 top-[40%] -translate-y-1/2 -mr-2 sm:-mr-4 z-20 flex items-center justify-center w-10 h-10 rounded-full bg-black/80 hover:bg-black border border-zinc-800 text-zinc-200 hover:text-white shadow-xl opacity-0 group-hover/shelf:opacity-100 transition-all duration-300 transform active:scale-90 hover:scale-105 pointer-events-auto backdrop-blur-sm cursor-pointer"
+            className="absolute right-0 top-[40%] -translate-y-1/2 -mr-2 sm:-mr-4 z-20 flex items-center justify-center w-10 h-10 rounded-full bg-chrome-black/80 hover:bg-chrome-black border border-chrome-zinc-800 text-chrome-zinc-200 hover:text-chrome-white shadow-xl opacity-0 group-hover/shelf:opacity-100 transition-all duration-300 transform active:scale-90 hover:scale-105 pointer-events-auto backdrop-blur-sm cursor-pointer"
             aria-label="Scroll right"
           >
             <ChevronRight size={20} strokeWidth={2.5} />

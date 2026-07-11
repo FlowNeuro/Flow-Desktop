@@ -135,7 +135,7 @@ export function SearchResults({ search, onPlayVideo, onAddToQueue }: SearchResul
     <>
       <div ref={sentinelRef} className="h-10" />
       {isFetchingNextPage && (
-        <div className="flex items-center justify-center py-6 text-neutral-500">
+        <div className="flex items-center justify-center py-6 text-chrome-neutral-500">
           <Loader2 className="h-5 w-5 animate-spin" />
         </div>
       )}
@@ -389,12 +389,12 @@ function ShelfHeader({
 }) {
   return (
     <div className="mb-3 flex items-center justify-between px-1">
-      <h2 className="text-xl font-bold tracking-tight text-neutral-100">{title}</h2>
+      <h2 className="text-xl font-bold tracking-tight text-chrome-neutral-100">{title}</h2>
       {onSeeAll && (
         <button
           type="button"
           onClick={onSeeAll}
-          className="text-sm font-medium text-neutral-400 transition-colors duration-200 ease-out hover:text-neutral-100"
+          className="text-sm font-medium text-chrome-neutral-400 transition-colors duration-200 ease-out hover:text-chrome-neutral-100"
         >
           {seeAllLabel ?? getString('music_show_all')}
         </button>
@@ -469,7 +469,7 @@ function TopResultHero({
 
   return (
     <section className="flex flex-col">
-      <p className="mb-3 px-1 text-xs font-semibold uppercase tracking-widest text-neutral-500">
+      <p className="mb-3 px-1 text-xs font-semibold uppercase tracking-widest text-chrome-neutral-500">
         {getString('search_top_result')}
       </p>
       <div
@@ -482,21 +482,21 @@ function TopResultHero({
             action();
           }
         }}
-        className="group flex cursor-pointer items-center gap-5 rounded-2xl border border-neutral-800/50 bg-surface-container-low p-5 outline-none transition-colors duration-200 ease-out hover:bg-surface-container focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]"
+        className="group flex cursor-pointer items-center gap-5 rounded-2xl border border-chrome-neutral-800/50 bg-surface-container-low p-5 outline-none transition-colors duration-200 ease-out hover:bg-surface-container focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]"
       >
-        <div className={cx('h-28 w-28 shrink-0 overflow-hidden ring-1 ring-neutral-800/50', circle ? 'rounded-full' : 'rounded-xl')}>
+        <div className={cx('h-28 w-28 shrink-0 overflow-hidden ring-1 ring-chrome-neutral-800/50', circle ? 'rounded-full' : 'rounded-xl')}>
           {displayThumb ? (
             <img src={displayThumb} alt={title} loading="lazy" className="h-full w-full object-cover" />
           ) : (
-            <div className="grid h-full w-full place-items-center bg-surface-container-high text-neutral-600">
+            <div className="grid h-full w-full place-items-center bg-surface-container-high text-chrome-neutral-600">
               <SearchIcon className="h-8 w-8" />
             </div>
           )}
         </div>
 
         <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-          <h2 className="line-clamp-2 text-2xl font-bold tracking-tight text-neutral-100">{title}</h2>
-          {subtitle && <span className="line-clamp-1 text-sm text-neutral-400">{subtitle}</span>}
+          <h2 className="line-clamp-2 text-2xl font-bold tracking-tight text-chrome-neutral-100">{title}</h2>
+          {subtitle && <span className="line-clamp-1 text-sm text-chrome-neutral-400">{subtitle}</span>}
           <Button
             variant="primary"
             size="sm"
@@ -577,7 +577,7 @@ function ResultsSkeleton({ filterType }: { filterType: SearchCategory }) {
     default:
       return (
         <div className="flex flex-col gap-10">
-          <div className="flex items-center gap-5 rounded-2xl border border-neutral-800/50 bg-surface-container-low p-5">
+          <div className="flex items-center gap-5 rounded-2xl border border-chrome-neutral-800/50 bg-surface-container-low p-5">
             <ShimmerBlock className="h-28 w-28 shrink-0 rounded-xl" />
             <div className="flex flex-1 flex-col gap-3">
               <ShimmerBlock className="h-6 w-1/2 rounded" />
@@ -602,10 +602,10 @@ function EmptyState({
   tone?: 'default' | 'error';
 }) {
   return (
-    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-neutral-800 py-24 text-center">
-      <SearchIcon className={cx('mb-4', tone === 'error' ? 'text-red-400/60' : 'text-neutral-700')} size={48} />
-      <h3 className="font-semibold text-neutral-200">{title}</h3>
-      <p className="mt-1 max-w-sm text-sm text-neutral-500">{body}</p>
+    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-chrome-neutral-800 py-24 text-center">
+      <SearchIcon className={cx('mb-4', tone === 'error' ? 'text-chrome-red-400/60' : 'text-chrome-neutral-700')} size={48} />
+      <h3 className="font-semibold text-chrome-neutral-200">{title}</h3>
+      <p className="mt-1 max-w-sm text-sm text-chrome-neutral-500">{body}</p>
     </div>
   );
 }

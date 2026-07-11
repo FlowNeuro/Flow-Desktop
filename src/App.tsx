@@ -104,7 +104,7 @@ function App() {
 
   if (loadingOnboarding) {
     return (
-      <div className="relative flex h-screen flex-col overflow-hidden bg-background text-zinc-100 font-sans">
+      <div className="relative flex h-screen flex-col overflow-hidden bg-background text-chrome-zinc-100 font-sans">
         <TitleBar />
         <div className="flex flex-1 items-center justify-center">
           <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
@@ -114,7 +114,7 @@ function App() {
   }
 
   return (
-    <div className="relative flex h-screen flex-col overflow-hidden bg-background text-zinc-100 font-sans">
+    <div className="relative flex h-screen flex-col overflow-hidden bg-background text-chrome-zinc-100 font-sans">
       <TitleBar />
       <div className="relative min-h-0 flex-1">
       <Routes>

@@ -20,7 +20,7 @@ export const Logo: React.FC<LogoProps> = ({ className = "", size = 48, showText 
         {/* The Container (YouTube Shape) */}
         <path
           d="M21.58 7.16C21.33 6.22 20.59 5.48 19.65 5.23C17.96 4.77 12 4.77 12 4.77C12 4.77 6.04 4.77 4.35 5.23C3.41 5.48 2.67 6.22 2.42 7.16C1.96 8.85 1.96 12.38 1.96 12.38C1.96 12.38 1.96 15.91 2.42 17.6C2.67 18.54 3.41 19.28 4.35 19.53C6.04 19.99 12 19.99 12 19.99C12 19.99 17.96 19.99 19.65 19.53C20.59 19.28 21.33 18.54 21.58 17.6C22.04 15.91 22.04 12.38 22.04 12.38C22.04 12.38 22.04 8.85 21.58 7.16Z"
-          fill="#EF4444"
+          style={{ fill: "var(--color-chrome-red-500)" }}
         />
         {/* The "F" Symbol (Slanted for Speed) */}
         <path
@@ -29,7 +29,7 @@ export const Logo: React.FC<LogoProps> = ({ className = "", size = 48, showText 
         />
       </svg>
       {showText && (
-        <span className="font-extrabold text-xl tracking-tight text-white">
+        <span className="font-extrabold text-xl tracking-tight text-chrome-white">
           Flow
         </span>
       )}

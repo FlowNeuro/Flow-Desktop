@@ -37,7 +37,7 @@ function ChannelAvatarImage({ src, name }: { src?: string | null; name: string }
   const imageSrc = useProxiedImageUrl(upgradeAvatarUrl(src));
   if (!imageSrc) {
     return (
-      <div className="flex h-full w-full items-center justify-center bg-surface-container-high text-sm font-semibold text-neutral-400">
+      <div className="flex h-full w-full items-center justify-center bg-surface-container-high text-sm font-semibold text-chrome-neutral-400">
         {name.charAt(0).toUpperCase()}
       </div>
     );
@@ -269,7 +269,7 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ onPlay, onAddToQue
     <div className="flex-grow overflow-y-auto px-6 py-6 md:px-8">
       <div className="space-y-6 pb-20">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <h1 className="text-3xl font-bold tracking-tight text-neutral-100">
+          <h1 className="text-3xl font-bold tracking-tight text-chrome-neutral-100">
             {getString("top_bar_subscriptions_title")}
           </h1>
 
@@ -320,7 +320,7 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ onPlay, onAddToQue
 
             {viewMode === "feed" ? (
               <>
-                <div className="flex items-center gap-3 border-y border-neutral-800">
+                <div className="flex items-center gap-3 border-y border-chrome-neutral-800">
                   <CategoryChips
                     categories={[
                       getString("subscriptions_group_all"),
@@ -345,12 +345,12 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ onPlay, onAddToQue
                 {scanProgress ? <ScanProgressBar progress={scanProgress} /> : null}
 
                 <section className="pt-2">
-                  <h2 className="mb-4 text-xl font-semibold text-neutral-100">
+                  <h2 className="mb-4 text-xl font-semibold text-chrome-neutral-100">
                     {getString("subscriptions_latest_header")}
                   </h2>
 
                   {feedError ? (
-                    <div className="rounded-2xl border border-neutral-800 bg-surface-container-low p-6 text-sm text-neutral-300">
+                    <div className="rounded-2xl border border-chrome-neutral-800 bg-surface-container-low p-6 text-sm text-chrome-neutral-300">
                       {getString("subscriptions_feed_error")}
                     </div>
                   ) : feedLoading ? (
@@ -371,12 +371,12 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ onPlay, onAddToQue
                       />
                     </>
                   ) : (
-                    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-neutral-800 bg-surface-container-low p-10 text-center">
-                      <User className="mb-3 text-neutral-600" size={36} />
-                      <h3 className="text-base font-medium text-neutral-200">
+                    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-chrome-neutral-800 bg-surface-container-low p-10 text-center">
+                      <User className="mb-3 text-chrome-neutral-600" size={36} />
+                      <h3 className="text-base font-medium text-chrome-neutral-200">
                         {getString("subscriptions_empty_latest")}
                       </h3>
-                      <p className="mt-1 max-w-md text-sm text-neutral-400">
+                      <p className="mt-1 max-w-md text-sm text-chrome-neutral-400">
                         {getString("subscriptions_empty_latest_body")}
                       </p>
                     </div>
@@ -387,17 +387,17 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ onPlay, onAddToQue
               <section className="pt-2">
                 <div className="mb-4 flex items-end justify-between gap-4">
                   <div>
-                    <h2 className="text-xl font-semibold text-neutral-100">
+                    <h2 className="text-xl font-semibold text-chrome-neutral-100">
                       {getString("subscriptions_manage_header")}
                     </h2>
-                    <p className="mt-1 text-sm text-neutral-400">
+                    <p className="mt-1 text-sm text-chrome-neutral-400">
                       {getString("subscriptions_manage_subtitle", visibleChannels.length)}
                     </p>
                   </div>
                 </div>
 
                 {visibleChannels.length > 0 ? (
-                  <div className="divide-y divide-neutral-800 rounded-2xl border border-neutral-800 bg-surface-container-low">
+                  <div className="divide-y divide-chrome-neutral-800 rounded-2xl border border-chrome-neutral-800 bg-surface-container-low">
                     {visibleChannels.map((channel) => {
                       const details = channelDetails[channel.id];
                       const avatarUrl = getAvatarUrl(channel.avatarUrl) || getAvatarUrl(details?.avatarUrl);
@@ -411,7 +411,7 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ onPlay, onAddToQue
                           <button
                             type="button"
                             onClick={() => navigate(`/channel/${channel.id}`)}
-                            className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-surface-container-high text-sm font-semibold text-neutral-300"
+                            className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-surface-container-high text-sm font-semibold text-chrome-neutral-300"
                           >
                             {avatarUrl ? (
                               <ChannelAvatarImage src={avatarUrl} name={channel.name} />
@@ -425,10 +425,10 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ onPlay, onAddToQue
                             onClick={() => navigate(`/channel/${channel.id}`)}
                             className="min-w-0 flex-1 text-left"
                           >
-                            <div className="line-clamp-1 text-sm font-medium text-neutral-100">
+                            <div className="line-clamp-1 text-sm font-medium text-chrome-neutral-100">
                               {channel.name}
                             </div>
-                            <div className="line-clamp-1 text-xs text-neutral-400">
+                            <div className="line-clamp-1 text-xs text-chrome-neutral-400">
                               {channel.subscriberCountText || details?.subscriberCountText || getString("subscriptions_subscribers_unavailable")}
                             </div>
                           </button>
@@ -445,7 +445,7 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ onPlay, onAddToQue
                                     : "subscription_notifications_off",
                                 )}
                                 aria-pressed={notifOn}
-                                className={notifOn ? "text-[var(--color-primary)]" : "text-neutral-400"}
+                                className={notifOn ? "text-[var(--color-primary)]" : "text-chrome-neutral-400"}
                                 onClick={() => setChannelNotification(channel.id, !notifOn)}
                               >
                                 {notifOn ? <Bell size={16} /> : <BellOff size={16} />}
@@ -456,7 +456,7 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ onPlay, onAddToQue
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="text-red-400 hover:bg-red-950/30"
+                            className="text-chrome-red-400 hover:bg-chrome-red-950/30"
                             onClick={() => unsubscribe(channel.id)}
                           >
                             {getString("subscriptions_unsubscribe")}
@@ -466,12 +466,12 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ onPlay, onAddToQue
                     })}
                   </div>
                 ) : (
-                  <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-neutral-800 bg-surface-container-low p-10 text-center">
-                    <User className="mb-3 text-neutral-600" size={36} />
-                    <h3 className="text-base font-medium text-neutral-200">
+                  <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-chrome-neutral-800 bg-surface-container-low p-10 text-center">
+                    <User className="mb-3 text-chrome-neutral-600" size={36} />
+                    <h3 className="text-base font-medium text-chrome-neutral-200">
                       {getString("subscriptions_empty_manage")}
                     </h3>
-                    <p className="mt-1 max-w-md text-sm text-neutral-400">
+                    <p className="mt-1 max-w-md text-sm text-chrome-neutral-400">
                       {getString("subscriptions_empty_manage_body")}
                     </p>
                   </div>
@@ -505,10 +505,10 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ onPlay, onAddToQue
       )}
 
       {showImportModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <div className="w-full max-w-lg space-y-4 rounded-2xl border border-neutral-800 bg-surface-container p-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-chrome-black/70 p-4">
+          <div className="w-full max-w-lg space-y-4 rounded-2xl border border-chrome-neutral-800 bg-surface-container p-6">
             <div className="flex items-center justify-between">
-              <h3 className="flex items-center gap-2 text-lg font-semibold text-neutral-100">
+              <h3 className="flex items-center gap-2 text-lg font-semibold text-chrome-neutral-100">
                 <Upload size={18} className="text-[var(--color-primary)]" />
                 {getString("subscriptions_import_title")}
               </h3>
@@ -517,7 +517,7 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ onPlay, onAddToQue
               </Button>
             </div>
 
-            <p className="text-sm text-neutral-400">
+            <p className="text-sm text-chrome-neutral-400">
               {getString("subscriptions_import_body")}
             </p>
 
@@ -526,7 +526,7 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ onPlay, onAddToQue
               onChange={(e) => setImportText(e.target.value)}
               placeholder={getString("subscriptions_import_placeholder")}
               rows={8}
-              className="w-full resize-none rounded-lg border border-neutral-800 bg-surface-container-low p-4 font-mono text-xs text-neutral-300 outline-none transition-colors duration-200 ease-out placeholder:text-neutral-600 focus:border-neutral-700"
+              className="w-full resize-none rounded-lg border border-chrome-neutral-800 bg-surface-container-low p-4 font-mono text-xs text-chrome-neutral-300 outline-none transition-colors duration-200 ease-out placeholder:text-chrome-neutral-600 focus:border-chrome-neutral-700"
             />
 
             <div className="flex items-center justify-end gap-3 pt-2">
@@ -626,11 +626,11 @@ function GroupsModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-      <div className="grid h-[86vh] w-full max-w-4xl grid-cols-1 overflow-hidden rounded-2xl border border-neutral-800 bg-surface-container md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-        <section className="flex min-h-0 flex-col border-b border-neutral-800 p-5 md:border-b-0 md:border-r">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-chrome-black/70 p-4">
+      <div className="grid h-[86vh] w-full max-w-4xl grid-cols-1 overflow-hidden rounded-2xl border border-chrome-neutral-800 bg-surface-container md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+        <section className="flex min-h-0 flex-col border-b border-chrome-neutral-800 p-5 md:border-b-0 md:border-r">
           <div className="mb-4 flex items-center justify-between gap-3">
-            <h3 className="text-lg font-semibold text-neutral-100">
+            <h3 className="text-lg font-semibold text-chrome-neutral-100">
               {getString("subscriptions_groups_manage")}
             </h3>
           </div>
@@ -640,9 +640,9 @@ function GroupsModal({
             {getString("subscriptions_groups_new")}
           </Button>
 
-          <div className="min-h-0 flex-1 overflow-y-auto rounded-lg border border-neutral-800 bg-surface-container-low">
+          <div className="min-h-0 flex-1 overflow-y-auto rounded-lg border border-chrome-neutral-800 bg-surface-container-low">
             {groups.length > 0 ? (
-              <div className="divide-y divide-neutral-800">
+              <div className="divide-y divide-chrome-neutral-800">
                 {groups.map((group, index) => (
                   <div key={group.name} className="flex items-center gap-2 px-3 py-2">
                     <button
@@ -650,8 +650,8 @@ function GroupsModal({
                       className="min-w-0 flex-1 text-left"
                       onClick={() => onEdit(group)}
                     >
-                      <div className="line-clamp-1 text-sm font-medium text-neutral-100">{group.name}</div>
-                      <div className="text-xs text-neutral-400">{channelCountLabel(group.channelIds.length)}</div>
+                      <div className="line-clamp-1 text-sm font-medium text-chrome-neutral-100">{group.name}</div>
+                      <div className="text-xs text-chrome-neutral-400">{channelCountLabel(group.channelIds.length)}</div>
                     </button>
                     <Button variant="ghost" size="sm" disabled={index === 0} onClick={() => onMove(group.name, -1)}>
                       <ChevronUp size={15} />
@@ -662,14 +662,14 @@ function GroupsModal({
                     <Button variant="ghost" size="sm" onClick={() => onEdit(group)}>
                       <Pencil size={15} />
                     </Button>
-                    <Button variant="ghost" size="sm" className="text-red-400 hover:bg-red-950/30" onClick={() => onDelete(group.name)}>
+                    <Button variant="ghost" size="sm" className="text-chrome-red-400 hover:bg-chrome-red-950/30" onClick={() => onDelete(group.name)}>
                       <Trash2 size={15} />
                     </Button>
                   </div>
                 ))}
               </div>
             ) : (
-              <p className="p-4 text-sm text-neutral-400">
+              <p className="p-4 text-sm text-chrome-neutral-400">
                 {getString("subscriptions_groups_empty")}
               </p>
             )}
@@ -678,7 +678,7 @@ function GroupsModal({
 
         <section className="flex min-h-0 flex-col p-5">
           <div className="mb-4 flex items-center justify-between gap-3">
-            <h3 className="text-lg font-semibold text-neutral-100">
+            <h3 className="text-lg font-semibold text-chrome-neutral-100">
               {editingGroup ? getString("subscriptions_groups_edit") : getString("subscriptions_groups_new")}
             </h3>
             <Button variant="ghost" size="md" onClick={onClose}>
@@ -690,7 +690,7 @@ function GroupsModal({
             value={draftName}
             onChange={(event) => setDraftName(event.target.value)}
             placeholder={getString("subscriptions_groups_name")}
-            className="mb-3 h-10 rounded-lg border border-neutral-800 bg-surface-container-low px-3 text-sm font-medium text-neutral-100 outline-none transition-colors duration-200 ease-out placeholder:text-neutral-500 focus:border-neutral-700"
+            className="mb-3 h-10 rounded-lg border border-chrome-neutral-800 bg-surface-container-low px-3 text-sm font-medium text-chrome-neutral-100 outline-none transition-colors duration-200 ease-out placeholder:text-chrome-neutral-500 focus:border-chrome-neutral-700"
           />
 
           <SearchInput
@@ -700,8 +700,8 @@ function GroupsModal({
             containerClassName="mb-3"
           />
 
-          <div className="min-h-0 flex-1 overflow-y-auto rounded-lg border border-neutral-800 bg-surface-container-low">
-            <div className="divide-y divide-neutral-800">
+          <div className="min-h-0 flex-1 overflow-y-auto rounded-lg border border-chrome-neutral-800 bg-surface-container-low">
+            <div className="divide-y divide-chrome-neutral-800">
               {filteredChannels.map((channel) => {
                 const avatarUrl = getAvatarUrl(channel.avatarUrl);
                 const selected = selectedChannelIds.has(channel.id);
@@ -718,12 +718,12 @@ function GroupsModal({
                       onChange={() => toggleChannel(channel.id)}
                       className="peer sr-only"
                     />
-                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded border border-neutral-700 bg-surface-container transition-colors duration-200 ease-out peer-checked:border-[var(--color-primary)] peer-checked:bg-[var(--color-primary)]">
+                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded border border-chrome-neutral-700 bg-surface-container transition-colors duration-200 ease-out peer-checked:border-[var(--color-primary)] peer-checked:bg-[var(--color-primary)]">
                       {selected ? (
                         <Check size={14} className="text-[var(--color-on-primary)]" />
                       ) : null}
                     </span>
-                    <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-surface-container-high text-xs font-semibold text-neutral-300">
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-surface-container-high text-xs font-semibold text-chrome-neutral-300">
                       {avatarUrl ? (
                         <ChannelAvatarImage src={avatarUrl} name={channel.name} />
                       ) : (
@@ -731,8 +731,8 @@ function GroupsModal({
                       )}
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="line-clamp-1 text-sm font-medium text-neutral-100">{channel.name}</span>
-                      <span className="line-clamp-1 text-xs text-neutral-400">
+                      <span className="line-clamp-1 text-sm font-medium text-chrome-neutral-100">{channel.name}</span>
+                      <span className="line-clamp-1 text-xs text-chrome-neutral-400">
                         {channel.subscriberCountText || getString("subscriptions_subscribers_unavailable")}
                       </span>
                     </span>

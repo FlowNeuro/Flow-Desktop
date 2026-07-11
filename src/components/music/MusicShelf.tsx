@@ -53,12 +53,12 @@ export function MusicShelf<T>({
     <section className={cx('flex flex-col', className)}>
       {(title || onSeeAll) && (
       <div className="mb-3 flex items-center justify-between px-1">
-        <h2 className="text-xl font-bold tracking-tight text-neutral-100">{title}</h2>
+        <h2 className="text-xl font-bold tracking-tight text-chrome-neutral-100">{title}</h2>
         {onSeeAll && (
           <button
             type="button"
             onClick={onSeeAll}
-            className="group flex items-center gap-0.5 text-sm font-medium text-neutral-400 transition-colors duration-200 ease-out hover:text-neutral-100"
+            className="group flex items-center gap-0.5 text-sm font-medium text-chrome-neutral-400 transition-colors duration-200 ease-out hover:text-chrome-neutral-100"
           >
             {getString('music_show_all')}
             <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />

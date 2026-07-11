@@ -206,7 +206,7 @@ export function ShortActionBar({
         {menuOpen && (
           <>
             <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
-            <div className="absolute bottom-2 right-16 z-20 w-64 overflow-hidden rounded-xl border border-neutral-800 bg-surface-container-high py-1">
+            <div className="absolute bottom-2 right-16 z-20 w-64 overflow-hidden rounded-xl border border-chrome-neutral-800 bg-surface-container-high py-1">
               <MenuItem icon={savedToLibrary ? BookmarkCheck : Bookmark} onClick={() => void toggleSavedShort()}>
                 {getString(savedToLibrary ? "shorts_menu_remove_from_library" : "shorts_menu_save_to_library")}
               </MenuItem>
@@ -245,13 +245,13 @@ function ActionButton({
         type="button"
         aria-label={ariaLabel}
         onClick={onClick}
-        className={`flex h-14 w-14 items-center justify-center rounded-full border border-white/5 bg-white/10 text-white shadow-lg backdrop-blur-md transition-all hover:bg-white/20 ${
+        className={`flex h-14 w-14 items-center justify-center rounded-full border border-chrome-white/5 bg-chrome-white/10 text-chrome-white shadow-lg backdrop-blur-md transition-all hover:bg-chrome-white/20 ${
           active ? "text-primary" : ""
         }`}
       >
         {icon}
       </button>
-      <span className="mt-1 mb-2 h-4 text-xs font-semibold text-neutral-300 drop-shadow-md">
+      <span className="mt-1 mb-2 h-4 text-xs font-semibold text-chrome-neutral-300 drop-shadow-md">
         {countText ?? ""}
       </span>
     </div>
@@ -271,9 +271,9 @@ function MenuItem({
     <button
       type="button"
       onClick={onClick}
-      className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm text-neutral-200 transition-colors hover:bg-surface-container-highest"
+      className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm text-chrome-neutral-200 transition-colors hover:bg-surface-container-highest"
     >
-      <Icon className="h-4 w-4 shrink-0 text-neutral-400" />
+      <Icon className="h-4 w-4 shrink-0 text-chrome-neutral-400" />
       {children}
     </button>
   );
