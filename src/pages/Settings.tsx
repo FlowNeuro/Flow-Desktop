@@ -7,8 +7,10 @@ import { NetworkTab } from '../components/settings/tabs/NetworkTab';
 import { DownloadsTab } from '../components/settings/tabs/DownloadsTab';
 import { DataTab } from '../components/settings/tabs/DataTab';
 import { AboutTab } from '../components/settings/tabs/AboutTab';
+import { AppearanceTab } from '../components/settings/tabs/AppearanceTab';
 
 const tabComponents: Record<SettingsCategory, React.FC> = {
+  appearance: AppearanceTab,
   player: PlayerTab,
   content: ContentTab,
   taste: TasteTab,

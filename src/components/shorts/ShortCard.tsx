@@ -188,7 +188,7 @@ export function ShortCard({ short, queue, variant = "grid" }: ShortCardProps) {
         type="button"
         aria-label={getString("more_options")}
         onClick={openMenuFromDots}
-        className="absolute right-2 top-2 z-10 grid h-8 w-8 place-items-center rounded-full border border-chrome-neutral-800 bg-chrome-neutral-950/80 text-chrome-neutral-200 opacity-0 transition-colors hover:bg-chrome-neutral-900 group-hover:opacity-100"
+        className="absolute right-2 top-2 z-10 grid h-8 w-8 place-items-center rounded-full border border-chrome-white/15 bg-chrome-black/80 text-chrome-white opacity-0 transition-colors hover:bg-chrome-black group-hover:opacity-100"
       >
         <MoreVertical className="h-4 w-4" />
       </button>

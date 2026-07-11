@@ -135,14 +135,14 @@ export function Topbar() {
           <IconButton
             title="Back"
             onClick={() => navigate(-1)}
-            className="text-chrome-zinc-300 hover:text-chrome-white"
+            className="text-chrome-zinc-300 hover:text-chrome-zinc-100"
           >
             <ArrowLeft />
           </IconButton>
           <IconButton
             title="Forward"
             onClick={() => navigate(1)}
-            className="text-chrome-zinc-300 hover:text-chrome-white"
+            className="text-chrome-zinc-300 hover:text-chrome-zinc-100"
           >
             <ArrowRight />
           </IconButton>

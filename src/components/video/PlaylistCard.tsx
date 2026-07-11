@@ -40,7 +40,7 @@ function StackedPlaylistThumbnail({
         <div className="flex h-full w-full items-center justify-center text-chrome-neutral-500">
           <ListVideo size={32} />
         </div>
-        <div className="absolute bottom-1.5 right-1.5 flex items-center gap-1.5 rounded bg-chrome-neutral-950/90 px-1.5 py-0.5 text-[11px] font-semibold tracking-wide text-chrome-white">
+        <div className="absolute bottom-1.5 right-1.5 flex items-center gap-1.5 rounded bg-chrome-black/80 px-1.5 py-0.5 text-[11px] font-semibold tracking-wide text-chrome-white">
           <ListVideo size={14} />
           {videoCountText}
         </div>
@@ -81,7 +81,7 @@ function StackedPlaylistThumbnail({
           className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
           loading="lazy"
         />
-        <div className="absolute bottom-1.5 right-1.5 flex items-center gap-1.5 rounded bg-chrome-neutral-950/90 px-1.5 py-0.5 text-[11px] font-semibold tracking-wide text-chrome-white">
+        <div className="absolute bottom-1.5 right-1.5 flex items-center gap-1.5 rounded bg-chrome-black/80 px-1.5 py-0.5 text-[11px] font-semibold tracking-wide text-chrome-white">
           <ListVideo size={14} />
           {videoCountText}
         </div>

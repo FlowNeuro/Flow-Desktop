@@ -55,6 +55,7 @@ import { DeepFlowController } from "./components/deep-flow/DeepFlowController";
 import { DownloadDialog } from "./components/downloads/DownloadDialog";
 import { DownloadActivity } from "./components/downloads/DownloadActivity";
 import { DonationPromptHost } from "./components/donations/DonationPrompt";
+import { ThemeController } from "./lib/useTheme";
 
 import "./App.css";
 
@@ -115,6 +116,7 @@ function App() {
 
   return (
     <div className="relative flex h-screen flex-col overflow-hidden bg-background text-chrome-zinc-100 font-sans">
+      <ThemeController />
       <TitleBar />
       <div className="relative min-h-0 flex-1">
       <Routes>

@@ -601,7 +601,7 @@ function VideoCardComponent({
           {isLiveVideo ? (
             <LiveBadge className="absolute bottom-1 right-1" />
           ) : video.durationSeconds ? (
-            <div className="absolute bottom-1 right-1 z-10 rounded bg-chrome-neutral-950/90 px-1 py-px text-[11px] font-medium leading-tight text-chrome-white">
+            <div className="absolute bottom-1 right-1 z-10 rounded bg-chrome-black/80 px-1 py-px text-[11px] font-medium leading-tight text-chrome-white">
               {formatDuration(video.durationSeconds)}
             </div>
           ) : null}
@@ -697,7 +697,7 @@ function VideoCardComponent({
           {isLiveVideo ? (
             <LiveBadge className="absolute bottom-1 right-1" />
           ) : video.durationSeconds ? (
-            <div className="absolute bottom-1 right-1 z-10 rounded bg-chrome-neutral-950/90 px-1 py-px text-[12px] font-medium leading-tight tracking-wide text-chrome-white">
+            <div className="absolute bottom-1 right-1 z-10 rounded bg-chrome-black/80 px-1 py-px text-[12px] font-medium leading-tight tracking-wide text-chrome-white">
               {formatDuration(video.durationSeconds)}
             </div>
           ) : null}
@@ -707,7 +707,7 @@ function VideoCardComponent({
           <h3
             onClick={() => onPlay(video)}
             style={titleClampStyle}
-            className="cursor-pointer text-sm font-medium leading-snug text-chrome-neutral-100 transition-colors hover:text-chrome-white"
+            className="cursor-pointer text-sm font-medium leading-snug text-chrome-neutral-100 transition-colors hover:text-[var(--color-primary)]"
           >
             {displayTitle}
           </h3>
@@ -794,7 +794,7 @@ function VideoCardComponent({
                 onClick={handleRemoveFromHistory}
                 title="Remove from history"
                 aria-label="Remove from history"
-                className="absolute right-2 top-2 z-30 flex h-8 w-8 items-center justify-center rounded-full border border-chrome-neutral-800 bg-chrome-neutral-950/90 text-chrome-neutral-300 opacity-0 transition-colors duration-200 ease-out hover:bg-chrome-red-950/50 backdrop-blur-md hover:text-chrome-red-400 group-hover:opacity-100"
+                className="absolute right-2 top-2 z-30 flex h-8 w-8 items-center justify-center rounded-full border border-chrome-white/15 bg-chrome-black/80 text-chrome-white opacity-0 transition-colors duration-200 ease-out hover:bg-chrome-red-950/50 hover:text-chrome-red-300 group-hover:opacity-100"
               >
                 <Trash2 size={15} />
               </button>
@@ -828,7 +828,7 @@ function VideoCardComponent({
           <h3
             onClick={() => onPlay(video)}
             style={titleClampStyle}
-            className="text-chrome-zinc-100 text-sm font-medium leading-snug cursor-pointer hover:text-chrome-white transition-colors"
+            className="text-chrome-zinc-100 text-sm font-medium leading-snug cursor-pointer hover:text-[var(--color-primary)] transition-colors"
           >
             {displayTitle}
           </h3>

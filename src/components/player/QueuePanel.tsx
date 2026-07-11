@@ -137,11 +137,11 @@ export function QueuePanel() {
                         loading="lazy"
                       />
                     ) : null}
-                    <span className="absolute inset-0 grid place-items-center bg-chrome-neutral-950/40 opacity-0 transition-opacity group-hover:opacity-100">
+                    <span className="absolute inset-0 grid place-items-center bg-chrome-black/40 opacity-0 transition-opacity group-hover:opacity-100">
                       <Play className="h-5 w-5 fill-current text-chrome-white" />
                     </span>
                     {video.durationSeconds ? (
-                      <span className="absolute bottom-1 right-1 rounded bg-chrome-neutral-950/90 px-1 py-0.5 font-mono text-[10px] text-chrome-white">
+                      <span className="absolute bottom-1 right-1 rounded bg-chrome-black/80 px-1 py-0.5 font-mono text-[10px] text-chrome-white">
                         {formatDuration(video.durationSeconds)}
                       </span>
                     ) : null}

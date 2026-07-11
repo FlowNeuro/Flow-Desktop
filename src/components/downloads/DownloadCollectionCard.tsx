@@ -99,7 +99,7 @@ export function DownloadCollectionCard({
               event.stopPropagation();
               onDelete();
             }}
-            className="absolute right-2 top-2 z-20 grid h-8 w-8 place-items-center rounded-full border border-chrome-neutral-800 bg-chrome-neutral-950/90 text-chrome-neutral-300 opacity-0 backdrop-blur-md transition-colors duration-200 ease-out hover:bg-chrome-red-950/50 hover:text-chrome-red-400 group-hover:opacity-100"
+            className="absolute right-2 top-2 z-20 grid h-8 w-8 place-items-center rounded-full border border-chrome-white/15 bg-chrome-black/80 text-chrome-white opacity-0 transition-colors duration-200 ease-out hover:bg-chrome-red-950/50 hover:text-chrome-red-300 group-hover:opacity-100"
           >
             <Trash2 size={15} />
           </button>

@@ -400,7 +400,7 @@ function SquareCard({
               void songLike.toggle();
             }}
             className={cx(
-              'absolute left-2 top-2 grid h-9 w-9 place-items-center rounded-full bg-chrome-neutral-950/80 text-chrome-neutral-200 opacity-0 backdrop-blur transition-all duration-200 ease-out hover:bg-chrome-neutral-900 group-hover:opacity-100',
+              'absolute left-2 top-2 grid h-9 w-9 place-items-center rounded-full bg-chrome-black/80 text-chrome-white opacity-0 transition-all duration-200 ease-out hover:bg-chrome-black group-hover:opacity-100',
               songLike.liked ? 'text-[var(--color-primary)] opacity-100' : null,
             )}
           >
@@ -413,7 +413,7 @@ function SquareCard({
               type="button"
               aria-label={getString('music_more_options')}
               onClick={menu.openMenuFromDots}
-              className="grid h-9 w-9 place-items-center rounded-full bg-chrome-neutral-950/80 text-chrome-neutral-200 opacity-0 backdrop-blur transition-all duration-200 ease-out hover:bg-chrome-neutral-900 group-hover:opacity-100"
+              className="grid h-9 w-9 place-items-center rounded-full bg-chrome-black/80 text-chrome-white opacity-0 transition-all duration-200 ease-out hover:bg-chrome-black group-hover:opacity-100"
             >
               <MoreVertical className="h-4 w-4" />
             </button>
@@ -666,7 +666,7 @@ function ListRow({
         />
         <div
           className={cx(
-            'absolute inset-0 grid place-items-center rounded-md bg-chrome-black/50 transition-opacity duration-200 ease-out',
+            'absolute inset-0 grid place-items-center rounded-md bg-chrome-black/60 transition-opacity duration-200 ease-out',
             isPlayingTrack ? 'opacity-100' : 'opacity-0 group-hover:opacity-100',
           )}
         >

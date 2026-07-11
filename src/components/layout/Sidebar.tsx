@@ -1,31 +1,16 @@
-import { useState, cloneElement, ReactElement } from 'react';
+import { useState, type ReactNode } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import {
-  Blocks,
   ChevronDown,
   ChevronRight,
   ChevronUp,
-  Clock,
-  BrainCog,
-  Compass,
-  Disc3,
-  Download,
-  HandCoins ,
-  History,
-  Home,
-  ListVideo,
-  MonitorSmartphone,
-  Music2,
-  Settings,
-  ThumbsUp,
-  Users,
-  UserCircle,
 } from 'lucide-react';
 import { useUiStore } from '../../store/useUiStore';
 import { useAppSettingsStore } from '../../store/useAppSettingsStore';
 import { useSubscriptionStore } from '../../store/useSubscriptionStore';
 import { SidebarItem } from '../ui/SidebarItem';
-import { ShortsIcon } from '../ui/ShortsIcon';
+import { SidebarNavIcon, type SidebarNavIconName } from '../ui/SidebarNavIcon';
+import { ShortsIcon, ShortsAIcon } from '../ui/ShortsIcon';
 import { getString } from '../../lib/i18n/index';
 import { SETTINGS } from '../../lib/settings/schema';
 import { upgradeAvatarUrl } from '../../lib/thumbnails';
@@ -46,11 +31,13 @@ function SidebarAvatar({ src }: { src?: string | null }) {
 function CompactRailItem({
   path,
   icon,
+  activeIcon,
   label,
   end,
 }: {
   path: string;
-  icon: ReactElement;
+  icon: ReactNode;
+  activeIcon?: ReactNode;
   label: string;
   end?: boolean;
 }) {
@@ -61,16 +48,52 @@ function CompactRailItem({
       className={({ isActive }) =>
         `flex h-[74px] w-full flex-col items-center justify-center gap-1 rounded-xl text-[11px] font-medium transition-colors ${
           isActive
-            ? 'bg-surface-container text-chrome-white'
-            : 'text-chrome-neutral-300 hover:bg-surface-container-low hover:text-chrome-white'
+            ? 'text-[var(--color-primary)]'
+            : 'text-chrome-neutral-300 hover:bg-surface-container-low hover:text-chrome-neutral-100'
         }`
       }
     >
-      {cloneElement(icon as ReactElement<any>, { className: 'h-6 w-6' })}
-      <span className="max-w-full truncate px-1">{label}</span>
+      {({ isActive }) => (
+        <>
+          {isActive ? (activeIcon ?? icon) : icon}
+          <span className="max-w-full truncate px-1">{label}</span>
+        </>
+      )}
     </NavLink>
   );
 }
+
+const navIcon = (name: SidebarNavIconName, variant: 'outline' | 'filled' = 'outline') => (
+  <SidebarNavIcon name={name} variant={variant} className="h-5 w-5 shrink-0" />
+);
+
+const railIcon = (name: SidebarNavIconName, variant: 'outline' | 'filled' = 'outline') => (
+  <SidebarNavIcon name={name} variant={variant} className="h-6 w-6 shrink-0" />
+);
+
+function navIconPair(name: SidebarNavIconName) {
+  return {
+    icon: navIcon(name, 'outline'),
+    activeIcon: navIcon(name, 'filled'),
+  };
+}
+
+function railIconPair(name: SidebarNavIconName) {
+  return {
+    icon: railIcon(name, 'outline'),
+    activeIcon: railIcon(name, 'filled'),
+  };
+}
+
+const shortsNavIconPair = {
+  icon: <ShortsIcon className="h-5 w-5 shrink-0" />,
+  activeIcon: <ShortsAIcon className="h-5 w-5 shrink-0" />,
+};
+
+const shortsRailIconPair = {
+  icon: <ShortsIcon className="h-6 w-6 shrink-0" />,
+  activeIcon: <ShortsIcon className="h-6 w-6 shrink-0" />,
+};
 
 function SectionHeader({
   label,
@@ -96,7 +119,7 @@ function SectionHeader({
         className={({ isActive }) =>
           `group flex items-center gap-2 px-5 py-2 mt-2 text-base font-semibold cursor-pointer mx-2 rounded-lg transition-colors ${
             isActive
-              ? 'bg-surface-container text-chrome-white'
+              ? 'text-[var(--color-primary)]'
               : 'text-chrome-neutral-100 hover:bg-surface-container-low'
           }`
         }
@@ -141,15 +164,15 @@ export function Sidebar({ mode = 'normal' }: SidebarProps) {
     return (
       <aside className="hidden w-20 shrink-0 overflow-y-auto bg-background px-1.5 py-2 sm:flex">
         <nav className="flex w-full flex-col items-center gap-1">
-          <CompactRailItem path="/" icon={<Home />} label={getString('home')} end />
-          <CompactRailItem path="/feed" icon={<BrainCog />} label={getString('sidebar_flowneuron')} />
-          {showShortsNav && <CompactRailItem path="/shorts" icon={<ShortsIcon />} label={getString('sidebar_shorts')} />}
-          {showCategoriesNav && <CompactRailItem path="/explore" icon={<Compass />} label={getString('sidebar_explore')} />}
-          {showMusicNav && <CompactRailItem path="/music" icon={<Music2 />} label={getString('sidebar_music')} />}
-          <CompactRailItem path="/subscriptions" icon={<Users />} label={getString('sidebar_subscriptions')} />
-          <CompactRailItem path="/library" icon={<UserCircle />} label={getString('sidebar_you')} />
+          <CompactRailItem path="/" {...railIconPair('home')} label={getString('home')} end />
+          <CompactRailItem path="/feed" {...railIconPair('feed')} label={getString('sidebar_flowneuron')} />
+          {showShortsNav && <CompactRailItem path="/shorts" {...shortsRailIconPair} label={getString('sidebar_shorts')} />}
+          {showCategoriesNav && <CompactRailItem path="/explore" {...railIconPair('explore')} label={getString('sidebar_explore')} />}
+          {showMusicNav && <CompactRailItem path="/music" {...railIconPair('music')} label={getString('sidebar_music')} />}
+          <CompactRailItem path="/subscriptions" {...railIconPair('subscriptions')} label={getString('sidebar_subscriptions')} />
+          <CompactRailItem path="/library" {...railIconPair('you')} label={getString('sidebar_you')} />
           <div className="mt-auto w-full pt-1">
-            <CompactRailItem path="/support" icon={<HandCoins />} label={getString('settings_group_support')} />
+            <CompactRailItem path="/support" {...railIconPair('support')} label={getString('settings_group_support')} />
           </div>
         </nav>
       </aside>
@@ -169,11 +192,11 @@ export function Sidebar({ mode = 'normal' }: SidebarProps) {
     >
       {/* Core */}
       <nav className="flex flex-col">
-        <SidebarItem to="/" end icon={<Home />} label={getString('home')} onClick={closeOverlay} />
-        <SidebarItem to="/feed" icon={<BrainCog />} label={getString('sidebar_flowneuron')} onClick={closeOverlay} />
-        {showShortsNav && <SidebarItem to="/shorts" icon={<ShortsIcon />} label={getString('sidebar_shorts')} onClick={closeOverlay} />}
-        {showCategoriesNav && <SidebarItem to="/explore" icon={<Compass />} label={getString('sidebar_explore')} onClick={closeOverlay} />}
-        {showMusicNav && <SidebarItem to="/music" icon={<Music2 />} label={getString('sidebar_music')} onClick={closeOverlay} />}
+        <SidebarItem to="/" end {...navIconPair('home')} label={getString('home')} onClick={closeOverlay} />
+        <SidebarItem to="/feed" {...navIconPair('feed')} label={getString('sidebar_flowneuron')} onClick={closeOverlay} />
+        {showShortsNav && <SidebarItem to="/shorts" {...shortsNavIconPair} label={getString('sidebar_shorts')} onClick={closeOverlay} />}
+        {showCategoriesNav && <SidebarItem to="/explore" {...navIconPair('explore')} label={getString('sidebar_explore')} onClick={closeOverlay} />}
+        {showMusicNav && <SidebarItem to="/music" {...navIconPair('music')} label={getString('sidebar_music')} onClick={closeOverlay} />}
       </nav>
 
       <hr className="border-chrome-neutral-800/50 my-3 mx-4" />
@@ -199,7 +222,7 @@ export function Sidebar({ mode = 'normal' }: SidebarProps) {
           ))}
           {subscriptions.length > SUBS_DEFAULT_LIMIT && (
             <SidebarItem
-              icon={subsExpanded ? <ChevronUp /> : <ChevronDown />}
+              icon={subsExpanded ? <ChevronUp className="h-5 w-5 shrink-0" /> : <ChevronDown className="h-5 w-5 shrink-0" />}
               label={subsExpanded ? getString('sidebar_show_less') : getString('sidebar_show_more')}
               onClick={() => setSubsExpanded(!subsExpanded)}
             />
@@ -213,23 +236,23 @@ export function Sidebar({ mode = 'normal' }: SidebarProps) {
       <section>
         <SectionHeader label={getString('sidebar_you')} to="/library" onClick={closeOverlay} />
         <nav className="mt-1 flex flex-col">
-          <SidebarItem to="/history" icon={<History />} label={getString('library_history_label')} onClick={closeOverlay} />
-          <SidebarItem to="/playlists" icon={<ListVideo />} label={getString('library_playlists_label')} onClick={closeOverlay} />
-          <SidebarItem to="/albums" icon={<Disc3 />} label={getString('albums_title')} onClick={closeOverlay} />
-          <SidebarItem to="/watch-later" icon={<Clock />} label={getString('library_watch_later_label')} onClick={closeOverlay} />
-          <SidebarItem to="/saved-shorts" icon={<ShortsIcon />} label={getString('library_saved_shorts_label')} onClick={closeOverlay} />
-          <SidebarItem to="/liked" icon={<ThumbsUp />} label={getString('library_likes_label')} onClick={closeOverlay} />
-          <SidebarItem to="/downloads" icon={<Download />} label={getString('library_downloads_label')} onClick={closeOverlay} />
+          <SidebarItem to="/history" {...navIconPair('history')} label={getString('library_history_label')} onClick={closeOverlay} />
+          <SidebarItem to="/playlists" {...navIconPair('playlists')} label={getString('library_playlists_label')} onClick={closeOverlay} />
+          <SidebarItem to="/albums" {...navIconPair('albums')} label={getString('albums_title')} onClick={closeOverlay} />
+          <SidebarItem to="/watch-later" {...navIconPair('watchLater')} label={getString('library_watch_later_label')} onClick={closeOverlay} />
+          <SidebarItem to="/saved-shorts" {...shortsNavIconPair} label={getString('library_saved_shorts_label')} onClick={closeOverlay} />
+          <SidebarItem to="/liked" {...navIconPair('liked')} label={getString('library_likes_label')} onClick={closeOverlay} />
+          <SidebarItem to="/downloads" {...navIconPair('downloads')} label={getString('library_downloads_label')} onClick={closeOverlay} />
         </nav>
       </section>
 
       <div className="mt-auto">
         <hr className="border-chrome-neutral-800/50 my-3 mx-4" />
         <nav className="flex flex-col">
-          <SidebarItem to="/settings" icon={<Settings />} label={getString('settings_title')} onClick={closeOverlay} />
-          <SidebarItem to="/sync" icon={<MonitorSmartphone />} label="Sync" onClick={closeOverlay} />
-          <SidebarItem to="/sponsorblock" icon={<Blocks />} label={getString('sidebar_extensions')} onClick={closeOverlay} />
-          <SidebarItem to="/support" icon={<HandCoins  />} label={getString('sidebar_support')} onClick={closeOverlay} />
+          <SidebarItem to="/settings" {...navIconPair('settings')} label={getString('settings_title')} onClick={closeOverlay} />
+          <SidebarItem to="/sync" {...navIconPair('sync')} label="Sync" onClick={closeOverlay} />
+          <SidebarItem to="/sponsorblock" {...navIconPair('extensions')} label={getString('sidebar_extensions')} onClick={closeOverlay} />
+          <SidebarItem to="/support" {...navIconPair('support')} label={getString('sidebar_support')} onClick={closeOverlay} />
         </nav>
       </div>
     </aside>

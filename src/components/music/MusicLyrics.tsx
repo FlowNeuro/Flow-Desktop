@@ -7,15 +7,17 @@ import type { Rgb } from "../../lib/useDominantColor";
 import { entriesAreSynced } from "../../lib/lyrics/sync";
 import { getString } from "../../lib/i18n/index";
 import { LyricsCanvas } from "./LyricsCanvas";
+import { useTheme } from "../../lib/useTheme";
 
-const CREAM: Rgb = { r: 237, g: 239, b: 193 };
 const rgba = (c: Rgb, a: number) => `rgba(${c.r},${c.g},${c.b},${a})`;
 
-// Dark dominant colors fall back to a legible warm cream (mobile's expressiveAccent).
-function expressiveAccent(accent: Rgb | null): Rgb {
-  if (!accent) return CREAM;
-  const luma = (0.2126 * accent.r + 0.7152 * accent.g + 0.0722 * accent.b) / 255;
-  return luma < 0.48 ? CREAM : accent;
+function hexToRgb(hex: string): Rgb {
+  const value = hex.replace("#", "");
+  return {
+    r: Number.parseInt(value.slice(0, 2), 16),
+    g: Number.parseInt(value.slice(2, 4), 16),
+    b: Number.parseInt(value.slice(4, 6), 16),
+  };
 }
 
 function buildLines(entries: LyricsEntry[], plain: string | null, synced: boolean): LyricsEntry[] {
@@ -48,13 +50,13 @@ export function MusicLyrics({
   isSynced,
   loading,
   providerName,
-  accent,
   onSeek,
   className = "",
 }: MusicLyricsProps) {
+  const { theme, variant } = useTheme();
   const synced = isSynced && entriesAreSynced(entries);
   const lines = buildLines(entries, plain, synced);
-  const expressive = expressiveAccent(accent);
+  const expressive = hexToRgb(theme.variants[variant].onSurface);
 
   if (loading) {
     return (
@@ -67,7 +69,7 @@ export function MusicLyrics({
   if (lines.length === 0 || (!synced && !plain && entries.length === 0)) {
     return (
       <div className={`grid place-items-center ${className}`}>
-        <p className="text-lg text-chrome-white/50">{getString("music_lyrics_unavailable")}</p>
+        <p className="text-lg text-chrome-neutral-400">{getString("music_lyrics_unavailable")}</p>
       </div>
     );
   }

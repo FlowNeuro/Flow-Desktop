@@ -2,6 +2,7 @@ import type { StringKey } from "../i18n/index";
 
 export type SettingValueType = "boolean" | "number" | "string" | "json";
 export type SettingArea =
+  | "appearance"
   | "player"
   | "content"
   | "quality"
@@ -28,6 +29,10 @@ export interface SettingDefinition {
 }
 
 export const SETTINGS = {
+  THEME_ID: "theme_id",
+  THEME_VARIANT: "theme_variant",
+  CUSTOM_THEMES: "custom_themes",
+
   AUTOPLAY_ENABLED: "autoplay_enabled",
   VIDEO_LOOP_ENABLED: "video_loop_enabled",
   SKIP_SILENCE_ENABLED: "skip_silence_enabled",
@@ -210,6 +215,10 @@ const SPEED_VALUES = ["0.25", "0.5", "0.75", "1.0", "1.25", "1.5", "1.75", "2.0"
 const QUALITY_VALUES = ["Auto", "2160p", "1440p", "1080p", "720p", "480p", "360p", "240p", "144p"] as const;
 
 export const SETTING_DEFINITIONS = [
+  str(SETTINGS.THEME_ID, "appearance", "default", "wired"),
+  str(SETTINGS.THEME_VARIANT, "appearance", "dark", "wired", ["light", "dark", "amoled"]),
+  json(SETTINGS.CUSTOM_THEMES, "appearance", "[]", "wired"),
+
   bool(SETTINGS.AUTOPLAY_ENABLED, "player", true, "wired"),
   bool(SETTINGS.VIDEO_LOOP_ENABLED, "player", false, "wired"),
   bool(SETTINGS.SKIP_SILENCE_ENABLED, "player", false, "deferred", "disabled-until-wired", "settings_note_skip_silence_requires_audio_analysis"),

@@ -16,7 +16,7 @@ export function IconButton({
   const baseStyles = 'inline-flex items-center justify-center rounded-full transition-colors focus:outline-none disabled:opacity-50 disabled:pointer-events-none';
   
   const variants = {
-    primary: 'bg-primary text-chrome-white hover:bg-chrome-red-700',
+    primary: 'bg-primary text-[var(--color-on-primary)] hover:opacity-90',
     secondary: 'bg-surface text-chrome-zinc-100 border border-chrome-zinc-800 hover:bg-chrome-zinc-800',
     ghost: 'bg-transparent text-chrome-zinc-100 hover:bg-chrome-zinc-800',
   };

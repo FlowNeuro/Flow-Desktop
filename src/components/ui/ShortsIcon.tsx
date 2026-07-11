@@ -17,3 +17,18 @@ export function ShortsIcon({ className, ...props }: SVGProps<SVGSVGElement>) {
     </svg>
   );
 }
+
+export function ShortsAIcon({ className, ...props }: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      className={className}
+      fill="currentColor"
+      aria-hidden
+      {...props}
+    >
+      <path d="m13.974 2.052-8 4.7a4 4 0 0 0 .385 7.097l.942.423-1.327.78a4 4 0 0 0 4.052 6.897l8-4.7a4.001 4.001 0 0 0-.384-7.096L16.7 9.73l1.326-.78a4 4 0 1 0-4.052-6.897ZM10 15V9l5 3-5 3Z" />
+    </svg>
+  );
+}

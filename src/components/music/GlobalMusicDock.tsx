@@ -28,7 +28,7 @@ import { EqPanel } from "./EqPanel";
 import { VolumePopover } from "./VolumePopover";
 
 const GHOST = "grid h-9 w-9 place-items-center rounded-full transition-colors duration-200 ease-out";
-const GHOST_IDLE = `${GHOST} text-chrome-neutral-400 hover:text-chrome-white`;
+const GHOST_IDLE = `${GHOST} text-chrome-neutral-400 hover:text-chrome-neutral-100`;
 const GHOST_ACTIVE = `${GHOST} text-[var(--color-primary)]`;
 
 export function GlobalMusicDock() {
@@ -71,7 +71,7 @@ export function GlobalMusicDock() {
           <HapticButton
             onClick={dismiss}
             aria-label={getString("music_dismiss")}
-            className="absolute -right-2.5 -top-2.5 z-20 grid h-6 w-6 place-items-center rounded-full border border-chrome-neutral-700 bg-surface-container-highest text-chrome-neutral-300 opacity-0 transition-opacity duration-200 ease-out hover:text-chrome-white group-hover:opacity-100"
+            className="absolute -right-2.5 -top-2.5 z-20 grid h-6 w-6 place-items-center rounded-full border border-chrome-neutral-700 bg-surface-container-highest text-chrome-neutral-300 opacity-0 transition-opacity duration-200 ease-out hover:text-chrome-neutral-100 group-hover:opacity-100"
           >
             <X className="h-3.5 w-3.5" />
           </HapticButton>
@@ -94,7 +94,7 @@ export function GlobalMusicDock() {
                   className="h-10 w-10 shrink-0 rounded-md ring-1 ring-chrome-neutral-800/60 transition-transform duration-200 ease-out group-hover/art:scale-[1.04]"
                 />
                 <div className="min-w-0">
-                  <div className="line-clamp-1 text-sm font-medium text-chrome-white">
+                  <div className="line-clamp-1 text-sm font-medium text-chrome-neutral-100">
                     {currentTrack.title}
                   </div>
                   <div className="line-clamp-1 text-xs text-chrome-neutral-400">
@@ -118,7 +118,7 @@ export function GlobalMusicDock() {
               <HapticButton
                 onClick={previous}
                 aria-label={getString("music_previous")}
-                className="grid h-9 w-9 place-items-center rounded-full text-chrome-neutral-200 transition-colors duration-200 ease-out hover:text-chrome-white"
+                className="grid h-9 w-9 place-items-center rounded-full text-chrome-neutral-200 transition-colors duration-200 ease-out hover:text-chrome-neutral-100"
               >
                 <SkipBack className="h-5 w-5" fill="currentColor" />
               </HapticButton>
@@ -126,7 +126,7 @@ export function GlobalMusicDock() {
               <HapticButton
                 onClick={togglePlay}
                 aria-label={getString(isPlaying ? "music_pause" : "music_play")}
-                className="grid place-items-center text-chrome-white transition-transform duration-200 ease-out hover:scale-110"
+                className="grid h-11 w-11 place-items-center rounded-full bg-[var(--color-primary)] text-[var(--color-on-primary)] transition-transform duration-200 ease-out hover:scale-105"
               >
                 {loading ? (
                   <Loader2 className="h-7 w-7 animate-spin" />
@@ -140,7 +140,7 @@ export function GlobalMusicDock() {
               <HapticButton
                 onClick={next}
                 aria-label={getString("music_next")}
-                className="grid h-9 w-9 place-items-center rounded-full text-chrome-neutral-200 transition-colors duration-200 ease-out hover:text-chrome-white"
+                className="grid h-9 w-9 place-items-center rounded-full text-chrome-neutral-200 transition-colors duration-200 ease-out hover:text-chrome-neutral-100"
               >
                 <SkipForward className="h-5 w-5" fill="currentColor" />
               </HapticButton>
@@ -167,7 +167,7 @@ export function GlobalMusicDock() {
                 onClick={() => setPopover((p) => (p === "vol" ? null : "vol"))}
                 aria-label={getString("music_volume")}
                 aria-pressed={popover === "vol"}
-                className={popover === "vol" ? `${GHOST} text-chrome-white` : GHOST_IDLE}
+                className={popover === "vol" ? `${GHOST} text-chrome-neutral-100` : GHOST_IDLE}
               >
                 {muted ? <VolumeX className="h-[18px] w-[18px]" /> : <Volume2 className="h-[18px] w-[18px]" />}
               </HapticButton>

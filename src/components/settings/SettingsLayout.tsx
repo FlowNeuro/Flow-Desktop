@@ -8,10 +8,12 @@ import {
   Download,
   Database,
   Info,
+  Palette,
 } from 'lucide-react';
 import { getString } from '../../lib/i18n/index';
 
 export type SettingsCategory =
+  | 'appearance'
   | 'player'
   | 'content'
   | 'taste'
@@ -28,6 +30,7 @@ interface CategoryDef {
 }
 
 const categories: CategoryDef[] = [
+  { id: 'appearance', labelKey: 'settings_appearance', icon: <Palette size={18} /> },
   { id: 'player', labelKey: 'settings_player', icon: <PlayCircle size={18} /> },
   { id: 'content', labelKey: 'settings_content_ui', icon: <LayoutGrid size={18} /> },
   { id: 'taste', labelKey: 'settings_taste', icon: <Heart size={18} /> },
@@ -43,7 +46,7 @@ interface SettingsLayoutProps {
 }
 
 export function SettingsLayout({ children }: SettingsLayoutProps) {
-  const [activeTab, setActiveTab] = useState<SettingsCategory>('player');
+  const [activeTab, setActiveTab] = useState<SettingsCategory>('appearance');
 
   return (
     <div className="mx-auto w-full h-[calc(100vh-64px)] flex">

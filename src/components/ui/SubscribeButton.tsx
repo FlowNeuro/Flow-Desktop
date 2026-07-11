@@ -83,7 +83,7 @@ export function SubscribeButton({
         className={`font-semibold px-6 transition-all ${
           active
             ? "bg-chrome-zinc-800 hover:bg-chrome-zinc-700 text-chrome-neutral-200"
-            : "bg-primary text-chrome-white"
+            : "bg-primary text-[var(--color-on-primary)]"
         } ${className}`}
       >
         {active ? (

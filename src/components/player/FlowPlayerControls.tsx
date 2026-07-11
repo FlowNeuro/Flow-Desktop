@@ -664,7 +664,7 @@ export const FlowPlayerControls: React.FC<FlowPlayerControlsProps> = ({
                     setSettingsPane("quality");
                   }
                 }}
-                className="hidden h-7 items-center rounded-full px-2 text-xs font-bold text-chrome-zinc-100 hover:bg-chrome-white/10 sm:flex"
+                className="hidden h-7 items-center rounded-full px-2 text-xs font-bold text-chrome-white hover:bg-chrome-white/10 sm:flex"
               >
                 {selectedQualityId === "auto"
                   ? `Auto${activeQualityLabel ? ` (${activeQualityLabel})` : ""}`

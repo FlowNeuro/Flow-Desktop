@@ -4,7 +4,7 @@ const Pulse = ({ className }: { className: string }) => (
 
 export function WatchPageSkeleton() {
   return (
-    <div className="min-h-screen bg-background pb-32 text-chrome-white">
+    <div className="min-h-screen bg-background pb-32 text-chrome-neutral-100">
       <div className="mx-auto grid w-full max-w-[1800px] grid-cols-1 items-start gap-x-6 gap-y-5 px-4 pt-4 md:px-6 md:pt-6 lg:grid-cols-[1fr_400px]">
         <div className="flex w-full flex-col gap-5 lg:col-start-1">
           <div className="aspect-video w-full animate-pulse overflow-hidden rounded-xl bg-surface-container" />

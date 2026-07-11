@@ -17,7 +17,7 @@ export function ToggleSwitch({ checked, onChange, disabled }: ToggleSwitchProps)
       }`}
     >
       <span
-        className={`inline-block h-4 w-4 rounded-full bg-chrome-white transition-transform duration-200 ease-out ${
+        className={`inline-block h-4 w-4 rounded-full bg-on-primary transition-transform duration-200 ease-out ${
           checked ? 'translate-x-6' : 'translate-x-1'
         }`}
       />

@@ -55,7 +55,7 @@ export const ChannelTabs: React.FC<ChannelTabsProps> = ({
   };
 
   return (
-    <div className="w-full bg-background/95 backdrop-blur-md sticky top-0 z-40 border-b border-surface">
+    <div className="sticky top-0 z-40 w-full border-b border-chrome-neutral-800 bg-background/95">
       <div className=" mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-14 gap-4 overflow-x-auto scrollbar-none hide-scrollbar">
           <div className="flex space-x-8 h-full items-center">
@@ -67,13 +67,13 @@ export const ChannelTabs: React.FC<ChannelTabsProps> = ({
                   onClick={() => onTabChange(tab.id)}
                   className={`
                     relative h-full py-6 text-sm font-semibold transition-colors
-                    ${isActive ? "text-chrome-white" : "text-chrome-white/50 hover:text-chrome-white/70"}
+                    ${isActive ? "text-[var(--color-primary)]" : "text-chrome-neutral-400 hover:text-chrome-neutral-100"}
                     whitespace-nowrap
                   `}
                 >
                   {tab.label}
                   {isActive && (
-                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-chrome-white animate-fade-in" />
+                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--color-primary)] animate-fade-in" />
                   )}
                 </button>
               );
@@ -83,11 +83,11 @@ export const ChannelTabs: React.FC<ChannelTabsProps> = ({
           <div className="flex items-center flex-shrink-0">
             <div 
               className={`
-                flex items-center h-9 px-3 rounded-full bg-surface border transition-all duration-300
-                ${isSearchFocused ? "border-chrome-white/50 w-48 sm:w-64" : "border-chrome-white/30 w-36 sm:w-48"}
+                flex items-center h-9 px-3 rounded-full bg-surface-container-low border transition-all duration-300
+                ${isSearchFocused ? "border-chrome-neutral-500 w-48 sm:w-64" : "border-chrome-neutral-800 w-36 sm:w-48"}
               `}
             >
-              <Search className="text-chrome-white/40 mr-2 flex-shrink-0" size={16} />
+              <Search className="mr-2 flex-shrink-0 text-chrome-neutral-400" size={16} />
               <input
                 type="text"
                 value={searchQuery}
@@ -96,14 +96,14 @@ export const ChannelTabs: React.FC<ChannelTabsProps> = ({
                 onFocus={() => setIsSearchFocused(true)}
                 onBlur={() => setIsSearchFocused(false)}
                 placeholder="Search channel..."
-                className="bg-transparent text-sm text-chrome-white placeholder-white/40 w-full outline-none"
+                className="w-full bg-transparent text-sm text-chrome-neutral-100 outline-none placeholder:text-chrome-neutral-500"
               />
               {searchQuery && (
                 <button 
                   onClick={onSearchClear}
-                  className="p-1 hover:bg-surface rounded-full transition-colors flex-shrink-0"
+                  className="flex-shrink-0 rounded-full p-1 transition-colors hover:bg-surface-container-high"
                 >
-                  <X className="text-chrome-white/60" size={14} />
+                  <X className="text-chrome-neutral-400" size={14} />
                 </button>
               )}
             </div>
