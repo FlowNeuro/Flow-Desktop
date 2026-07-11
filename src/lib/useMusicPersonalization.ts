@@ -15,8 +15,8 @@ import {
 } from './api/music';
 import { segmentArtistPage } from './useArtistPage';
 import { getString } from './i18n/index';
-import { isMusicVideo } from './utils';
-import { usePlayerStore } from '../store/usePlayerStore';
+import { interleaveQuickPickLanes, selectQuickPickSeeds } from './musicQuickPicks';
+import { useMusicPlayerStore } from '../store/useMusicPlayerStore';
 import type { MusicTasteProfile, SongItem, YTItem } from '../types/music';
 import type { WatchHistoryRecord } from '../types/db';
 
@@ -36,8 +36,10 @@ export interface MusicPersonalization {
 const HISTORY_SEED_LIMIT = 50;
 const MIN_SHELF_ITEMS = 4;
 const QUICK_PICKS_TARGET = 24;
-const QUICK_PICKS_POOL = 60;
-const RADIO_MAX_PAGES = 6;
+const QUICK_PICKS_SEED_LIMIT = 5;
+const QUICK_PICKS_RADIO_SEEDS = 2;
+const QUICK_PICKS_LANE_SIZE = 20;
+const RADIO_MAX_PAGES = 2;
 
 // --- Artist-graph discovery ("Fans of {Artist} also like") ----------------
 const SIMILAR_MAX_ANCHORS = 2;
@@ -161,7 +163,7 @@ async function chartsSongs(): Promise<SongItem[]> {
 async function gatherRadio(seedId: string, cap: number): Promise<SongItem[]> {
   const pool: SongItem[] = [];
   try {
-    const first = await getMusicWatchQueue(seedId);
+    const first = await getMusicWatchQueue(seedId, `RDAMVM${seedId}`);
     pool.push(...first.items);
     let continuation = first.continuation;
     let page = 0;
@@ -178,29 +180,34 @@ async function gatherRadio(seedId: string, cap: number): Promise<SongItem[]> {
 
 async function buildQuickPicks(
   history: WatchHistoryRecord[],
-  nowPlayingId: string | null,
+  currentTrack: SongItem | null,
   used: Set<string>,
 ): Promise<SongItem[]> {
-  if (nowPlayingId) used.add(nowPlayingId);
+  const seeds = selectQuickPickSeeds(history, currentTrack, QUICK_PICKS_SEED_LIMIT);
+  const seedIds = new Set(seeds.map((seed) => seed.videoId));
+  for (const id of seedIds) used.add(id);
 
-  // Gather a deep candidate pool from radio → related → charts, then let the music brain
-  // rank it (familiarity + heavy rotation) instead of taking YT Music's raw order.
-  const pool: SongItem[] = [];
-  const seedId = nowPlayingId ?? history.find((h) => h.videoId)?.videoId ?? null;
-  if (seedId) pool.push(...(await gatherRadio(seedId, QUICK_PICKS_POOL)));
+  // Recall independent radio/related lanes plus charts on every build. Ranking within each
+  // lane preserves taste relevance; round-robin mixing keeps one station from owning the shelf.
+  const [radioResults, relatedResults, charts] = await Promise.all([
+    Promise.all(
+      seeds
+        .slice(0, QUICK_PICKS_RADIO_SEEDS)
+        .map((seed) => gatherRadio(seed.videoId, QUICK_PICKS_LANE_SIZE)),
+    ),
+    Promise.all(seeds.map((seed) => relatedSongs(seed.videoId))),
+    chartsSongs(),
+  ]);
 
-  if (pool.length < QUICK_PICKS_POOL) {
-    const seeds = history.slice(0, 5).map((h) => h.videoId).filter(Boolean);
-    const results = await Promise.all(seeds.map(relatedSongs));
-    for (const r of results) pool.push(...r);
-  }
-
-  if (pool.length < MIN_SHELF_ITEMS) {
-    pool.push(...(await chartsSongs()));
-  }
-
-  const rankedPool = await ranked(audioMusicOnly(pool), 'quick_picks');
-  return takeUnused(rankedPool, QUICK_PICKS_TARGET, used);
+  const personalizedLanes = await Promise.all(
+    [...radioResults, ...relatedResults].map((lane) => ranked(audioMusicOnly(lane), 'quick_picks')),
+  );
+  const discoveryLane = await ranked(charts, 'discover');
+  return interleaveQuickPickLanes(
+    [...personalizedLanes, discoveryLane],
+    QUICK_PICKS_TARGET,
+    used,
+  );
 }
 
 /** artist_key → a representative seed videoId, mirroring the backend's `artist_key()`
@@ -511,8 +518,8 @@ function planSections(profile: MusicTasteProfile | null, b: BuiltSections): Pers
 }
 
 export function useMusicPersonalization(): MusicPersonalization {
-  const nowPlaying = usePlayerStore((s) => s.currentVideo);
-  const nowPlayingId = nowPlaying && isMusicVideo(nowPlaying) ? nowPlaying.id : null;
+  const currentTrack = useMusicPlayerStore((s) => s.currentTrack);
+  const currentTrackId = currentTrack ? songIdOf(currentTrack) : null;
 
   const [quickPicks, setQuickPicks] = useState<SongItem[]>([]);
   const [sections, setSections] = useState<PersonalSection[]>([]);
@@ -580,11 +587,11 @@ export function useMusicPersonalization(): MusicPersonalization {
     const req = ++quickReqRef.current;
     (async () => {
       const used = new Set(sectionIdsRef.current);
-      const picks = await buildQuickPicks(historyRef.current, nowPlayingId, used);
+      const picks = await buildQuickPicks(historyRef.current, currentTrack, used);
       if (quickReqRef.current !== req) return;
       setQuickPicks(picks);
     })();
-  }, [nowPlayingId, dataVersion]);
+  }, [currentTrackId, dataVersion]);
 
   return { quickPicks, sections, loading };
 }
