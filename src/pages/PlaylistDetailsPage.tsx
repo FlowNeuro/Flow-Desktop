@@ -7,13 +7,19 @@ import {
   sortPlaylistVideos,
   type PlaylistSortType,
 } from "../lib/playlistSort";
-import { updateStoredPlaylistTracks } from "../lib/playlistLibrary";
+import {
+  isProtectedPlaylistId,
+  removePlaylistFromLibrary,
+  savePlaylistToLibrary,
+  updateStoredPlaylistTracks,
+} from "../lib/playlistLibrary";
 import { usePlaylistDetails } from "../lib/usePlaylistDetails";
 import { usePublishTitle } from "../lib/usePublishTitle";
 import { useCollectionDownloadState } from "../lib/useCollectionDownloads";
 import { usePlayerStore } from "../store/usePlayerStore";
 import { useCollectionDownloadStore } from "../store/useCollectionDownloadStore";
-import type { VideoSummary } from "../types/video";
+import { useUiStore } from "../store/useUiStore";
+import type { PlaylistSummary, VideoSummary } from "../types/video";
 
 interface PlaylistDetailsPageProps {
   playlistIdOverride?: string;
@@ -28,6 +34,8 @@ export function PlaylistDetailsPage({
   const playlistId = playlistIdOverride ?? params.playlistId;
   const navigate = useNavigate();
   const setQueue = usePlayerStore((state) => state.setQueue);
+  const addToQueue = usePlayerStore((state) => state.addToQueue);
+  const showToast = useUiStore((state) => state.showToast);
 
   const {
     loading,
@@ -40,11 +48,21 @@ export function PlaylistDetailsPage({
 
   const [sortType, setSortType] = useState<PlaylistSortType>("Manual");
   const [manualVideos, setManualVideos] = useState<VideoSummary[]>([]);
+  const [savedInLibrary, setSavedInLibrary] = useState(false);
 
   useEffect(() => {
     setManualVideos(videos);
     setSortType("Manual");
   }, [videos]);
+
+  useEffect(() => {
+    setSavedInLibrary(Boolean(storedPlaylist));
+  }, [storedPlaylist]);
+
+  const isProtected =
+    Boolean(storedPlaylist?.isProtected) ||
+    (playlistId ? isProtectedPlaylistId(playlistId) : false);
+  const isOwned = storedPlaylist?.source === "Owned" && !isProtected;
 
   const displayVideos = useMemo(
     () => sortPlaylistVideos(manualVideos, sortType),
@@ -74,6 +92,79 @@ export function PlaylistDetailsPage({
     setManualVideos(nextVideos);
     if (storedPlaylist) {
       await updateStoredPlaylistTracks(storedPlaylist.id, nextVideos);
+    }
+  };
+
+  const handleAddAllToQueue = () => {
+    if (displayVideos.length === 0) return;
+    let added = 0;
+    for (const video of displayVideos) {
+      if (addToQueue(video) === "added") added += 1;
+    }
+    showToast({
+      variant: added > 0 ? "success" : "info",
+      message:
+        added > 0
+          ? `Added ${added} ${added === 1 ? "video" : "videos"} to queue`
+          : "Already in your queue",
+    });
+  };
+
+  const handleCopyLink = async () => {
+    if (!meta) return;
+    try {
+      await navigator.clipboard.writeText(
+        `https://www.youtube.com/playlist?list=${meta.id}`,
+      );
+      showToast({ variant: "success", message: "Playlist link copied" });
+    } catch (copyError) {
+      console.error("Failed to copy playlist link", copyError);
+      showToast({ variant: "error", message: "Could not copy link" });
+    }
+  };
+
+  const handleSaveToLibrary = async () => {
+    if (!meta) return;
+    const summary: PlaylistSummary = {
+      type: "playlist",
+      id: meta.id,
+      title: meta.title,
+      thumbnailUrl: heroThumbnailUrl ?? meta.thumbnailUrl ?? null,
+      videoCountText: meta.videoCountText,
+    };
+    try {
+      await savePlaylistToLibrary(summary);
+      setSavedInLibrary(true);
+      showToast({
+        variant: "success",
+        message: `Saved "${meta.title}" to library`,
+      });
+    } catch (saveError) {
+      console.error("Failed to save playlist to library", saveError);
+      showToast({ variant: "error", message: "Could not save playlist" });
+    }
+  };
+
+  const handleRemoveFromLibrary = async () => {
+    if (!meta || isProtected) return;
+    const confirmMessage = isOwned
+      ? `Delete "${meta.title}"? This can't be undone.`
+      : `Remove "${meta.title}" from your library?`;
+    if (!window.confirm(confirmMessage)) return;
+
+    try {
+      await removePlaylistFromLibrary(meta.id);
+      setSavedInLibrary(false);
+      showToast({
+        variant: "success",
+        message: isOwned
+          ? `Deleted "${meta.title}"`
+          : `Removed "${meta.title}" from library`,
+      });
+      navigate("/playlists");
+    } catch (removeError) {
+      console.error("Failed to remove playlist from library", removeError);
+      showToast({ variant: "error", message: "Could not update library" });
     }
   };
 
@@ -132,6 +223,13 @@ export function PlaylistDetailsPage({
           onDownload={handleDownloadPlaylist}
           downloadActive={downloadState.active}
           downloadComplete={downloadState.isComplete}
+          onAddToQueue={handleAddAllToQueue}
+          onCopyLink={handleCopyLink}
+          onSaveToLibrary={handleSaveToLibrary}
+          onRemoveFromLibrary={handleRemoveFromLibrary}
+          isSaved={savedInLibrary}
+          isProtected={isProtected}
+          isOwned={isOwned}
         />
 
         <PlaylistSortableList

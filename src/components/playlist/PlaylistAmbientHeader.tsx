@@ -1,6 +1,19 @@
-import { Check, Download, Loader2, MoreVertical, Play, Shuffle } from "lucide-react";
+import {
+  Check,
+  Download,
+  Link2,
+  ListPlus,
+  Loader2,
+  MoreVertical,
+  Play,
+  Plus,
+  Shuffle,
+  Trash2,
+} from "lucide-react";
+import { useCallback, useState, type MouseEvent, type ReactNode } from "react";
 import { Button } from "../ui/Button";
 import { IconButton } from "../ui/IconButton";
+import { AnchoredPortalMenu, type MenuAnchor } from "../ui/AnchoredPortalMenu";
 import { getString } from "../../lib/i18n/index";
 import type { PlaylistDetailsMeta } from "../../lib/usePlaylistDetails";
 import { useVideoThumbnail } from "../../lib/useVideoThumbnail";
@@ -15,6 +28,40 @@ interface PlaylistAmbientHeaderProps {
   onDownload?: () => void;
   downloadActive?: boolean;
   downloadComplete?: boolean;
+  onAddToQueue?: () => void;
+  onCopyLink?: () => void;
+  onSaveToLibrary?: () => void;
+  onRemoveFromLibrary?: () => void;
+  isSaved?: boolean;
+  isProtected?: boolean;
+  isOwned?: boolean;
+}
+
+function PlaylistMenuItem({
+  icon,
+  label,
+  onClick,
+  destructive = false,
+}: {
+  icon: ReactNode;
+  label: string;
+  onClick: () => void;
+  destructive?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex w-full items-center gap-3 px-3.5 py-2.5 text-sm transition-colors ${
+        destructive
+          ? "text-red-400 hover:bg-surface-container-highest"
+          : "text-chrome-neutral-300 hover:bg-surface-container-highest hover:text-chrome-neutral-100"
+      }`}
+    >
+      {icon}
+      {label}
+    </button>
+  );
 }
 
 function isUnknownOwner(name: string) {
@@ -31,6 +78,13 @@ export function PlaylistAmbientHeader({
   onDownload,
   downloadActive,
   downloadComplete,
+  onAddToQueue,
+  onCopyLink,
+  onSaveToLibrary,
+  onRemoveFromLibrary,
+  isSaved = false,
+  isProtected = false,
+  isOwned = false,
 }: PlaylistAmbientHeaderProps) {
   const { src: ambientSrc, onError: onThumbnailError } = useVideoThumbnail(
     heroVideoId,
@@ -38,6 +92,28 @@ export function PlaylistAmbientHeader({
     "large",
   );
   const ownerLabel = isUnknownOwner(meta.channelName) ? null : meta.channelName;
+
+  const [menuAnchor, setMenuAnchor] = useState<MenuAnchor | null>(null);
+
+  const toggleMenu = useCallback((event: MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
+    const rect = event.currentTarget.getBoundingClientRect();
+    setMenuAnchor((current) =>
+      current ? null : { top: rect.bottom + 4, right: rect.right },
+    );
+  }, []);
+
+  const runAction = useCallback((action?: () => void) => {
+    setMenuAnchor(null);
+    action?.();
+  }, []);
+
+  const canAddToQueue = canPlay && Boolean(onAddToQueue);
+  const canCopyLink = !isProtected && Boolean(onCopyLink);
+  const canSave = !isProtected && !isSaved && Boolean(onSaveToLibrary);
+  const canRemove = !isProtected && isSaved && Boolean(onRemoveFromLibrary);
+  const showMenuDivider = (canAddToQueue || canCopyLink) && (canSave || canRemove);
+  const hasMenuItems = canAddToQueue || canCopyLink || canSave || canRemove;
 
   const statsParts = [
     meta.videoCountText,
@@ -124,10 +200,55 @@ export function PlaylistAmbientHeader({
                 <Download size={18} />
               )}
             </IconButton>
-            <IconButton aria-label="Playlist menu">
+            <IconButton
+              aria-label="Playlist menu"
+              onClick={toggleMenu}
+              disabled={!hasMenuItems}
+            >
               <MoreVertical size={18} />
             </IconButton>
           </div>
+
+          {menuAnchor && hasMenuItems && (
+            <AnchoredPortalMenu
+              anchor={menuAnchor}
+              onClose={() => setMenuAnchor(null)}
+              className="z-50 w-56 rounded-xl border border-chrome-neutral-800 bg-surface-container-high py-1.5"
+            >
+              {canAddToQueue && (
+                <PlaylistMenuItem
+                  icon={<ListPlus size={16} />}
+                  label="Add to queue"
+                  onClick={() => runAction(onAddToQueue)}
+                />
+              )}
+              {canCopyLink && (
+                <PlaylistMenuItem
+                  icon={<Link2 size={16} />}
+                  label="Copy link"
+                  onClick={() => runAction(onCopyLink)}
+                />
+              )}
+              {showMenuDivider && (
+                <div className="my-1 h-px bg-chrome-neutral-800" />
+              )}
+              {canSave && (
+                <PlaylistMenuItem
+                  icon={<Plus size={16} />}
+                  label="Save to library"
+                  onClick={() => runAction(onSaveToLibrary)}
+                />
+              )}
+              {canRemove && (
+                <PlaylistMenuItem
+                  icon={<Trash2 size={16} />}
+                  label={isOwned ? "Delete playlist" : "Remove from library"}
+                  destructive
+                  onClick={() => runAction(onRemoveFromLibrary)}
+                />
+              )}
+            </AnchoredPortalMenu>
+          )}
 
           <div className="flex shrink-0 flex-wrap items-center gap-3">
             <Button

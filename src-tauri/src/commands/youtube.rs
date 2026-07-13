@@ -958,6 +958,113 @@ fn normalize_sponsorblock_server_url(server_url: Option<&str>) -> crate::errors:
     Ok(origin)
 }
 
+const SPONSORBLOCK_SUBMIT_CATEGORIES: [&str; 9] = [
+    "sponsor",
+    "intro",
+    "outro",
+    "selfpromo",
+    "interaction",
+    "music_offtopic",
+    "filler",
+    "preview",
+    "exclusive_access",
+];
+
+#[tauri::command]
+pub async fn submit_sponsorblock_segment(
+    video_id: String,
+    start_time: f64,
+    end_time: f64,
+    category: String,
+    user_id: String,
+    server_url: Option<String>,
+) -> Result<(), ErrorResponse> {
+    submit_sponsorblock_segment_inner(
+        &video_id,
+        start_time,
+        end_time,
+        &category,
+        &user_id,
+        server_url.as_deref(),
+    )
+    .await
+    .map_err(ErrorResponse::from)
+}
+
+async fn submit_sponsorblock_segment_inner(
+    video_id: &str,
+    start_time: f64,
+    end_time: f64,
+    category: &str,
+    user_id: &str,
+    server_url: Option<&str>,
+) -> crate::errors::AppResult<()> {
+    validate_video_id(video_id)?;
+
+    if !SPONSORBLOCK_SUBMIT_CATEGORIES.contains(&category) {
+        return Err(crate::errors::AppError::Validation(
+            "Unsupported SponsorBlock category".into(),
+        ));
+    }
+
+    if !start_time.is_finite()
+        || !end_time.is_finite()
+        || start_time < 0.0
+        || end_time <= start_time
+    {
+        return Err(crate::errors::AppError::Validation(
+            "Segment end time must be greater than its start time".into(),
+        ));
+    }
+
+    // SponsorBlock derives a public contributor ID by hashing this private one, so it
+    // must be a long, non-trivial string. Never log it — it is user-identifying.
+    let user_id = user_id.trim();
+    if user_id.len() < 8 {
+        return Err(crate::errors::AppError::Validation(
+            "A valid SponsorBlock user ID is required to submit segments".into(),
+        ));
+    }
+
+    let base_url = normalize_sponsorblock_server_url(server_url)?;
+
+    let client = reqwest::Client::builder()
+        .user_agent("FlowDesktop/1.0")
+        .build()
+        .unwrap_or_default();
+
+    let mut url = reqwest::Url::parse(&format!("{base_url}/api/skipSegments")).map_err(|_| {
+        crate::errors::AppError::Validation("Invalid SponsorBlock server URL".into())
+    })?;
+    url.query_pairs_mut()
+        .append_pair("videoID", video_id)
+        .append_pair("startTime", &start_time.to_string())
+        .append_pair("endTime", &end_time.to_string())
+        .append_pair("category", category)
+        .append_pair("userID", user_id)
+        .append_pair("userAgent", "FlowDesktop/1.0");
+
+    let res = client
+        .post(url)
+        .send()
+        .await
+        .map_err(|e| crate::errors::AppError::Extractor(format!("Network error: {e}")))?;
+
+    let status = res.status();
+    if status.is_success() {
+        return Ok(());
+    }
+
+    let body = res.text().await.unwrap_or_default();
+    let detail = body.trim();
+    let message = if detail.is_empty() {
+        format!("SponsorBlock rejected the submission (status {status})")
+    } else {
+        format!("SponsorBlock rejected the submission: {detail}")
+    };
+    Err(crate::errors::AppError::Extractor(message))
+}
+
 #[tauri::command]
 pub async fn get_dearrow_override(
     video_id: String,

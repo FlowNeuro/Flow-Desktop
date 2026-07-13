@@ -305,7 +305,7 @@ export const SETTING_DEFINITIONS = [
   bool(SETTINGS.DEARROW_ENABLED, "extensions", true, "wired"),
   bool(SETTINGS.DEARROW_BADGE_ENABLED, "extensions", true, "wired"),
   bool(SETTINGS.RYTD_ENABLED, "extensions", true, "wired"),
-  bool(SETTINGS.SB_SUBMIT_ENABLED, "extensions", false, "deferred", "disabled-until-wired"),
+  bool(SETTINGS.SB_SUBMIT_ENABLED, "extensions", false, "wired"),
   str(SETTINGS.SPONSORBLOCK_USER_ID, "extensions", "", "persisted-only", undefined, "visible", "private"),
   str(SETTINGS.SPONSORBLOCK_SERVER, "extensions", "https://sponsor.ajay.app", "wired"),
   json(SETTINGS.SPONSORBLOCK_COLORS, "extensions", "{}", "wired"),

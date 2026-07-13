@@ -31,6 +31,32 @@ export async function getSponsorBlockSegments(
   });
 }
 
+export interface SubmitSponsorBlockSegmentParams {
+  videoId: string;
+  startTime: number;
+  endTime: number;
+  category: string;
+  userId: string;
+  serverUrl?: string;
+}
+
+export async function submitSponsorBlockSegment(
+  params: SubmitSponsorBlockSegmentParams,
+): Promise<void> {
+  if (!(await isTauriEnv())) {
+    console.warn("Tauri not detected. Skipping SponsorBlock submission.");
+    return;
+  }
+  await invokeBackend<void>("submit_sponsorblock_segment", {
+    videoId: params.videoId,
+    startTime: params.startTime,
+    endTime: params.endTime,
+    category: params.category,
+    userId: params.userId,
+    serverUrl: params.serverUrl,
+  });
+}
+
 // --------------------------------------------------------------------------------
 // DeArrow
 // --------------------------------------------------------------------------------

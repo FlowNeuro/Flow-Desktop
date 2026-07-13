@@ -27,7 +27,10 @@ import { usePlayerStore, type PlaybackRate } from "../../store/usePlayerStore";
 import { useSettingsStore, type SponsorBlockCategory } from "../../store/useSettingsStore";
 import type { AudioTrack, CaptionTrack, StreamVariant, VideoChapter } from "../../types/video";
 import { SubtitleCustomizer } from "./SubtitleCustomizer";
+import { SponsorBlockSubmitDialog } from "./SponsorBlockSubmitDialog";
+import { SponsorBlockIcon } from "../ui/SponsorBlockIcon";
 import { getString } from "../../lib/i18n/index";
+import { videoCodecLabel } from "../../lib/settings/playerRuntime";
 
 export interface FlowPlayerControlsProps {
   title?: string;
@@ -163,6 +166,7 @@ export const FlowPlayerControls: React.FC<FlowPlayerControlsProps> = ({
 }) => {
   const {
     isPlaying,
+    currentVideo,
     volume,
     setVolume,
     playbackRate,
@@ -179,10 +183,12 @@ export const FlowPlayerControls: React.FC<FlowPlayerControlsProps> = ({
     setIsQueuePanelOpen,
   } = usePlayerStore();
 
-  const { sponsorBlockColors, sponsorBlockEnabled } = useSettingsStore();
+  const { sponsorBlockColors, sponsorBlockEnabled, sbSubmitEnabled } = useSettingsStore();
   const selectPlaybackRate = onSelectPlaybackRate ?? setPlaybackRate;
 
   const [settingsPane, setSettingsPane] = useState<SettingsPane>("root");
+  const [submitDialogOpen, setSubmitDialogOpen] = useState(false);
+  const [submitAtSeconds, setSubmitAtSeconds] = useState(0);
   const [hoverTime, setHoverTime] = useState<number | null>(null);
   const [hoverPct, setHoverPct] = useState(0);
   const chapterPillRef = useRef<HTMLButtonElement>(null);
@@ -652,6 +658,20 @@ export const FlowPlayerControls: React.FC<FlowPlayerControlsProps> = ({
               >
                 <ListVideo size={19} />
               </button>
+              {sbSubmitEnabled && currentVideo && (
+                <button
+                  type="button"
+                  title="Submit SponsorBlock segment"
+                  aria-label="Submit SponsorBlock segment"
+                  onClick={() => {
+                    setSubmitAtSeconds(usePlayerStore.getState().currentTime);
+                    setSubmitDialogOpen(true);
+                  }}
+                  className="hidden h-7 w-7 place-items-center rounded-full hover:bg-chrome-white/10 sm:grid"
+                >
+                  <SponsorBlockIcon className="h-[18px] w-[18px]" />
+                </button>
+              )}
               <button
                 type="button"
                 title="Quality"
@@ -893,38 +913,43 @@ export const FlowPlayerControls: React.FC<FlowPlayerControlsProps> = ({
               {selectedQualityId === "auto" && <Check size={17} />}
             </button>
 
-            {supportedQualities.map((quality) => (
-              <button
-                key={quality.id}
-                type="button"
-                onClick={() => {
-                  if (
-                    !isDashPlayback &&
-                    !quality.hasAudio &&
-                    !audioTracks.some((track) => !!track.localUrl)
-                  ) {
-                    return;
-                  }
-                  onSelectQuality?.(quality);
-                  setSettingsPane("root");
-                  setSettingsOpen(false);
-                }}
-                className={cx(
-                  "flex min-h-10 w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-sm font-medium text-chrome-zinc-100",
-                  isDashPlayback ||
-                    quality.hasAudio ||
-                    audioTracks.some((track) => !!track.localUrl)
-                    ? "hover:bg-chrome-white/10"
-                    : "cursor-not-allowed text-chrome-zinc-500"
-                )}
-              >
-                <span className="flex flex-col text-left leading-tight">
-                  <span>{quality.qualityLabel}</span>
-                  {quality.isVideoOnly}
-                </span>
-                {selectedQualityId === quality.id && <Check size={17} />}
-              </button>
-            ))}
+            {supportedQualities.map((quality) => {
+              const codec = videoCodecLabel(quality.mimeType);
+              return (
+                <button
+                  key={quality.id}
+                  type="button"
+                  onClick={() => {
+                    if (
+                      !isDashPlayback &&
+                      !quality.hasAudio &&
+                      !audioTracks.some((track) => !!track.localUrl)
+                    ) {
+                      return;
+                    }
+                    onSelectQuality?.(quality);
+                    setSettingsPane("root");
+                    setSettingsOpen(false);
+                  }}
+                  className={cx(
+                    "flex min-h-10 w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-sm font-medium text-chrome-zinc-100",
+                    isDashPlayback ||
+                      quality.hasAudio ||
+                      audioTracks.some((track) => !!track.localUrl)
+                      ? "hover:bg-chrome-white/10"
+                      : "cursor-not-allowed text-chrome-zinc-500"
+                  )}
+                >
+                  <span className="flex flex-col text-left leading-tight">
+                    <span>{quality.qualityLabel}</span>
+                    {codec && (
+                      <span className="text-xs font-normal text-chrome-zinc-400">{codec}</span>
+                    )}
+                  </span>
+                  {selectedQualityId === quality.id && <Check size={17} />}
+                </button>
+              );
+            })}
           </div>
         )}
 
@@ -1033,6 +1058,14 @@ export const FlowPlayerControls: React.FC<FlowPlayerControlsProps> = ({
           </div>
         )}
       </div>
+
+      {submitDialogOpen && currentVideo && (
+        <SponsorBlockSubmitDialog
+          videoId={currentVideo.id}
+          currentSeconds={submitAtSeconds}
+          onClose={() => setSubmitDialogOpen(false)}
+        />
+      )}
     </>
   );
 };

@@ -198,6 +198,7 @@ export const updateStoredPlaylistTracks = async (
     id: current.id,
     name: current.name,
     tracks,
+    thumbnailUrl: tracks[0]?.thumbnailUrl ?? current.thumbnailUrl ?? null,
     videoCount: videoCount > 0 ? videoCount : null,
     videoCountText: videoCount > 0 ? formatVideoCountText(videoCount) : null,
   });

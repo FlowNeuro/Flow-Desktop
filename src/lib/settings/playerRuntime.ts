@@ -81,6 +81,17 @@ export function selectPreferredAudioTrackId(
   return prefix?.id ?? null;
 }
 
+export function videoCodecLabel(mimeType: string | null | undefined): string | null {
+  const value = (mimeType || "").toLowerCase();
+  if (value.includes("av01") || value.includes("av1")) return "AV1";
+  if (value.includes("vp09") || value.includes("vp9")) return "VP9";
+  if (value.includes("vp08") || value.includes("vp8")) return "VP8";
+  if (value.includes("hev1") || value.includes("hvc1") || value.includes("hevc") || value.includes("h265"))
+    return "HEVC";
+  if (value.includes("avc1") || value.includes("avc3") || value.includes("h264")) return "H.264";
+  return null;
+}
+
 const codecMatches = (mimeType: string | null | undefined, preferredCodec: string) => {
   const normalizedMime = (mimeType || "").toLowerCase();
   switch (preferredCodec) {
