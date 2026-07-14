@@ -1419,7 +1419,7 @@ dependencies = [
  "tauri-plugin-opener",
  "tauri-plugin-os",
  "tauri-plugin-single-instance",
- "tauri-winrt-notification",
+ "tauri-winrt-notification 0.8.0",
  "thiserror 2.0.18",
  "tokio",
  "tokio-tungstenite",
@@ -2868,7 +2868,7 @@ dependencies = [
  "log",
  "mac-notification-sys",
  "serde",
- "tauri-winrt-notification",
+ "tauri-winrt-notification 0.7.3",
  "zbus",
 ]
 
@@ -5300,6 +5300,17 @@ checksum = "9ed071c670382e85fc2f48ae706492d8c338f4f89bf72520d32f8abfe880aade"
 dependencies = [
  "thiserror 2.0.18",
  "windows 0.61.3",
+ "windows-version",
+]
+
+[[package]]
+name = "tauri-winrt-notification"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "31c84bc81df0e7295f0c481c88ee13921f93f432d9aac017c688d106aaa9d380"
+dependencies = [
+ "thiserror 2.0.18",
+ "windows 0.62.2",
  "windows-version",
 ]
 
