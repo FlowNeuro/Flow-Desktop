@@ -34,6 +34,24 @@ pub fn validate_video_id(video_id: &str) -> AppResult<()> {
     Ok(())
 }
 
+pub fn validate_playlist_id(playlist_id: &str) -> AppResult<()> {
+    let trimmed = playlist_id.trim();
+
+    if !(10..=64).contains(&trimmed.len()) {
+        return Err(AppError::Validation("Invalid playlist ID length".into()));
+    }
+
+    let is_valid = trimmed
+        .chars()
+        .all(|character| character.is_ascii_alphanumeric() || character == '_' || character == '-');
+
+    if !is_valid {
+        return Err(AppError::Validation("Invalid playlist ID".into()));
+    }
+
+    Ok(())
+}
+
 pub fn validate_channel_id(channel_id: &str) -> AppResult<()> {
     let trimmed = channel_id.trim();
 

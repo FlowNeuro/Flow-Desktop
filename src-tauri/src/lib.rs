@@ -3,6 +3,7 @@
 #![allow(clippy::missing_errors_doc)]
 
 mod api;
+mod bridge;
 mod commands;
 mod config;
 mod db;
@@ -84,7 +85,24 @@ pub fn run() {
         )
         .init();
 
-    tauri::Builder::default()
+    let mut builder = tauri::Builder::default();
+
+    // Single-instance MUST be the first plugin. A second `flow://` launch is
+    // forwarded to this running window (via the "deep-link" feature) instead of
+    // spawning a duplicate; we just raise the window here.
+    #[cfg(desktop)]
+    {
+        builder = builder.plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.unminimize();
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
+        }));
+    }
+
+    builder
+        .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_opener::init())
@@ -180,6 +198,33 @@ pub fn run() {
             app.manage(streaming_manager);
 
             services::notification_service::spawn_poll_loop(app.handle().clone(), pool.clone());
+
+            // Register the flow:// scheme at runtime. Production installers
+            // (NSIS/MSI, .desktop) do this, but dev builds and Linux need it.
+            #[cfg(any(target_os = "linux", all(debug_assertions, windows)))]
+            {
+                use tauri_plugin_deep_link::DeepLinkExt;
+                if let Err(error) = app.deep_link().register_all() {
+                    tracing::warn!("failed to register flow:// scheme: {error}");
+                }
+            }
+
+            // Raise the window when a flow:// URL arrives while running; the
+            // frontend's onOpenUrl listener performs the actual routing.
+            {
+                use tauri_plugin_deep_link::DeepLinkExt;
+                let handle = app.handle().clone();
+                app.deep_link().on_open_url(move |_event| {
+                    if let Some(window) = handle.get_webview_window("main") {
+                        let _ = window.unminimize();
+                        let _ = window.show();
+                        let _ = window.set_focus();
+                    }
+                });
+            }
+
+            // Loopback bridge for the browser extension's silent handoff path.
+            tauri::async_runtime::spawn(bridge::start(app.handle().clone()));
 
             Ok(())
         })

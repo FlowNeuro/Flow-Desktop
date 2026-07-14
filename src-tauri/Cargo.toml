@@ -21,6 +21,8 @@ tauri-plugin-opener = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-os = "2"
 tauri-plugin-notification = "2"
+# Deep linking: the flow:// scheme the browser extension hands off to.
+tauri-plugin-deep-link = "2"
 
 # Core Async & Serialization
 tokio = { version = "1", features = ["full"] }
@@ -73,6 +75,12 @@ local-ip-address = "0.6"
 tauri-winrt-notification = "0.7"
 windows-registry = "0.6"
 windows = { version = "0.62", features = ["Win32_UI_Shell"] }
+
+# Single-instance: forward a second `flow://` launch to the running window
+# instead of spawning a duplicate. The "deep-link" feature makes it hand the
+# argv URL to the deep-link plugin's on_open_url automatically.
+[target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
+tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
 
 [profile.release]
 # Keep production binaries compact without sacrificing the normal release optimizer.
