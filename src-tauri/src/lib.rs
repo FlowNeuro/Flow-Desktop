@@ -24,6 +24,7 @@ use commands::db::{
     add_watch_record, add_watch_records_bulk, clear_watch_history, delete_watch_record,
     get_music_history, get_setting, get_watch_history, set_setting,
 };
+use commands::diagnostics::{clear_logs, log_frontend_event, read_logs};
 use commands::downloads::{
     DownloadManager, cancel_download, clear_downloads, create_download_collection,
     delete_download_collections, delete_downloads, get_download_formats, get_downloaded_video_ids,
@@ -76,15 +77,68 @@ use services::recommendation_service::RecommendationService;
 use services::shorts_service::ShortsService;
 use services::youtube_service::YoutubeService;
 
-#[cfg_attr(mobile, tauri::mobile_entry_point)]
-pub fn run() {
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
-        )
+/// Installs the global tracing subscriber: pretty logs to stdout (dev) plus a
+/// rolling daily file under `<app_data_dir>/logs` so failures stay diagnosable
+/// in the packaged app, where there is no terminal to read stdout from. Both
+/// outputs share one `EnvFilter` (default `info`, override with `RUST_LOG`) and
+/// carry module target + line number so every event points at its source.
+///
+/// Returns the appender's flush guard, which the caller must keep alive for the
+/// process lifetime, or `None` when only stdout logging could be initialized.
+/// The file mirrors the same events as stdout — it never logs secrets.
+fn init_tracing(
+    app_data_dir: &std::path::Path,
+) -> Option<tracing_appender::non_blocking::WorkerGuard> {
+    use tracing_subscriber::{EnvFilter, Layer, fmt, prelude::*};
+
+    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
+
+    let stdout_layer = fmt::layer().with_target(true).with_line_number(true);
+
+    let log_dir = app_data_dir.join("logs");
+    let appender = std::fs::create_dir_all(&log_dir)
+        .map_err(|e| e.to_string())
+        .and_then(|_| {
+            tracing_appender::rolling::RollingFileAppender::builder()
+                .rotation(tracing_appender::rolling::Rotation::DAILY)
+                .filename_prefix("flow")
+                .filename_suffix("log")
+                .max_log_files(7)
+                .build(&log_dir)
+                .map_err(|e| e.to_string())
+        });
+
+    let (file_layer, guard) = match appender {
+        Ok(appender) => {
+            let (writer, guard) = tracing_appender::non_blocking(appender);
+            let layer = fmt::layer()
+                .with_ansi(false)
+                .with_target(true)
+                .with_line_number(true)
+                .with_writer(writer)
+                .boxed();
+            (Some(layer), Some(guard))
+        }
+        Err(error) => {
+            eprintln!("flow: file logging unavailable, using stdout only: {error}");
+            (None, None)
+        }
+    };
+
+    tracing_subscriber::registry()
+        .with(filter)
+        .with(stdout_layer)
+        .with(file_layer)
         .init();
 
+    if guard.is_some() {
+        tracing::info!(dir = %log_dir.display(), "file_logging_initialized");
+    }
+    guard
+}
+
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {
     let mut builder = tauri::Builder::default();
 
     // Single-instance MUST be the first plugin. A second `flow://` launch is
@@ -108,6 +162,22 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
         .setup(|app| {
+            // Resolve the app data dir first so file logging is live before any
+            // other setup step can fail — otherwise an early failure would leave
+            // no trace in the packaged app.
+            let app_data_dir = app.path().app_data_dir().map_err(|error| {
+                Box::new(std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    error.to_string(),
+                ))
+            })?;
+
+            // Keep the file-appender flush guard alive for the app's lifetime by
+            // handing it to Tauri's managed state (dropped on exit, flushing).
+            if let Some(guard) = init_tracing(&app_data_dir) {
+                app.manage(std::sync::Mutex::new(guard));
+            }
+
             // Let the BotGuard minter open a hidden WebView for a real-browser
             // poToken (falls back to the headless Node sidecar without this).
             api::innertube::core::webview_pot::set_app_handle(app.handle().clone());
@@ -116,14 +186,6 @@ pub fn run() {
             // "Flow" instead of the launching shell / PowerShell.
             #[cfg(windows)]
             services::win_notify::ensure_setup(app.handle());
-
-            // Resolve app data directory
-            let app_data_dir = app.path().app_data_dir().map_err(|error| {
-                Box::new(std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    error.to_string(),
-                ))
-            })?;
 
             api::http::warm_shared_client();
 
@@ -301,6 +363,9 @@ pub fn run() {
             get_music_charts,
             fetch_subtitles,
             get_sabr_debug_state,
+            log_frontend_event,
+            read_logs,
+            clear_logs,
             // --- Shorts feed ---
             get_shorts_feed,
             load_more_shorts,

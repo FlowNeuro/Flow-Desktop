@@ -35,15 +35,30 @@ pub enum AppError {
     ContentNotAvailable(String),
 
     #[error("Database error: {0}")]
-    Database(String),
+    Database(#[from] sqlx::Error),
 
     #[error("Streaming error: {0}")]
     #[allow(dead_code)]
     Streaming(String),
 
     #[error("Internal error: {0}")]
-    #[allow(dead_code)]
     Internal(String),
+}
+
+// Preserve the underlying cause when propagating common library errors with `?`,
+// instead of hand-writing `.map_err(|e| AppError::X(e.to_string()))` at every
+// call site. The formatted message keeps the source's own text so the boundary
+// logger below records it.
+impl From<std::io::Error> for AppError {
+    fn from(error: std::io::Error) -> Self {
+        AppError::Internal(format!("IO error: {error}"))
+    }
+}
+
+impl From<serde_json::Error> for AppError {
+    fn from(error: serde_json::Error) -> Self {
+        AppError::Extractor(format!("JSON error: {error}"))
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -53,9 +68,26 @@ pub struct ErrorResponse {
     pub kind: String,
 }
 
+/// Walks `source()` and joins the chain into `caused by -> ... -> ...`. Empty
+/// for the current `String`-backed variants; captures the real chain automatically
+/// once variants carry `#[source]`.
+fn cause_chain(error: &AppError) -> String {
+    use std::error::Error;
+    let mut chain = String::new();
+    let mut source = error.source();
+    while let Some(err) = source {
+        if !chain.is_empty() {
+            chain.push_str(" -> ");
+        }
+        chain.push_str(&err.to_string());
+        source = err.source();
+    }
+    chain
+}
+
 impl From<AppError> for ErrorResponse {
     fn from(error: AppError) -> Self {
-        let kind = match error {
+        let kind = match &error {
             AppError::Validation(_) => "validation",
             AppError::Extractor(_) => "extractor",
             AppError::AgeRestricted(_) => "ageRestricted",
@@ -71,9 +103,56 @@ impl From<AppError> for ErrorResponse {
             AppError::Internal(_) => "internal",
         };
 
+        let message = error.to_string();
+        let cause = cause_chain(&error);
+
+        // Log every failure that crosses the backend->frontend boundary so a
+        // user-visible error always leaves a diagnosable trail in the log file.
+        // Severity by kind: internal/database faults are bugs (error); extraction
+        // and streaming failures are operational (warn); content restrictions are
+        // expected outcomes (debug) and shouldn't spam the default `info` log.
+        match kind {
+            "internal" | "database" => {
+                tracing::error!(kind, error = %message, cause = %cause, "backend_error")
+            }
+            "extractor" | "streaming" | "validation" | "botCheckRequired" => {
+                tracing::warn!(kind, error = %message, cause = %cause, "backend_error")
+            }
+            _ => tracing::debug!(kind, error = %message, "backend_error"),
+        }
+
         Self {
-            message: error.to_string(),
+            message,
             kind: kind.to_string(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn maps_each_variant_to_its_kind() {
+        let cases = [
+            (AppError::Validation("v".into()), "validation"),
+            (AppError::Extractor("e".into()), "extractor"),
+            (AppError::AgeRestricted("a".into()), "ageRestricted"),
+            (AppError::BotCheckRequired("b".into()), "botCheckRequired"),
+            (AppError::Database(sqlx::Error::RowNotFound), "database"),
+            (AppError::Internal("i".into()), "internal"),
+        ];
+        for (error, expected_kind) in cases {
+            let response: ErrorResponse = error.into();
+            assert_eq!(response.kind, expected_kind);
+        }
+    }
+
+    #[test]
+    fn io_error_converts_preserving_the_source_message() {
+        let io = std::io::Error::new(std::io::ErrorKind::NotFound, "missing.dat");
+        let response: ErrorResponse = AppError::from(io).into();
+        assert_eq!(response.kind, "internal");
+        assert!(response.message.contains("missing.dat"));
     }
 }

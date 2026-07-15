@@ -1,15 +1,10 @@
 import { getAppMetadata } from "./appMetadata";
 import { getSystemMetadata } from "./systemMetadata";
+import { getDiagnosticEvents, recordDiagnostic } from "./diagnostics";
 import type { PlayerErrorInfo } from "./playerError";
 
-const MAX_EVENTS = 200;
-const events: { at: string; message: string }[] = [];
-
 export function recordPlayerEvent(message: string): void {
-  events.push({ at: new Date().toISOString(), message });
-  if (events.length > MAX_EVENTS) {
-    events.splice(0, events.length - MAX_EVENTS);
-  }
+  recordDiagnostic("player", message);
 }
 
 export interface PlayerReportContext {
@@ -61,7 +56,9 @@ export async function buildPlayerReport(ctx: PlayerReportContext): Promise<strin
 
   const recentEvents = section(
     "Recent events",
-    events.slice(-40).map((entry) => `${entry.at}  ${entry.message}`),
+    getDiagnosticEvents()
+      .slice(-40)
+      .map((entry) => `${entry.at}  [${entry.scope}] ${entry.message}`),
   );
 
   return [`Flow Desktop — playback diagnostics`, environment, failure, recentEvents]

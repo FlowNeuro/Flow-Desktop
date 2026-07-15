@@ -33,7 +33,7 @@ pub async fn log_recommendation_event(
     .bind(value)
     .execute(pool)
     .await
-    .map_err(|e| AppError::Database(e.to_string()))?;
+    .map_err(AppError::from)?;
 
     Ok(())
 }
@@ -51,7 +51,7 @@ pub async fn get_recommendation_events(
     .bind(limit)
     .fetch_all(pool)
     .await
-    .map_err(|e| AppError::Database(e.to_string()))?;
+    .map_err(AppError::from)?;
 
     Ok(records)
 }
@@ -60,7 +60,7 @@ pub async fn clear_recommendation_events(pool: &SqlitePool) -> AppResult<()> {
     sqlx::query("DELETE FROM recommendation_events")
         .execute(pool)
         .await
-        .map_err(|e| AppError::Database(e.to_string()))?;
+        .map_err(AppError::from)?;
 
     Ok(())
 }
@@ -76,7 +76,7 @@ pub async fn prune_recommendation_events(pool: &SqlitePool, keep: i64) -> AppRes
     .bind(keep)
     .execute(pool)
     .await
-    .map_err(|e| AppError::Database(e.to_string()))?;
+    .map_err(AppError::from)?;
 
     Ok(())
 }

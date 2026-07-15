@@ -18,8 +18,7 @@ use sqlx::{
 use crate::errors::{AppError, AppResult};
 
 pub async fn initialize_database(app_data_dir: PathBuf) -> AppResult<SqlitePool> {
-    std::fs::create_dir_all(&app_data_dir)
-        .map_err(|error| AppError::Database(error.to_string()))?;
+    std::fs::create_dir_all(&app_data_dir).map_err(AppError::from)?;
 
     let db_path = app_data_dir.join("flow-desktop.sqlite");
     let database_url = format!("sqlite://{}", db_path.to_string_lossy());
@@ -27,12 +26,12 @@ pub async fn initialize_database(app_data_dir: PathBuf) -> AppResult<SqlitePool>
     // Ensure SQLite database file is created if it does not exist
     if !db_path.exists() {
         std::fs::File::create(&db_path)
-            .map_err(|error| AppError::Database(format!("Failed to create DB file: {}", error)))?;
+            .map_err(|error| AppError::Internal(format!("Failed to create DB file: {error}")))?;
     }
 
     // 1. Configure the SQLite connection specifically for high concurrency
     let connection_options = SqliteConnectOptions::from_str(&database_url)
-        .map_err(|error| AppError::Database(error.to_string()))?
+        .map_err(AppError::from)?
         .create_if_missing(true)
         .journal_mode(SqliteJournalMode::Wal) // Allows concurrent readers!
         .synchronous(SqliteSynchronous::Normal) // Massive write speed improvement
@@ -49,7 +48,7 @@ pub async fn initialize_database(app_data_dir: PathBuf) -> AppResult<SqlitePool>
         .idle_timeout(Duration::from_secs(90))
         .connect_with(connection_options)
         .await
-        .map_err(|error| AppError::Database(error.to_string()))?;
+        .map_err(AppError::from)?;
 
     // Self-healing query: Ensure settings table is created immediately in case of migration mismatches
     sqlx::query(
@@ -61,13 +60,13 @@ pub async fn initialize_database(app_data_dir: PathBuf) -> AppResult<SqlitePool>
     )
     .execute(&pool)
     .await
-    .map_err(|error| AppError::Database(error.to_string()))?;
+    .map_err(AppError::from)?;
 
     // Run migrations compile-time verified
     sqlx::migrate!("./migrations")
         .run(&pool)
         .await
-        .map_err(|error| AppError::Database(error.to_string()))?;
+        .map_err(|error| AppError::Internal(format!("DB migration failed: {error}")))?;
 
     if let Err(error) = sqlx::query("PRAGMA optimize;").execute(&pool).await {
         tracing::warn!(%error, "PRAGMA optimize after migrations failed");

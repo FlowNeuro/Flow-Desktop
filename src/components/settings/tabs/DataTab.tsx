@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Upload, Download, Trash2 } from 'lucide-react';
+import { Upload, Download, Trash2, FileText } from 'lucide-react';
 import { SettingsGroup } from '../SettingsGroup';
 import { SettingItem } from '../SettingItem';
 import { Select } from '../../ui/Select';
@@ -109,6 +109,14 @@ export function DataTab() {
               <div className="text-xs text-chrome-neutral-400 mt-0.5">{getString('settings_import_restore_desc')}</div>
             </div>
             <Button variant="secondary" size="sm" onClick={() => navigate('/settings/import')}><Upload size={14} />{getString('settings_import')}</Button>
+          </div>
+          <div className="border-t border-chrome-neutral-800/50" />
+          <div className="flex items-center justify-between px-5 py-4 hover:bg-surface-container transition-colors duration-200 ease-out">
+            <div className="flex-1 min-w-0 mr-4">
+              <div className="text-sm font-medium text-chrome-neutral-200">{getString('settings_diagnostics')}</div>
+              <div className="text-xs text-chrome-neutral-400 mt-0.5">{getString('settings_diagnostics_desc')}</div>
+            </div>
+            <Button variant="secondary" size="sm" onClick={() => navigate('/settings/diagnostics')}><FileText size={14} />{getString('settings_open')}</Button>
           </div>
           <div className="border-t border-chrome-neutral-800/50" />
           <div className="flex items-center justify-between px-5 py-4 hover:bg-surface-container transition-colors duration-200 ease-out">

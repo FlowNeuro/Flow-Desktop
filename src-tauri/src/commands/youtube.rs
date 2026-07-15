@@ -481,6 +481,7 @@ pub async fn search_videos(
 }
 
 #[tauri::command]
+#[tracing::instrument(skip_all, fields(video_id = %video_id))]
 pub async fn get_video_details(
     video_id: String,
     youtube_service: State<'_, YoutubeService>,
@@ -494,6 +495,7 @@ pub async fn get_video_details(
 }
 
 #[tauri::command]
+#[tracing::instrument(skip_all, fields(video_id = %video_id))]
 pub async fn get_related_videos(
     video_id: String,
     youtube_service: State<'_, YoutubeService>,
@@ -507,6 +509,7 @@ pub async fn get_related_videos(
 }
 
 #[tauri::command]
+#[tracing::instrument(skip_all, fields(video_id = %video_id))]
 pub async fn get_stream_info(
     video_id: String,
     youtube_service: State<'_, YoutubeService>,

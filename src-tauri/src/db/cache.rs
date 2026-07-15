@@ -30,7 +30,7 @@ pub async fn cache_video_summary(
     .bind(expires_in_seconds)
     .execute(pool)
     .await
-    .map_err(|e| AppError::Database(e.to_string()))?;
+    .map_err(AppError::from)?;
 
     Ok(())
 }
@@ -44,7 +44,7 @@ pub async fn get_cached_video_summary(
     sqlx::query("DELETE FROM video_cache WHERE datetime(expires_at) < datetime('now')")
         .execute(pool)
         .await
-        .map_err(|e| AppError::Database(e.to_string()))?;
+        .map_err(AppError::from)?;
 
     let row = sqlx::query(
         "SELECT video_id, title, channel_name, thumbnail_url, duration_seconds
@@ -55,7 +55,7 @@ pub async fn get_cached_video_summary(
     .bind(video_id)
     .fetch_optional(pool)
     .await
-    .map_err(|e| AppError::Database(e.to_string()))?;
+    .map_err(AppError::from)?;
 
     if let Some(r) = row {
         let id: String = sqlx::Row::get(&r, 0);
@@ -86,7 +86,7 @@ pub async fn clear_cache(pool: &SqlitePool) -> AppResult<()> {
     sqlx::query("DELETE FROM video_cache")
         .execute(pool)
         .await
-        .map_err(|e| AppError::Database(e.to_string()))?;
+        .map_err(AppError::from)?;
 
     Ok(())
 }
@@ -104,7 +104,7 @@ pub async fn get_cached_dearrow(
     .bind(video_id)
     .fetch_optional(pool)
     .await
-    .map_err(|e| AppError::Database(e.to_string()))?;
+    .map_err(AppError::from)?;
 
     if let Some(r) = row {
         let title: Option<String> = sqlx::Row::get(&r, 0);
@@ -136,7 +136,7 @@ pub async fn cache_dearrow(
     .bind(&override_data.thumbnail_url)
     .execute(pool)
     .await
-    .map_err(|e| AppError::Database(e.to_string()))?;
+    .map_err(AppError::from)?;
 
     Ok(())
 }
@@ -145,6 +145,6 @@ pub async fn cleanup_dearrow_cache(pool: &SqlitePool) -> AppResult<()> {
     sqlx::query("DELETE FROM dearrow_cache WHERE datetime(cached_at) < datetime('now', '-7 days')")
         .execute(pool)
         .await
-        .map_err(|e| AppError::Database(e.to_string()))?;
+        .map_err(AppError::from)?;
     Ok(())
 }

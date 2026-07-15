@@ -52,6 +52,9 @@ export interface DownloadProgress {
   totalBytes: number | null;
   status: DownloadStatus;
   error: string | null;
+  /** Coarse failure category for a `failed` download (e.g. "network", "streaming",
+   *  "internal", "download"); null unless the download terminally failed. */
+  errorKind: string | null;
   logs: string[];
   videoId: string | null;
   thumbnailUrl: string | null;

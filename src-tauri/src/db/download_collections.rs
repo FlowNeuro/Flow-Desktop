@@ -44,7 +44,7 @@ pub async fn insert_collection(
     .bind(record.total_count)
     .execute(pool)
     .await
-    .map_err(|e| AppError::Database(e.to_string()))?;
+    .map_err(AppError::from)?;
     Ok(result.last_insert_rowid())
 }
 
@@ -63,7 +63,7 @@ pub async fn find_collection(
         .bind(kind)
         .fetch_optional(pool)
         .await
-        .map_err(|e| AppError::Database(e.to_string()))
+        .map_err(AppError::from)
 }
 
 pub async fn set_total_count(pool: &SqlitePool, id: i64, total_count: i64) -> AppResult<()> {
@@ -72,7 +72,7 @@ pub async fn set_total_count(pool: &SqlitePool, id: i64, total_count: i64) -> Ap
         .bind(id)
         .execute(pool)
         .await
-        .map_err(|e| AppError::Database(e.to_string()))?;
+        .map_err(AppError::from)?;
     Ok(())
 }
 
@@ -87,7 +87,7 @@ pub async fn list_collections(pool: &SqlitePool) -> AppResult<Vec<DownloadCollec
     sqlx::query_as::<_, DownloadCollectionRecord>(&query)
         .fetch_all(pool)
         .await
-        .map_err(|e| AppError::Database(e.to_string()))
+        .map_err(AppError::from)
 }
 
 pub async fn collections_by_ids(
@@ -104,10 +104,7 @@ pub async fn collections_by_ids(
     for id in ids {
         statement = statement.bind(id);
     }
-    statement
-        .fetch_all(pool)
-        .await
-        .map_err(|e| AppError::Database(e.to_string()))
+    statement.fetch_all(pool).await.map_err(AppError::from)
 }
 
 /// The video ids already saved for a collection, used to skip re-downloading them.
@@ -119,7 +116,7 @@ pub async fn collection_video_ids(pool: &SqlitePool, id: i64) -> AppResult<Vec<S
     .bind(id)
     .fetch_all(pool)
     .await
-    .map_err(|e| AppError::Database(e.to_string()))?;
+    .map_err(AppError::from)?;
     Ok(rows.iter().map(|row| row.get::<String, _>(0)).collect())
 }
 
@@ -134,10 +131,7 @@ pub async fn delete_collection_items(pool: &SqlitePool, ids: &[i64]) -> AppResul
     for id in ids {
         statement = statement.bind(id);
     }
-    statement
-        .execute(pool)
-        .await
-        .map_err(|e| AppError::Database(e.to_string()))?;
+    statement.execute(pool).await.map_err(AppError::from)?;
     Ok(())
 }
 
@@ -151,9 +145,6 @@ pub async fn delete_collections(pool: &SqlitePool, ids: &[i64]) -> AppResult<()>
     for id in ids {
         statement = statement.bind(id);
     }
-    statement
-        .execute(pool)
-        .await
-        .map_err(|e| AppError::Database(e.to_string()))?;
+    statement.execute(pool).await.map_err(AppError::from)?;
     Ok(())
 }

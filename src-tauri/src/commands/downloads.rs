@@ -191,6 +191,7 @@ struct DownloadProgress {
     total_bytes: Option<u64>,
     status: DownloadStatus,
     error: Option<String>,
+    error_kind: Option<String>,
     logs: Vec<String>,
     video_id: Option<String>,
     thumbnail_url: Option<String>,
@@ -273,6 +274,16 @@ struct ProgressEmitter {
 
 impl ProgressEmitter {
     fn emit(&self, status: DownloadStatus, error: Option<String>) {
+        // Terminal failures never cross the AppError->ErrorResponse boundary (they
+        // are emitted as events from a background task), so log them here or they
+        // would leave no trace in the persistent log / Diagnostics page.
+        let error_kind = match (&status, &error) {
+            (DownloadStatus::Failed, Some(message)) => {
+                tracing::warn!(id = %self.id, video_id = ?self.video_id, error = %message, "download_failed");
+                Some("download".to_string())
+            }
+            _ => None,
+        };
         let _ = self.app.emit(
             DOWNLOAD_EVENT,
             DownloadProgress {
@@ -285,6 +296,7 @@ impl ProgressEmitter {
                 total_bytes: self.total,
                 status,
                 error,
+                error_kind,
                 logs: self
                     .logs
                     .lock()
@@ -468,6 +480,7 @@ pub async fn start_download(
             total_bytes: None,
             status: DownloadStatus::Queued,
             error: None,
+            error_kind: None,
             logs: vec!["Download added to the queue".to_string()],
             video_id: context.video_id.clone(),
             thumbnail_url: context.thumbnail_url.clone(),
@@ -486,6 +499,7 @@ pub async fn start_download(
                 &context,
                 &app_for_task,
                 format!("Download queue stopped unexpectedly: {error}"),
+                "internal",
             ),
         }
         if let Ok(mut registry) = manager_for_task.registry.lock() {
@@ -685,7 +699,12 @@ async fn run_download(mut context: DownloadContext, app: AppHandle) {
     }
 
     let Some(session) = context.session.as_ref() else {
-        emit_terminal_error(&context, &app, "The download has no media stream".into());
+        emit_terminal_error(
+            &context,
+            &app,
+            "The download has no media stream".into(),
+            "streaming",
+        );
         return;
     };
     let remote_url = match &session.kind {
@@ -699,6 +718,7 @@ async fn run_download(mut context: DownloadContext, app: AppHandle) {
                 &context,
                 &app,
                 format!("Could not initialize download: {error}"),
+                "network",
             );
             return;
         }
@@ -790,6 +810,7 @@ async fn run_adaptive_download(
                 &context,
                 &app,
                 format!("Could not initialize video download: {error}"),
+                "network",
             );
             return;
         }
@@ -801,6 +822,7 @@ async fn run_adaptive_download(
                 &context,
                 &app,
                 format!("Could not initialize audio download: {error}"),
+                "network",
             );
             return;
         }
@@ -1656,7 +1678,8 @@ async fn cleanup_adaptive_files(context: &DownloadContext, adaptive: &AdaptiveDo
     cleanup_partial_files(&audio_context).await;
 }
 
-fn emit_terminal_error(context: &DownloadContext, app: &AppHandle, error: String) {
+fn emit_terminal_error(context: &DownloadContext, app: &AppHandle, error: String, kind: &str) {
+    tracing::warn!(id = %context.id, video_id = ?context.video_id, kind, error = %error, "download_failed");
     let _ = app.emit(
         DOWNLOAD_EVENT,
         DownloadProgress {
@@ -1669,6 +1692,7 @@ fn emit_terminal_error(context: &DownloadContext, app: &AppHandle, error: String
             total_bytes: None,
             status: DownloadStatus::Failed,
             error: Some(error.clone()),
+            error_kind: Some(kind.to_string()),
             logs: vec![error],
             video_id: context.video_id.clone(),
             thumbnail_url: context.thumbnail_url.clone(),
@@ -1690,6 +1714,7 @@ fn emit_cancelled(context: &DownloadContext, app: &AppHandle) {
             total_bytes: None,
             status: DownloadStatus::Cancelled,
             error: None,
+            error_kind: None,
             logs: vec!["Download cancelled while queued".to_string()],
             video_id: context.video_id.clone(),
             thumbnail_url: context.thumbnail_url.clone(),

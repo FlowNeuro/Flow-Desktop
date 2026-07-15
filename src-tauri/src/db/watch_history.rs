@@ -22,7 +22,7 @@ pub async fn upsert_watch_record(pool: &SqlitePool, record: &WatchHistoryRecord)
         .bind(&record.video_id)
         .fetch_optional(pool)
         .await
-        .map_err(|e| AppError::Database(e.to_string()))?;
+        .map_err(AppError::from)?;
 
     if let Some(row) = existing {
         let id: i64 = sqlx::Row::get(&row, 0);
@@ -45,7 +45,7 @@ pub async fn upsert_watch_record(pool: &SqlitePool, record: &WatchHistoryRecord)
         .bind(id)
         .execute(pool)
         .await
-        .map_err(|e| AppError::Database(e.to_string()))?;
+        .map_err(AppError::from)?;
     } else {
         sqlx::query(
             "INSERT INTO watch_history (video_id, title, channel_name, watch_date, watch_duration_seconds, total_duration_seconds, is_music)
@@ -60,7 +60,7 @@ pub async fn upsert_watch_record(pool: &SqlitePool, record: &WatchHistoryRecord)
         .bind(record.is_music)
         .execute(pool)
         .await
-        .map_err(|e| AppError::Database(e.to_string()))?;
+        .map_err(AppError::from)?;
     }
 
     Ok(())
@@ -74,17 +74,14 @@ pub async fn upsert_watch_records_bulk(
         return Ok(());
     }
 
-    let mut tx = pool
-        .begin()
-        .await
-        .map_err(|e| AppError::Database(e.to_string()))?;
+    let mut tx = pool.begin().await.map_err(AppError::from)?;
 
     for record in records {
         let existing = sqlx::query("SELECT id FROM watch_history WHERE video_id = ? LIMIT 1")
             .bind(&record.video_id)
             .fetch_optional(&mut *tx)
             .await
-            .map_err(|e| AppError::Database(e.to_string()))?;
+            .map_err(AppError::from)?;
 
         if let Some(row) = existing {
             let id: i64 = sqlx::Row::get(&row, 0);
@@ -107,7 +104,7 @@ pub async fn upsert_watch_records_bulk(
             .bind(id)
             .execute(&mut *tx)
             .await
-            .map_err(|e| AppError::Database(e.to_string()))?;
+            .map_err(AppError::from)?;
         } else {
             sqlx::query(
                 "INSERT INTO watch_history (video_id, title, channel_name, watch_date, watch_duration_seconds, total_duration_seconds, is_music)
@@ -122,13 +119,11 @@ pub async fn upsert_watch_records_bulk(
             .bind(record.is_music)
             .execute(&mut *tx)
             .await
-            .map_err(|e| AppError::Database(e.to_string()))?;
+            .map_err(AppError::from)?;
         }
     }
 
-    tx.commit()
-        .await
-        .map_err(|e| AppError::Database(e.to_string()))?;
+    tx.commit().await.map_err(AppError::from)?;
 
     Ok(())
 }
@@ -148,7 +143,7 @@ pub async fn get_watch_history(
     .bind(offset)
     .fetch_all(pool)
     .await
-    .map_err(|e| AppError::Database(e.to_string()))?;
+    .map_err(AppError::from)?;
 
     Ok(records)
 }
@@ -169,7 +164,7 @@ pub async fn get_music_history(
     .bind(offset)
     .fetch_all(pool)
     .await
-    .map_err(|e| AppError::Database(e.to_string()))?;
+    .map_err(AppError::from)?;
 
     Ok(records)
 }
@@ -188,7 +183,7 @@ pub async fn get_watch_record(
     .bind(video_id)
     .fetch_optional(pool)
     .await
-    .map_err(|e| AppError::Database(e.to_string()))?;
+    .map_err(AppError::from)?;
 
     Ok(record)
 }
@@ -198,7 +193,7 @@ pub async fn delete_watch_record(pool: &SqlitePool, video_id: &str) -> AppResult
         .bind(video_id)
         .execute(pool)
         .await
-        .map_err(|e| AppError::Database(e.to_string()))?;
+        .map_err(AppError::from)?;
 
     Ok(())
 }
@@ -207,7 +202,7 @@ pub async fn clear_watch_history(pool: &SqlitePool) -> AppResult<()> {
     sqlx::query("DELETE FROM watch_history")
         .execute(pool)
         .await
-        .map_err(|e| AppError::Database(e.to_string()))?;
+        .map_err(AppError::from)?;
 
     Ok(())
 }

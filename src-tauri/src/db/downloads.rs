@@ -33,7 +33,7 @@ pub async fn upsert_download(pool: &SqlitePool, record: &DownloadRecord) -> AppR
                     .bind(collection_db_id)
                     .execute(pool)
                     .await
-                    .map_err(|e| AppError::Database(e.to_string()))?;
+                    .map_err(AppError::from)?;
             }
             None => {
                 sqlx::query(
@@ -42,7 +42,7 @@ pub async fn upsert_download(pool: &SqlitePool, record: &DownloadRecord) -> AppR
                 .bind(video_id)
                 .execute(pool)
                 .await
-                .map_err(|e| AppError::Database(e.to_string()))?;
+                .map_err(AppError::from)?;
             }
         }
     }
@@ -63,7 +63,7 @@ pub async fn upsert_download(pool: &SqlitePool, record: &DownloadRecord) -> AppR
     .bind(record.collection_db_id)
     .execute(pool)
     .await
-    .map_err(|e| AppError::Database(e.to_string()))?;
+    .map_err(AppError::from)?;
 
     Ok(())
 }
@@ -77,7 +77,7 @@ pub async fn downloads_for_collection(
         .bind(collection_db_id)
         .fetch_all(pool)
         .await
-        .map_err(|e| AppError::Database(e.to_string()))
+        .map_err(AppError::from)
 }
 
 pub async fn list_downloads(pool: &SqlitePool) -> AppResult<Vec<DownloadRecord>> {
@@ -85,7 +85,7 @@ pub async fn list_downloads(pool: &SqlitePool) -> AppResult<Vec<DownloadRecord>>
     sqlx::query_as::<_, DownloadRecord>(&query)
         .fetch_all(pool)
         .await
-        .map_err(|e| AppError::Database(e.to_string()))
+        .map_err(AppError::from)
 }
 
 /// The saved download for a `video_id`, if any. There is at most one (upsert
@@ -99,7 +99,7 @@ pub async fn download_by_video_id(
         .bind(video_id)
         .fetch_optional(pool)
         .await
-        .map_err(|e| AppError::Database(e.to_string()))
+        .map_err(AppError::from)
 }
 
 pub async fn downloads_by_ids(pool: &SqlitePool, ids: &[i64]) -> AppResult<Vec<DownloadRecord>> {
@@ -112,10 +112,7 @@ pub async fn downloads_by_ids(pool: &SqlitePool, ids: &[i64]) -> AppResult<Vec<D
     for id in ids {
         statement = statement.bind(id);
     }
-    statement
-        .fetch_all(pool)
-        .await
-        .map_err(|e| AppError::Database(e.to_string()))
+    statement.fetch_all(pool).await.map_err(AppError::from)
 }
 
 pub async fn delete_downloads(pool: &SqlitePool, ids: &[i64]) -> AppResult<()> {
@@ -128,10 +125,7 @@ pub async fn delete_downloads(pool: &SqlitePool, ids: &[i64]) -> AppResult<()> {
     for id in ids {
         statement = statement.bind(id);
     }
-    statement
-        .execute(pool)
-        .await
-        .map_err(|e| AppError::Database(e.to_string()))?;
+    statement.execute(pool).await.map_err(AppError::from)?;
     Ok(())
 }
 
@@ -139,7 +133,7 @@ pub async fn clear_downloads(pool: &SqlitePool) -> AppResult<()> {
     sqlx::query("DELETE FROM downloads")
         .execute(pool)
         .await
-        .map_err(|e| AppError::Database(e.to_string()))?;
+        .map_err(AppError::from)?;
     Ok(())
 }
 
@@ -148,6 +142,6 @@ pub async fn downloaded_video_ids(pool: &SqlitePool) -> AppResult<Vec<String>> {
     let rows = sqlx::query("SELECT DISTINCT video_id FROM downloads WHERE video_id IS NOT NULL")
         .fetch_all(pool)
         .await
-        .map_err(|e| AppError::Database(e.to_string()))?;
+        .map_err(AppError::from)?;
     Ok(rows.iter().map(|row| row.get::<String, _>(0)).collect())
 }

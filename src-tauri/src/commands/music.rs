@@ -291,6 +291,7 @@ pub async fn lyrics_http_get(
 // --- Playback (reuses the shared streaming proxy) -------------------------
 
 #[tauri::command]
+#[tracing::instrument(skip_all, fields(video_id = %video_id, kind = "music"))]
 pub async fn get_music_stream(
     video_id: String,
     audio_quality: Option<String>,

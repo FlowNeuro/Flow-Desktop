@@ -13,7 +13,7 @@ pub async fn set_setting(pool: &SqlitePool, key: &str, value: &str) -> AppResult
     .bind(value)
     .execute(pool)
     .await
-    .map_err(|e| AppError::Database(e.to_string()))?;
+    .map_err(AppError::from)?;
 
     Ok(())
 }
@@ -23,7 +23,7 @@ pub async fn get_setting(pool: &SqlitePool, key: &str) -> AppResult<Option<Strin
         .bind(key)
         .fetch_optional(pool)
         .await
-        .map_err(|e| AppError::Database(e.to_string()))?;
+        .map_err(AppError::from)?;
 
     if let Some(r) = row {
         let value: String = sqlx::Row::get(&r, 0);
@@ -38,7 +38,7 @@ pub async fn clear_settings(pool: &SqlitePool) -> AppResult<()> {
     sqlx::query("DELETE FROM settings")
         .execute(pool)
         .await
-        .map_err(|e| AppError::Database(e.to_string()))?;
+        .map_err(AppError::from)?;
 
     Ok(())
 }

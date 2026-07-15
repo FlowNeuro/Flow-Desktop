@@ -44,7 +44,7 @@ pub async fn insert_notification(
     .bind(notification.created_at)
     .execute(pool)
     .await
-    .map_err(|e| AppError::Database(e.to_string()))?;
+    .map_err(AppError::from)?;
 
     Ok(result.last_insert_rowid())
 }
@@ -62,7 +62,7 @@ pub async fn list_notifications(
     .bind(limit)
     .fetch_all(pool)
     .await
-    .map_err(|e| AppError::Database(e.to_string()))?;
+    .map_err(AppError::from)?;
 
     Ok(rows
         .into_iter()
@@ -85,7 +85,7 @@ pub async fn unread_count(pool: &SqlitePool) -> AppResult<i64> {
     let row = sqlx::query("SELECT COUNT(*) AS count FROM notifications WHERE is_read = 0")
         .fetch_one(pool)
         .await
-        .map_err(|e| AppError::Database(e.to_string()))?;
+        .map_err(AppError::from)?;
     Ok(row.get::<i64, _>("count"))
 }
 
@@ -93,7 +93,7 @@ pub async fn mark_all_read(pool: &SqlitePool) -> AppResult<()> {
     sqlx::query("UPDATE notifications SET is_read = 1 WHERE is_read = 0")
         .execute(pool)
         .await
-        .map_err(|e| AppError::Database(e.to_string()))?;
+        .map_err(AppError::from)?;
     Ok(())
 }
 
@@ -102,7 +102,7 @@ pub async fn delete_notification(pool: &SqlitePool, id: i64) -> AppResult<()> {
         .bind(id)
         .execute(pool)
         .await
-        .map_err(|e| AppError::Database(e.to_string()))?;
+        .map_err(AppError::from)?;
     Ok(())
 }
 
@@ -110,7 +110,7 @@ pub async fn clear_notifications(pool: &SqlitePool) -> AppResult<()> {
     sqlx::query("DELETE FROM notifications")
         .execute(pool)
         .await
-        .map_err(|e| AppError::Database(e.to_string()))?;
+        .map_err(AppError::from)?;
     Ok(())
 }
 
@@ -123,7 +123,7 @@ pub async fn get_watermark(pool: &SqlitePool, channel_id: &str) -> AppResult<Opt
     .bind(channel_id)
     .fetch_optional(pool)
     .await
-    .map_err(|e| AppError::Database(e.to_string()))?;
+    .map_err(AppError::from)?;
 
     Ok(row.and_then(|r| r.get::<Option<String>, _>("last_video_id")))
 }
@@ -146,6 +146,6 @@ pub async fn set_watermark(
     .bind(checked_at)
     .execute(pool)
     .await
-    .map_err(|e| AppError::Database(e.to_string()))?;
+    .map_err(AppError::from)?;
     Ok(())
 }

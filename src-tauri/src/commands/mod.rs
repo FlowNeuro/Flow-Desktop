@@ -1,4 +1,5 @@
 pub mod db;
+pub mod diagnostics;
 pub mod downloads;
 pub mod files;
 pub mod music;

@@ -1775,14 +1775,14 @@ impl RecommendationService {
         )
         .fetch_all(&self.pool)
         .await
-        .map_err(|e| crate::errors::AppError::Database(e.to_string()))?;
+        .map_err(crate::errors::AppError::from)?;
 
         let chips_rows = sqlx::query(
             "SELECT title, browse_id, params, order_by FROM music_home_chips ORDER BY order_by ASC",
         )
         .fetch_all(&self.pool)
         .await
-        .map_err(|e| crate::errors::AppError::Database(e.to_string()))?;
+        .map_err(crate::errors::AppError::from)?;
 
         if sections_rows.is_empty() && chips_rows.is_empty() {
             return Ok(None);
@@ -1834,21 +1834,21 @@ impl RecommendationService {
             .pool
             .begin()
             .await
-            .map_err(|e| crate::errors::AppError::Database(e.to_string()))?;
+            .map_err(crate::errors::AppError::from)?;
 
         sqlx::query("DELETE FROM music_home_sections")
             .execute(&mut *tx)
             .await
-            .map_err(|e| crate::errors::AppError::Database(e.to_string()))?;
+            .map_err(crate::errors::AppError::from)?;
 
         sqlx::query("DELETE FROM music_home_chips")
             .execute(&mut *tx)
             .await
-            .map_err(|e| crate::errors::AppError::Database(e.to_string()))?;
+            .map_err(crate::errors::AppError::from)?;
 
         for section in sections {
-            let tracks_json = serde_json::to_string(&section.tracks)
-                .map_err(|e| crate::errors::AppError::Database(e.to_string()))?;
+            let tracks_json =
+                serde_json::to_string(&section.tracks).map_err(crate::errors::AppError::from)?;
             sqlx::query(
                 "INSERT INTO music_home_sections (section_id, title, subtitle, tracks_json, order_by) VALUES (?, ?, ?, ?, ?)"
             )
@@ -1859,7 +1859,7 @@ impl RecommendationService {
             .bind(section.order_by)
             .execute(&mut *tx)
             .await
-            .map_err(|e| crate::errors::AppError::Database(e.to_string()))?;
+            .map_err(crate::errors::AppError::from)?;
         }
 
         for chip in chips {
@@ -1872,12 +1872,10 @@ impl RecommendationService {
             .bind(chip.order_by)
             .execute(&mut *tx)
             .await
-            .map_err(|e| crate::errors::AppError::Database(e.to_string()))?;
+            .map_err(crate::errors::AppError::from)?;
         }
 
-        tx.commit()
-            .await
-            .map_err(|e| crate::errors::AppError::Database(e.to_string()))?;
+        tx.commit().await.map_err(crate::errors::AppError::from)?;
         Ok(())
     }
 
@@ -1891,7 +1889,7 @@ impl RecommendationService {
         )
         .fetch_all(&self.pool)
         .await
-        .map_err(|e| crate::errors::AppError::Database(e.to_string()))?;
+        .map_err(crate::errors::AppError::from)?;
 
         let mut music_seeds = Vec::new();
         for r in rows {

@@ -38,6 +38,7 @@ import Donations from "./pages/Donations";
 import ImportData from "./pages/ImportData";
 import ExtensionsPage from "./pages/ExtensionsPage";
 import Channel from "./pages/Channel";
+import Diagnostics from "./pages/Diagnostics";
 import { Watch } from "./pages/Watch";
 import { ShortsFeed } from "./components/shorts/ShortsFeed";
 import Onboarding from "./pages/Onboarding";
@@ -206,6 +207,9 @@ function App() {
           } />
           <Route path="settings/import" element={
             <ImportData />
+          } />
+          <Route path="settings/diagnostics" element={
+            <Diagnostics />
           } />
           <Route path="sponsorblock" element={
             <ExtensionsPage />
