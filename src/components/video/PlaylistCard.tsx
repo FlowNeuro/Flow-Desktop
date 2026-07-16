@@ -9,6 +9,7 @@ import {
   removePlaylistFromLibrary,
   savePlaylistToLibrary,
 } from '../../lib/playlistLibrary';
+import { downloadPlaylist } from '../../lib/useCollectionDownloads';
 import { useUiStore } from '../../store/useUiStore';
 import { AnchoredPortalMenu, type MenuAnchor } from '../ui/AnchoredPortalMenu';
 
@@ -200,6 +201,20 @@ export function PlaylistCard({
     }
   };
 
+  const handleDownload = async () => {
+    if (onDownload) {
+      onDownload(playlist);
+      return;
+    }
+    try {
+      showToast({ variant: 'success', message: `Downloading "${playlist.title}"` });
+      await downloadPlaylist(playlist);
+    } catch (error) {
+      console.error('Failed to download playlist', error);
+      showToast({ variant: 'error', message: `Could not download "${playlist.title}"` });
+    }
+  };
+
   const runMenuAction = async (
     event: React.MouseEvent,
     action: () => void | Promise<void>,
@@ -239,7 +254,7 @@ export function PlaylistCard({
         ))}
         <button
           type="button"
-          onClick={(event) => void runMenuAction(event, () => onDownload?.(playlist))}
+          onClick={(event) => void runMenuAction(event, handleDownload)}
           className="flex w-full items-center gap-3 px-3.5 py-2.5 text-sm text-chrome-neutral-300 transition-colors hover:bg-surface-container-highest hover:text-chrome-neutral-100"
         >
           <Download size={16} />

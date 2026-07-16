@@ -146,10 +146,6 @@ export const Playlists: React.FC<PlaylistsProps> = ({ onPlay: _onPlay }) => {
     return true;
   };
 
-  const handleDownloadPlaylist = (playlist: PlaylistSummary) => {
-    console.info("Download playlist requested", playlist.id);
-  };
-
   return (
     <div className="flex-1 overflow-y-auto px-8 py-6">
         <div className="space-y-6 pb-20">
@@ -227,7 +223,6 @@ export const Playlists: React.FC<PlaylistsProps> = ({ onPlay: _onPlay }) => {
                   onClick={handlePlaylistClick}
                   onSaveToLibrary={handleSaveToLibrary}
                   onRemoveFromLibrary={handleRemoveFromLibrary}
-                  onDownload={handleDownloadPlaylist}
                 />
               ))}
             </div>

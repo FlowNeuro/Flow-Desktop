@@ -356,7 +356,16 @@ function SquareCard({
                 : getString('downloads_download_album'),
             icon:
               albumDownload.isComplete ? <CheckCircle2 size={16} /> : <Download size={16} />,
-            onSelect: () => void downloadAlbum(item),
+            onSelect: async () => {
+              if (albumDownload.active) return;
+              try {
+                showToast({ variant: 'success', message: getString('download_started') });
+                await downloadAlbum(item);
+              } catch (error) {
+                console.error('Failed to download album', error);
+                showToast({ variant: 'error', message: getString('download_failed') });
+              }
+            },
           },
           {
             id: 'share',

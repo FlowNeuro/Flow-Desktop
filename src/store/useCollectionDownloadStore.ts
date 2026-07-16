@@ -41,6 +41,7 @@ interface CollectionDownloadState {
   startPlaylist: (meta: CollectionMeta, videos: VideoSummary[]) => Promise<void>;
   startAlbum: (meta: CollectionMeta, songs: SongItem[]) => Promise<void>;
   handleProgress: (progress: DownloadProgress) => void;
+  dismissRun: (dbId: number) => void;
 }
 
 const itemWaiters = new Map<string, () => void>();
@@ -157,6 +158,14 @@ export const useCollectionDownloadStore = create<CollectionDownloadState>((set) 
         (song, folderPath, dbId) =>
           startMusicDownload(song, settings(), { destinationDirectory: folderPath, collectionDbId: dbId }),
       ),
+
+    dismissRun: (dbId) =>
+      set((state) => {
+        if (!state.runs[dbId]) return {};
+        const runs = { ...state.runs };
+        delete runs[dbId];
+        return { runs };
+      }),
 
     handleProgress: (progress) => {
       if (!TERMINAL_STATUSES.has(progress.status)) return;

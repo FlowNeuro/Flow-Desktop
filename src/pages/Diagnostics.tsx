@@ -1,6 +1,5 @@
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Copy, Trash2, Bug, RefreshCw } from "lucide-react";
+import { Copy, Trash2, Bug, RefreshCw } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { useDiagnostics } from "../lib/useDiagnostics";
 import { openExternal } from "../lib/openExternal";
@@ -11,7 +10,6 @@ import { useUiStore } from "../store/useUiStore";
 const GITHUB_ISSUES_URL = "https://github.com/FlowNeuro/Flow-Desktop/issues/new?template=bug_report.yml";
 
 export const Diagnostics: React.FC = () => {
-  const navigate = useNavigate();
   const showToast = useUiStore((state) => state.showToast);
   const { text, loading, error, refresh, clear } = useDiagnostics();
   const [busy, setBusy] = useState(false);

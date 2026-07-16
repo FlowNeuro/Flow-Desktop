@@ -1,12 +1,17 @@
 import { useEffect } from "react";
 
+import { useAlbumLibraryStore } from "../store/useAlbumLibraryStore";
 import { useCollectionDownloadStore } from "../store/useCollectionDownloadStore";
 import { useDownloadCollectionsLibraryStore } from "../store/useDownloadCollectionsLibraryStore";
 import { getMusicAlbumContinuation, getMusicAlbumPage } from "./api/music";
+import { getPlaylistDetails } from "./api/youtube";
+import { getStoredPlaylistById, isProtectedPlaylistId, normalizePlaylist } from "./playlistLibrary";
 import type { DownloadCollectionKind, DownloadCollectionRecord } from "./api/downloads";
 import type { AlbumItem, SongItem } from "../types/music";
+import type { PlaylistSummary, VideoSummary } from "../types/video";
 
 const ALBUM_PAGE_GUARD = 30;
+const PLAYLIST_PAGE_GUARD = 30;
 
 export interface CollectionDownloadState {
   /** Total items in the playlist/album. */
@@ -67,18 +72,66 @@ export function useCollectionDownloadState(
   };
 }
 
-/** Fetches an album's full track list (following continuations) and downloads it. */
-export async function downloadAlbum(album: AlbumItem): Promise<void> {
-  const page = await getMusicAlbumPage(album.browseId);
-  const songs: SongItem[] = [...page.songs];
-  let continuation = page.continuation;
-  let guard = 0;
-  while (continuation && guard < ALBUM_PAGE_GUARD) {
-    const [moreSongs, nextContinuation] = await getMusicAlbumContinuation(continuation);
-    songs.push(...moreSongs);
-    continuation = nextContinuation;
-    guard += 1;
+/** Resolves a playlist's full video list — from its stored tracks or by paging the
+ *  remote playlist — and hands it to the collection download run. Self-contained so
+ *  any playlist card can download without the caller pre-loading its videos. */
+export async function downloadPlaylist(playlist: PlaylistSummary): Promise<void> {
+  const stored = await getStoredPlaylistById(playlist.id);
+  const normalized = stored ? normalizePlaylist(stored) : null;
+
+  const videos: VideoSummary[] = normalized?.tracks ? [...normalized.tracks] : [];
+  let title = normalized?.name ?? playlist.title;
+  let author: string | undefined;
+  let thumbnailUrl = playlist.thumbnailUrl ?? normalized?.thumbnailUrl ?? undefined;
+
+  if (videos.length === 0 && !isProtectedPlaylistId(playlist.id)) {
+    let pageToken: string | null | undefined;
+    let guard = 0;
+    do {
+      const details = await getPlaylistDetails(playlist.id, pageToken);
+      videos.push(...(details.videos ?? []));
+      title = details.title || title;
+      author = details.channelName || author;
+      thumbnailUrl = thumbnailUrl ?? details.videos?.[0]?.thumbnailUrl ?? undefined;
+      pageToken = details.nextPageToken;
+      guard += 1;
+    } while (pageToken && guard < PLAYLIST_PAGE_GUARD);
   }
+
+  if (videos.length === 0) return;
+
+  await useCollectionDownloadStore.getState().startPlaylist(
+    { collectionId: playlist.id, title, author, thumbnailUrl },
+    videos,
+  );
+}
+
+/** Downloads an album's full track list. Owned albums live only in the local
+ *  library and carry a generated id (not a remote browseId), so their stored tracks
+ *  are used directly; remote albums are paged from the album endpoint. */
+export async function downloadAlbum(album: AlbumItem): Promise<void> {
+  const owned = useAlbumLibraryStore
+    .getState()
+    .albums.find((a) => a.source === "Owned" && a.id === album.browseId);
+
+  let songs: SongItem[];
+  if (owned) {
+    songs = owned.tracks ?? [];
+  } else {
+    const page = await getMusicAlbumPage(album.browseId);
+    songs = [...page.songs];
+    let continuation = page.continuation;
+    let guard = 0;
+    while (continuation && guard < ALBUM_PAGE_GUARD) {
+      const [moreSongs, nextContinuation] = await getMusicAlbumContinuation(continuation);
+      songs.push(...moreSongs);
+      continuation = nextContinuation;
+      guard += 1;
+    }
+  }
+
+  if (songs.length === 0) return;
+
   await useCollectionDownloadStore.getState().startAlbum(
     {
       collectionId: album.browseId,
