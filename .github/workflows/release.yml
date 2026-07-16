@@ -24,6 +24,7 @@ jobs:
       version: ${{ steps.release.outputs.version }}
       tag: ${{ steps.release.outputs.tag }}
       is_prerelease: ${{ steps.release.outputs.is_prerelease }}
+      notes: ${{ steps.changelog.outputs.notes }}
 
     steps:
       - name: Check out repository
@@ -55,6 +56,35 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "is_prerelease=$is_prerelease" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve changelog notes
+        id: changelog
+        shell: bash
+        run: |
+          tag="${{ steps.release.outputs.tag }}"
+
+          # Prefer the changelog that matches the released tag; otherwise fall
+          # back to the newest changelog file by semantic version.
+          file="changelog/${tag}.txt"
+          if [[ ! -f "$file" ]]; then
+            file="$(ls -1 changelog/v*.txt 2>/dev/null | sort -V | tail -n1 || true)"
+          fi
+
+          if [[ -n "$file" && -f "$file" ]]; then
+            echo "Using changelog file: $file"
+          else
+            echo "No changelog file found; using a generic release note."
+          fi
+
+          {
+            echo "notes<<CHANGELOG_EOF"
+            if [[ -n "$file" && -f "$file" ]]; then
+              cat "$file"
+            else
+              echo "Download the installer for your operating system and architecture below."
+            fi
+            echo "CHANGELOG_EOF"
+          } >> "$GITHUB_OUTPUT"
 
   publish:
     name: ${{ matrix.name }}
@@ -152,18 +182,17 @@ jobs:
         uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: ${{ needs.prepare.outputs.tag }}
           releaseName: ${{ needs.prepare.outputs.is_prerelease == 'true' && 'Flow Beta v__VERSION__' || 'Flow v__VERSION__' }}
-          releaseBody: |
-            Download the installer for your operating system and architecture.
-
-            Beta and release-candidate builds are intended for testing and use a separate application identity and data directory. Stable releases remain drafts until their artifacts have been smoke-tested and any required production signing or notarization is complete.
-          releaseDraft: ${{ needs.prepare.outputs.is_prerelease != 'true' }}
+          releaseBody: ${{ needs.prepare.outputs.notes }}
+          releaseDraft: false
           prerelease: ${{ needs.prepare.outputs.is_prerelease == 'true' }}
-          generateReleaseNotes: true
-          includeUpdaterJson: false
-          assetNamePattern: Flow_[version]_[platform]_[arch][setup][ext]
+          generateReleaseNotes: false
+          uploadUpdaterJson: true
+          releaseAssetNamePattern: Flow_[version]_[platform]_[arch][setup][ext]
           retryAttempts: 2
           args: >-
             ${{ matrix.args }}

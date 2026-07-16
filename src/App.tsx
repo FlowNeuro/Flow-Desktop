@@ -57,6 +57,7 @@ import { DeepLinkController } from "./components/handoff/DeepLinkController";
 import { DownloadDialog } from "./components/downloads/DownloadDialog";
 import { DownloadActivity } from "./components/downloads/DownloadActivity";
 import { DonationPromptHost } from "./components/donations/DonationPrompt";
+import { UpdateManager } from "./components/updater/UpdateManager";
 import { ThemeController } from "./lib/useTheme";
 
 import "./App.css";
@@ -237,6 +238,7 @@ function App() {
         <DownloadActivity />
       </LayoutGroup>
       <DonationPromptHost enabled={location.pathname !== "/onboarding"} />
+      <UpdateManager enabled={location.pathname !== "/onboarding"} />
       <ToastHost />
     </div>
   );

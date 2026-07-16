@@ -1,11 +1,15 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { ExternalLink, Globe, Scale, Code2, Cpu, Monitor, User, Package, Fingerprint, Info } from 'lucide-react';
+import { ExternalLink, Globe, Scale, Code2, Cpu, Monitor, User, Package, Fingerprint, Info, RefreshCw } from 'lucide-react';
 import { SettingsGroup } from '../SettingsGroup';
 import Logo from '../../common/Logo';
+import { Button } from '../../ui/Button';
+import { ToggleSwitch } from '../../ui/ToggleSwitch';
 import { getString } from '../../../lib/i18n/index';
 import { openExternal } from '../../../lib/openExternal';
 import { getAppMetadata, type AppMetadata } from '../../../lib/appMetadata';
 import { getSystemMetadata, type SystemMetadata } from '../../../lib/systemMetadata';
+import { useUpdaterStore } from '../../../store/useUpdaterStore';
+import { useUiStore } from '../../../store/useUiStore';
 
 function GithubIcon({ size = 16 }: { size?: number }) {
   return (
@@ -60,6 +64,11 @@ const sourceLabel = (source?: AppMetadata['source'] | SystemMetadata['source']) 
 export function AboutTab() {
   const [appMetadata, setAppMetadata] = useState<AppMetadata | null>(null);
   const [systemMetadata, setSystemMetadata] = useState<SystemMetadata | null>(null);
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const autoCheck = useUpdaterStore((s) => s.autoCheck);
+  const setAutoCheck = useUpdaterStore((s) => s.setAutoCheck);
+  const checkForUpdates = useUpdaterStore((s) => s.checkForUpdates);
+  const showToast = useUiStore((s) => s.showToast);
 
   useEffect(() => {
     let active = true;
@@ -79,6 +88,25 @@ export function AboutTab() {
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    void useUpdaterStore.getState().loadPreferences();
+  }, []);
+
+  const handleCheckForUpdates = async () => {
+    setCheckingUpdate(true);
+    try {
+      const result = await checkForUpdates({ silent: false });
+      if (result === 'uptodate') {
+        showToast({ variant: 'success', message: getString('updater_up_to_date') });
+      } else if (result === 'error') {
+        showToast({ variant: 'error', message: getString('updater_check_failed') });
+      }
+      // 'available' opens the global UpdateDialog automatically.
+    } finally {
+      setCheckingUpdate(false);
+    }
+  };
 
   const appName = appMetadata?.name ?? getString('settings_loading_metadata');
 
@@ -100,6 +128,29 @@ export function AboutTab() {
         <LinkRow icon={<Package size={16} />} label={getString('settings_bundle_type')} value={appMetadata?.bundleType ?? unknown()} />
         <div className="border-t border-chrome-neutral-800/50" />
         <LinkRow icon={<Info size={16} />} label={getString('settings_metadata_source')} value={sourceLabel(appMetadata?.source)} />
+      </SettingsGroup>
+
+      <SettingsGroup title={getString('settings_group_updates')}>
+        <div className="flex items-center justify-between px-5 py-4">
+          <div className="flex-1 min-w-0 mr-4">
+            <div className="text-sm font-medium text-chrome-neutral-200">{getString('settings_check_for_updates')}</div>
+            <div className="text-xs text-chrome-neutral-400 mt-0.5">
+              {getString('settings_check_for_updates_desc', appMetadata?.version ?? unknown())}
+            </div>
+          </div>
+          <Button variant="secondary" size="sm" onClick={handleCheckForUpdates} disabled={checkingUpdate}>
+            <RefreshCw size={14} className={checkingUpdate ? 'animate-spin' : undefined} />
+            {checkingUpdate ? getString('settings_checking') : getString('settings_check_for_updates')}
+          </Button>
+        </div>
+        <div className="border-t border-chrome-neutral-800/50" />
+        <div className="flex items-center justify-between px-5 py-4">
+          <div className="flex-1 min-w-0 mr-4">
+            <div className="text-sm font-medium text-chrome-neutral-200">{getString('settings_auto_update')}</div>
+            <div className="text-xs text-chrome-neutral-400 mt-0.5">{getString('settings_auto_update_desc')}</div>
+          </div>
+          <ToggleSwitch checked={autoCheck} onChange={(value) => void setAutoCheck(value)} />
+        </div>
       </SettingsGroup>
 
       <SettingsGroup title={getString('settings_group_contact')}>

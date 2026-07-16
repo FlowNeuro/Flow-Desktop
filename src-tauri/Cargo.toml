@@ -23,6 +23,9 @@ tauri-plugin-os = "2"
 tauri-plugin-notification = "2"
 # Deep linking: the flow:// scheme the browser extension hands off to.
 tauri-plugin-deep-link = "2"
+# In-app updates: signature-verified GitHub-releases updater + relaunch after install.
+tauri-plugin-updater = "2"
+tauri-plugin-process = "2"
 
 # Core Async & Serialization
 tokio = { version = "1", features = ["full"] }

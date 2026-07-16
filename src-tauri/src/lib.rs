@@ -153,6 +153,12 @@ pub fn run() {
                 let _ = window.set_focus();
             }
         }));
+
+        // In-app updater (GitHub releases, signature-verified) plus the process
+        // plugin so the frontend can relaunch into the freshly installed build.
+        builder = builder
+            .plugin(tauri_plugin_updater::Builder::new().build())
+            .plugin(tauri_plugin_process::init());
     }
 
     builder

@@ -1,0 +1,26 @@
+FLOW DESKTOP CHANGE LOG
+VERSION: 0.1.0
+DATE: 2026-07-16
+STATUS: PRE-RELEASE
+
+ABOUT
+Flow Desktop is a privacy-first YouTube and YouTube Music client - no account, no ads, no analytics, no telemetry. It is the desktop companion to Flow for Android.
+
+WHAT IT DOES
+- Watch YouTube videos and Shorts with native playback (no embedded web player)
+- Browse a full YouTube Music experience: home, explore, charts, artists, albums and lyrics
+- Download videos and music for offline use with a built-in muxer (no ffmpeg required)
+- Skip sponsors and intros automatically via SponsorBlock, DeArrow and Return YouTube Dislike
+- Get on-device recommendations from two local engines: FlowNeuro (video) and MusicBrain (music)
+- Sync your library, likes and history with Flow for Android over your local network (peer-to-peer, no cloud)
+- Follow channels, receive new-upload notifications, and manage playlists and watch history
+- Update automatically through the built-in, signature-verified updater
+
+SUPPORTED DEVICES
+- Windows 10/11 (x64 and ARM64)
+- macOS 13+ (Intel and Apple Silicon)
+- Linux (x64 and ARM64 - AppImage, .deb, .rpm)
+
+NOTES
+- First public build. No account is ever required and nothing is tracked.
+- Download the installer for your operating system and architecture below.

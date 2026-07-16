@@ -36,3 +36,4 @@ release.ps1
 graphify-out/
 .claude/
 claude.md
+bump-version.ps1
