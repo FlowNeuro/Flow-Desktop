@@ -13,6 +13,7 @@ const nightlyConfig = {
   version,
   identifier: "io.github.aedev.flow.desktop.nightly",
   bundle: {
+    createUpdaterArtifacts: false,
     shortDescription: "Nightly testing build of Flow Desktop.",
     longDescription:
       "An automatically generated testing build of Flow Desktop. Nightly builds use isolated application data and may be unstable.",
