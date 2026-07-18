@@ -1177,5 +1177,9 @@
   "player_error_internal_title": "Something went wrong",
   "player_error_internal_hint": "An unexpected error occurred inside Flow. Copy the logs so this can be diagnosed, then try again.",
   "player_error_generic_title": "Playback unavailable",
-  "player_error_generic_hint": "This content couldn't be played. Please try again."
+  "player_error_generic_hint": "This content couldn't be played. Please try again.",
+  "player_codec_missing_title": "Video codecs missing",
+  "player_codec_missing_hint": "Audio is playing but your system can't decode the video. Flow needs the GStreamer video codecs, which aren't installed.",
+  "player_codec_missing_command_hint": "On Debian/Ubuntu, install them and restart Flow:",
+  "player_codec_missing_dismiss": "Dismiss"
 }

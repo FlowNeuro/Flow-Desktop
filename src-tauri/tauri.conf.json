@@ -71,6 +71,31 @@
         "type": "downloadBootstrapper",
         "silent": true
       }
+    },
+    "linux": {
+      "deb": {
+        "depends": [
+          "gstreamer1.0-plugins-base",
+          "gstreamer1.0-plugins-good",
+          "gstreamer1.0-plugins-bad",
+          "gstreamer1.0-libav"
+        ],
+        "recommends": [
+          "gstreamer1.0-plugins-ugly",
+          "gstreamer1.0-vaapi"
+        ]
+      },
+      "rpm": {
+        "depends": [
+          "gstreamer1-plugins-base",
+          "gstreamer1-plugins-good",
+          "gstreamer1-plugins-bad-free"
+        ],
+        "recommends": [
+          "gstreamer1-plugins-bad-freeworld",
+          "gstreamer1-libav"
+        ]
+      }
     }
   }
 }

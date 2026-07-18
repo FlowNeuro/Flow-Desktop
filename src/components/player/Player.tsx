@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as dashjs from "dashjs";
 import Hls from "hls.js";
-import { Loader2, RotateCcw } from "lucide-react";
+import { AlertTriangle, Loader2, RotateCcw } from "lucide-react";
 import { PlayerErrorState } from "../ui/PlayerErrorState";
 import type { PlayerErrorInfo } from "../../lib/playerError";
 import { getString } from "../../lib/i18n/index";
@@ -211,6 +211,18 @@ function extractCodecMimeType(mimeType?: string | null) {
   return codecsValue ? `${trimmedBaseType}; codecs="${codecsValue}"` : trimmedBaseType;
 }
 
+// Linux renders through WebKitGTK, which decodes media via system GStreamer plugins.
+// A minimal install often ships the audio decoders but not H.264/VP9/AV1, so audio
+// plays while video hangs. WebView2 (Windows) and WebKit (macOS) bundle their own
+// decoders, so this failure mode is Linux-only — gate the probe there to avoid firing
+// on transient first-frame delays on other platforms.
+const IS_LINUX_RUNTIME =
+  typeof navigator !== "undefined" &&
+  /Linux/i.test(navigator.userAgent) &&
+  !/Android/i.test(navigator.userAgent);
+
+const CODEC_PROBE_SECONDS = 4;
+
 function isVariantSupported(mimeType?: string | null) {
   const codecMimeType = extractCodecMimeType(mimeType);
   if (!codecMimeType) return true;
@@ -287,6 +299,9 @@ export const Player: React.FC<PlayerProps> = ({
   const playbackStartAtRef = useRef<number | null>(null);
   const lastSeekAtRef = useRef<number | null>(null);
   const onRetrySourceRef = useRef(onRetrySource);
+  // Missing-video-codec probe (Linux/WebKitGTK): baseline playback position and dismissal.
+  const codecProbeBaselineRef = useRef<number | null>(null);
+  const codecWarningDismissedRef = useRef(false);
 
   const {
     isPlaying,
@@ -405,6 +420,7 @@ export const Player: React.FC<PlayerProps> = ({
   const [hasStartedPlayback, setHasStartedPlayback] = useState(false);
   const [isSourceSwitching, setIsSourceSwitching] = useState(false);
   const [seekFeedback, setSeekFeedback] = useState<PlayerSeekFeedback | null>(null);
+  const [videoCodecUnsupported, setVideoCodecUnsupported] = useState(false);
 
   const isDashPlayback = !!dashManifestUrl;
   const isHlsPlayback = !!hlsManifestUrl && !isDashPlayback;
@@ -896,6 +912,49 @@ export const Player: React.FC<PlayerProps> = ({
       hasHls: isHlsPlayback,
     });
   }, [src, dashManifestUrl, hlsManifestUrl, isDashPlayback, isHlsPlayback, sourceMode]);
+
+  // Detect the WebKitGTK "audio plays, video frozen" state (missing system video codecs)
+  // so the user gets an actionable hint instead of an endless spinner. Non-destructive:
+  // playback is left running; only a dismissible banner is shown.
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !IS_LINUX_RUNTIME || !mediaIdentity) return;
+
+    codecProbeBaselineRef.current = null;
+    codecWarningDismissedRef.current = false;
+    setVideoCodecUnsupported(false);
+
+    const evaluate = () => {
+      // A decoded frame gives the element real dimensions — the codec works.
+      if (video.videoWidth > 0) {
+        codecProbeBaselineRef.current = null;
+        setVideoCodecUnsupported(false);
+        return;
+      }
+      if (codecWarningDismissedRef.current) return;
+      // Only meaningful once media is actually advancing (i.e. audio is decoding/playing).
+      if (video.paused || video.readyState < 2) return;
+      if (codecProbeBaselineRef.current === null || video.currentTime < codecProbeBaselineRef.current) {
+        codecProbeBaselineRef.current = video.currentTime;
+        return;
+      }
+      if (video.currentTime - codecProbeBaselineRef.current >= CODEC_PROBE_SECONDS) {
+        logPlayerEventRef.current("video-codec-unsupported", {
+          currentTime: video.currentTime,
+          readyState: video.readyState,
+          videoWidth: video.videoWidth,
+        });
+        setVideoCodecUnsupported(true);
+      }
+    };
+
+    const interval = window.setInterval(evaluate, 1000);
+    video.addEventListener("timeupdate", evaluate);
+    return () => {
+      window.clearInterval(interval);
+      video.removeEventListener("timeupdate", evaluate);
+    };
+  }, [mediaIdentity]);
 
   useEffect(() => {
     if (!isPlaying || !!error) return;
@@ -2040,6 +2099,38 @@ export const Player: React.FC<PlayerProps> = ({
               )}
             </div>
           )}
+        </div>
+      )}
+
+      {videoCodecUnsupported && !isLoading && !error && !errorInfo && (
+        <div className="absolute inset-x-4 top-4 z-40 mx-auto max-w-md rounded-2xl border border-chrome-toast-border bg-chrome-toast/95 px-4 py-3">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="mt-0.5 shrink-0 text-primary" size={18} />
+            <div className="min-w-0 space-y-2">
+              <div className="text-sm font-bold text-chrome-neutral-100">
+                {getString("player_codec_missing_title")}
+              </div>
+              <p className="text-xs text-chrome-neutral-300">
+                {getString("player_codec_missing_hint")}
+              </p>
+              <p className="text-xs text-chrome-neutral-400">
+                {getString("player_codec_missing_command_hint")}
+              </p>
+              <code className="block overflow-x-auto rounded-md bg-chrome-black/60 px-2 py-1.5 font-mono text-[11px] text-chrome-neutral-200">
+                sudo apt install gstreamer1.0-libav gstreamer1.0-plugins-bad gstreamer1.0-plugins-good gstreamer1.0-plugins-ugly
+              </code>
+              <button
+                type="button"
+                onClick={() => {
+                  codecWarningDismissedRef.current = true;
+                  setVideoCodecUnsupported(false);
+                }}
+                className="text-xs font-semibold text-chrome-neutral-400 transition-colors hover:text-chrome-neutral-100"
+              >
+                {getString("player_codec_missing_dismiss")}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
