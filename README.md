@@ -7,30 +7,38 @@
 
   Flow Desktop is the desktop companion to [Flow for Android](https://github.com/A-EDev/Flow), built with Rust, Tauri, React, and TypeScript.
 
-  [Downloads](https://github.com/A-EDev/flow-desktop/releases) · [Android app](https://github.com/A-EDev/Flow) · [Community](https://www.reddit.com/r/Flow_Official/) · [Support development](#support--donations)
+  [![Status](https://img.shields.io/badge/Status-Active_Development-success?style=for-the-badge&logo=github-actions&logoColor=white)](https://github.com/FlowNeuro/Flow-Desktop/commits/main)
+
+  [![Downloads](https://img.shields.io/github/downloads/FlowNeuro/Flow-Desktop/total?style=for-the-badge&color=orange&logo=github&label=Downloads)](https://github.com/FlowNeuro/Flow-Desktop/releases) [![Latest Version](https://img.shields.io/github/v/release/FlowNeuro/Flow-Desktop?style=for-the-badge&color=crimson&label=Latest%20Version&include_prereleases)](https://github.com/FlowNeuro/Flow-Desktop/releases)
+
+  [![Platform](https://img.shields.io/badge/Windows_·_macOS_·_Linux-3DDC84?style=for-the-badge&logo=linux&logoColor=white)](#downloads-and-supported-systems) [![Rust](https://img.shields.io/badge/Rust-CE422B?style=for-the-badge&logo=rust&logoColor=white)](https://www.rust-lang.org/) [![Tauri](https://img.shields.io/badge/Tauri_2-24C8DB?style=for-the-badge&logo=tauri&logoColor=white)](https://v2.tauri.app/)
+
+  [![Reddit](https://img.shields.io/badge/Reddit-r%2FFlow__Official-FF4500?style=for-the-badge&logo=reddit&logoColor=white)](https://www.reddit.com/r/Flow_Official/) [![Stars](https://img.shields.io/github/stars/FlowNeuro/Flow-Desktop?style=for-the-badge&logo=star&color=gold)](https://github.com/FlowNeuro/Flow-Desktop/stargazers) [![License](https://img.shields.io/badge/License-GPL_v3.0-blue?style=for-the-badge&logo=gnu-bash&logoColor=white)](LICENSE) [![Last Commit](https://img.shields.io/github/last-commit/FlowNeuro/Flow-Desktop?style=for-the-badge&color=red)](https://github.com/FlowNeuro/Flow-Desktop/commits/main)
+
+  [**Downloads**](https://github.com/FlowNeuro/Flow-Desktop/releases) · [**Android app**](https://github.com/A-EDev/Flow) · [**Community**](https://www.reddit.com/r/Flow_Official/) · [**Support development**](#support--donations)
 </div>
 
 > Flow Desktop is under active development. Features and storage formats may change before the first stable release.
 
-## Why Flow?
-
-Most alternative YouTube clients trade away recommendations to avoid tracking. Flow keeps discovery without outsourcing your viewing profile: FlowNeuro learns from your activity locally, ranks content on your device, and gives you direct control over its memory.
+---
 
 ## Features
 
 - Native video playback with quality and codec selection, SABR/DASH/HLS support, chapters, subtitles, playback speed, queues, mini-player, and Picture-in-Picture.
 - YouTube Music home, search, artists, albums, playlists, queue management, synchronized lyrics, repeat, shuffle, and equalizer controls.
 - A dedicated Shorts feed with comments, descriptions, saved Shorts, looping, auto-next, and timed scrolling modes.
-- Local subscriptions, playlists, Watch Later, likes, albums, video/music history, Continue Watching, and regional Explore feeds.
+- Local subscriptions, playlists, Watch Later, likes, albums, video and music history, Continue Watching, and regional Explore feeds.
 - Channel pages with videos, Shorts, playlists, community posts, comments, and live chat support.
 - SponsorBlock, DeArrow, and Return YouTube Dislike integrations.
 - Imports from Flow backups, Google Takeout, NewPipe, LibreTube, FreeTube, and OPML.
 
 ### FlowNeuro
 
-FlowNeuro is Flow's native local recommendation engine. It learns from watches, skips, likes, dislikes, searches, topic preferences, and creator affinity without sending a recommendation profile to a Flow server.
+FlowNeuro is Flow's native local recommendation engine. It learns from watches, skips, likes, dislikes, searches, topic preferences, and creator affinity, and ranks content on your device without sending a recommendation profile to a Flow server.
 
 The Control Center lets you inspect topic weights, time-based patterns, channel memory, learning activity, and blocked content. You can export, import, reset, or temporarily pause learning with Deep Flow mode.
+
+---
 
 ## Privacy and security
 
@@ -40,17 +48,19 @@ The Control Center lets you inspect topic weights, time-based patterns, channel 
 - A strict Content Security Policy blocks arbitrary scripts, frames, objects, and remote application code.
 - Rust validates search terms, video IDs, channel IDs, browse IDs, and continuation tokens before network requests.
 - Media is relayed through a tokenized loopback-only proxy instead of exposing a public local server.
-- BotGuard/PO-token handling runs through a native hidden WebView, with a packaged Node script retained only as a compatibility fallback.
+- BotGuard and PO-token handling run through a native hidden WebView, with a packaged Node script retained only as a compatibility fallback.
 
 Flow still contacts YouTube and optional services such as SponsorBlock, DeArrow, Return YouTube Dislike, and configured lyrics providers when their features are used.
 
+---
+
 ## Downloads and supported systems
 
-Release builds are published through [GitHub Releases](https://github.com/A-EDev/flow-desktop/releases).
+Release builds are published through [GitHub Releases](https://github.com/FlowNeuro/Flow-Desktop/releases).
 
 - **Stable:** reviewed releases intended for normal use.
 - **Beta / RC:** public GitHub prereleases for wider testing. These install as **Flow Beta** with isolated application data.
-- **Nightly:** automatic snapshots from `main`. These install as **Flow Nightly**, use isolated data, and may be unstable. Download the latest packages from [GitHub Actions](https://github.com/A-EDev/flow-desktop/actions/workflows/build.yml) or [nightly.link](https://nightly.link/A-EDev/flow-desktop/workflows/build/main) without a GitHub account.
+- **Nightly:** automatic snapshots from `main`. These install as **Flow Nightly**, use isolated data, and may be unstable. Download the latest packages from [GitHub Actions](https://github.com/FlowNeuro/Flow-Desktop/actions/workflows/build.yml) or [nightly.link](https://nightly.link/FlowNeuro/Flow-Desktop/workflows/build/main) without a GitHub account.
 
 | Platform | Supported versions | Architectures | Packages |
 | --- | --- | --- | --- |
@@ -59,6 +69,8 @@ Release builds are published through [GitHub Releases](https://github.com/A-EDev
 | Linux | Ubuntu 22.04+, Debian 12+, and comparable modern distributions | x64, ARM64 | AppImage, `.deb`, `.rpm` |
 
 Linux builds require a compatible glibc, GTK 3, and WebKitGTK 4.1 environment. Legacy 32-bit systems are not supported.
+
+---
 
 ## Development
 
@@ -79,6 +91,8 @@ pnpm tauri build
 
 Windows, Linux, and macOS packages are built natively by the GitHub Actions release workflow. Production macOS and Windows releases should be signed and, on macOS, notarized before publication.
 
+---
+
 <a id="support--donations"></a>
 ## Support & donations
 
@@ -86,7 +100,7 @@ Flow is free and open-source software maintained by an independent developer. Pa
 
 [![Support Flow on Patreon](https://img.shields.io/badge/Patreon-Support_Flow-FF424D?style=for-the-badge&logo=patreon&logoColor=white)](https://patreon.com/A_EDev)
 
-You can also donate directly with crypto. Scan a QR code using a compatible wallet, or click it where custom wallet links are supported. The address and network are printed below every code—always verify both before sending.
+You can also donate directly with crypto. Scan a QR code using a compatible wallet, or click it where custom wallet links are supported. The address and network are printed below every code — always verify both before sending.
 
 <table>
   <tr>
@@ -122,8 +136,12 @@ You can also donate directly with crypto. Scan a QR code using a compatible wall
 
 Wallet URI support varies between wallet applications. Bitcoin, Ethereum, Solana, and Monero QR codes use their standard payment URI formats; the TRC20 code uses a Tron URI and may fall back to displaying the address in wallets that do not register the scheme.
 
+---
+
 ## License
 
 Flow Desktop is free software licensed under the [GNU General Public License v3.0](LICENSE).
+
+This license requires that any project using Flow's source code, including the FlowNeuro engine, must also be released as open source under GPLv3. It may not be used in a proprietary or closed-source application.
 
 Copyright © 2025–2026 A-EDev
