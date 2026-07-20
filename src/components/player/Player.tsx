@@ -21,6 +21,10 @@ import {
   selectPreferredCaptionId,
 } from "../../lib/settings/playerRuntime";
 import { setSettingValue, useAppSettingsStore } from "../../store/useAppSettingsStore";
+import {
+  createWindowFullscreenController,
+  type WindowFullscreenController,
+} from "../../lib/windowFullscreen";
 
 type PlayerProps = {
   src?: string | null;
@@ -323,6 +327,8 @@ export const Player: React.FC<PlayerProps> = ({
     videoPlayerMode,
     enterVideoPip,
     expandVideoPlayer,
+    isVideoFullscreen: isFullscreen,
+    setIsVideoFullscreen: setIsFullscreen,
   } = usePlayerStore();
 
   const autoplayEnabled = useAppSettingsStore((state) => state.values[SETTINGS.AUTOPLAY_ENABLED] !== "false");
@@ -409,7 +415,6 @@ export const Player: React.FC<PlayerProps> = ({
   const [notifyToast, setNotifyToast] = useState<{ segment: any; categoryName: string; visible: boolean } | null>(null);
   const notifyTimeoutRef = useRef<number | null>(null);
   const [currentSBMuteSegment, setCurrentSBMuteSegment] = useState<string | null>(null);
-  const [isFullscreen, setIsFullscreen] = useState(false);
   const [isPip, setIsPip] = useState(false);
   const [isScrubbing, setIsScrubbing] = useState(false);
   const [isBuffering, setIsBuffering] = useState(false);
@@ -1068,16 +1073,20 @@ export const Player: React.FC<PlayerProps> = ({
     revealControls();
   }, [isPlaying, revealControls, setPlaybackDesired]);
 
-  const toggleFullscreen = useCallback(() => {
-    const container = containerRef.current;
-    if (!container) return;
+  const windowFullscreenControllerRef = useRef<WindowFullscreenController | null>(null);
+  if (!windowFullscreenControllerRef.current) {
+    windowFullscreenControllerRef.current = createWindowFullscreenController();
+  }
 
-    if (!document.fullscreenElement) {
-      void container.requestFullscreen();
-    } else {
-      void document.exitFullscreen();
-    }
+  const syncNativeFullscreen = useCallback((active: boolean) => {
+    return windowFullscreenControllerRef.current?.sync(active) ?? Promise.resolve();
   }, []);
+
+  const toggleFullscreen = useCallback(() => {
+    const active = !isFullscreen;
+    setIsFullscreen(active);
+    void syncNativeFullscreen(active);
+  }, [isFullscreen, setIsFullscreen, syncNativeFullscreen]);
 
   const togglePictureInPicture = useCallback(() => {
     if (videoPlayerMode === "pip") {
@@ -1085,11 +1094,12 @@ export const Player: React.FC<PlayerProps> = ({
       window.dispatchEvent(new CustomEvent("flow-video-expand-request"));
       return;
     }
-    if (document.fullscreenElement) {
-      void document.exitFullscreen().catch(() => {});
+    if (isFullscreen) {
+      setIsFullscreen(false);
+      void syncNativeFullscreen(false);
     }
     enterVideoPip("manual");
-  }, [enterVideoPip, expandVideoPlayer, videoPlayerMode]);
+  }, [enterVideoPip, expandVideoPlayer, isFullscreen, setIsFullscreen, syncNativeFullscreen, videoPlayerMode]);
 
   const updateBuffered = useCallback(() => {
     const video = videoRef.current;
@@ -1666,11 +1676,10 @@ export const Player: React.FC<PlayerProps> = ({
     }
   }, [playbackRate]);
 
-  useEffect(() => {
-    const onFullscreen = () => setIsFullscreen(!!document.fullscreenElement);
-    document.addEventListener("fullscreenchange", onFullscreen);
-    return () => document.removeEventListener("fullscreenchange", onFullscreen);
-  }, []);
+  useEffect(() => () => {
+    setIsFullscreen(false);
+    void syncNativeFullscreen(false);
+  }, [setIsFullscreen, syncNativeFullscreen]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -1733,6 +1742,12 @@ export const Player: React.FC<PlayerProps> = ({
         case "m":
           setMuted((value) => !value);
           break;
+        case "escape":
+          if (isFullscreen) {
+            event.preventDefault();
+            toggleFullscreen();
+          }
+          break;
         case "f":
           toggleFullscreen();
           break;
@@ -1747,6 +1762,7 @@ export const Player: React.FC<PlayerProps> = ({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [
     currentTime,
+    isFullscreen,
     isTheaterMode,
     revealControls,
     seekBy,
@@ -1931,6 +1947,7 @@ export const Player: React.FC<PlayerProps> = ({
     <div
       ref={containerRef}
       id="flow-player-root"
+      data-fullscreen={isFullscreen || undefined}
       className={cx("group/player", playerRootClasses)}
       tabIndex={0}
       onMouseMove={revealControls}

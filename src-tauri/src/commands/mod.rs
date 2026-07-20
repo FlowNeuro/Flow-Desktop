@@ -8,4 +8,5 @@ pub mod notifications;
 pub mod recommendation;
 pub mod shorts;
 pub mod sync;
+pub mod window;
 pub mod youtube;

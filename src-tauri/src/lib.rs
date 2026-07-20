@@ -62,6 +62,7 @@ use commands::sync::{
     sync_cancel, sync_device_info, sync_host_receive, sync_respond_consent, sync_scan_join,
     sync_start_host, sync_status,
 };
+use commands::window::{PlayerFullscreenState, set_player_fullscreen};
 use commands::youtube::{
     fetch_subtitles, get_channel_details, get_channel_tab, get_comments, get_dearrow_override,
     get_live_chat, get_music_album, get_music_artist, get_music_charts, get_music_explore,
@@ -153,6 +154,18 @@ pub fn run() {
                 let _ = window.set_focus();
             }
         }));
+
+        // Start maximized on the first launch, then restore the last normal
+        // size/position and maximized state. Fullscreen is intentionally not
+        // persisted because it belongs to the active video player session.
+        let window_state_flags = tauri_plugin_window_state::StateFlags::SIZE
+            | tauri_plugin_window_state::StateFlags::POSITION
+            | tauri_plugin_window_state::StateFlags::MAXIMIZED;
+        builder = builder.plugin(
+            tauri_plugin_window_state::Builder::default()
+                .with_state_flags(window_state_flags)
+                .build(),
+        );
 
         // In-app updater (GitHub releases, signature-verified) plus the process
         // plugin so the frontend can relaunch into the freshly installed build.
@@ -256,6 +269,7 @@ pub fn run() {
             // Manage the Shorts feed service (prefetch buffer + session de-dup)
             app.manage(ShortsService::new());
             app.manage(DownloadManager::default());
+            app.manage(PlayerFullscreenState::default());
 
             // Initialize and manage streaming proxy
             let (streaming_manager, proxy_listener) = streaming::proxy::StreamingManager::new();
@@ -372,6 +386,7 @@ pub fn run() {
             log_frontend_event,
             read_logs,
             clear_logs,
+            set_player_fullscreen,
             // --- Shorts feed ---
             get_shorts_feed,
             load_more_shorts,

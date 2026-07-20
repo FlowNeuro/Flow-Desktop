@@ -21,6 +21,17 @@ afterEach(() => {
   usePlayerStore.getState().setAutoplayCandidates([]);
 });
 
+describe("video fullscreen", () => {
+  it("resets fullscreen when the player is dismissed", () => {
+    usePlayerStore.getState().setCurrentVideo(video("fullscreen"));
+    usePlayerStore.getState().setIsVideoFullscreen(true);
+
+    usePlayerStore.getState().dismissVideoPlayer();
+
+    expect(usePlayerStore.getState().isVideoFullscreen).toBe(false);
+  });
+});
+
 describe("video queue", () => {
   it("keeps the current video when the first upcoming item is added", () => {
     const current = video("current");

@@ -76,6 +76,7 @@ interface PlayerState {
   duration: number;
   videoPlayerMode: VideoPlayerMode;
   videoPipIntent: VideoPipIntent | null;
+  isVideoFullscreen: boolean;
   watchPageCache: WatchPageCache | null;
   autoplayCandidates: VideoSummary[];
 
@@ -109,6 +110,7 @@ interface PlayerState {
   enterVideoPip: (intent: VideoPipIntent) => void;
   expandVideoPlayer: () => void;
   dismissVideoPlayer: () => void;
+  setIsVideoFullscreen: (fullscreen: boolean) => void;
   setWatchPageCache: (videoId: string, cache: Partial<Omit<WatchPageCache, "videoId" | "updatedAt">>) => void;
   clearWatchPageCache: (videoId?: string) => void;
 
@@ -143,6 +145,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   duration: 0,
   videoPlayerMode: "watch",
   videoPipIntent: null,
+  isVideoFullscreen: false,
   watchPageCache: null,
   autoplayCandidates: [],
 
@@ -430,6 +433,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     duration: 0,
     videoPlayerMode: "watch",
     videoPipIntent: null,
+    isVideoFullscreen: false,
     watchPageCache: null,
     autoplayCandidates: [],
     isChaptersPanelOpen: false,
@@ -440,13 +444,14 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   setDuration: (duration) => set({ duration }),
   enterVideoPip: (videoPipIntent) => {
     if (!get().currentVideo) return;
-    set({ videoPlayerMode: "pip", videoPipIntent });
+    set({ videoPlayerMode: "pip", videoPipIntent, isVideoFullscreen: false });
   },
   expandVideoPlayer: () => {
     if (!get().currentVideo) return;
     set({ videoPlayerMode: "watch", videoPipIntent: null });
   },
   dismissVideoPlayer: () => get().clearQueue(),
+  setIsVideoFullscreen: (isVideoFullscreen) => set({ isVideoFullscreen }),
   setWatchPageCache: (videoId, cache) => {
     const previous = get().watchPageCache;
     set({

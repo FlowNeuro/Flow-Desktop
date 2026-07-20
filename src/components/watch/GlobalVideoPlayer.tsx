@@ -46,6 +46,7 @@ export function GlobalVideoPlayer() {
   const currentVideo = usePlayerStore((s) => s.currentVideo);
   const isPlaying = usePlayerStore((s) => s.isPlaying);
   const videoPlayerMode = usePlayerStore((s) => s.videoPlayerMode);
+  const isVideoFullscreen = usePlayerStore((s) => s.isVideoFullscreen);
   const watchPageCache = usePlayerStore((s) => s.watchPageCache);
   const enterVideoPip = usePlayerStore((s) => s.enterVideoPip);
   const expandVideoPlayer = usePlayerStore((s) => s.expandVideoPlayer);
@@ -114,7 +115,7 @@ export function GlobalVideoPlayer() {
   }, [currentVideo, isPlaying, playNext, playPrevious, setIsPlaying]);
 
   useEffect(() => {
-    if (isFloating || !currentVideo) return;
+    if (isFloating || isVideoFullscreen || !currentVideo) return;
 
     const sync = () => setSlotBounds((prev) => {
       const next = readSlotBounds();
@@ -141,7 +142,7 @@ export function GlobalVideoPlayer() {
       document.removeEventListener("scroll", sync, true);
       window.cancelAnimationFrame(settleRaf);
     };
-  }, [isFloating, currentVideo, location.pathname]);
+  }, [isFloating, isVideoFullscreen, currentVideo, location.pathname]);
 
   useEffect(() => {
     const previousPath = previousPathRef.current;
@@ -188,6 +189,14 @@ export function GlobalVideoPlayer() {
   }, [expandFromFloating]);
 
   const frameStyle = useMemo(() => {
+    if (isVideoFullscreen) {
+      return {
+        inset: 0,
+        width: "100%",
+        height: "100%",
+      } as const;
+    }
+
     if (isFloating) {
       return {
         top: "auto",
@@ -213,7 +222,7 @@ export function GlobalVideoPlayer() {
       width: `${slotBounds.width}px`,
       height: `${slotBounds.height}px`,
     };
-  }, [isFloating, slotBounds]);
+  }, [isFloating, isVideoFullscreen, slotBounds]);
 
   const videoIdForPlayer = currentVideo?.id ?? null;
   const playerNode = useMemo(
@@ -229,7 +238,9 @@ export function GlobalVideoPlayer() {
   return (
     <div
       className={
-        isFloating
+        isVideoFullscreen
+          ? "fixed z-[300] overflow-hidden bg-chrome-black"
+          : isFloating
           ? "group fixed z-50 overflow-hidden rounded-xl bg-chrome-black shadow-2xl ring-1 ring-chrome-white/10"
           : "fixed z-30 bg-chrome-black"
       }
