@@ -70,6 +70,16 @@ Release builds are published through [GitHub Releases](https://github.com/FlowNe
 
 Linux builds require a compatible glibc, GTK 3, and WebKitGTK 4.1 environment. Legacy 32-bit systems are not supported.
 
+### Linux media codecs
+
+On Linux, video decoding goes through WebKitGTK and the system GStreamer plugins (Windows and macOS ship their own decoders). If audio plays but video stays frozen on a spinner, a video decoder is missing.
+
+- **AppImage** — bundles the required GStreamer codec plugins (including `gst-libav` for H.264); no system codec packages are needed.
+- **`.deb`** — declares the codec plugins as dependencies. Install with `sudo apt install ./Flow_*.deb` so they are pulled in automatically.
+- **`.rpm`** — the freely licensed plugins are hard dependencies. On Fedora, H.264 decoding (`gstreamer1-libav`, `gstreamer1-plugins-bad-freeworld`) is only available from [RPM Fusion](https://rpmfusion.org/Configuration) for patent reasons: enable RPM Fusion and run `sudo dnf install gstreamer1-libav gstreamer1-plugins-bad-freeworld`, or use the AppImage instead.
+
+If the app opens to a blank or white window, that is the WebKitGTK DMABUF renderer failing on your graphics stack (common with NVIDIA proprietary drivers and some Wayland sessions). Flow disables it automatically; for debugging you can override with `WEBKIT_DISABLE_DMABUF_RENDERER=0`, and if a blank window still occurs, try `WEBKIT_DISABLE_COMPOSITING_MODE=1`.
+
 ---
 
 ## Development

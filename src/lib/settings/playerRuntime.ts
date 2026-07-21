@@ -1,5 +1,6 @@
 import type { AudioTrack, CaptionTrack, StreamVariant } from "../../types/video";
 import type { PlaybackRate } from "../../store/usePlayerStore";
+import { codecRank } from "../codecPreference";
 
 export const DEFAULT_PLAYBACK_RATES: PlaybackRate[] = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
 
@@ -112,6 +113,15 @@ const qualityHeight = (quality: string) => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
+export function filterByPreferredCodec(
+  variants: StreamVariant[],
+  preferredCodec: string,
+): StreamVariant[] {
+  if (preferredCodec === "Auto") return variants;
+  const matching = variants.filter((variant) => codecMatches(variant.mimeType, preferredCodec));
+  return matching.length > 0 ? matching : variants;
+}
+
 export function selectPreferredStreamVariant(
   variants: StreamVariant[],
   preferredQuality: string,
@@ -124,17 +134,21 @@ export function selectPreferredStreamVariant(
   const playable = variants.filter((variant) => variant.isPlayable && (variant.hasAudio || canUseAdaptive));
   if (playable.length === 0) return null;
 
-  const codecPreferred = preferredCodec === "Auto"
-    ? playable
-    : playable.filter((variant) => codecMatches(variant.mimeType, preferredCodec));
-  const candidates = codecPreferred.length > 0 ? codecPreferred : playable;
+  const candidates = filterByPreferredCodec(playable, preferredCodec);
 
   const belowOrEqual = candidates
     .filter((variant) => (variant.height || 0) <= targetHeight)
-    .sort((left, right) => (right.height || 0) - (left.height || 0) || (right.bitrate || 0) - (left.bitrate || 0));
+    .sort(
+      (left, right) =>
+        (right.height || 0) - (left.height || 0) ||
+        codecRank(left.mimeType) - codecRank(right.mimeType) ||
+        (right.bitrate || 0) - (left.bitrate || 0),
+    );
   if (belowOrEqual[0]) return belowOrEqual[0];
 
   return [...candidates].sort(
-    (left, right) => Math.abs((left.height || 0) - targetHeight) - Math.abs((right.height || 0) - targetHeight),
+    (left, right) =>
+      Math.abs((left.height || 0) - targetHeight) - Math.abs((right.height || 0) - targetHeight) ||
+      codecRank(left.mimeType) - codecRank(right.mimeType),
   )[0] ?? null;
 }

@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  codecRank,
   pickAdaptiveVideoUrl,
   pickAudioUrl,
   pickDirectUrl,
   selectShortPlaybackSource,
 } from "./useShortStream";
+import { codecRank } from "./codecPreference";
 import type { AudioTrack, StreamInfo, StreamVariant } from "../types/video";
 
 function makeVariant(overrides: Partial<StreamVariant>): StreamVariant {

@@ -9,7 +9,8 @@ import { useDownloadsLibraryStore } from "../store/useDownloadsLibraryStore";
 import { addWatchRecord } from "./api/db";
 import { isMusicVideo } from "./utils";
 import { SETTINGS } from "./settings/schema";
-import { selectPreferredStreamVariant } from "./settings/playerRuntime";
+import { filterByPreferredCodec, selectPreferredStreamVariant } from "./settings/playerRuntime";
+import { codecRank } from "./codecPreference";
 import { shouldRecordWatchHistory } from "./deepFlow";
 import { useAppSettingsStore } from "../store/useAppSettingsStore";
 import type { AudioTrack, CaptionTrack, StreamInfo, StreamVariant } from "../types/video";
@@ -63,6 +64,7 @@ export const clearLocalWatchProgress = (videoId: string) => {
 const selectVariantByBandwidth = (
   variants: StreamVariant[],
   canUseAdaptive: boolean,
+  preferredCodec: string,
 ): StreamVariant | null => {
   const connection =
     (navigator as any).connection || (navigator as any).mozConnection || (navigator as any).webkitConnection;
@@ -76,19 +78,19 @@ const selectVariantByBandwidth = (
   else if (downlink > 2) targetHeight = 480;
   else if (downlink > 0.8) targetHeight = 360;
 
-  const playable = variants.filter((v) => v.isPlayable && (v.hasAudio || canUseAdaptive));
+  const playable = filterByPreferredCodec(
+    variants.filter((v) => v.isPlayable && (v.hasAudio || canUseAdaptive)),
+    preferredCodec,
+  );
   if (playable.length === 0) return null;
 
-  let best: StreamVariant | null = null;
-  let minDiff = Infinity;
-  for (const variant of playable) {
-    const diff = Math.abs((variant.height || 0) - targetHeight);
-    if (diff < minDiff) {
-      minDiff = diff;
-      best = variant;
-    }
-  }
-  return best;
+  return (
+    [...playable].sort(
+      (a, b) =>
+        Math.abs((a.height || 0) - targetHeight) - Math.abs((b.height || 0) - targetHeight) ||
+        codecRank(a.mimeType) - codecRank(b.mimeType),
+    )[0] ?? null
+  );
 };
 
 const browserSupportsVP9 = () =>
@@ -113,11 +115,11 @@ const computeAvailableSourceModes = (info: StreamInfo): SourceMode[] => {
   return modes;
 };
 
-const pickDirectVariantUrl = (info: StreamInfo, qualityId: string): string | null => {
+const pickDirectVariantUrl = (info: StreamInfo, qualityId: string, preferredCodec: string): string | null => {
   const canUseAdaptive = (info.audioTracks || []).some((track) => !!track.localUrl);
   let chosen: StreamVariant | null = null;
   if (!qualityId || qualityId === "auto") {
-    chosen = selectVariantByBandwidth(info.variants || [], canUseAdaptive);
+    chosen = selectVariantByBandwidth(info.variants || [], canUseAdaptive, preferredCodec);
   } else {
     chosen = info.variants?.find((v) => v.id === qualityId) || null;
   }
@@ -283,7 +285,7 @@ export function useVideoStream(videoId: string | undefined): VideoStream {
         } else {
           setHlsManifestUrl(null);
           setDashManifestUrl(null);
-          setStreamUrl(pickDirectVariantUrl(info, initialQualityId));
+          setStreamUrl(pickDirectVariantUrl(info, initialQualityId, preferredCodec));
         }
 
         setIsPlaying(true);
@@ -331,7 +333,7 @@ export function useVideoStream(videoId: string | undefined): VideoStream {
         setIsPlaying(true);
         if (dashManifestUrl) return;
         const canUseAdaptive = audioTracks.some((track) => !!track.localUrl);
-        const chosenVariant = selectVariantByBandwidth(streamVariants, canUseAdaptive);
+        const chosenVariant = selectVariantByBandwidth(streamVariants, canUseAdaptive, preferredCodec);
         if (chosenVariant) {
           setResumeTime(usePlayerStore.getState().currentTime);
           setStreamUrl(chosenVariant.localUrl);
@@ -352,7 +354,7 @@ export function useVideoStream(videoId: string | undefined): VideoStream {
       setStreamUrl(variant.localUrl);
       setIsPlaying(true);
     },
-    [audioTracks, dashManifestUrl, setIsPlaying, streamVariants],
+    [audioTracks, dashManifestUrl, preferredCodec, setIsPlaying, streamVariants],
   );
 
   const onRetrySource = useCallback(
@@ -396,10 +398,10 @@ export function useVideoStream(videoId: string | undefined): VideoStream {
       } else {
         setHlsManifestUrl(null);
         setDashManifestUrl(null);
-        setStreamUrl(pickDirectVariantUrl(info, selectedQualityId || "auto"));
+        setStreamUrl(pickDirectVariantUrl(info, selectedQualityId || "auto", preferredCodec));
       }
     },
-    [sourceMode, selectedQualityId],
+    [sourceMode, selectedQualityId, preferredCodec],
   );
 
   const onHardRetry = useCallback(() => {
@@ -450,7 +452,7 @@ export function useVideoStream(videoId: string | undefined): VideoStream {
         } else {
           setHlsManifestUrl(null);
           setDashManifestUrl(null);
-          setStreamUrl(pickDirectVariantUrl(info, initialQualityId));
+          setStreamUrl(pickDirectVariantUrl(info, initialQualityId, preferredCodec));
         }
       })
       .catch((err) => {

@@ -28,7 +28,7 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
 
       - name: Set up Node.js
         uses: actions/setup-node@v6
@@ -129,7 +129,7 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
 
       - name: Install Linux system dependencies
         if: runner.os == 'Linux'
@@ -139,6 +139,13 @@ jobs:
             build-essential \
             curl \
             file \
+            gstreamer1.0-alsa \
+            gstreamer1.0-gl \
+            gstreamer1.0-libav \
+            gstreamer1.0-plugins-bad \
+            gstreamer1.0-plugins-base \
+            gstreamer1.0-plugins-good \
+            gstreamer1.0-pulseaudio \
             libayatana-appindicator3-dev \
             libfuse2 \
             libgtk-3-dev \
@@ -197,6 +204,21 @@ jobs:
           args: >-
             ${{ matrix.args }}
             ${{ needs.prepare.outputs.is_prerelease == 'true' && '--config src-tauri/tauri.prerelease.conf.json' || '' }}
+
+      - name: Verify AppImage bundles GStreamer codecs
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          appimage="$(ls src-tauri/target/${{ matrix.target }}/release/bundle/appimage/*.AppImage | head -n1)"
+          chmod +x "$appimage"
+          "$appimage" --appimage-extract > /dev/null
+          for plugin in libgstlibav.so libgstplayback.so libgstvpx.so; do
+            if ! find squashfs-root -name "$plugin" -print -quit | grep -q .; then
+              echo "::error::$plugin missing from the AppImage — GStreamer bundling is broken." >&2
+              exit 1
+            fi
+          done
+          rm -rf squashfs-root
 
       - name: Report package sizes
         run: node scripts/report-bundle-sizes.mjs src-tauri/target/${{ matrix.target }}/release/bundle

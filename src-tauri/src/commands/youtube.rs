@@ -326,16 +326,32 @@ fn build_synthetic_dash_manifest(stream_info: &StreamInfo) -> Option<String> {
         })
         .collect();
 
+    // Prefer H.264 outright: it's the only codec every platform can decode
+    // (Linux WebKitGTK frequently lacks VP9/AV1 plugins), and AV1 also ships
+    // in an MP4 container, so the container check alone doesn't exclude it.
+    let is_h264 = |mime: Option<&str>| {
+        mime.map(|m| m.contains("avc1") || m.contains("avc3"))
+            .unwrap_or(false)
+    };
+
+    let h264_video_variants: Vec<_> = all_video_variants
+        .iter()
+        .copied()
+        .filter(|variant| is_h264(variant.mime_type.as_deref()))
+        .collect();
+
     let mp4_video_variants: Vec<_> = all_video_variants
         .iter()
         .copied()
         .filter(|variant| is_mp4(variant.mime_type.as_deref()))
         .collect();
 
-    let video_variants = if mp4_video_variants.is_empty() {
-        all_video_variants
-    } else {
+    let video_variants = if !h264_video_variants.is_empty() {
+        h264_video_variants
+    } else if !mp4_video_variants.is_empty() {
         mp4_video_variants
+    } else {
+        all_video_variants
     };
 
     if video_variants.is_empty() {

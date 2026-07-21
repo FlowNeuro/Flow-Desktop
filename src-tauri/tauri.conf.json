@@ -74,6 +74,9 @@
       }
     },
     "linux": {
+      "appimage": {
+        "bundleMediaFramework": true
+      },
       "deb": {
         "depends": [
           "gstreamer1.0-plugins-base",
@@ -82,8 +85,7 @@
           "gstreamer1.0-libav"
         ],
         "recommends": [
-          "gstreamer1.0-plugins-ugly",
-          "gstreamer1.0-vaapi"
+          "gstreamer1.0-plugins-ugly"
         ]
       },
       "rpm": {

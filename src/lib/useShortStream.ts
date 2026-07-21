@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getStreamInfo } from "./api/youtube";
+import { codecRank } from "./codecPreference";
 import { SETTINGS } from "./settings/schema";
 import { useAppSettingsStore } from "../store/useAppSettingsStore";
 import type { CaptionTrack, StreamInfo, StreamVariant } from "../types/video";
@@ -21,14 +22,6 @@ let resolveChain: Promise<unknown> = Promise.resolve();
 
 function isMp4(mime?: string | null): boolean {
   return !!mime && mime.toLowerCase().includes("mp4");
-}
-
-export function codecRank(mime?: string | null): number {
-  const value = mime?.toLowerCase() ?? "";
-  if (value.includes("avc1") || value.includes("h264")) return 0;
-  if (value.includes("vp9") || value.includes("vp09")) return 1;
-  if (value.includes("av01")) return 2;
-  return 3;
 }
 
 function qualityHeight(value: string | null | undefined): number | null {
