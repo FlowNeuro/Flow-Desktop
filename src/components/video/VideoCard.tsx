@@ -12,6 +12,7 @@ import { useSettingsStore } from '../../store/useSettingsStore';
 import { useAppSettingsStore } from '../../store/useAppSettingsStore';
 import { useChannelAvatar } from '../../lib/useChannelAvatar';
 import { isUnavailableYoutubeThumbnail, resolveYoutubeThumbnailCandidates, upgradeAvatarUrl } from '../../lib/thumbnails';
+import { IS_LINUX_RUNTIME } from '../../lib/platform';
 import { useProxiedImageUrl } from '../../lib/useProxiedImageUrl';
 import { SETTINGS } from '../../lib/settings/schema';
 import { AnchoredPortalMenu, type MenuAnchor } from '../ui/AnchoredPortalMenu';
@@ -187,12 +188,17 @@ function VideoCardComponent({
     };
   }, [isChannel, video.id]);
 
-  const { dearrowEnabled } = useSettingsStore();
+  const dearrowEnabled = useSettingsStore((s) => s.dearrowEnabled);
   const titleClampStyle = getTitleClampStyle(
     useAppSettingsStore((state) => state.values[SETTINGS.VIDEO_TITLE_MAX_LINES])
   );
 
-  const hookAvatarUrl = useChannelAvatar(isChannel ? null : channelId || null);
+  // Only resolve via the hook when the feed didn't already supply an avatar —
+  // the hook falls back to a getChannelDetails() network fetch per unknown
+  // channel, which multiplied across a large feed floods the backend.
+  const hookAvatarUrl = useChannelAvatar(
+    isChannel || video.channelAvatarUrl ? null : channelId || null,
+  );
   const resolvedAvatarUrl = useProxiedImageUrl(upgradeAvatarUrl(video.channelAvatarUrl || hookAvatarUrl));
   const channelCardAvatarUrl = useProxiedImageUrl(upgradeAvatarUrl(video.thumbnailUrl));
   const displayTitle = overriddenTitle || video.title;
@@ -232,6 +238,10 @@ function VideoCardComponent({
 
   const handleMouseEnter = useCallback(() => {
     setIsHovered(true);
+    // getImageData is a synchronous pixel readback — cheap on GPU-composited
+    // webviews, janky on Linux's CPU path (and it fires while the cursor
+    // sweeps across cards mid-scroll). The color-mix fallback covers Linux.
+    if (IS_LINUX_RUNTIME) return;
     if (!dominantColor && thumbnailRef.current) {
       if (thumbnailRef.current.complete) {
         const color = extractDominantColor(thumbnailRef.current);
@@ -256,7 +266,7 @@ function VideoCardComponent({
       return;
     }
 
-    if (isHovered && !dominantColor) {
+    if (!IS_LINUX_RUNTIME && isHovered && !dominantColor) {
       const color = extractDominantColor(img);
       if (color) {
         setDominantColor(color);
@@ -745,7 +755,7 @@ function VideoCardComponent({
   return (
     <div
       ref={cardRef}
-      className="video-card flex flex-col gap-3 group relative rounded-xl p-1.5 -m-1.5 transition-all duration-300"
+      className="video-card flex flex-col gap-3 group relative rounded-xl p-1.5 -m-1.5 transition-colors duration-200 ease-out"
       style={cardStyle}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
@@ -764,6 +774,7 @@ function VideoCardComponent({
             className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
             crossOrigin="anonymous"
             loading="lazy"
+            decoding="async"
             onLoad={handleThumbnailLoad}
             onError={handleThumbnailError}
           />

@@ -55,13 +55,17 @@ export function FlowPlayerCore({ videoId, videoDetails, onEnded }: FlowPlayerCor
       if (!currentVideo) return;
       latestProgressRef.current = { time, duration: nextDuration };
       const recordHistory = shouldRecordWatchHistory();
-      if (recordHistory) {
-        saveLocalWatchProgress(currentVideo.id, time, nextDuration);
-      }
 
       const now = Date.now();
       if (now - lastProgressPersistedAtRef.current < 5000) return;
       lastProgressPersistedAtRef.current = now;
+
+      // localStorage writes are synchronous main-thread IO; keep them behind
+      // the 5s gate instead of every timeupdate tick. persistLatestProgress
+      // below flushes the exact final position on unmount/beforeunload.
+      if (recordHistory) {
+        saveLocalWatchProgress(currentVideo.id, time, nextDuration);
+      }
 
       const percentWatched = nextDuration > 0 ? Math.min(1, Math.max(0, time / nextDuration)) : 0;
       void logInteraction(

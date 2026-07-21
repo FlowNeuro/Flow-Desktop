@@ -51,20 +51,18 @@ function channelCountLabel(count: number) {
 
 export const Subscriptions: React.FC<SubscriptionsProps> = ({ onPlay, onAddToQueue }) => {
   const navigate = useNavigate();
-  const {
-    subscriptions,
-    subscriptionGroups,
-    loadSubscriptions,
-    loadSubscriptionGroups,
-    loading,
-    unsubscribe,
-    subscribe,
-    mergeSubscriptions,
-    createSubscriptionGroup,
-    updateSubscriptionGroup,
-    deleteSubscriptionGroup,
-    moveSubscriptionGroup,
-  } = useSubscriptionStore();
+  const subscriptions = useSubscriptionStore((s) => s.subscriptions);
+  const subscriptionGroups = useSubscriptionStore((s) => s.subscriptionGroups);
+  const loadSubscriptions = useSubscriptionStore((s) => s.loadSubscriptions);
+  const loadSubscriptionGroups = useSubscriptionStore((s) => s.loadSubscriptionGroups);
+  const loading = useSubscriptionStore((s) => s.loading);
+  const unsubscribe = useSubscriptionStore((s) => s.unsubscribe);
+  const subscribe = useSubscriptionStore((s) => s.subscribe);
+  const mergeSubscriptions = useSubscriptionStore((s) => s.mergeSubscriptions);
+  const createSubscriptionGroup = useSubscriptionStore((s) => s.createSubscriptionGroup);
+  const updateSubscriptionGroup = useSubscriptionStore((s) => s.updateSubscriptionGroup);
+  const deleteSubscriptionGroup = useSubscriptionStore((s) => s.deleteSubscriptionGroup);
+  const moveSubscriptionGroup = useSubscriptionStore((s) => s.moveSubscriptionGroup);
   const channelNotifications = useNotificationStore((state) => state.channelNotifications);
   const channelPrefsLoaded = useNotificationStore((state) => state.channelPrefsLoaded);
   const loadChannelPreferences = useNotificationStore((state) => state.loadChannelPreferences);

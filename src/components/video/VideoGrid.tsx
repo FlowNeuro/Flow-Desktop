@@ -61,14 +61,22 @@ export function VideoGrid({
     <div className={gridClass}>
       {videos.map((video, index) => (
         <Fragment key={getVideoKey ? getVideoKey(video, index) : `${video.id}-${index}`}>
-          <VideoCard 
-            video={video} 
-            onPlay={onPlay}
-            onAddToQueue={onAddToQueue}
-            onRemoveFromHistory={onRemoveFromHistory}
-            variant={variant}
-            hideChannelAvatar={hideChannelAvatar}
-          />
+          {/*
+            content-visibility lets the browser skip layout/paint for offscreen
+            cards — feeds can hold hundreds, and Linux composites on the CPU.
+            The p-1.5/-m-1.5 mirrors the card's hover bleed so the containment
+            paint clip lands exactly on the card's expanded edge.
+          */}
+          <div className="[content-visibility:auto] [contain-intrinsic-size:auto_19rem] p-1.5 -m-1.5">
+            <VideoCard
+              video={video}
+              onPlay={onPlay}
+              onAddToQueue={onAddToQueue}
+              onRemoveFromHistory={onRemoveFromHistory}
+              variant={variant}
+              hideChannelAvatar={hideChannelAvatar}
+            />
+          </div>
           {insertNode && insertAfterIndex === index ? (
             <div className="col-span-full">
               {insertNode}

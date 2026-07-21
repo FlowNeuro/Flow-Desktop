@@ -13,6 +13,7 @@ import { MiniPlayerControls } from "./MiniPlayerControls";
 import { PlayerGestureOverlay, type PlayerSeekFeedback } from "./gesture/overlay";
 import { SubtitleOverlay } from "./SubtitleOverlay";
 import { SETTINGS } from "../../lib/settings/schema";
+import { IS_LINUX_RUNTIME } from "../../lib/platform";
 import {
   formatPlaybackRate,
   normalizePlaybackRate,
@@ -215,16 +216,9 @@ function extractCodecMimeType(mimeType?: string | null) {
   return codecsValue ? `${trimmedBaseType}; codecs="${codecsValue}"` : trimmedBaseType;
 }
 
-// Linux renders through WebKitGTK, which decodes media via system GStreamer plugins.
-// A minimal install often ships the audio decoders but not H.264/VP9/AV1, so audio
-// plays while video hangs. WebView2 (Windows) and WebKit (macOS) bundle their own
-// decoders, so this failure mode is Linux-only — gate the probe there to avoid firing
-// on transient first-frame delays on other platforms.
-const IS_LINUX_RUNTIME =
-  typeof navigator !== "undefined" &&
-  /Linux/i.test(navigator.userAgent) &&
-  !/Android/i.test(navigator.userAgent);
-
+// A minimal Linux install often ships the audio decoders but not H.264/VP9/AV1,
+// so audio plays while video hangs. This failure mode is Linux-only — gate the
+// probe there to avoid firing on transient first-frame delays elsewhere.
 const CODEC_PROBE_SECONDS = 4;
 
 function isVariantSupported(mimeType?: string | null) {
@@ -489,7 +483,7 @@ export const Player: React.FC<PlayerProps> = ({
   }), [ambientSample]);
 
   useEffect(() => {
-    if (!showAmbient) {
+    if (!showAmbient || IS_LINUX_RUNTIME) {
       ambientSampleKeyRef.current = DEFAULT_AMBIENT_SAMPLE.key;
       setAmbientSample(DEFAULT_AMBIENT_SAMPLE);
       return;
@@ -610,7 +604,7 @@ export const Player: React.FC<PlayerProps> = ({
           abr: {
             autoSwitchBitrate: {
               video: true,
-              audio: true,
+              audio: false,
             },
           },
         },
@@ -655,7 +649,7 @@ export const Player: React.FC<PlayerProps> = ({
           abr: {
             autoSwitchBitrate: {
               video: false,
-              audio: true,
+              audio: false,
             },
           },
         },
@@ -693,7 +687,7 @@ export const Player: React.FC<PlayerProps> = ({
           abr: {
             autoSwitchBitrate: {
               video: false,
-              audio: true,
+              audio: false,
             },
           },
         },
@@ -1121,19 +1115,29 @@ export const Player: React.FC<PlayerProps> = ({
       return;
     }
 
+    // WebKitGTK flushes the GStreamer audio pipeline on every playbackRate
+    // assignment, so each write is an audible glitch there. Never write a
+    // value that is already set, and skip micro rate-nudging on Linux
+    // entirely — a rarer hard resync keeps sync without continuous glitches.
+    const applyAudioRate = (rate: number) => {
+      if (Math.abs(audio.playbackRate - rate) > 0.001) {
+        audio.playbackRate = rate;
+      }
+    };
+
     const targetTime = video.currentTime;
     const drift = audio.currentTime - targetTime;
 
-    if (hard || Math.abs(drift) > 0.65) {
+    if (hard || Math.abs(drift) > (IS_LINUX_RUNTIME ? 0.3 : 0.65)) {
       audio.currentTime = targetTime;
-      audio.playbackRate = playbackRate;
+      applyAudioRate(playbackRate);
       return;
     }
 
-    if (Math.abs(drift) > 0.08 && !video.paused && !video.ended) {
-      audio.playbackRate = clamp(playbackRate - drift * 0.12, playbackRate - 0.05, playbackRate + 0.05);
+    if (!IS_LINUX_RUNTIME && Math.abs(drift) > 0.08 && !video.paused && !video.ended) {
+      applyAudioRate(clamp(playbackRate - drift * 0.12, playbackRate - 0.05, playbackRate + 0.05));
     } else {
-      audio.playbackRate = playbackRate;
+      applyAudioRate(playbackRate);
     }
   }, [playbackRate, usesExternalAudio]);
 
@@ -1175,7 +1179,7 @@ export const Player: React.FC<PlayerProps> = ({
         abr: {
           autoSwitchBitrate: {
             video: false,
-            audio: true,
+            audio: false,
           },
         },
         buffer: {

@@ -88,7 +88,6 @@ export function resolveYoutubeThumbnailCandidates(
   const candidates: string[] = [];
   if (resolvedId) {
     candidates.push(
-      youtubeThumbnailUrl(resolvedId, "large"),
       youtubeThumbnailUrl(resolvedId, "standard"),
       `https://i.ytimg.com/vi/${resolvedId}/hqdefault.jpg`,
     );
